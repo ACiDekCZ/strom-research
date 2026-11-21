@@ -70,7 +70,7 @@ test("a new hypothesis-links task: the highest priority, first in task next, the
   const t = ours(w)[0]!;
   assert.equal(t.priority, HYPOTHESIS_LINKS_PRIORITY);
   assert.equal(t.level, "enrich");
-  assert.deepEqual(readJsonFile(path.join(w.cwd, "strom.json")).settled, ["readers-1", "proven-originals-1", "origins-1", "verify-originals-1", "origins-tree-1", "hypothesis-links", HYPOTHESIS_LINKS_FIRST]);
+  assert.deepEqual(readJsonFile(path.join(w.cwd, "strom.json")).settled, ["readers-1", "proven-originals-1", "origins-1", "verify-originals-1", "origins-tree-1", "name-status-1", "hypothesis-links", HYPOTHESIS_LINKS_FIRST]);
 
   assert.equal((await order(w))[0], id);
   const next = await w.ok(["task", "next", "--json"]);
@@ -113,6 +113,7 @@ test("after the update: an older strom's open tasks raised once, logged — at t
   // without the raise: behind the research
   assert.notEqual((await order(w))[0], a);
 
+  const left = head(w);
   older(w);
   await w.ok(["stats"]);
   const after = new Map(ours(w).map((t) => [t.id, t]));
@@ -128,7 +129,10 @@ test("after the update: an older strom's open tasks raised once, logged — at t
   const ops = tree.readOps().filter((o) => o.op === "task.edit" && /hypothesis variants come first/.test(o.reason ?? ""));
   assert.deepEqual(ops.map((o) => o.summary), [`${a} priority 2 → 5`]);
   assert.ok(readJsonFile(path.join(w.cwd, "strom.json")).settled.includes(HYPOTHESIS_LINKS_FIRST));
-  assert.match(spawnSync("git", ["-C", w.cwd, "log", "-5", "--format=%s"], { encoding: "utf8" }).stdout, new RegExp(`^Tasks to say what the variants of hypotheses would connect first in the queue \\(${a}\\)`, "m"));
+  // (among the commits of that first run, beside those of the other settles of a newer strom)
+  const raised = spawnSync("git", ["-C", w.cwd, "log", "--format=%s", `${left}..HEAD`], { encoding: "utf8" }).stdout.split("\n").filter((l) => l.startsWith("Tasks to say what the variants of hypotheses would connect first in the queue"));
+  assert.equal(raised.length, 1, "one commit");
+  assert.match(raised[0]!, new RegExp(`^Tasks to say what the variants of hypotheses would connect first in the queue \\(${a}\\)`));
   assert.equal(spawnSync("git", ["-C", w.cwd, "status", "--porcelain"], { encoding: "utf8" }).stdout, "");
 
   // once: the person lowers it now, a newer strom again — nothing written

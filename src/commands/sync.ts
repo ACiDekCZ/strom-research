@@ -170,8 +170,8 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
         ? `ui.sync.fact.part${!c.part ? ".gone" : c.wasPart && c.wasPart.role !== c.part.role ? ".role" : c.wasPart ? ".link" : ""}`
         : c.kind === "name.new" && c.married
           ? "ui.sync.name.married"
-          : c.kind === "fact.confirm" && c.confirm?.on === false
-            ? "ui.sync.fact.confirm.back"
+          : (c.kind === "fact.confirm" || c.kind === "name.confirm") && c.confirm?.on === false
+            ? `ui.sync.${c.kind}.back`
             : c.kind === "fact.share"
               ? `ui.sync.fact.share${c.shared === "roleAt" ? ".role" : ""}${(c.shared === "roleAt" ? c.fact?.roleAt : c.fact?.share) ? "" : ".gone"}`
               // the main citation and the citations the user removed (spec 095)
@@ -195,6 +195,9 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
       // the user's confirmation against the scan (spec 065): the person's alone
       : c.kind === "fact.confirm"
       ? c.action === "report" ? "ui.sync.do.confirm.report" : !tree.personWrites ? "ui.sync.do.confirm.kept" : `ui.sync.do.confirm${c.confirm?.on === false ? ".back" : ""}`
+      // …and of the name of their identity (spec 066 P5)
+      : c.kind === "name.confirm"
+      ? !tree.personWrites ? "ui.sync.do.confirm.kept" : `ui.sync.do.name.confirm${c.confirm?.on === false ? ".back" : ""}`
       // the Strom app's mark of a shared event (spec 085): who shares one the person's alone
       : c.kind === "fact.share"
       ? c.action === "add" ? "ui.sync.do.share" : !tree.personWrites ? "ui.sync.do.share.kept" : "ui.sync.do.share.user"

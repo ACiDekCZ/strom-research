@@ -53,7 +53,8 @@ import * as git from "../core/git.ts";
 import { treeEdges, type Edge, type Island } from "../core/edge.ts";
 import type { TableMarks, TableWait } from "../core/tablemarks.ts";
 import { readersOf } from "../core/review.ts";
-import { confirmedOn, factMark, markOf } from "../core/readers.ts";
+import { confirmedOn, factMark, markOf, nameMark } from "../core/readers.ts";
+import { nameEid } from "../core/namestatus.ts";
 import { sexRaw, sideText, sidesOf } from "../core/conflicts.ts";
 import { settledClaim } from "../core/labels.ts";
 import { humanTask } from "../cli/human.ts";
@@ -155,6 +156,14 @@ export interface ExportOptions {
   noCouple?: boolean;
   /** The Strom profile, an app that shows it (APP_SHOWS_FACT_STATUS): how sure each fact is as 2 _STROM_STATUS, not as a note. */
   factStatus?: boolean;
+  /**
+   * The Strom profile, for an app that reads how sure a name is (APP_READS_NAME_STATUS, spec 066 P5): under each NAME
+   * with a status and a citation `2 _STROM_STATUS` (with factStatus); under the name of the person's identity, with
+   * verify, `2 _STROM_EID P….N` (`3 _TXT`: core/readers.ts nameMark), `2 _STROM_CONFIRMED <day>`, `2 _STROM_VERIFY`
+   * (verify's entry under the name's id, core/namestatus.ts nameEid) and `2 _STROM_CHECKED` — after its SOUR and
+   * _STROM_ORIGIN, as a fact's.
+   */
+  nameStatus?: boolean;
   /** For a Strom app that knows an archive (APP_KNOWS_ARCHIVE): 1 _STROM_MODE archive in the header. */
   archive?: boolean;
   /**
@@ -465,6 +474,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   const origins = !!opts.origins && opts.for === "strom";
   // The verification of facts against their originals (spec 065), for an app that shows it.
   const verify = opts.for === "strom" ? opts.verify : undefined;
+  // how sure a name is, its confirmation (spec 066 P5): for an app that reads them (APP_READS_NAME_STATUS) alone
+  const nameMarks = opts.for === "strom" && !!opts.nameStatus;
   const importsNamed = new Map<string, Source>();
   const importKey = (id: string | undefined): string | undefined => {
     const s = id ? tree.get<Source>(id) : undefined;
@@ -663,6 +674,14 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         // one for each part changed, the part's value alone (a given name, a surname)
         for (const k of n.was?.parts ?? []) wasLine(2, n.was![k] ?? "", n.was!.source, NAME_PART_TAGS[k], nameRef(p, p.names.indexOf(n)));
       }
+      // how sure the name is (spec 066 P5): a status a record gives it — none without one
+      if (nameMarks && opts.factStatus && n.status && n.citations?.length) w.line(2, "_STROM_STATUS", n.status);
+      // the name of their identity: its id and mark, the person's confirmation, how it waits, the last verification
+      if (n === primary && nameMarks && verify) {
+        w.line(2, "_STROM_EID", nameEid(p));
+        w.line(3, "_TXT", nameMark(n));
+        verifyLines(n, verify.get(nameEid(p)));
+      } else if (n === primary && opts.ids && n.confirmed && /^\d{4}-\d{2}-\d{2}/.test(n.confirmed.at)) w.line(2, "_STROM_CONFIRMED", n.confirmed.at.slice(0, 10));
     }
     w.line(1, "SEX", p.sex);
     // where the sex came from (spec 066): of a known sex, or one an import gave
@@ -997,8 +1016,11 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     w.line(level + 1, "_REF", ref);
   }
 
-  /** A fact's verification against its originals (spec 065, APP_SHOWS_VERIFY): the user's confirmation, how it waits, the last result. */
-  function verifyLines(e: Event, waits: { state: string; pos?: number } | undefined): void {
+  /**
+   * A fact's verification against its originals (spec 065, APP_SHOWS_VERIFY) — or the name of a person's identity's
+   * (spec 066 P5, APP_READS_NAME_STATUS): the user's confirmation, how it waits, the last result.
+   */
+  function verifyLines(e: Pick<Event, "confirmed" | "verified"> & { status?: Event["status"] | undefined }, waits: { state: string; pos?: number } | undefined): void {
     if (e.confirmed && /^\d{4}-\d{2}-\d{2}/.test(e.confirmed.at)) w.line(2, "_STROM_CONFIRMED", e.confirmed.at.slice(0, 10));
     if (waits) {
       w.line(2, "_STROM_VERIFY", waits.state);

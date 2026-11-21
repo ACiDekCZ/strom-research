@@ -77,6 +77,8 @@ export const PHRASES = {
   "verify.search.why": "the person asked for these facts to be verified; the research read no original of them (a family tree's, or another's reading): the record the citation names (archive, book, page) is looked for first",
   "verify.bulk.search.why": "a bulk verification: these facts come from an imported family tree and the research read no original of them — the record the citation names (archive, book, page) is looked for first, after the lines' work",
   "verify.search.done": "each record found cited (strom cite E… S…) and read, then strom verify done E… --proven --image … or --kept --reason \"…\"; a search in vain recorded (strom search add …)",
+  "verify.done.name": "each fact and the name ({names}): the entry on the image of the original read first, then compared — the same → strom verify done E…|{names} --proven --image M…; otherwise --kept --reason \"…\" (a value that differs: a conflict, never overwritten); the same name in Latin or another language's form agrees, another name → --kept with a conflict or a form of the name",
+  "verify.search.done.name": "each record found cited (strom cite E… S…, the name strom cite {id} S…) and read, then strom verify done E…|{names} --proven --image … or --kept --reason \"…\" (the same name in Latin or another language's form agrees); a search in vain recorded (strom search add …)",
   "verify.dropped.resolved": "every fact of it verified, confirmed or proven otherwise",
   "verify.dropped.undo": "the fix verify-originals undone",
   "verify.dropped.confirmed": "its facts confirmed by the person against the scan",

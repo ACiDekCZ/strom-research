@@ -40,6 +40,12 @@
 //                          (strom-research://…&handoff=<uuid>) taken in the last minute — a terminal came up for it, or
 //                          what needs none was done (core/handoffs.ts) — newest first, [] with none; read at each ask,
 //                          with parts=1 too, never part of a state kept.
+//                          features: what the bridge does that the app may ask about (BRIDGE_FEATURES, bridgeFeatures:
+//                          a few only for an app of the version that reads what they need; an archive's without the
+//                          agent's). name-status (spec 066 P5) only for an app of APP_READS_NAME_STATUS, whose /tree.ged
+//                          says a name's status, confirmation and verification under NAME (2 _STROM_EID P….N): the app
+//                          offers Verify (POST /verify {fact: P….N}) and Confirm against the scan (POST /facts/confirm
+//                          {fact: P….N}) at the name of a person's identity — the confirmation in an archive too.
 //   GET <token>/status/<part>  one of those parts: {part, rev, head, …its fields as /status carries them}; 404
 //                          status.part for another name.
 //                          A queue item off the lines of a research with several (core/offline.ts) says offLine:
@@ -424,12 +430,16 @@
 //                          on — {ok, reverted: {owner, ref, parts}, head, parent}; 400 revert.invalid, 404 revert.unknown
 //                          (no such value, or not the person's), 409 revert.nothing (nothing changed to put back), 503
 //                          research.busy (feature origin). The Strom file: _STROM_ORIGIN, _STROM_WAS (APP_SHOWS_ORIGIN)
-//   POST <token>/verify {"person": "P…"} | {"family": "F…"} | {"fact": "E…"}, "dry"?: true: the user asks the facts
+//   POST <token>/verify {"person": "P…"} | {"family": "F…"} | {"fact": "E…" | "P….N"}, "dry"?: true: the user asks the facts
 //                          verified against their originals (spec 065; strom verify facts … --living), first in the
 //                          queue — {ok, task|null, state?: wait|asked|images|permission, position? (wait, asked: the
 //                          task's place in the queue), tasks?: [{task, state, position?, facts}] (not dry: every task
 //                          it touches, nearest to its turn first, the first on top), facts: [{fact, kind, how:
-//                          read|search, record?: {source, title, page?}}], estimate: {sessions, usd?}, head, parent};
+//                          read|search, record?: {source, title, page?}, with?}], estimate: {sessions, usd?}, head, parent};
+//                          the name of a person's identity (spec 066 P5, feature name-status) as a fact: fact P0012.N,
+//                          kind NAME; read together with the person's birth or baptism (BIRT, CHR, BAPM) whose
+//                          original it cites too — either asked for brings the other along, first the name, each
+//                          saying the other in with (the fact's id, P….N); facts and tasks' facts hold P….N too;
 //                          dry: nothing written, head == parent; 400 verify.invalid, 404 verify.unknown,
 //                          409 verify.archive | verify.nothing | verify.retracted, 503 research.busy (feature verify)
 //   POST <token>/verify/bulk {"scope": "line"|"lineage"|"tree", "of"?: "G…"|"P…", "order"?: "ancestors"|"weakest"|
@@ -444,16 +454,23 @@
 //                          the tasks nobody started dropped, one at work goes on, their facts not queued again by
 //                          themselves — {ok, dropped, facts, head, parent}; nothing to stop: dropped 0, nothing written;
 //                          400 verify.invalid, 409 verify.archive, 503 research.busy (feature verify.stop)
-//   POST <token>/facts/confirm {"fact": "E…", "txt"?: "<its 3 _TXT>", "confirm": true|false}: the user confirms a fact
-//                          against the scan, or takes it back (strom verify confirm E… [--undo] [--txt]; an archive's
+//   POST <token>/facts/confirm {"fact": "E…" | "P….N", "txt"?: "<its 3 _TXT>", "confirm": true|false}: the user confirms a
+//                          fact against the scan, or takes it back (strom verify confirm E… [--undo] [--txt]; an archive's
 //                          too) — {ok, fact, owner, confirmed?, head, parent}; the same state again: 200, nothing written;
 //                          txt: the mark of the value the app showed (the Strom file's 3 _TXT under 2 _STROM_EID), a fact
 //                          changed since refused 409 confirm.changed (+txt: the mark now, now: {date?, place?, value?}),
 //                          nothing written; without txt as before; 400 factconfirm.invalid, 404 factconfirm.unknown, 409
 //                          factconfirm.retracted | factconfirm.merged, 503 research.busy (features facts.confirm,
-//                          facts.confirm.value). /status verify {waiting, asked, images, permission, kept, confirmed,
-//                          fix?: {at, facts, people}} (none in an archive or a research waiting for its agent). The Strom
-//                          file: 2 _STROM_EID, _STROM_CONFIRMED, _STROM_VERIFY (3 _POS), _STROM_CHECKED (APP_SHOWS_VERIFY)
+//                          facts.confirm.value). The name of a person's identity (spec 066 P5, feature name-status):
+//                          fact P0012.N (the Strom file's 2 _STROM_EID under its NAME) — {ok, fact: "P0012.N", owner:
+//                          "P0012", confirmed?, head, parent}, its status as it is, tasks of verification leave it; a name
+//                          changed since 409 confirm.changed with now: {given, surname}; 404 factconfirm.unknown (no such
+//                          person, or no name), 409 factconfirm.retracted | factconfirm.merged (the person).
+//                          /status verify {waiting, asked, images, permission, kept, confirmed,
+//                          fix?: {at, facts, people}} (none in an archive or a research waiting for its agent; the names
+//                          of people's identities counted with the facts). The Strom
+//                          file: 2 _STROM_EID, _STROM_CONFIRMED, _STROM_VERIFY (3 _POS), _STROM_CHECKED (APP_SHOWS_VERIFY;
+//                          under NAME, its 2 _STROM_EID P….N: APP_READS_NAME_STATUS, where features say name-status)
 //   POST <token>/sources/proposal {"source": "S…", "task": "T…", "take": "proposal"|"keep"|"undo", "proposed"?: "<mark>"}:
 //                          the user decides a new wording an agent proposed for a transcript they read (core/proposal.ts;
 //                          the waiting item of kind transcript carries it, with its mark): taken as theirs (read.user,
@@ -637,6 +654,7 @@
 // new secret. Nothing is replaced on a timer.
 
 import { factIn, factNow, settleVerify, verifyCounts } from "./verify.ts";
+import { settleNameStatus } from "./namestatusfix.ts";
 import { browserState, treeBrowserArchives } from "./browserhelp.ts";
 import { opsLogsOf } from "./opslog.ts";
 import { placeOfWork } from "./workplace.ts";
@@ -660,7 +678,8 @@ import { directionOf, scopes, type Scope } from "./directions.ts";
 import { linePeople } from "./frontier.ts";
 import { BRANCH_MODES, branchJson, branchKey, branchModeOf, branchOf, lineOf, OFFLINE_FILE, offLineJson, offLineView, placer, readOffline, type BranchView, type OfflineFile, type OffLineView, type Placed } from "./offline.ts";
 import { directionsOf, directionsRev, placesJson } from "./tablemarks.ts";
-import { ancestorGenerations, displayName } from "./people.ts";
+import { ancestorGenerations, displayName, primaryName } from "./people.ts";
+import { parseNameEid } from "./namestatus.ts";
 import { findEventOwner, sameDirection } from "./actions.ts";
 import { foundByLine, type Found } from "./found.ts";
 import { orderMode, orderNumbers, workOrder } from "./order.ts";
@@ -676,7 +695,7 @@ import { actsAsArchive, kindOf, settleWaiting, stateOf } from "./state.ts";
 import { forStory } from "./stories.ts";
 import { censusHeldCount, censusHidden } from "./census.ts";
 import { kindCounts, kindMatches, parseKnownKinds, parseTaskKind, TASK_KINDS, taskKind, type TaskKind } from "./taskkind.ts";
-import { factMark, transcriptMark } from "./readers.ts";
+import { factMark, nameMark, transcriptMark } from "./readers.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts";
 import { settleReaders } from "./readerfix.ts";
 import { settleProven } from "./provenfix.ts";
@@ -725,7 +744,7 @@ import { whatsNew } from "./whatsnew.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
 import { RECENT_HOURS, recentChanges, recentNow, type Recent } from "./recent.ts";
-import { APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appReadsMainCitation, appSendsUncite, appDecidesHypotheses, appOpensLinks, appShowsOrigin, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
+import { APP_READS_NAME_STATUS, APP_READS_NAME_STATUS_BETA, APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appReadsMainCitation, appReadsNameStatus, appSendsUncite, appDecidesHypotheses, appOpensLinks, appShowsOrigin, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
 import { suggestSurnames } from "./surnames.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
 import { askOf, qualityRev, readDismissed } from "./quality.ts";
@@ -1781,7 +1800,7 @@ export function tagMatches(req: Pick<http.IncomingMessage, "headers">, tag: stri
     .some((t) => t === "*" || t === tag);
 }
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "name-status"] as const;
 
 /** What only a research with its agent here does (accepts.read: none in an archive, nor where it waits for its agent). */
 const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort"]);
@@ -1791,14 +1810,25 @@ const withoutAgent = (features: readonly string[]): readonly string[] => feature
  * What the bridge says it does to the app of that version: BRIDGE_FEATURES, but origin.ids only where its /tree.ged
  * carries the original IDs (the gate of the origins, the same version of the app as the file goes by) — an app that is
  * told so takes the research's file as the IDs' keeper and drops its own (found by the joint check of spec 066).
+ * name-status (spec 066 P5: a name's status, confirmation and verification — its id P….N) only where /tree.ged says
+ * them under NAME (APP_READS_NAME_STATUS, the same version of the app as the file goes by: `nameGate`, `nameBeta`);
+ * the person's in an archive too (the confirmation against the scan is theirs).
  */
-export function bridgeFeatures(settings: Settings, version?: string, gate: string | undefined = APP_SHOWS_ORIGIN, beta: string | undefined = APP_SHOWS_ORIGIN_BETA): readonly string[] {
+export function bridgeFeatures(
+  settings: Settings,
+  version?: string,
+  gate: string | undefined = APP_SHOWS_ORIGIN,
+  beta: string | undefined = APP_SHOWS_ORIGIN_BETA,
+  nameGate: string | undefined = APP_READS_NAME_STATUS,
+  nameBeta: string | undefined = APP_READS_NAME_STATUS_BETA,
+): readonly string[] {
   // spec 095: the main citation only to an app that reads it (its /tree.ged carries _STROM_MAIN), a citation removed
   // only from one whose file says it (APP_SENDS_UNCITE); the order and the codes of what is not written to every one
   const off = new Set<string>([
     ...(appShowsOrigin(settings, version, gate, beta) ? [] : ["origin.ids"]),
     ...(appReadsMainCitation(settings, version) ? [] : ["citations.main"]),
     ...(appSendsUncite(version) ? [] : ["citations.remove"]),
+    ...(appReadsNameStatus(settings, version, nameGate, nameBeta) ? [] : ["name-status"]),
   ]);
   return off.size ? BRIDGE_FEATURES.filter((f) => !off.has(f)) : BRIDGE_FEATURES;
 }
@@ -3140,6 +3170,13 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     if (done) noteLive(root, `facts to verify against their originals: ${counted(done.facts, "fact")} of ${counted(done.people, "person", "people")} queued`);
   } catch (e) {
     noteLive(root, `the facts to verify against their originals not queued now: ${errorText(e)}`);
+  }
+  // how sure a name is: the names a record of the research's names made probable once (spec 066 P5)
+  try {
+    const done = settleNameStatus(Tree.open(root, env));
+    if (done) noteLive(root, `how sure a name is: ${counted(done.changed, "name")} made probable in ${counted(done.records, "record")}`);
+  } catch (e) {
+    noteLive(root, `how sure the names are not set now: ${errorText(e)}`);
   }
   // an agent's proposals whose value proposed holds now: closed by themselves (no value written)
   try {
@@ -6672,12 +6709,14 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         const keys = Object.keys(body).filter((k) => k !== "dry");
         const key = keys[0];
         const v = key ? body[key] : undefined;
-        const shape: Record<string, RegExp> = { person: /^P\d{1,9}$/iu, family: /^F\d{1,9}$/iu, fact: /^E\d{1,9}$/iu };
+        // a fact: E…, or the name of a person's identity (P….N, spec 066 P5)
+        const shape: Record<string, RegExp> = { person: /^P\d{1,9}$/iu, family: /^F\d{1,9}$/iu, fact: /^(?:E\d{1,9}|P\d{1,9}\.N)$/iu };
         if (keys.length !== 1 || !shape[key!] || typeof v !== "string" || !shape[key!]!.test(v.trim()) || (body.dry !== undefined && typeof body.dry !== "boolean"))
-          return { code: 400, body: refusal(`the body: {"person": "P…"} | {"family": "F…"} | {"fact": "E…"}, "dry"?: true`, "verify.invalid") };
+          return { code: 400, body: refusal(`the body: {"person": "P…"} | {"family": "F…"} | {"fact": "E…" | "P….N"}, "dry"?: true`, "verify.invalid") };
         const no = noVerify(tree);
         if (no) return no;
-        const id = normId(v.trim());
+        const named = key === "fact" ? parseNameEid(v) : undefined;
+        const id = named ? `${named}.N` : normId(v.trim());
         if (key !== "fact") {
           const r = tree.get<Person | Family>(id);
           if (!r || r.type !== key) return { code: 404, body: refusal(`no ${key} ${id}`, "verify.unknown") };
@@ -6787,8 +6826,10 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
    */
   const factConfirmWrite = (): AppWrite => {
     let before = "";
-    // 409 confirm.changed: the mark now (txt) and what the fact says now (date, place, value), for the app to show again
-    const changed = (why: string, params: Record<string, string>) => {
+    // 409 confirm.changed: the mark now (txt) and what the fact says now (date, place, value; a name: given, surname),
+    // for the app to show again — a part it does not have left out
+    const changed = (why: string, all: Record<string, string | undefined>) => {
+      const params = Object.fromEntries(Object.entries(all).filter((e): e is [string, string] => typeof e[1] === "string" && e[1] !== "undefined"));
       const { txt, fact: _f, ...now } = params;
       return { code: 409, body: { ...refusal(why, "confirm.changed", params), ...(txt ? { txt } : {}), now } };
     };
@@ -6799,11 +6840,17 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       ask(tree, body) {
         const keys = Object.keys(body).sort().join(",");
         const { fact, confirm, txt } = body;
-        if ((keys !== "confirm,fact" && keys !== "confirm,fact,txt") || typeof fact !== "string" || !/^E\d{1,9}$/iu.test(fact.trim()) || typeof confirm !== "boolean" || (txt !== undefined && (typeof txt !== "string" || !/^[0-9a-f]{16}$/iu.test(txt))))
-          return { code: 400, body: refusal(`the body: {"fact": "E…", "txt"?: "<the fact's 3 _TXT under 2 _STROM_EID>", "confirm": true | false}`, "factconfirm.invalid") };
-        const id = normId(fact.trim());
+        // a fact (E…) or the name of a person's identity (P….N, spec 066 P5: the Strom file's 2 _STROM_EID under NAME)
+        const person = typeof fact === "string" && /^\s*P\d{1,9}\.N\s*$/iu.test(fact) ? parseNameEid(fact) : undefined;
+        if ((keys !== "confirm,fact" && keys !== "confirm,fact,txt") || typeof fact !== "string" || (!person && !/^E\d{1,9}$/iu.test(fact.trim())) || typeof confirm !== "boolean" || (txt !== undefined && (typeof txt !== "string" || !/^[0-9a-f]{16}$/iu.test(txt))))
+          return { code: 400, body: refusal(`the body: {"fact": "E…" | "P….N", "txt"?: "<its 3 _TXT under 2 _STROM_EID>", "confirm": true | false}`, "factconfirm.invalid") };
+        const id = person ? `${person}.N` : normId(fact.trim());
         // the value the person saw (an older file, ?stale=1) is what is confirmed: changed since, refused before anything
-        if (typeof txt === "string") {
+        if (typeof txt === "string" && person) {
+          const p = tree.get<Person>(person);
+          const name = p && p.type === "person" && !p.retracted && !p.mergedInto && p.names.length ? primaryName(p) : undefined;
+          if (name && nameMark(name) !== txt.toLowerCase()) return changed(`the name of ${person} changed since the app showed it: confirm what it says now`, { fact: id, txt: nameMark(name), given: name.given, surname: name.surname });
+        } else if (typeof txt === "string") {
           const event = factIn(tree, id);
           if (event && factMark(event) !== txt.toLowerCase()) return changed(`${id} changed since the app showed it: confirm what it says now`, { fact: id, txt: factMark(event), ...factNow(event) });
         }

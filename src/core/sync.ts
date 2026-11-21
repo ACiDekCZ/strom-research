@@ -47,11 +47,12 @@ import { StromError, UsageError } from "./errors.ts";
 import * as git from "./git.ts";
 import { now, Tree, typeOfId } from "./tree.ts";
 import { verifyConfirm } from "./verify.ts";
+import { nameEid, parseNameEid } from "./namestatus.ts";
 import { actsAsArchive } from "./state.ts";
 import { appSides } from "./conflicts.ts";
 import { userReading } from "./readers.ts";
 import { applyProposal, changedPerson, deletedImportSource, FACT_PARTS, factChanges, importSourceFor, importsOfHead, knownImportSource, markUnder, NAME_PARTS, originOfMark, personChangedFact, primaryVerdict, proposedLine, proposeFact, proposeName, proposePrimary, proposeRetract, proposeSex, researchChangedFact, verdictOf, type FactPart, type ImportMark, type ImportOf } from "./origin.ts";
-import { APP_DATA_SEX_UNKNOWN, APP_DATA_SOURCE_FIELDS, appDataDecidesShares, appDataMainCitation, appDataPartNotes, appReadsMainCitation, appSendsPartNotes, appSendsUncite, appDecidesShares, appKeepsPeriods, appKeepsSourceFields, appKnowsPrimaryName, appReadsLines, appReadsSurnameGroups, appShowsVerify, isAppVersion } from "./stromapp.ts";
+import { APP_DATA_SEX_UNKNOWN, APP_DATA_SOURCE_FIELDS, appDataDecidesShares, appDataMainCitation, appDataPartNotes, appReadsMainCitation, appReadsNameStatus, appSendsPartNotes, appSendsUncite, appDecidesShares, appKeepsPeriods, appKeepsSourceFields, appKnowsPrimaryName, appReadsLines, appReadsSurnameGroups, appShowsVerify, isAppVersion } from "./stromapp.ts";
 import { lineMarkOf, lineMarks, lineagesAt, planLines, setLineMark, undoLineMark, type LineChange, type LineMark } from "./lineages.ts";
 import { Settings } from "./config.ts";
 import { applySurnameChange, formsSaid, planSurnames, readMarkLines, readSurnames, surnamesAt, undoSurnameChange, type SurnameChange, type SurnameEntry, type SurnameMarks } from "./surnames.ts";
@@ -231,6 +232,14 @@ export interface SPerson {
   titles?: Titles;
   /** The Strom app's marks of an import of their names (by the name's line in `names`) and of their sex (the person's, or its SEX's). */
   nameMarks?: Record<string, ImportMark>;
+  /**
+   * The user's confirmation of the name of their identity against the scan (`2 _STROM_CONFIRMED YYYY-MM-DD` under the
+   * first NAME, spec 066 P5): its day ("" a mark of no day). Of the research's or the app's own file alone; planSync
+   * drops it of an app below APP_READS_NAME_STATUS.
+   */
+  nameConfirmed?: string;
+  /** The person the first NAME's id names (`2 _STROM_EID P….N`, the app saw its state): only for taking a confirmation back. */
+  nameEid?: string;
   sexMark?: ImportMark;
   /** The mark is the SEX line's own (not the person's): only such a mark makes a changed sex the import's. */
   sexMarkOwn?: true;
@@ -1035,6 +1044,12 @@ export function readGedcom(text: string, lang = "en", opts: ReadOptions = {}): S
       const m = markOf(n);
       if (m && names[i] !== undefined && !nameMarks[names[i]!]) nameMarks[names[i]!] = m;
     });
+    // the user's confirmation of the name of their identity (spec 066 P5): the first NAME's, of the research's or the
+    // app's own file alone — its status, id and verification never an edit (the research's own marks)
+    const first = trusted ? kept[0]?.n : undefined;
+    const nameConf = first?.children.find((x) => x.tag === "_STROM_CONFIRMED");
+    const nameConfirmed = nameConf ? (/^\d{4}-\d{2}-\d{2}$/.test(nameConf.value.trim().slice(0, 10)) ? nameConf.value.trim().slice(0, 10) : "") : undefined;
+    const nameEid = first ? parseNameEid(val(first, "_STROM_EID")) : undefined;
     const sexOwn = sex ? markOf(children(r, "SEX")[0]) : undefined;
     const sexMark = sex ? (sexOwn ?? markOf(r)) : undefined;
     // the IDs they had in a family tree the app imported (its blocks of an import its HEAD names; never its level-1 _UID)
@@ -1053,6 +1068,8 @@ export function readGedcom(text: string, lang = "en", opts: ReadOptions = {}): S
       ...(primary ? { primary } : {}),
       ...(line ? { line } : {}),
       ...(Object.keys(nameMarks).length ? { nameMarks } : {}),
+      ...(nameConfirmed !== undefined ? { nameConfirmed } : {}),
+      ...(nameEid ? { nameEid } : {}),
       ...(sexMark ? { sexMark } : {}),
       ...(sexOwn ? { sexMarkOwn: true as const } : {}),
       ...(ids.length ? { ids } : {}),
@@ -2682,6 +2699,7 @@ export type ChangeKind =
   | "lineage.mark"
   | "ids.add"
   | "fact.confirm"
+  | "name.confirm"
   | "fact.share"
   | "fact.main"
   | "fact.uncite"
@@ -2803,7 +2821,7 @@ export interface Change {
   line?: LineChange;
   /** ids.add: the IDs a person or a family of the research had in a family tree the app imported, as the file gives them (spec 066 K3.2). */
   ids?: IdBlock[];
-  /** fact.confirm: the user's confirmation against the scan given in the app (its day, "" none said), or taken back. */
+  /** fact.confirm, name.confirm: the user's confirmation against the scan given in the app (its day, "" none said), or taken back. */
   confirm?: { on: boolean; day: string };
   /**
    * fact.share: which mark of the Strom app the file gives the research's fact (`was`) — one event shared among people
@@ -2883,6 +2901,14 @@ export interface Plan {
 /** A file whose confirmations against the scan do not count (an app that was never given them): none of them read. */
 function unconfirmed(s: Snapshot): void {
   for (const facts of [...[...s.persons.values()].map((p) => p.facts), ...s.families.map((f) => f.facts)]) for (const f of facts) delete f.confirmed;
+}
+
+/** A file whose confirmations of names do not count (an app that was never given them, APP_READS_NAME_STATUS): none read. */
+function unconfirmedNames(s: Snapshot): void {
+  for (const p of s.persons.values()) {
+    delete p.nameConfirmed;
+    delete p.nameEid;
+  }
 }
 
 /** Does a record prove it: proven or probable, from a record — not a family tree, not someone's word. */
@@ -2983,7 +3009,7 @@ export function planSync(
   tree: Tree,
   incoming: Snapshot,
   edits: "conflict" | "user",
-  opts: { force?: boolean; takenBack?: false; sent?: boolean; decidesShares?: boolean; readsMain?: boolean; sendsUncite?: boolean; partNotes?: boolean; mediaApp?: boolean } = {},
+  opts: { force?: boolean; takenBack?: false; sent?: boolean; decidesShares?: boolean; readsMain?: boolean; readsNameStatus?: boolean; sendsUncite?: boolean; partNotes?: boolean; mediaApp?: boolean } = {},
 ): Plan {
   // an archive (or a research waiting for its agent) mirrors the app: the user's word wins, what the app no longer has is withdrawn (with the reason)
   const mirror = actsAsArchive(tree);
@@ -3068,6 +3094,10 @@ export function planSync(
   const readsConfirmed = appShowsVerify(new Settings(tree.env, {}), incoming.appVersion);
   if (!readsConfirmed) unconfirmed(incoming);
   if (base && base.appVersion && !appShowsVerify(new Settings(tree.env, {}), base.appVersion)) unconfirmed(base);
+  // …and of the name of a person's identity (spec 066 P5): of an app that is given them (APP_READS_NAME_STATUS) alone
+  const readsNameConfirmed = opts.readsNameStatus ?? appReadsNameStatus(new Settings(tree.env, {}), incoming.appVersion);
+  if (!readsNameConfirmed) unconfirmedNames(incoming);
+  if (base && base.appVersion && !(opts.readsNameStatus ?? appReadsNameStatus(new Settings(tree.env, {}), base.appVersion))) unconfirmedNames(base);
   // the app decides who shares an event (spec 085, APP_DECIDES_SHARES): of an app that does, a mark it changed or took
   // off since it was given is the user's; of any other only a mark the research's fact lacks is taken (never one changed)
   const decidesShares = opts.decidesShares ?? (incoming.format === "gedcom" ? appDecidesShares(new Settings(tree.env, {}), incoming.appVersion) : appDataDecidesShares(incoming.dataVersion));
@@ -3689,6 +3719,22 @@ export function planSync(
     push({ kind: "name.shown", action, person: id, name, shown: { theirs, mine }, text: line(p, theirs), wasName: line(o, mine) });
   };
 
+  /**
+   * The user's confirmation of the name of a person's identity against the scan (spec 066 P5), as a fact's (confirmDiff):
+   * given in the app since it was given (without a base: every one), or taken back there — only of the name the research
+   * has (renamed in the app: never here, the mark dropped); taken back only where the file's first NAME carries its id
+   * (`2 _STROM_EID P….N`, the app saw its state).
+   */
+  const nameConfirmDiff = (id: string, name: string, p: SPerson, o: SPerson, b: SPerson | undefined) => {
+    const on = p.nameConfirmed !== undefined;
+    if (!readsNameConfirmed || on === (o.nameConfirmed !== undefined)) return;
+    if (!p.names[0] || !o.names[0] || nameKey(p.names[0]) !== nameKey(o.names[0])) return;
+    if (!on && p.nameEid !== id) return;
+    if (b && on === (b.nameConfirmed !== undefined)) return;
+    if (!b && !on) return;
+    push({ kind: "name.confirm", action: "user", person: id, name, text: o.names[0], confirm: { on, day: p.nameConfirmed ?? "" } });
+  };
+
   /** The user's edits of a person: the file's (`p`) against the research's (`o`) and what the app was given (`b`). */
   const personDiff = (id: string, name: string, p: SPerson, o: SPerson, b: SPerson | undefined) => {
   factsDiff({ person: id, name }, p.facts, o.facts, b?.facts, true);
@@ -3715,6 +3761,7 @@ export function planSync(
   for (const n of p.names) if (!theirMarried.has(n) && !((renamed || both) && n === now) && !ourNames.has(nameKey(n)) && !baseNames.has(nameKey(n)) && !goneNames.has(nameKey(n))) push({ kind: "name.new", action: "add", person: id, name, text: n });
   marriedDiff(id, name, p, o, b);
   primaryDiff(id, name, p, o, b);
+  nameConfirmDiff(id, name, p, o, b);
   // the titles of the name they are shown by (T07), each apart and never as a change of the name itself: the user's
   // edit where the file's differs from what the app was given — one the name lacks added, a lead's corrected, a
   // record's name the user's to decide (or their word: sync.edits user, an archive); the research's changed since
@@ -5608,6 +5655,7 @@ export interface Applied {
     | "lineage.set"
     | "ids.add"
     | "event.confirm"
+    | "name.confirm"
     | "event.share"
     | "source.retract";
   id: string;
@@ -6521,6 +6569,24 @@ export function applySync(
             },
           );
           applied.push({ do: "event.share", id: mine.id, before: JSON.stringify({ mark: which, was: mine[which] ?? null }) });
+          break;
+        }
+        case "name.confirm": {
+          // the user's confirmation of the name of their identity given or taken back in the app (spec 066 P5): the person's alone
+          const mine = c.person ? tree.get<Person>(c.person) : undefined;
+          if (!mine || mine.type !== "person" || mine.retracted || mine.mergedInto || !c.confirm) break;
+          if (!person) {
+            kept(c, `the name of ${mine.id} ${c.confirm.on ? "confirmed" : "its confirmation taken back"} against the scan by nobody but the user — tell the user`, { person: mine.id });
+            break;
+          }
+          // as strom verify confirm P….N: the tasks of verification it leaves kept as they were, for an undo
+          const was = primaryName(mine).confirmed;
+          const eid = nameEid(mine);
+          const tasks = tree.list<Task>("task").filter((t) => !t.retracted && t.where?.includes(eid));
+          const r = verifyConfirm(tree, eid, c.confirm.on, { day: c.confirm.day, reason: `from ${reason}` });
+          if (r.same) break;
+          const touched = new Set([...r.left, ...r.dropped]);
+          applied.push({ do: "name.confirm", id: mine.id, before: JSON.stringify({ confirmed: was ?? null, tasks: tasks.filter((t) => touched.has(t.id)) }) });
           break;
         }
         case "fact.confirm": {
@@ -7931,6 +7997,30 @@ export function undoSync(tree: Tree, input: SyncInput): number {
           }),
           { op: "event.edit", summary: `${a.id} ${which === "share" ? "shared event" : "role at"} as it was: ${reason}`, reason },
         );
+        break;
+      }
+      case "name.confirm": {
+        // the confirmation of the name of their identity as it was before the sync (one taken or given since: left)
+        const p = tree.get<Person>(a.id);
+        const b = JSON.parse(String(a.before ?? "{}")) as { confirmed?: Name["confirmed"] | null; tasks?: Task[] };
+        if (!p || p.type !== "person") break;
+        const n = primaryName(p);
+        const i = p.names.indexOf(n);
+        if (i < 0 || !!n.confirmed === !!b.confirmed) break;
+        // the tasks of verification it left, the name still out of them (nobody gave it back to them since)
+        const eid = nameEid(p);
+        const back = (b.tasks ?? []).filter((t) => {
+          const cur = tree.get<Task>(t.id);
+          return !!cur && !cur.where.includes(eid) && (cur.state === "dropped" || cur.state === t.state);
+        });
+        const at = now();
+        const { confirmed: _c, ...rest } = n;
+        tree.putMany([{ ...p, names: p.names.map((x, j) => (j === i ? (b.confirmed ? { ...rest, confirmed: b.confirmed } : rest) : x)), updated: at }, ...back.map((t) => ({ ...t, updated: at }))], [], {
+          op: b.confirmed ? "name.confirm" : "name.unconfirm",
+          targets: [p.id, ...back.map((t) => t.id)],
+          summary: `${p.id} the person's confirmation of the name of their identity as it was${back.length ? ` · ${back.map((t) => t.id).join(", ")} as before` : ""}: ${reason}`,
+          reason,
+        });
         break;
       }
       case "event.confirm": {

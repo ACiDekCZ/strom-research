@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.36.0
 
-*In preparation: the betas up to 1.36.0-beta.6. The section is complete with the release.*
+*In preparation: the betas up to 1.36.0-beta.7. The section is complete with the release.*
 
 - **A try of the bulk verification at once:** the tasks of a try of the bulk verification (`strom verify bulk --try`)
   stand first in the queue — the next session takes them — and the Strom app can have them worked on at once, one
@@ -45,7 +45,12 @@ The changes of each version in short. The full notes and the install lines are o
   on the tree at once (`strom census add`): the relation to the head, the age, date, place and house and the sheet's
   citation alike for each; the people off the tree only in the note. The relation is taken as the census forms write
   it ("head of the household", "wife of the head" and their words in Czech, German and Polish).
-- **Names after a marriage:** of a woman married more than once, the name now is the one after the last marriage — the
+- **Names: how sure, and after a marriage:** a person's name is cited as a fact is, with how sure it is: the agent
+  cites the name as the record it read gives it (`strom cite P… S… --status`, `name add --status`, `person add
+  --name-status`; proven only on the original record), and the names an older research cited from its records become
+  probable once by themselves (never proven; a name the person wrote or confirmed stays as it is; `strom fixes undo
+  name-status` puts them back). The Strom app that shows it has the name verified together with the birth's record and
+  confirms it against the scan like a fact. Of a woman married more than once, the name now is the one after the last marriage — the
   husband's surname of the latest wedding, in the wife's form too; a name chosen in the Strom app as the one now is
   taken over and stays so until chosen again. The file for the Strom app gives the names after a marriage last, the one
   now the very last, so an older Strom app shows the right one as well.

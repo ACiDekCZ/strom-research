@@ -3,20 +3,21 @@
 // and how: the entry read on the image first (blind: another reader, K2.2), then compared; the result with strom verify
 // done; a different value never overwritten where it is the user's or a family tree's (spec 066: only proposed); a fact
 // the user confirmed against the scan never changed. A search (verify:search, a bulk one's of a family tree's leads):
-// the record the citation names found and cited first, within the archives' terms.
+// the record the citation names found and cited first, within the archives' terms. The name of a person's identity
+// (P0012.N, spec 066 P5) as a fact: the name in the same entry compared with it, never changed here.
 
-import type { Event, Source, Task } from "../core/model.ts";
+import type { Event, Name, Source, Task } from "../core/model.ts";
 import type { Tree } from "../core/tree.ts";
 import { regionText } from "../core/media.ts";
 import { composedPage } from "../core/sourcefields.ts";
 import { setsWithImages } from "../core/mediaindex.ts";
 import { provesIt } from "../core/evidence.ts";
 import { langName } from "../core/lang.ts";
-import { isVerifyTask, searchesRecord, taskFacts } from "../core/verifyfacts.ts";
+import { isCheckedId, isNameId, isVerifyTask, searchesRecord, taskItems } from "../core/verifyfacts.ts";
 import type { Section } from "./brief.ts";
 
-/** Whose value a fact is (spec 066): the user's or a family tree's is never overwritten, only proposed. */
-function whose(e: Event): string | undefined {
+/** Whose value a fact (or a name) is (spec 066): the user's or a family tree's is never overwritten, only proposed. */
+function whose(e: Pick<Event, "origin"> | Pick<Name, "origin">): string | undefined {
   if (!e.origin) return undefined;
   if (e.origin.by === "user") return e.origin.tree ? "the user's family tree's value" : "the user's value";
   return `a family tree's value${e.origin.parts?.length ? ` (${e.origin.parts.join(", ")})` : ""}`;
@@ -41,31 +42,26 @@ function sourceLine(tree: Tree, id: string, original: boolean, withImages: Set<s
 
 /** One line of each fact of the task, the sources it cites under it. */
 export function verifyItems(tree: Tree, task: Task): string[] {
-  const facts = new Map(taskFacts(tree, task).map((f) => [f.event.id, f]));
+  const facts = new Map(taskItems(tree, task).map((f) => [f.item.id, f]));
   const withImages = setsWithImages(tree);
   const out: string[] = [];
   for (const id of task.where) {
-    if (!/^E\p{N}{4,}$/u.test(id)) continue;
+    if (!isCheckedId(id)) continue;
     const f = facts.get(id);
     if (!f) {
       out.push(`  ${id} (no longer there)`);
       continue;
     }
-    const e = f.event;
-    const said = [
-      `${e.id} ${e.kind}`,
-      e.date ? ` ${e.date}` : "",
-      e.place ? `, ${e.place}` : "",
-      e.house ? ` ${e.house}` : "",
-      e.value ? ` "${e.value}"` : "",
-      ` [${e.status}]`,
-      ` · ${f.owner.id}`,
-    ].join("");
+    const e = f.item;
+    const ev = e.event;
+    const said = ev
+      ? [`${e.id} ${e.kind}`, ev.date ? ` ${ev.date}` : "", ev.place ? `, ${ev.place}` : "", ev.house ? ` ${ev.house}` : "", ev.value ? ` "${ev.value}"` : "", ` [${ev.status}]`, ` · ${f.owner.id}`].join("")
+      : `${e.id} NAME "${[e.name?.given, e.name?.surname].filter(Boolean).join(" ")}" [${e.status ?? "no status"}] · ${f.owner.id}`;
     const marks = [
       e.retracted ? "taken back: nothing to do" : undefined,
       e.confirmed ? `confirmed by the user against the scan ${e.confirmed.at.slice(0, 10)}: theirs — never changed, nothing to do` : undefined,
       e.verified && !e.confirmed ? `verified ${e.verified.at.slice(0, 10)}: ${e.verified.result}${e.verified.reason ? ` — “${e.verified.reason}”` : ""}` : undefined,
-      whose(e),
+      whose(ev ?? e.name ?? {}),
     ].filter(Boolean);
     out.push(`  ${said}${marks.length ? ` · ${marks.join(" · ")}` : ""}`);
     if (!e.citations.length) out.push("      cites nothing");
@@ -88,6 +84,15 @@ function how(tree: Tree, task: Task): string[] {
     "  the user's or a family tree's value → the same strom event edit only proposes it (a conflict the user decides) —",
     "  never overwritten; then --kept --reason. A fact the user confirmed against the scan is theirs: never changed.",
   ];
+  // the name of a person's identity among them: compared with the name in the same entry
+  const names = task.where.filter(isNameId);
+  if (names.length)
+    result.push(
+      `  The name (${names.join(", ")}): the name in the entry compared with the person's — the same name in Latin or another`,
+      `  language's form (Wenceslaus · Václav, Johann · Jan) agrees → strom verify done ${names[0]} --proven --image M…;`,
+      `  another name, or unsure → strom verify done ${names[0]} --kept --reason "…" with a conflict (strom conflict add) or`,
+      "  the entry's form as a name of its own (strom name add … --cite S…) — the name itself never changed here.",
+    );
   if (searchesRecord(task))
     return [
       "How (no original of these facts was read: a family tree's, an index's, another's reading):",

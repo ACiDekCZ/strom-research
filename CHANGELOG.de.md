@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.36.0
 
-*In Vorbereitung: die Betas bis 1.36.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.36.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein Versuch der Sammelprüfung sofort:** Die Aufgaben eines Versuchs der Sammelprüfung (`strom verify bulk --try`)
   stehen am Anfang der Warteschlange – die nächste Sitzung nimmt sie –, und die Strom-App lässt sie sofort bearbeiten,
@@ -50,7 +50,12 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Haushaltungsvorstand, das Alter, Datum, Ort und Haus und das Zitat des Bogens bei jedem gleich; Personen außerhalb des
   Stammbaums nur in der Notiz. Die Beziehung wird so übernommen, wie die Zählbögen sie schreiben
   („Haushaltungsvorstand“, „Ehefrau des Haushaltungsvorstandes“ und ihre Wörter auf Englisch, Tschechisch und Polnisch).
-- **Namen nach einer Heirat:** Bei einer mehrmals verheirateten Frau ist der jetzige Name der nach der letzten Heirat –
+- **Namen – wie sicher und nach einer Heirat:** Der Name einer Person wird wie eine Angabe zitiert, auch damit, wie
+  sicher er ist: Der Agent zitiert den Namen so, wie ihn der gelesene Eintrag gibt (`strom cite P… S… --status`,
+  `name add --status`, `person add --name-status`; belegt nur nach dem Originaleintrag), und die Namen, die eine ältere
+  Forschung aus ihren Einträgen zitierte, werden einmal von selbst wahrscheinlich (nie belegt; ein Name, den die Person
+  schrieb oder bestätigte, bleibt; `strom fixes undo name-status` nimmt es zurück). Die Strom-App, die es zeigt, lässt
+  den Namen zusammen mit dem Geburtseintrag prüfen und bestätigt ihn nach dem Scan wie eine Angabe. Bei einer mehrmals verheirateten Frau ist der jetzige Name der nach der letzten Heirat –
   der Nachname des Ehemanns der spätesten Hochzeit, auch in der weiblichen Form; ein in der Strom-App als jetziger
   gewählter Name wird übernommen und bleibt es, bis neu gewählt wird. Die Datei für die Strom-App gibt die Namen nach
   einer Heirat zuletzt, den jetzigen ganz zuletzt, sodass auch eine ältere Strom-App den richtigen zeigt.

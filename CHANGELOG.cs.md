@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.36.0
 
-*Připravuje se: bety do 1.36.0-beta.6. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.36.0-beta.7. Oddíl bude úplný s vydáním.*
 
 - **Zkouška hromadného ověření hned:** úkoly zkoušky hromadného ověření (`strom verify bulk --try`) stojí na začátku
   fronty – vezme je příští sezení – a aplikace Strom je dá zpracovat hned, každý úkol jedno sezení, odkazem, který úkoly
@@ -43,7 +43,12 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   (`strom census add`): vztah k přednostovi, věk, datum, místo a dům a citace archu stejně u každého; lidé mimo strom jen
   v poznámce. Vztah se převezme tak, jak ho píšou formuláře sčítání („přednosta“, „manželka přednosty“ a jejich slova
   v angličtině, němčině a polštině).
-- **Jména po sňatku:** u ženy vdané víckrát je jméno nyní to po posledním sňatku – příjmení manžela z nejpozdější
+- **Jména – jak jistá a po sňatku:** jméno osoby se cituje jako údaj, i s tím, jak je jisté: agent cituje jméno, jak ho
+  dává zápis, který četl (`strom cite P… S… --status`, `name add --status`, `person add --name-status`; doloženo jen
+  podle originálu zápisu), a jména, která starší výzkum citoval ze zápisů, se jednou sama stanou pravděpodobnými
+  (nikdy doloženými; jméno, které člověk napsal nebo potvrdil, zůstává; `strom fixes undo name-status` je vrátí).
+  Aplikace Strom, která to ukazuje, nechá jméno ověřit spolu se zápisem narození a potvrdí ho podle skenu jako údaj.
+  U ženy vdané víckrát je jméno nyní to po posledním sňatku – příjmení manžela z nejpozdější
   svatby, i v ženském tvaru; jméno zvolené v aplikaci Strom jako nynější se převezme a platí, dokud se nezvolí znovu.
   Soubor pro aplikaci Strom dává jména po sňatku na konec, nynější úplně poslední, takže i starší aplikace Strom ukáže
   to správné.

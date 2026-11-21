@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.36.0
 
-*W przygotowaniu: bety do 1.36.0-beta.6. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.36.0-beta.7. Sekcja będzie kompletna z wydaniem.*
 
 - **Próba zbiorczej weryfikacji od razu:** zadania próby zbiorczej weryfikacji (`strom verify bulk --try`) stoją na
   początku kolejki – weźmie je następna sesja – a aplikacja Strom pozwala przerobić je od razu, każde zadanie w jednej
@@ -45,7 +45,12 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   jego członkom w drzewie naraz (`strom census add`): pokrewieństwo z głową rodziny, wiek, data, miejsce i dom oraz
   cytat arkusza jednakowo u każdego; osoby spoza drzewa tylko w notatce. Pokrewieństwo jest przejmowane tak, jak piszą
   je formularze spisu („głowa rodziny”, „żona głowy rodziny” i ich odpowiedniki po angielsku, czesku i niemiecku).
-- **Nazwiska po ślubie:** u kobiety zamężnej kilka razy obecne nazwisko to nazwisko po ostatnim ślubie – nazwisko męża
+- **Imiona i nazwiska – jak pewne i po ślubie:** imię i nazwisko osoby cytuje się jak daną, także z tym, jak jest
+  pewne: agent cytuje je tak, jak podaje je przeczytany wpis (`strom cite P… S… --status`, `name add --status`,
+  `person add --name-status`; udokumentowane tylko według oryginału wpisu), a imiona i nazwiska, które starsze badanie
+  cytowało z wpisów, raz same stają się prawdopodobne (nigdy udokumentowane; to, które osoba wpisała lub potwierdziła,
+  zostaje; `strom fixes undo name-status` je przywraca). Aplikacja Strom, która to pokazuje, pozwala sprawdzić je razem
+  z wpisem urodzenia i potwierdza je według skanu jak daną. U kobiety zamężnej kilka razy obecne nazwisko to nazwisko po ostatnim ślubie – nazwisko męża
   z najpóźniejszego ślubu, także w formie żeńskiej; nazwisko wybrane w aplikacji Strom jako obecne jest przejmowane i
   obowiązuje, dopóki nie zostanie wybrane ponownie. Plik dla aplikacji Strom podaje nazwiska po ślubie na końcu, obecne
   na samym końcu, więc także starsza aplikacja Strom pokaże właściwe.

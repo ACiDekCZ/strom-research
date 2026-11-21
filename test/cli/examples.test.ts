@@ -193,6 +193,8 @@ async function seeded(): Promise<World> {
   // Jan's birth cited from the original of his baptism on the image M0003 (strom verify facts|bulk|done)
   const baptism = (await w.ok(["source", "add", "Křest Jana", "--kind", "baptism", "--information", "primary", "--media", "M0003", "--json"])).json.source.id;
   await w.ok(["cite", "E0001", baptism]);
+  // his name read from the same original (strom verify done P0001.N --proven --image M0003)
+  await w.ok(["cite", "P0001", baptism]);
   // Jan's birth cited by the baptism register too (strom event main)
   await w.ok(["cite", "E0001", "S0001", "--locator", "fol. 12"]);
   // two waits for images written in words, as an older strom took them (strom task audit): T0009 to fix, T0010 fixed

@@ -35,6 +35,8 @@ export const ALL_PREFIXES: Record<string, string> = {
 /** Certainty of the conclusion (a fact). The quality of each piece of evidence is on its citation (GEDCOM QUAY). */
 export const STATUSES = ["proven", "probable", "possible", "lead", "disproven", "retracted"] as const;
 export type Status = (typeof STATUSES)[number];
+/** The statuses a name takes (spec 066 P5): no disproven or retracted — a name found wrong is retracted itself. */
+export const NAME_STATUSES = ["proven", "probable", "possible", "lead"] as const;
 
 export type Sex = "M" | "F" | "U";
 
@@ -275,6 +277,19 @@ export interface Name {
   origin?: ValueOrigin<"given" | "surname">;
   /** The import's name before the research changed it with a record cited (spec 066). */
   was?: ValueWas<"given" | "surname"> & { given?: string; surname?: string };
+  /**
+   * How sure the name is, as a fact's status (spec 066 P5): drawn from a record that names the person (strom cite P… S…
+   * --status, name add / person add with --cite). Any name may have one; none: the name stands on its citations alone (a
+   * name of an imported family tree shows its origin). Optional: no SCHEMA_VERSION raised.
+   */
+  status?: Status;
+  /**
+   * The person confirmed the name against the scan (spec 066 P5, as a fact's: spec 065) — the name of their identity
+   * (primaryName) alone. Its status stays as it is; no agent changes it. Optional: no SCHEMA_VERSION raised.
+   */
+  confirmed?: FactConfirmed;
+  /** The last verification of the name against its originals by an agent — the name of their identity alone. */
+  verified?: FactVerified;
 }
 
 /**

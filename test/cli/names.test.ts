@@ -34,7 +34,8 @@ test("name add: the maiden name a record gives completes the name; variants keep
   assert.deepEqual(p.names.map((n: any) => `${n.surname}:${n.kind}`), ["Růžičková:birth", "Víšková:married"]);
   const show = (await w.ok(["person", "show", "P2"])).out;
   assert.match(show, /^P0002 Markéta Růžičková/);
-  assert.match(show, /names\n  Markéta Růžičková \(birth\)  ← S0001 pag. 228 \(secondary\)\n  Markéta Víšková \(married\)/);
+  // a name cited with no status: probable on the research's record (spec 066 P5)
+  assert.match(show, /names\n  Markéta Růžičková \(birth\) \[probable\]  ← S0001 pag. 228 \(secondary\)\n  Markéta Víšková \(married\)/);
   assert.equal((await w.run(["name", "primary", "P2", "Marie /Víšková/"])).code, 2, "only a name the person has can be the one shown");
   // the same words are one name: a weaker record's name becomes an alias with its citation, not a second entry
   await w.ok(["source", "add", "Křest 1862", "--kind", "baptism"]); // S2
@@ -63,7 +64,9 @@ test("a record naming parents: the person's name and the family itself carry the
   const f2 = (await w.ok(["family", "show", "F2", "--json"])).json.family;
   assert.deepEqual([f2.children.length, f2.citations.filter((c: any) => c.locator === "pag. 228").length], [3, 1]);
   assert.match((await w.ok(["cite", "P1", "S1", "--locator", "pag. 228"])).out, /P0001 Antonín \/Víšek\/ ← S0001/);
-  assert.equal((await w.run(["cite", "P1", "S1", "--status", "proven"])).code, 2, "a name has no status");
+  // a name's status as a fact's (spec 066 P5): proven on the original record read, primary information
+  await w.ok(["cite", "P1", "S1", "--locator", "pag. 229", "--status", "proven"]);
+  assert.equal((await w.ok(["person", "show", "P1", "--json"])).json.person.names[0].status, "proven");
   assert.equal((await w.run(["family", "add", "--partner", "P3", "--age", "husband:30"])).code, 2, "an age needs the marriage");
   const src = (await w.ok(["source", "show", "S1"])).out;
   assert.match(src, /P0003 name Šimon Ševčík \(pag. 228\)/);

@@ -857,6 +857,24 @@ export function appReadsMainCitation(settings: Settings, version?: string, gate:
   return !!gate && compareVersions(v, gate) >= 0;
 }
 
+/**
+ * The Strom app version that reads how sure a name is and confirms it (spec 066 P5): under a NAME the Strom file's
+ * `_STROM_STATUS`, and under the name of a person's identity `_STROM_EID P….N` (+ `_TXT`), `_STROM_CONFIRMED` and
+ * `_STROM_CHECKED` (+ `_STROM_VERIFY`). None yet: waits for the app's "je venku" (3.32.0).
+ */
+export const APP_READS_NAME_STATUS: string | undefined = undefined;
+/** The beta of the Strom app that reads them first (another copy of the app: anotherCopy). None yet. */
+export const APP_READS_NAME_STATUS_BETA: string | undefined = undefined;
+
+/** Does the Strom app of this version read how sure a name is and confirm it (APP_READS_NAME_STATUS)? Unknown or no gate: no. */
+export function appReadsNameStatus(settings: Settings, version?: string, gate: string | undefined = APP_READS_NAME_STATUS, beta: string | undefined = APP_READS_NAME_STATUS_BETA): boolean {
+  // as appReadsMainCitation: a gate not set passes nothing, not even another copy of the app
+  const v = version?.trim();
+  if (!v || !isAppVersion(v)) return false;
+  if (anotherCopy(settings) && beta) return compareVersions(v, beta) >= 0;
+  return !!gate && compareVersions(v, gate) >= 0;
+}
+
 /** Does a file of the Strom app of this version (its HEAD's 2 VERS) say a citation left out was removed by the user? No version said: no. */
 export function appSendsUncite(version: string | undefined, gate: string | undefined = APP_SENDS_UNCITE): boolean {
   const v = version?.trim();

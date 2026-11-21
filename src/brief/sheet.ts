@@ -160,8 +160,8 @@ export function commandSheet(level: string | undefined, extra: { connectors?: Sh
     // the mistakes that cost a turn most (N0180–N0188): words of one value not quoted, several values after one
     // option, a batch file changed by the shell (refused: only strom changes files from there)
     '  values with spaces in quotes (--note "two words"); a repeatable option once per value (--found S0001 --found S0002); a batch file in notes/: change it with your file-editing tool, not sed',
-    // a status asked of a name or a family, proven with no primary information (N0190, N0191): refused, a turn lost
-    ...(RECORDS.has(level!) ? ["  --status is a fact's (E…) only, never a name's or a family's; proven only with a record of the time read directly (--information primary), else probable"] : []),
+    // a status asked of a family, proven with no primary information (N0190, N0191): refused, a turn lost
+    ...(RECORDS.has(level!) ? ["  --status is a fact's (E…) or a name's (P…), never a family's; proven only with a record of the time read directly (--information primary), else probable"] : []),
     ...(cite ? [cite] : []),
     ...defs.flatMap((d) =>
       // every connector of the task's archives one strom fetch refuses whole: no fetch line to try, only why

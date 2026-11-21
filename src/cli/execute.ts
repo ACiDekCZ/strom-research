@@ -345,11 +345,11 @@ export function parseOptions(def: CommandDef, rest: string[], program = "strom")
       // "strom brief --task T0003": the task is an argument there, not an option
       const arg = def.args?.find((a) => `--${a.name}` === opt || a.mistaken?.includes(opt.replace(/^-+/u, "")));
       if (arg) throw new UsageError(`--${arg.name}` === opt ? `${opt.slice(2)} is an argument of ${cmd}, not an option` : `${opt} is no option of ${cmd}: <${arg.name}> is its argument`, { hint: `strom ${def.path.join(" ")} <${arg.name}>`, code: "option.is-arg", params: { opt, cmd, arg: arg.name }, usage });
-      // a status asked of a name or a family (N0191): it is a fact's only — said as cite says it (the person's
-      // language: the plain unknown option, its code kept)
+      // a status asked of a family, or of a name by a command that takes none (N0191): a fact's or a name's only —
+      // said as cite says it (the person's language: the plain unknown option, its code kept)
       if (opt === "--status" && (def.path[0] === "name" || def.path[0] === "family"))
         throw new UsageError(`unknown option ${opt} for ${cmd}`, {
-          hint: `a status is a fact's (E…) only, never a name's or a family's: strom cite E… S… --status probable|proven, strom event edit E… --status …`,
+          hint: `a status is a fact's (E…) or a name's (P…), never a family's: strom cite E…|P… S… --status probable|proven, strom event edit E… --status …`,
           code: "option.unknown", hintCode: "option.unknown.status", params: { opt, cmd, options: own.join(" "), path: def.path.join(" ") }, usage,
         });
       // a name agents type meaning another option (--timeout for --minutes): that one, with what it takes

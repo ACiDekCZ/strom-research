@@ -2,6 +2,7 @@
 // and commit what a writing command changed. Returns the exit code.
 
 import { queueVerify, settleVerify } from "../core/verify.ts";
+import { settleNameStatus } from "../core/namestatusfix.ts";
 import fs from "node:fs";
 import { takeOverConnectors } from "../core/terms.ts";
 import { agentInAncestry, ancestryUnread, notePersonFolder } from "../core/trust.ts";
@@ -473,6 +474,12 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
           settleVerify(Tree.open(k.root, env));
         } catch {
           // another computer's seal, a tree at work: its bridge's start queues them
+        }
+        // …and how sure a name is: the names a record of the research's names made probable once (spec 066 P5)
+        try {
+          settleNameStatus(Tree.open(k.root, env));
+        } catch {
+          // another computer's seal, a tree at work: its bridge's start sets them
         }
         // …and an agent's proposals whose value proposed holds now: closed by themselves (no value written)
         try {

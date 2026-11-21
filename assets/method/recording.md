@@ -11,7 +11,8 @@ creates, `@name` uses it later; a found search comes after the source it found
     source add "Baptism of Jan Novák 1885" --kind baptism --recordset B0001 --clip B0001:57@0.05,0.40,0.45,0.18 --folio "pag. 112" --locator "entry 2" --language la --information primary --transcript @notes/entry.txt #s
     event add P0001 CHR --date "25 JUN 1885" --place "Týnec" --house 13 --cite @s --quote "baptizatus est" --with "godparent:Marie Dvořáková" --with "midwife:Anna Nová" --with "officiant:P. Josef Kříž" --status proven
     cite E0001 @s --quote "natus 24. Junii" --status proven
-    name add P0002 "Marie /Svobodová/" --kind birth --cite @s --quote "Maria filia Josephi Svoboda"
+    cite P0001 @s --quote "Joannes" --status probable
+    name add P0002 "Marie /Svobodová/" --kind birth --cite @s --quote "Maria filia Josephi Svoboda" --status probable
     person add "Josef /Svoboda/" --sex M --cite @s --information secondary #josef
     family add --partner @josef --child P0002 --cite @s --information secondary
     search add "Baptism of Jan Novák" --recordset B0001 --years 1884-1886 --pages 55-60 --method page-by-page --result found --found @s
@@ -35,12 +36,21 @@ creates, `@name` uses it later; a found search comes after the source it found
 - `--translation`: a record in another language or script than the
   research's (Latin, Kurrent, Polish, Cyrillic …) gets one in the research
   language; the transcript stays in the record's.
-- A fact already in the tree gets the citation (`cite E…`, `--status` is a
-  fact's only — a name or a family cited takes none), not a second fact —
+- A fact already in the tree gets the citation (`cite E…`), not a second fact —
   and what the record adds to it: `event edit E… --age husband:27 --age wife:17
   --house 21 --with "witness:…" --with "officiant:…"` (filling in needs no reason).
+  A family cited (`cite F…`) takes no status.
+- A record naming a person is evidence of their name too: `cite P… S…
+  --quote "<the name as written>" --status proven` for an entry read in the
+  original (as a fact's: the original record, primary information); `probable`
+  where it writes the same name in another language's form ("Joannes" for
+  "Jan"). Another name is no status but a conflict or a `name add`. Without
+  `--status` a name with none becomes probable on a record of the research's.
+  A new person: `person add … --cite S… --name-status proven`. A name the user
+  confirmed against the scan keeps its status: cite it without `--status`.
 - The names a record gives go on the person: `name add` (a maiden name completes
-  "Marie" to "Marie /Svobodová/"; a married name is `--kind married`). A title
+  "Marie" to "Marie /Svobodová/"; a married name is `--kind married`; `--status`
+  with `--cite` as above). A title
   written with the name ("Ing.", "MUDr.", "ml.", "jun.") is the name's `--prefix`
   or `--suffix` (`person add`, `name add`, `person edit`), never part of the
   given name or the surname; a rank or office the record states is a fact

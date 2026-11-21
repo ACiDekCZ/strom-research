@@ -9,6 +9,7 @@ import { checkStreetPlace } from "../core/streets.ts";
 import { addChild, addEvent, addFamily, addName, addNote, addPerson, chooseMainCitation, citeEvent, citeRecord, editEvent, editFamily, editPerson, findEventOwner, markPrimaryName, mergeFamilies, notRetracted, mergePersons, parseDate, parseParticipant, parseSex, parseStatus, retractEvent, retractPerson } from "../core/actions.ts";
 import { listOpt, normId, requireRecord } from "../core/records.ts";
 import { SINGLE_KINDS } from "../core/actions.ts";
+import { parseNameStatus } from "../core/namestatus.ts";
 import { UsageError } from "../core/errors.ts";
 import { INFORMATION } from "../core/evidence.ts";
 import { EVENT_KINDS, NAME_KINDS, noteWhole, type Citation, type Event, type Family, type Name, type Note, type Person, type Research, type RetractedNote, type Source, type Task } from "../core/model.ts";
@@ -59,6 +60,14 @@ const CITE_OPTIONS = [
   { name: "information", type: "string" as const, value: "<kind>", description: "for these facts the source is primary (written at the time by someone who knew), secondary or unknown" },
   { name: "status", type: "string" as const, value: "<status>", description: "lead (default without --cite), possible, probable, proven" },
 ];
+
+/** How sure a name is (spec 066 P5): with the record that names the person (--cite). */
+const NAME_STATUS_OPTION = {
+  name: "status",
+  type: "string" as const,
+  value: "<status>",
+  description: "how sure the name is: proven (the original record you read yourself), probable, possible, lead",
+};
 
 const AGE_OPTION = {
   name: "age",
@@ -188,9 +197,13 @@ export function citationOrders(tree: Tree, events: readonly Event[]): Record<str
   return Object.fromEntries(events.filter((e) => e.citations.length).map((e) => [e.id, citationOrder(tree, e)]));
 }
 
+/** A name in one line: how sure it is and the person's confirmation against the scan (spec 066 P5) as a fact's, its citations. */
 function nameLine(n: Name, w: Words = ENGLISH): string {
   const cites = citesOf(n.citations, w);
-  return `${titledName(n)}${n.kind ? ` (${w.word("name", n.kind)})` : ""}${n.primary ? ` · ${w.word("name", "current")}` : ""}${cites ? `  ← ${cites}` : ""}`;
+  const status = n.status ? ` [${w.lang ? statusName(n.status, w.lang) : n.status}]` : "";
+  const day = n.confirmed?.at.slice(0, 10);
+  const confirmed = day ? ` · ${w.say("ui.show.name.confirmed", `confirmed against the scan ${day}`, { day: w.lang ? humanDay(n.confirmed!.at, w.lang) : day })}` : "";
+  return `${titledName(n)}${n.kind ? ` (${w.word("name", n.kind)})` : ""}${n.primary ? ` · ${w.word("name", "current")}` : ""}${status}${confirmed}${cites ? `  ← ${cites}` : ""}`;
 }
 
 /** What was taken back or corrected on a person and their facts, oldest first: the name or text as it was, when, by whom, why. */
@@ -267,7 +280,10 @@ register(
     group: "people",
     tree: true,
     writes: true,
-    description: "--cite goes to the birth/death given here; without them it cites the name (a record naming a parent or grandparent).",
+    description:
+      "--cite goes to the birth/death given here (--status is theirs); without them it cites the name (a record naming a\n" +
+      "parent or grandparent). --name-status: the name cites the record too, this sure (beside the facts' --status); a name\n" +
+      "cited with none becomes probable on a record of the research's (an original, or a copy of primary information).",
     args: [{ name: "name", description: 'full name, surname in slashes: "Jan /Novák/"', required: true }],
     options: [
       { name: "sex", type: "string", value: "M|F|U", description: "sex (default U)" },
@@ -278,18 +294,23 @@ register(
       { name: "note", type: "string", value: "<text>", description: "short note" },
       ...TITLE_OPTIONS,
       ...CITE_OPTIONS,
+      { ...NAME_STATUS_OPTION, name: "name-status", description: "how sure the name is: the name cites the record (--cite) too — proven (the original record you read yourself), probable, possible, lead" },
     ],
     examples: [
       'strom person add "Josef /Novák/" --sex M --born "ABT 1870" --note "Father of Jan, miller (family memory)"',
       'strom person add "Jan /Novák/" --sex M --prefix "Ing." --suffix "ml."',
       'strom person add "Jan /Novák/" --sex M --born "24 JUN 1885" --born-place "Kamenice nad Lipou" --cite S0001 --locator "fol. 12, č. 3"',
       'strom person add "Šimon /Ševčík/" --sex M --cite S0002 --locator "fol. 45, č. 12" --information secondary',
+      'strom person add "Jan /Lhoták/" --sex M --born "3 MAR 1850" --cite S0001 --locator "fol. 8" --status proven --name-status proven',
     ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      // Without --born/--died the citation is on the name: the record names this person.
-      if (opts.status && !opts.born && !opts["born-place"] && !opts.died && !opts["died-place"])
-        throw new UsageError("--status belongs to the birth or death given here (--born/--died)");
+      // Without --born/--died the citation is on the name: the record names this person — how sure the name is says
+      // --name-status, never --status (the facts' alone: one option, one meaning)
+      const facts = !!(opts.born || opts["born-place"] || opts.died || opts["died-place"]);
+      if (opts.status && !facts)
+        throw new UsageError("--status belongs to the birth or death given here (--born/--died)", { hint: "how sure the name is: --name-status" });
+      const nameStatus = parseNameStatus(opts["name-status"] as string | undefined);
       // a place is the municipality: a street or a house number in it is refused, with what to write
       checkStreetPlace(tree, opts["born-place"] as string | undefined, undefined, "--born-place");
       checkStreetPlace(tree, opts["died-place"] as string | undefined, undefined, "--died-place");
@@ -303,6 +324,7 @@ register(
         note: opts.note as string | undefined,
         citation: citationOf(opts),
         status: opts.status as string | undefined,
+        nameStatus,
         prefix: opts.prefix as string | undefined,
         suffix: opts.suffix as string | undefined,
       });
@@ -386,7 +408,7 @@ register(
       const out: (string | undefined)[] = [
         ...(removed ? [removed.line, ""] : []),
         `${p.id} ${titledName(currentName(p))}${lifespan(p) ? ` (${lifespan(p)})` : ""}  ${w.lang ? w.word("sex", p.sex) : `sex ${p.sex}`}`,
-        ...(p.names.length > 1 || p.names.some((n) => n.citations?.length) ? ["", w.say("ui.show.names", "names"), ...p.names.map((n) => `  ${nameLine(n, w)}`)] : []),
+        ...(p.names.length > 1 || p.names.some((n) => n.citations?.length || n.status || n.confirmed) ? ["", w.say("ui.show.names", "names"), ...p.names.map((n) => `  ${nameLine(n, w)}`)] : []),
         "",
         w.say("ui.show.facts", "facts"),
         p.events.length ? table(p.events.map((e) => [`  ${eventLine(e, w, sourcesOf(tree))}`])) : `  ${w.say("ui.show.none", "(none)")}`,
@@ -478,7 +500,8 @@ register(
           const wanted = parseName(edit.name);
           const name = primaryName(cur);
           const parts = (["given", "surname"] as const).filter((k) => name[k] !== wanted[k]);
-          const v = parts.length ? verdictOf(tree, name.origin, parts, name.citations, g) : undefined;
+          // confirmed by the person against the scan (spec 066 P5): its words a proposal as the user's, as a fact's
+          const v = !parts.length ? undefined : name.confirmed ? ({ kind: "propose", as: "user", why: "user" } as const) : verdictOf(tree, name.origin, parts, name.citations, g);
           if (v?.kind === "propose") {
             const x = proposeName(tree, cur, { given: wanted.given, surname: wanted.surname }, v.as, { cite, reason });
             proposed.push({ id: x.conflict.id, line: proposedLine(`the name of ${id}`, x.conflict, v.why, x.again) });
@@ -558,10 +581,12 @@ register(
       { name: "kind", type: "string", value: "<kind>", description: `${NAME_KINDS.join(", ")} (default: plain)` },
       { name: "primary", type: "boolean", description: "show the person by this name now (their identity stays the birth name)" },
       ...TITLE_OPTIONS,
-      ...CITE_OPTIONS.filter((o) => o.name !== "status"),
+      ...CITE_OPTIONS.filter((o) => o.name !== "status" && o.name !== "cite"),
+      { name: "cite", type: "string", value: "<S…>", description: "the record that names the person so (a name with no status becomes probable on a record of the research's)" },
+      NAME_STATUS_OPTION,
     ],
     examples: [
-      'strom name add P0002 "Markéta /Růžičková/" --kind birth --cite S0002 --locator "fol. 45, č. 12" --quote "Margaretha, Tochter nach Johann Ružička"',
+      'strom name add P0002 "Markéta /Růžičková/" --kind birth --cite S0002 --locator "fol. 45, č. 12" --quote "Margaretha, Tochter nach Johann Ružička" --status probable',
       'strom name add P0002 "Marie /Nováková/" --kind married',
     ],
     run(ctx, { args, opts }) {
@@ -582,6 +607,7 @@ register(
         primary: Boolean(opts.primary),
         prefix: opts.prefix as string | undefined,
         suffix: opts.suffix as string | undefined,
+        status: parseNameStatus(opts.status as string | undefined),
         ...(tree.personWrites ? { origin: { by: "user" as const } } : { keepUsers: true }),
       });
       return { text: written(tree), data: { person: r.person, name: r.name } };
@@ -1007,11 +1033,15 @@ function noteHolderId(tree: Tree, ref: string): string {
 register(
   {
     path: ["cite"],
-    summary: "Attach a source to a fact (a lead becomes probable unless --status says otherwise), a person's name or a family",
+    summary: "Attach a source to a fact (a lead becomes probable unless --status says otherwise), a person's name (and its status) or a family",
     group: "people",
     tree: true,
     writes: true,
-    description: "A fact (E…) gets the citation and its status; a person (P…) — the name they are shown by; a family (F…) — the family itself.",
+    description:
+      "A fact (E…) gets the citation and its status; a person (P…) — the name of their identity, and how sure it is\n" +
+      "(--status, as a fact's: proven only from the original record you read yourself; without it a name with no status\n" +
+      "becomes probable on a record of the research's — an original, or a copy of primary information); a family (F…) —\n" +
+      "the family itself. A name or a fact the user confirmed against the scan keeps its status: cite it without --status.",
     args: [
       { name: "what", description: "event ID (E0001), person (P0001) or family (F0001)", required: true },
       { name: "source", description: "source ID (S0001)", required: true },
@@ -1020,10 +1050,14 @@ register(
       { name: "locator", type: "string", value: "<where>", description: "where in the source: folio, entry, line" },
       { name: "quote", type: "string", value: "<text>", description: "the words of the record" },
       { name: "information", type: "string", value: "<kind>", description: "for this fact the source is primary, secondary or unknown (default: the source's)" },
-      { name: "status", type: "string", value: "<status>", description: "of a fact (E…) only: probable (default) or proven — proven only when you read the record yourself" },
+      { name: "status", type: "string", value: "<status>", description: "of a fact (E…) or a person's name (P…): probable (default) or proven — proven only when you read the record yourself; possible, lead" },
       { name: "reason", type: "string", value: "<why>", description: "of a fact (E…) only, needed only to cite a source the user removed from it: why the record belongs to this fact after all" },
     ],
-    examples: ['strom cite E0001 S0001 --locator "fol. 45, č. 12" --status proven', 'strom cite F0001 S0001 --locator "fol. 45, č. 12" --information secondary'],
+    examples: [
+      'strom cite E0001 S0001 --locator "fol. 45, č. 12" --status proven',
+      'strom cite P0001 S0001 --locator "fol. 45, č. 12" --quote "Joannes Lhoták" --status proven',
+      'strom cite F0001 S0001 --locator "fol. 45, č. 12" --information secondary',
+    ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const citation: Citation = {
@@ -1034,9 +1068,10 @@ register(
       };
       const id = normId(args[0]!);
       if (/^[PF]\d+$/.test(id)) {
-        if (opts.status) throw new UsageError("--status is for facts (E…)", { hint: "a name or a family has no status: its citations say how well it is attested" });
+        if (opts.status && id.startsWith("F")) throw new UsageError("--status is for facts (E…) and a person's name (P…)", { hint: "a family has no status: its citations say how well it is attested" });
         if (opts.reason) throw new UsageError("--reason is for facts (E…)", { hint: "only a citation the user removed from a fact needs a reason" });
-        const rec = citeRecord(tree, id, citation);
+        // the name of their identity: its status as asked (a name the person confirmed keeps theirs: event.confirmed)
+        const rec = citeRecord(tree, id, citation, parseNameStatus(opts.status as string | undefined));
         return { text: written(tree), data: { [rec.type]: rec } };
       }
       // confirmed by the person against the scan (spec 065): its status theirs — the citation added, the status as it is

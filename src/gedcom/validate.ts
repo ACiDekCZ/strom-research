@@ -67,7 +67,7 @@ const CHILDREN: Record<string, string[]> = {
   // a value of a conflict the app decides by side: its side, a sex as M, F or U
   // a value's or a decision's source the person deleted (spec 117): in place of its SOUR
   _STROM_VALUE: ["SOUR", "_STROM_SIDE", "_STROM_RAW", "_STROM_RETRACTED"],
-  "INDI.NAME": ["TYPE", "GIVN", "SURN", "NPFX", "NSFX", "NICK", "SPFX", "SOUR", "NOTE", "_STROM_PRIMARY", "_STROM_ORIGIN", "_STROM_WAS"],
+  "INDI.NAME": ["TYPE", "GIVN", "SURN", "NPFX", "NSFX", "NICK", "SPFX", "SOUR", "NOTE", "_STROM_PRIMARY", "_STROM_ORIGIN", "_STROM_WAS", "_STROM_STATUS", "_STROM_EID", "_STROM_CONFIRMED", "_STROM_VERIFY", "_STROM_CHECKED"],
   // a family tree's value changed since: its import, the part, the key to put it back
   _STROM_WAS: ["_STROM_IMPORT", "_PART", "_REF"],
   // a fact waiting for its verification against the original: its task's place in the queue; the last verification

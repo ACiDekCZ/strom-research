@@ -47,6 +47,7 @@ import { READERS_SINCE, readerFixes, readersDone, type ReaderFix, type ReaderKep
 import { PROVEN_SINCE, provenDone, provenFixes, type ProvenFix, type ProvenLeft } from "../core/provenfix.ts";
 import { ORIGINS_SINCE, originFixes, originsDone, type OriginMark } from "../core/originfix.ts";
 import { VERIFY_SINCE, verifyDone, verifyFixes, verifyQueued, type VerifyItem } from "../core/verify.ts";
+import { NAME_STATUS_SINCE, nameStatusDone, nameStatusFixes, type NameStatusFix } from "../core/namestatusfix.ts";
 
 /** One earlier reading of one place, to be read again. */
 export interface FixItem {
@@ -99,7 +100,7 @@ export interface FixFindings {
   readings: number;
   /** A check that rewrites (participant-names, app-shapes, street-places, edit-decisions, woken-waits): what it would set
    * right, and how many it found it cannot. */
-  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[] | ReaderFix[] | ProvenFix[] | OriginMark[] | VerifyItem[];
+  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[] | ReaderFix[] | ProvenFix[] | OriginMark[] | VerifyItem[] | NameStatusFix[];
   unsplit?: number;
   /** What it found and leaves as it is, each with why (street-places: a fact whose house says another thing; edit-decisions:
    * the user's value taken, decided again on a new source; woken-waits: taken up since). */
@@ -150,7 +151,7 @@ export interface FixCheck {
   /** What it counts: places on images, readings (each read again whole: all its images, a document), participants,
    * what a sync wrote (app-shapes: conflicts, facts, dates), facts (street-places), conflicts (edit-decisions) or tasks
    * (woken-waits). */
-  unit: "place" | "reading" | "participant" | "finding" | "fact" | "conflict" | "task" | "source";
+  unit: "place" | "reading" | "participant" | "finding" | "fact" | "conflict" | "task" | "source" | "name";
   /**
    * What it sets right is of an agent's work (edit-decisions, woken-waits): never offered where nobody researches (an
    * archive, a research waiting for its agent — nothing of an agent said there), though it rewrites by rules.
@@ -1033,8 +1034,30 @@ export const VERIFY_ORIGINALS: FixCheck = {
   applied: (tree) => verifyDone(tree),
 };
 
+/**
+ * Until 1.36.0 a name had no status: a record that names the person was cited by the name and said nothing of how sure
+ * it is (spec 066 P5). Since then a name cited by a record of the research's is probable (proven on its original read);
+ * the names of an older research become probable by rules (core/namestatusfix.ts) — never proven, never the user's own
+ * name (confirmed, or theirs), never on an import's citation alone. Applied by itself once, at the first start of this
+ * strom after its backup.
+ */
+export const NAME_STATUS: FixCheck = {
+  id: "name-status",
+  since: NAME_STATUS_SINCE,
+  paid: false,
+  remedy: "rewrite",
+  unit: "name",
+  // as origins: how sure a name is an agent may change, an archive says nothing of it (set right by itself there too)
+  agentWork: true,
+  detect: (tree) => {
+    const f = nameStatusFixes(tree);
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: 0, left: [] };
+  },
+  applied: (tree) => nameStatusDone(tree).length,
+};
+
 /** Every check strom knows, the oldest fix first. */
-export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS, READERS, PROVEN_ORIGINALS, ORIGINS, VERIFY_ORIGINALS];
+export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS, READERS, PROVEN_ORIGINALS, ORIGINS, VERIFY_ORIGINALS, NAME_STATUS];
 
 
 /**

@@ -35,6 +35,7 @@ import { factValue, factWords, ownerWords, plainName, sexWords, staleProposal } 
 import { whileDeciding } from "./proposalsettle.ts";
 import { deletedSource } from "./sourceretract.ts";
 import { alignCopies } from "./household.ts";
+import { nameStatusAfter } from "./namestatus.ts";
 
 export type FactPart = "date" | "place" | "value";
 export type NamePart = "given" | "surname";
@@ -192,6 +193,17 @@ function changedName(tree: Tree, before: Name, next: Name, by: "research" | "per
     delete out.origin;
   } else if (cite && changed.length) out.citations = citationsWith(next.citations ?? [], [cite]);
   if (by === "person" && changed.length) out.origin = { by: "user" };
+  // how sure the name is was said of its words before (spec 066 P5): on a record cited for the change, what that record
+  // makes of it (core/namestatus.ts), else none; the person's confirmation and an agent's verification end (validate.ts)
+  if (changed.length && out.status) {
+    const { status: _s, ...rest } = out;
+    const status = cite ? nameStatusAfter(tree, rest, rest.citations ?? [], cite, undefined) : undefined;
+    return status ? { ...rest, status } : rest;
+  }
+  if (changed.length && cite) {
+    const status = nameStatusAfter(tree, out, out.citations ?? [], cite, undefined);
+    if (status) out.status = status;
+  }
   return out;
 }
 
