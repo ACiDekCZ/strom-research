@@ -92,6 +92,28 @@ test("the link: a variant only of a decision, only a label; none holds, left ope
   assert.throws(() => parseLink(`${many}&ids=H1&decide=agent`), LinkError);
 });
 
+test("a hypothesis whose words name people by ID: the terminal says them by their names with the ID — the question, each variant and what the app asks for", opts, async () => {
+  const w = await world();
+  try {
+    await w.ok(["hypothesis", "add", "Čí syn je P0001?", "--about", "P1", "--variant", "A: Ano, syn P0002 a P0003.", "--variant", "B: dítě rodiny F0002", "--variant", "C: syn Jakuba Lhotáka P0004"]); // H3
+    await w.ok(["hypothesis", "link", "H3", "A", "--child", "P1", "--of", "F1"]);
+    await w.ok(["hypothesis", "link", "H3", "B", "--child", "P1", "--of", "F2"]);
+    await w.ok(["hypothesis", "link", "H3", "C", "--child", "P1", "--of", "F2"]);
+    const d = await link(w, "hypothesis?tree=<id>&id=H3&do=decide&variant=A", ["0"]);
+    assert.match(d.out, /^ H0003 · Čí syn je Josef Lhoták \(P0001\)\?$/mu, d.out);
+    assert.match(d.out, /^ {4}A\) Ano, syn Václav Lhoták \(P0002\) a Marie Lhotová \(P0003\)\.$/mu, d.out);
+    assert.match(d.out, /^ {4}B\) dítě rodiny Jakub Lhoták \+ Anna Lhotová \(F0002\)$/mu, d.out);
+    // a name before the ID: never twice
+    assert.match(d.out, /^ {4}C\) syn Jakuba Lhotáka \(P0004\)$/mu, d.out);
+    assert.match(d.out, /Aplikace Strom žádá: rozhodnout hypotézu H0003: platí varianta A – Ano, syn Václav Lhoták \(P0002\) a Marie Lhotová \(P0003\)\./u, d.out);
+    // only what is said: the agent's words stay as written
+    assert.equal(hyp(w, "H0003").variants[0]!.claim, "Ano, syn P0002 a P0003.");
+    assert.equal(hyp(w, "H0003").state, "open");
+  } finally {
+    w.cleanup();
+  }
+});
+
 test("a variant picked in the app: confirmed with Enter, written as the person's in the app; again the same — nothing; changed — the decision before kept; taken back while the tree records nothing", opts, async () => {
   const w = await world();
   try {

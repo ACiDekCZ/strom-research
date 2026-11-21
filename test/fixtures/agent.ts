@@ -100,6 +100,12 @@ if (mode === "limit-once" && !(await import("node:fs")).existsSync(".strom/agent
   process.exit(1);
 }
 if (mode === "die") process.exit(0); // leaves the session open
+// its task done and the session closed, nothing else written (runs side by side: test/cli/run-race.test.ts)
+if (mode === "done") {
+  if (task) strom("task", "done", task, "--result", `done by ${process.env.STROM_WORKER ?? "?"}`);
+  strom("session", "close", "--summary", "done", "--next", "nothing");
+  process.exit(0);
+}
 if (mode === "denied") {
   // what an agent reports when its permissions refuse strom (stands in for Claude's permission_denials)
   console.log("denied: Bash: strom input show I0001");

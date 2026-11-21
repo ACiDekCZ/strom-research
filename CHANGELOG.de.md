@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.36.0
 
-*In Vorbereitung: die Betas bis 1.36.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.36.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein Versuch der Sammelprüfung sofort:** Die Aufgaben eines Versuchs der Sammelprüfung (`strom verify bulk --try`)
   stehen am Anfang der Warteschlange – die nächste Sitzung nimmt sie –, und die Strom-App lässt sie sofort bearbeiten,
@@ -74,6 +74,12 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   gekennzeichnet, sodass die App sie zur Fundstelle hinzufügt, ohne die Nummer eines anderen Bildes daraus zu entfernen.
   `strom pack` und `strom trees remove` nennen die Scans der Archive als Scans (welche mitgehen, welche weggelassen
   werden), und die Sicherung vor dem Entfernen sagt, dass sie die Fotos und Originale der Familie enthält.
+  Im Terminal nennen die Frage und die Varianten einer Hypothese die Personen und Familien, die sie mit ihrer ID angeben,
+  mit Namen und ID (unter „Was wartet“ und wenn die Strom-App um eine Entscheidung bittet), und der Agent schreibt sie
+  auch so; ein vor der ID geschriebener Name – einer Person oder der Partner einer Familie – wird nie doppelt genannt.
+  Läufe nebeneinander in einem Stammbaum („einen weiteren daneben starten“, eine Unterhaltung neben einem Lauf): ein
+  Lauf, dessen nächste Aufgabe kurz vor dem Beginn ein anderer übernommen hat, macht mit der nächsten freien Aufgabe
+  weiter, statt den ganzen Lauf zu beenden; keine Aufgabe wird zweimal übernommen.
 
 ## 1.35.0
 

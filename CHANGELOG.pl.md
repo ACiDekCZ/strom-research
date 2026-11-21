@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.36.0
 
-*W przygotowaniu: bety do 1.36.0-beta.5. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.36.0-beta.6. Sekcja będzie kompletna z wydaniem.*
 
 - **Próba zbiorczej weryfikacji od razu:** zadania próby zbiorczej weryfikacji (`strom verify bulk --try`) stoją na
   początku kolejki – weźmie je następna sesja – a aplikacja Strom pozwala przerobić je od razu, każde zadanie w jednej
@@ -67,6 +67,12 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   tak oznaczony, by aplikacja dodała go do lokalizacji, nie wycinając z niej numeru innego skanu. `strom pack` i `strom
   trees remove` nazywają skany z archiwów skanami (które idą razem, które są pominięte), a kopia zapasowa przed
   usunięciem mówi, że zawiera rodzinne zdjęcia i oryginały.
+  W terminalu pytanie i warianty hipotezy nazywają osoby i rodziny podane identyfikatorem imieniem z identyfikatorem
+  (w Co czeka i gdy aplikacja Strom prosi o rozstrzygnięcie), a agent też tak je pisze; imię zapisane przed
+  identyfikatorem – osoby lub partnerów rodziny – nigdy nie powtarza się.
+  Przebiegi obok siebie w jednym drzewie („uruchomić kolejnego obok niego”, rozmowa obok przebiegu): przebieg, którego
+  następne zadanie tuż przed rozpoczęciem wziął inny, kontynuuje następnym wolnym zadaniem zamiast kończyć cały
+  przebieg; żadne zadanie nie jest brane dwa razy.
 
 ## 1.35.0
 

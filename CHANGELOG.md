@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.36.0
 
-*In preparation: the betas up to 1.36.0-beta.5. The section is complete with the release.*
+*In preparation: the betas up to 1.36.0-beta.6. The section is complete with the release.*
 
 - **A try of the bulk verification at once:** the tasks of a try of the bulk verification (`strom verify bulk --try`)
   stand first in the queue — the next session takes them — and the Strom app can have them worked on at once, one
@@ -67,6 +67,11 @@ The changes of each version in short. The full notes and the install lines are o
   registered scans is marked as such, so that the app adds it to the location without cutting another image's number out
   of it. `strom pack` and `strom trees remove` name the archives' scans as scans (which go along, which are left out),
   and the backup before a removal says it holds the family's photos and originals.
+  In the terminal a hypothesis's question and variants name the people and families they give by ID by their names with
+  the ID (in What waits and when the Strom app asks to decide one), and the agent writes them so too; a name written before
+  the ID — a person's, or the partners' of a family — is never said twice.
+  Runs side by side on one tree ("start another one beside it", a conversation beside a run): a run whose next task another
+  took just before it began goes on with the next free task instead of ending the whole run; no task is taken twice.
 
 ## 1.35.0
 

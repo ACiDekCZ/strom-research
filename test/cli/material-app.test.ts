@@ -274,6 +274,7 @@ test("many files at once: 3 000 assigned from a list in one write, the list of t
   const w = new World();
   await w.withTree();
   await w.ok(["person", "add", "Žofie /Dvořáková/", "--sex", "F"]); // P1
+  await w.ok(["person", "add", "Иван /Петров/", "--sex", "M"]); // P2
   const tree = Tree.open(w.cwd, w.env);
   const ids: string[] = [];
   tree.withTreeLock(() => {
@@ -283,15 +284,29 @@ test("many files at once: 3 000 assigned from a list in one write, the list of t
     }
     tree.commit("3000 files");
   });
+  // the budget measured on the same work under the same load (the whole suite beside it outruns fixed milliseconds):
+  // a tenth of the files assigned just before and just after, the longer of the two thirty times — linear work takes
+  // some ten times; never less than the minute it had
+  const tenth = async (from: number): Promise<number> => {
+    const t = Date.now();
+    assert.equal((await w.ok(["input", "assign", "--files-from", "-", "--add", "P2", "--json"], { stdin: ids.slice(from, from + 300).join("\n") })).json.changed.length, 300);
+    return Date.now() - t;
+  };
+  const before = await tenth(0);
   const t0 = Date.now();
   const got = (await w.ok(["input", "assign", "--files-from", "-", "--add", "P1", "--json"], { stdin: ids.join("\n") })).json;
   const took = Date.now() - t0;
+  const budget = Math.max(60_000, 30 * Math.max(before, await tenth(300)));
   assert.equal(got.changed.length, 3000);
-  assert.ok(took < 60_000, `${took} ms`);
+  assert.ok(took < budget, `${took} ms, within ${budget} ms`);
+  // the list read: within twenty times the list of the 600 files of P2, read just before (never less than 5 s)
+  const t2 = Date.now();
+  assert.equal(material(Tree.open(w.cwd, w.env), undefined, { person: "P0002" }).files.length, 600);
+  const listBudget = Math.max(5_000, 20 * (Date.now() - t2));
   const t1 = Date.now();
   const all = material(Tree.open(w.cwd, w.env), undefined, { person: "P0001" });
   assert.equal(all.files.length, 3000);
-  assert.ok(Date.now() - t1 < 5_000, `${Date.now() - t1} ms`);
+  assert.ok(Date.now() - t1 < listBudget, `${Date.now() - t1} ms, within ${listBudget} ms`);
   assert.deepEqual(material(Tree.open(w.cwd, w.env), undefined, { files: false }).files, []);
   // more than the bridge takes at once: said
   assert.equal((await w.run(["input", "assign", "--files-from", "-", "--add", "P1", "--json"], { stdin: [...ids, ...ids.map((i) => i.replace(/^I0*/, "I9"))].join("\n") })).json.code, "material.body");

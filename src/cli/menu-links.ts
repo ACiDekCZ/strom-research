@@ -9,7 +9,7 @@ import path from "node:path";
 import type { Context } from "./context.ts";
 import { outOfAnswers, translator, type Run } from "./menu-parts.ts";
 import { askPaths, directionTasks, offerChat, setDirection } from "./menu-research.ts";
-import { humanCost, humanDay, humanTask, humanWhen } from "./human.ts";
+import { humanClaim, humanCost, humanDay, humanTask, humanWhen, whoSaid } from "./human.ts";
 import { lines, truncate } from "./format.ts";
 import { isArchive } from "../core/mode.ts";
 import type { UIKey } from "./ui.ts";
@@ -758,7 +758,7 @@ export async function hypothesisDo(ctx: Context, run: Run, lang: string, root: s
   const picked = how !== "decide" || variant !== undefined;
   if (picked && !pickableInApp(h)) out(ctx, t("ui.link.hypothesis.notInApp", { id: h.id }));
   else if (picked) return hypothesisPicked(ctx, run, lang, root, h, how, variant);
-  if (!(await asks(ctx, lang, root, t(h.state === "open" ? "ui.link.what.hypothesis.decide" : "ui.link.what.hypothesis.change", { question: truncate(h.question, 120) })))) return false;
+  if (!(await asks(ctx, lang, root, t(h.state === "open" ? "ui.link.what.hypothesis.decide" : "ui.link.what.hypothesis.change", { question: truncate(humanClaim(tree, h.question), 120) })))) return false;
   const { decideHypothesis } = await import("./menu-waiting.ts");
   return decideHypothesis(ctx, run, lang, root, h.id);
 }
@@ -768,17 +768,6 @@ export type HypothesisHow = "decide" | "abandon" | "keep-open" | "reopen";
 
 /** People a decision joins to the tree from which the terminal says how many (the app's K1.4: "a large part of the tree"). */
 export const HYPOTHESIS_BIG_JOIN = 50;
-
-/** A person or a family as the person reads it: the name and the ID ("Josef Lhoták (P0001)", "Václav Lhoták + Marie Lhotová (F0001)"). */
-function whoSaid(tree: Tree, id: string): string {
-  const r = tree.get<Person | Family>(id);
-  if (r?.type === "person") return `${displayName(r)} (${id})`;
-  if (r?.type === "family") {
-    const names = r.partners.map((p) => tree.get<Person>(p)).filter((p): p is Person => p?.type === "person").map(displayName);
-    return names.length ? `${names.join(" + ")} (${id})` : id;
-  }
-  return id;
-}
 
 /** One link of a variant in the research language — into the family it went to, when there is one. */
 function linkSaid(t: ReturnType<typeof translator>, tree: Tree, l: VariantLink, family?: string): string {
@@ -870,7 +859,7 @@ async function hypothesisPicked(ctx: Context, run: Run, lang: string, root: stri
   const tree = Tree.open(root, ctx.env);
   const archive = actsAsArchive(tree);
   const p = archive ? undefined : h.proposal;
-  out(ctx, ["", ` ${h.id} · ${h.question}`, ...h.variants.map((v) => `    ${v.label}) ${truncate(v.claim, 110)}`), ...(h.state !== "open" ? [`    ${decidedLine(t, tree, h, lang)}`] : []), ""].join("\n"));
+  out(ctx, ["", ` ${h.id} · ${humanClaim(tree, h.question)}`, ...h.variants.map((v) => `    ${v.label}) ${truncate(humanClaim(tree, v.claim), 110)}`), ...(h.state !== "open" ? [`    ${decidedLine(t, tree, h, lang)}`] : []), ""].join("\n"));
   const why = async (fallback: string): Promise<string | undefined> => {
     const said = (await ctx.ask(t("ui.link.hypothesis.why", { reason: fallback }))).trim();
     return said === "0" ? undefined : said || fallback;
@@ -885,7 +874,7 @@ async function hypothesisPicked(ctx: Context, run: Run, lang: string, root: stri
     if (!v) return stop(ctx, t("ui.link.hypothesis.noVariant", { id: h.id, variant: label ?? "", labels: h.variants.map((x) => x.label).join(", ") }));
     if (h.state === "decided" && h.chosen === v.label) return stop(ctx, `${decidedLine(t, tree, h, lang)} ${t("ui.link.hypothesis.nothing")}`);
     const n = branchJoined(tree, h, v);
-    const what = t(h.state === "open" ? "ui.link.what.hypothesis.pick" : "ui.link.what.hypothesis.repick", { id: h.id, variant: v.label, claim: truncate(v.claim, 110) });
+    const what = t(h.state === "open" ? "ui.link.what.hypothesis.pick" : "ui.link.what.hypothesis.repick", { id: h.id, variant: v.label, claim: truncate(humanClaim(tree, v.claim), 110) });
     // the earlier link stays (other work stands on it) and the new one cannot be written: said first, cancel suggested
     const stays = changeWarning(lang, tree, h, v);
     // a variant that connects nothing, and nothing of an earlier decision on the tree to take off: only the decision is
@@ -947,12 +936,12 @@ export async function acceptProposals(ctx: Context, run: Run, lang: string, root
   let stays = false;
   const line = (h: Hypothesis): string[] => {
     const p = h.proposal!;
-    if (p.abandon || !p.variant) return [`  ${t("ui.link.accept.none", { id: h.id, question: truncate(h.question, 80) })}`];
+    if (p.abandon || !p.variant) return [`  ${t("ui.link.accept.none", { id: h.id, question: truncate(humanClaim(tree, h.question), 80) })}`];
     const v = h.variants.find((x) => x.label === p.variant);
     const warn = changeWarning(lang, tree, h, v);
     if (warn) stays = true;
     const n = v && !warn ? branchJoined(tree, h, v) : 0;
-    return [`  ${t("ui.link.accept.variant", { id: h.id, variant: p.variant, claim: truncate(v?.claim ?? "", 80) })}${n ? ` ${t("ui.link.accept.joins", { n })}` : ""}`, ...(warn ? [`    ${warn}`] : [])];
+    return [`  ${t("ui.link.accept.variant", { id: h.id, variant: p.variant, claim: truncate(humanClaim(tree, v?.claim ?? ""), 80) })}${n ? ` ${t("ui.link.accept.joins", { n })}` : ""}`, ...(warn ? [`    ${warn}`] : [])];
   };
   if (!take.length) return stop(ctx, [t("ui.link.accept.nothing"), ...said].join("\n"));
   out(ctx, ["", t("ui.link.accept.list"), ...take.flatMap(line), ...(said.length ? ["", t("ui.link.accept.skipped"), ...said] : []), ""].join("\n"));

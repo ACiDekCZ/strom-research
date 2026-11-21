@@ -33,7 +33,7 @@ import { agentDecided } from "../core/hypolinks.ts";
 import { normId } from "../core/records.ts";
 import { actsAsArchive } from "../core/state.ts";
 import { branchOf } from "../core/offline.ts";
-import { eventName, humanDay, humanTask } from "./human.ts";
+import { eventName, humanClaim, humanDay, humanTask } from "./human.ts";
 import { provenReviewSince, provenToReview } from "../core/provenfix.ts";
 import { conflictTitle, displayName, lifespan } from "../core/people.ts";
 import { claimOf, isEditConflict, sideText } from "../core/conflicts.ts";
@@ -146,9 +146,9 @@ function sentWords(t: T, lang: string, iso: string): string {
   return `${t("ui.wait.sentline", { day: humanDay(iso, lang), ago: ago(t, iso) })}${daysSince(iso) > NO_REPLY_DAYS ? ` · ${t("ui.wait.noreply", { days: NO_REPLY_DAYS })}` : ""}`;
 }
 
-/** What a thing is, short: a task's words as written, its records named (a person's ID after their name only bracketed). */
+/** What a thing is, short: a task's words as written, its records named (a person's ID after their name only bracketed); a hypothesis's question its people named. */
 function short(tree: Tree, lang: string, w: Waiting): string {
-  return w.task ? humanTask(tree, w.item.what, lang, { asWritten: true }) : w.item.what;
+  return w.task ? humanTask(tree, w.item.what, lang, { asWritten: true }) : w.hypothesis ? humanClaim(tree, w.item.what) : w.item.what;
 }
 
 const sentAtOf = (w: Waiting) => String(w.item.sentAt ?? w.item.at);
@@ -638,9 +638,9 @@ export async function decideHypothesis(ctx: Context, run: Run, lang: string, roo
     [
       "",
       ` ${h.id} · ${kindWord(t, "hypothesis")}${since ? ` · ${t("ui.wait.since", { day: humanDay(since, lang) })}` : ""}`,
-      ` ${h.question}`,
+      ` ${humanClaim(tree, h.question)}`,
       ...now,
-      ...h.variants.map((v) => `    ${v.label}) ${v.claim}`),
+      ...h.variants.map((v) => `    ${v.label}) ${humanClaim(tree, v.claim)}`),
       ...(proposed ? ["", `    ${proposed}`, ...(p!.reason ? [`    ${t("ui.wait.hypothesis.again", { reason: p!.reason })}`] : [])] : []),
     ].join("\n"),
   );
@@ -654,7 +654,7 @@ export async function decideHypothesis(ctx: Context, run: Run, lang: string, roo
   };
   // another variant, or none holds — and why: the decision's words; a decided one decided again: the reason too
   const otherwise = async (): Promise<{ argv: string[]; abandon: boolean } | undefined> => {
-    const v = await ctx.choose(t("ui.wait.hypothesis.pick"), [...h.variants.map((x) => ({ label: `${x.label}) ${truncate(x.claim, 70)}` })), { label: t("ui.wait.hypothesis.none") }], h.variants.length + 1, { back: t("ui.browse.back") });
+    const v = await ctx.choose(t("ui.wait.hypothesis.pick"), [...h.variants.map((x) => ({ label: `${x.label}) ${truncate(humanClaim(tree, x.claim), 70)}` })), { label: t("ui.wait.hypothesis.none") }], h.variants.length + 1, { back: t("ui.browse.back") });
     if (v === undefined) return undefined;
     if (v < h.variants.length && !(await goesOn(h.variants[v]!))) return undefined;
     const why = await askWhy(ctx, lang);

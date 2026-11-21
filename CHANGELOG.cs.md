@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.36.0
 
-*Připravuje se: bety do 1.36.0-beta.5. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.36.0-beta.6. Oddíl bude úplný s vydáním.*
 
 - **Zkouška hromadného ověření hned:** úkoly zkoušky hromadného ověření (`strom verify bulk --try`) stojí na začátku
   fronty – vezme je příští sezení – a aplikace Strom je dá zpracovat hned, každý úkol jedno sezení, odkazem, který úkoly
@@ -64,6 +64,11 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   tak označené, aby ho aplikace k umístění přidala, aniž by z něj vystřihla číslo jiného snímku. `strom pack` a `strom
   trees remove` jmenují skeny z archivů jako skeny (které jdou s sebou, které se vynechají) a záloha před odstraněním
   řekne, že v ní jsou rodinné fotky a originály.
+  V terminálu jmenují otázka a varianty hypotézy lidi a rodiny, které uvádějí kódem, jménem s kódem (v Co čeká i když
+  aplikace Strom žádá o rozhodnutí) a agent je tak i píše; jméno napsané před kódem – osoby nebo partnerů rodiny – se
+  nikdy neopakuje.
+  Běhy vedle sebe v jednom stromu („spustit další vedle něj“, konverzace vedle běhu): běh, jehož další úkol těsně před
+  začátkem vzal jiný, pokračuje dalším volným úkolem místo konce celého běhu; žádný úkol se nevezme dvakrát.
 
 ## 1.35.0
 

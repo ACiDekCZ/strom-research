@@ -17,7 +17,7 @@ import { ui, type UIKey } from "../cli/ui.ts";
 import type { Context } from "../cli/context.ts";
 import { addressesPerson } from "../core/impersonal.ts";
 import { counted, lines, shellArg, table, truncate } from "../cli/format.ts";
-import { NeedsConsentError, UsageError, StromError } from "../core/errors.ts";
+import { NeedsConsentError, TaskTaken, UsageError, StromError } from "../core/errors.ts";
 import type { Person, RecordSet, Research, Session, Task } from "../core/model.ts";
 import { closeSession, costPartial, currentSession, openSessions, othersAtWork, sessionCost, sessionNote, startSession, whichSession, withReaders } from "../core/session.ts";
 import { reviveLive } from "../core/live.ts";
@@ -1072,6 +1072,10 @@ register(
     // The plan's limits as the agent said them last (Claude Code), for the gate; and the window a cap of the gate holds.
     let lastLimits: AgentLimit[] | undefined;
     let watch: GateAnswer["watch"];
+    // tasks another agent took between reading the queue and starting the session (core/session.ts TaskTaken): each
+    // time the next free one, the gate not asked again for it — a bound only against a loop nobody would see end
+    let collisions = 0;
+    let retaken = false;
     let stopCode: Stop = "done";
     let stopValues: Record<string, string | number> = {};
     // The first Ctrl-C while a session works: it is asked to finish (the agent writes down what it found and closes
@@ -1219,7 +1223,7 @@ register(
         // itself. Tasks the user started themselves: asked once, and the user decides when it would not start.
         // A gate with a cap (the user's own hard stop, its answer's "watch") is asked before every session, also of the
         // tasks the user started: there only its hard stop counts, and no "start anyway" goes past it.
-        if (gate && (!gateAnswered || watch)) {
+        if (gate && (!gateAnswered || watch) && !retaken) {
           const facts = { tree: root, lang, agent: runnerId, model: models.lead, sessions: report.length, costUsd: report.reduce((a, r) => a + (r.costUsd ?? 0), 0), nextTask: task.id, limits: lastLimits };
           const said = askGate(gate, runEnv, facts);
           const asked = gateRecord(gate, said, { ...facts, run: worker });
@@ -1297,7 +1301,19 @@ register(
             continue;
           } else noted("go");
         }
-        const session = startSession(tree, { task, ...(research ? { research: research.id } : {}), runner: runnerId, ...(models.lead ? { model: models.lead } : {}), ...(said.effort ? { effort: said.effort } : {}) });
+        let session: Session;
+        try {
+          session = startSession(tree, { task, ...(research ? { research: research.id } : {}), runner: runnerId, ...(models.lead ? { model: models.lead } : {}), ...(said.effort ? { effort: said.effort } : {}) });
+        } catch (e) {
+          // The queue is read outside the tree's lock: a run beside this one or a conversation may have taken the task
+          // meanwhile. Never the end of the run — the next free task (a task the user named: left out, as when held).
+          if (!(e instanceof TaskTaken) || ++collisions > 100) throw e;
+          out(ui(lang, "ui.run.skip.held", { task: task.id }));
+          retaken = true;
+          if (i >= picked.length) i--;
+          continue;
+        }
+        retaken = false;
         commitNow(tree, `${session.id} session started on ${task.id}`);
         // what the gate answered before it (the waits too), at the head of the session's log
         if (gateTrail.length) {

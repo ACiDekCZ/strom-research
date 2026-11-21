@@ -917,10 +917,11 @@ register(
     group: "analysis",
     tree: true,
     writes: true,
+    description: 'The question and each claim name the people of the tree by name with the ID ("Jan Lhoták (P0001)"), never the ID alone: the user decides by reading them.',
     args: [{ name: "question", description: 'e.g. "Who was the father of Marie?"', required: true }],
     options: [
       { name: "about", type: "string", multiple: true, value: "<who>", description: "person/record concerned (repeatable)" },
-      { name: "variant", type: "string", multiple: true, value: "<A: claim>", description: 'a variant, e.g. "A: Josef from No. 12" (repeat)' },
+      { name: "variant", type: "string", multiple: true, value: "<A: claim>", description: 'a variant, e.g. "A: the son of Jan Lhoták (P0001)" — a person of the tree by name with the ID (repeat)' },
       { name: "note", type: "string", value: "<text>", description: "short note" },
     ],
     run(ctx, { args, opts }) {
@@ -981,7 +982,7 @@ register(
     description: "A variant's letter stays one claim's (the Strom app remembers it): a claim that changes whom it would connect is a new variant.",
     args: [
       { name: "hypothesis", description: "hypothesis ID (H0001)", required: true },
-      { name: "claim", description: 'the claim, e.g. "the son of Josef from No. 12" (or "C: …" with its letter)', required: true },
+      { name: "claim", description: 'the claim, e.g. "the son of Jan Lhoták (P0001)" — a person of the tree by name with the ID (or "C: …" with its letter)', required: true },
     ],
     examples: ['strom hypothesis variant H0001 "syn Josefa z čp. 12"'],
     run(ctx, { args }) {

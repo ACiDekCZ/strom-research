@@ -86,7 +86,8 @@ conclusion so the next researcher can follow it.
   words only. An older open hypothesis you work on that has none gets them
   then (`strom hypothesis list --unlinked`). A variant's letter stays its
   claim's: a claim that would connect other people is a new variant
-  (`strom hypothesis variant H… "<claim>"`).
+  (`strom hypothesis variant H… "<claim>"`). The question and claims name
+  people by name and ID ("the son of Jan Lhoták (P0118)"), never the ID alone.
 - **The user decides a hypothesis**; you propose it once the records point
   to one variant: `strom hypothesis propose H… --variant B --decision "…"`
   (none holds: `--abandon`), and go on — unless the user lets you decide

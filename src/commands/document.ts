@@ -27,7 +27,8 @@ import { verifyFast } from "../core/integrity.ts";
 import { addReaders } from "../core/session.ts";
 import { READER_MINUTES_HELP } from "../core/reader.ts";
 import { stamp } from "../core/net.ts";
-import { readerAgent, readers, type Readers } from "./readers.ts";
+import { readerAgent, readTeam, type Readers } from "./readers.ts";
+import { readProvider } from "../core/readprovider.ts";
 import { RUNNERS } from "../runners/index.ts";
 import { EFFORTS } from "../agents/effort.ts";
 import { ownModel } from "../agents/models.ts";
@@ -45,6 +46,7 @@ import {
   buildResult,
   cancelPath,
   DOC_NEXT,
+  linesPath,
   DOC_PAGES,
   DOC_VIEWS,
   aboutFor,
@@ -169,6 +171,14 @@ function withOf(ctx: Context, tree: Tree, opts: Record<string, unknown>): Reader
   const str = (v: unknown) => (typeof v === "string" ? v.trim() : undefined);
   const one = (at: 0 | 1, agent: string, model: string | undefined, effort: string | undefined, like?: ReaderWho): ReaderWho => {
     const pre = at ? "--blind-" : "--";
+    // a reading service (core/readprovider.ts): its model as asked (none: its own), no effort; the transcript alone
+    const service = readProvider(agent, ctx.env);
+    if (service?.kind === "service") {
+      if (!at && !opts.source) throw new UsageError(`${service.title} reads the transcript alone: it is the second, blind reader of a document (--blind-agent ${agent}), or reads a source again (--source)`, { code: "read.with", params: { at: String(at), field: "agent" }, hint: `strom document read … --readers 2 --blind-agent ${agent}` });
+      if (effort) throw new UsageError(`${service.title} takes no effort`, { code: "read.with", params: { at: String(at), field: "effort" }, hint: `leave ${pre}effort out` });
+      const m = model ?? (like?.agent === agent ? (like.model ?? "") : "");
+      return { agent, ...(m ? { model: m } : {}) };
+    }
     if (!RUNNERS[agent]) throw new UsageError(`no reader of the agent "${agent.slice(0, 40)}"`, { code: "read.with", params: { at: String(at), field: "agent" }, hint: `${pre}agent ${Object.keys(RUNNERS).filter((a) => a !== "script").join("|")}` });
     const dflt = like && like.agent === agent ? { model: like.model ?? "", effort: like.effort ?? "" } : readerDefault(tree, ctx.settings, agent, research);
     const m = model ?? dflt.model;
@@ -416,7 +426,8 @@ async function readWith(ctx: Context, tree: Tree, s: ReadState, opts: Record<str
     return finish(ctx, tree, s, []);
   }
   // each reader as asked (s.with: the first, the blind one — its own agent, model, effort), else the research's readers
-  const teamOf = (r: ReaderWho | undefined): Readers => readers(ctx, tree, shared, "document", "1", opts, undefined, { stem: s.id, ...(r ? { with: r } : {}) });
+  // (an agent's readers, or a reading service's: core/readprovider.ts)
+  const teamOf = (r: ReaderWho | undefined): Readers => readTeam(ctx, tree, shared, "document", "1", opts, undefined, { stem: s.id, ...(r ? { with: r } : {}) });
   const first = only === "blind" ? undefined : teamOf(s.with?.[0]);
   const blind = s.readers > 1 ? (first && sameReader(s.with?.[0], s.with?.[1]) ? first : teamOf(s.with?.[1])) : undefined;
   const team = (first ?? blind)!;
@@ -449,12 +460,12 @@ async function readWith(ctx: Context, tree: Tree, s: ReadState, opts: Record<str
     if (stop.signal.aborted) return;
     const n = next++;
     const by = (job.blind ? blind : first)!;
-    s = { ...s, reports: [...s.reports, { n, group: job.group, blind: job.blind, version: s.version, agent: by.agent, ...(by.model ? { model: by.model } : {}), ...(by.effort ? { effort: by.effort } : {}), began: now() }] };
+    s = { ...s, reports: [...s.reports, { n, group: job.group, blind: job.blind, version: s.version, agent: by.agent, ...(by.model ? { model: by.model } : {}), ...(by.effort ? { effort: by.effort } : {}), ...(by.kind ? { kind: by.kind } : {}), began: now() }] };
     saveState(tree.root, s);
     const mine = viewsBy.get(by)!.filter((v) => s.groups[job.group]!.includes(v.n));
     const files = mine.flatMap((v) => [v.view, ...(v.parts ?? []).map((x) => x.view)]);
     const head = `# Document ${s.id} · reader ${n}${job.blind ? " (blind)" : ""}\n\nPages: ${mine.map((v) => v.n).join(", ")}\n\n${DOC_NEXT}\n`;
-    const r = await by.read(String(n), files, `Document ${s.id}`, (report) => docPrompt({ pages: mine, report, lang: s.lang, note: s.note, blind: job.blind, source: about && aboutFor(about, by.agent, by.model) }), { head, signal: stop.signal });
+    const r = await by.read(String(n), files, `Document ${s.id}`, (report) => docPrompt({ pages: mine, report, lang: s.lang, note: s.note, blind: job.blind, source: about && aboutFor(about, by.agent, by.model) }), { head, signal: stop.signal, doc: { pages: mine, source: about } });
     try {
       fs.writeFileSync(r.report, withoutDocNext(fs.readFileSync(r.report, "utf8")).replace(/\n*$/u, "\n"));
     } catch {
@@ -462,7 +473,7 @@ async function readWith(ctx: Context, tree: Tree, s: ReadState, opts: Record<str
     }
     s = {
       ...s,
-      reports: s.reports.map((x) => (x.n === n ? { ...x, outcome: r.outcome, ended: now(), ...(r.costUsd !== undefined ? { usd: r.costUsd } : {}), ...(r.costPartial || r.costUsd === undefined ? { partial: true } : {}), ...(r.resumeAt ? { resets: r.resumeAt } : {}), ...(r.modelRejected ? { rejected: "model" as const } : {}) } : x)),
+      reports: s.reports.map((x) => (x.n === n ? { ...x, outcome: r.outcome, ended: now(), ...(r.costUsd !== undefined ? { usd: r.costUsd } : {}), ...(r.costPartial || (r.costUsd === undefined && r.credits === undefined) ? { partial: true } : {}), ...(r.credits !== undefined ? { credits: r.credits } : {}), ...(r.resumeAt ? { resets: r.resumeAt } : {}), ...(r.modelRejected ? { rejected: "model" as const } : {}) } : x)),
     };
     saveState(tree.root, s);
   };
@@ -573,7 +584,7 @@ function finish(ctx: Context, tree: Tree, s: ReadState, ran: ReadState["reports"
             persist();
           }
         const session = spent?.runs ? addReaders(tree, ctx.env, ctx.refs, { usd: spent.usd, runs: spent.runs, partial: spent.partial }) : undefined;
-        const files = [resultPath(tree.root, s.id), ...s.reports.map((r) => reportPath(tree.root, s.id, r.n))].filter((f) => fs.existsSync(f)).map((f) => tree.relative(f));
+        const files = [resultPath(tree.root, s.id), ...s.reports.flatMap((r) => [reportPath(tree.root, s.id, r.n), linesPath(tree.root, s.id, r.n)])].filter((f) => fs.existsSync(f)).map((f) => tree.relative(f));
         tree.commit(`Reading of a document ${s.id}${back ? ", read again and cancelled" : ""}${s.version > 1 ? `, version ${s.version}` : ""}: ${s.state}${result.entries.length ? `, ${counted(result.entries.length, "entry", "entries")}` : ""}${kept ? ` — ${kept.id} read again from its original, ${kept.agree === "same" ? "alike its transcript" : "differs from its transcript"}` : ""}`, [...files, ...(session || kept ? ["data"] : [])]);
       });
     } catch (e) {
@@ -634,7 +645,7 @@ function said(ctx: Context, r: ReadResult): string {
 function whoSaid(r: ReadResult): string | undefined {
   const who = r.readers.who;
   if (!who?.length) return undefined;
-  const one = (w: ReaderWho, i: number) => `${[w.agent, w.model, w.effort].filter(Boolean).join(" · ")}${i > 0 ? " (blind)" : ""}${w.ran === false ? " — not read to an end" : ""}`;
+  const one = (w: ReaderWho, i: number) => `${[w.agent, w.model, w.effort].filter(Boolean).join(" · ")}${w.kind === "service" ? ` (a reading service: the transcript alone${w.credits !== undefined ? `, ${w.credits} credits` : ""})` : ""}${i > 0 ? " (blind)" : ""}${w.ran === false ? " — not read to an end" : ""}`;
   return `who: ${who.map(one).join(" / ")}`;
 }
 

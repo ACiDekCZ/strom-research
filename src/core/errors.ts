@@ -104,6 +104,22 @@ export class DirectionExists extends UsageError {
 }
 
 /**
+ * A task another agent's session holds already: taken after the one who asked read the queue (a run beside it, a
+ * conversation). strom run takes the next free task instead; the session in `session`.
+ */
+export class TaskTaken extends UsageError {
+  readonly task: string;
+  readonly session: string;
+
+  constructor(task: string, session: string, agent?: string) {
+    super(`${task} is being worked on in session ${session}${agent ? ` (${agent})` : ""}`, { hint: "take another task: strom session start (the next free one)" });
+    this.name = "TaskTaken";
+    this.task = task;
+    this.session = session;
+  }
+}
+
+/**
  * A file or folder that is not there, the same words wherever a path was given (a person's in their language: ui.error.fs.missing).
  */
 export function notFound(where: string): UsageError {

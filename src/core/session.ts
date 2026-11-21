@@ -11,7 +11,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { UsageError } from "./errors.ts";
+import { TaskTaken, UsageError } from "./errors.ts";
 import type { Session, Task } from "./model.ts";
 import { now, VERSION, type Tree } from "./tree.ts";
 import { makeNote, makeNotes } from "./actions.ts";
@@ -165,10 +165,7 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
         hint: `finish it: strom session close --summary "…" --next "…"   (or, if it died: strom session close ${busy[0]!.id} --interrupted)`,
       });
     const taken = opts.task ? othersAtWork(tree, tree.env, opts.runner).sessions.find((s) => s.task === opts.task!.id) : undefined;
-    if (taken)
-      throw new UsageError(`${opts.task!.id} is being worked on in session ${taken.id}${taken.agent ? ` (${taken.agent})` : ""}`, {
-        hint: "take another task: strom session start (the next free one)",
-      });
+    if (taken) throw new TaskTaken(opts.task!.id, taken.id, taken.agent);
     const task = opts.task ? (tree.get<Task>(opts.task.id) ?? opts.task) : undefined;
     const agent = detectAgent(tree.env) ?? (opts.runner && opts.runner !== "script" ? opts.runner : undefined);
     // the model strom started the agent with (strom run, strom chat): what it read with, for a later review
