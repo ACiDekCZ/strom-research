@@ -242,7 +242,7 @@ export function helpFor(input: string[], archive: boolean, appUrl: ShownAppUrl, 
 export const HUMAN_COMMANDS = [
   "menu", "status", "setup", "doctor", "error", "update", "uninstall", "shortcut",
   "init", "trees", "trees use", "trees remove", "trees forget", "lang", "mode",
-  "chat", "run", "session finish", "research new", "research pause", "research resume", "research done", "research edit", "research order", "research move", "review", "verify bulk", "verify stop",
+  "chat", "run", "session finish", "research new", "research pause", "research resume", "research done", "research edit", "research order", "research move", "research gather", "review", "verify bulk", "verify stop",
   "intake", "sync", "sync undo", "sync discard", "sync note", "conflict list", "conflict resolve", "conflict leave", "conflict keep", "event main", "event revert", "person revert", "hypothesis decide", "task list", "task wake", "task order", "story approve", "story discard",
   "offline list", "offline show", "offline set", "offline answer",
   "stats", "recent", "plan", "history", "history back", "person card", "person list", "pedigree", "find", "query", "doc",

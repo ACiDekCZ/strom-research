@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.36.0
 
-*In preparation: the betas up to 1.36.0-beta.7. The section is complete with the release.*
+*In preparation: the betas up to 1.36.0-beta.8. The section is complete with the release.*
 
 - **A try of the bulk verification at once:** the tasks of a try of the bulk verification (`strom verify bulk --try`)
   stand first in the queue — the next session takes them — and the Strom app can have them worked on at once, one
@@ -54,10 +54,48 @@ The changes of each version in short. The full notes and the install lines are o
   husband's surname of the latest wedding, in the wife's form too; a name chosen in the Strom app as the one now is
   taken over and stays so until chosen again. The file for the Strom app gives the names after a marriage last, the one
   now the very last, so an older Strom app shows the right one as well.
-- **A family tree's file in the material:** the Strom app shows the imported family tree files (GEDCOM, the app's JSON)
+- **Several agents and researches at once, without getting in each other's way, and fewer turns lost in long runs:**
+  each session holds its task while its
+  agent gives signs of life — a task another agent holds is left to it, and the task of an agent that went silent is
+  taken over after `task.hold` (what it wrote is kept, the task back in the queue). An archive that restricts automated
+  access (a person's pace, the browser alone, a downloader's hourly cap) is used by one session at a time of all the
+  researches sharing the folder: a task on it waits while another session uses it, and other work goes on meanwhile;
+  working alone with only such tasks left waits for the archive at most `archive.wait`, and one bulk download of images
+  from such an archive runs at a time on a computer, the next one queued behind it. Nothing is asked of the archive
+  while waiting. The menu names the agents working directly too, and the Strom app learns who holds a task or an
+  archive, since when and until when at the latest. The times are this computer's settings: `task.hold`, `archive.hold`
+  (an archive held with no request to it) and `archive.wait`, each 30 minutes by default, from 5 minutes to 24 hours.
+  Each line can have a run of the agent of its own: `strom run --research G…` (in the menu the line is chosen, its run
+  in a window of its own named after the line) takes the tasks of that line, a second run of the same line is refused,
+  and the work on the whole queue leaves the lines with a run of their own aside; at most `run.parallel` runs work in
+  one research at once (3 by default, raised by the person alone) — the use of the agent's plan adds up. A new line
+  inside another offers to take over the open tasks about its people (`strom research gather`). The Strom app sees each
+  run, starts and stops them by line (`strom run stop`); runs on one computer share the plan's limit, the browser's
+  plans, the pages of a website and the readers of scans.
+  The agent's rules say to work in a browser tab of its own; a tab outside its group or a page that does not answer is
+  followed at once by what to do (a new tab; the browser's work put aside only after a second timeout). A long text of
+  `strom readings` or `strom searched` stops at about 20 kB with a line on how to narrow it and `--full` for all
+  (`--json` stays whole; `strom searched` has pages like the other lists). A batch with failed lines also says which
+  lines were not checked because they depend on one that failed. Options agents guess that mean exactly another are
+  taken and said in a line (`strom recordset list --parish` as `--place`, `strom media list --image 5` as `--images
+  5-5`, `strom readings --recordset`, `strom search add --query`); `strom person list --surname` finds a surname with
+  its forms, as `strom query --surname`. The gate log marks a wait of the gate that a run started by the person went
+  past (`pace`). Each run writes down why it ended (`.strom/runs/<run>.end.json`: the same reasons the Strom app is
+  shown, its sessions, cost, last and next task).
+- **Smaller fixes:** A range of images through the agent's browser: an archive in strom's list can be given a range of images in one go (at most 20, image after image at a person's pace, stopped at the archive's first check or refusal, the images left then saved by hand before another range of that archive), each archive only with the person's own consent (`strom allow archive <archive> --range`, or in the menu); no archive has it yet. Photos from the Strom app arrive much faster: sending photos or a batch of files from the Strom app
+  to a large research no longer reads every image record of the research for each file: what the research already has is
+  looked up in an index of the files' hashes (kept in `.strom/cache`, made again by itself whenever it is missing or out
+  of date), and the bridge writes what the app sends through one strom process that stays running instead of starting a
+  new one for each file. A newer Strom app hands over a whole batch at once: each file is checked and answered as soon
+  as it arrives, and the batch is written as it is closed — one save, one rebuild of the family tree file and one notice
+  to the app — while an agent at work gets the research between the parts. An older Strom app sends as before, only
+  faster.
+  The Strom app shows the imported family tree files (GEDCOM, the app's JSON)
   in Materials and deletes them for good as any file of the material; one a source was made of only together with that
   source, in one step with one confirmation (`strom input delete … --retract-sources`).
-- **Smaller fixes:** an archive strom keeps stricter than its own list of the archive's terms says (a downloader or a
+  A person taken off a file of the material (Assign in the Strom app, `strom input assign --remove`) is no longer put
+  back on it by the agent's sorting; added back, the file is theirs again.
+  An archive strom keeps stricter than its own list of the archive's terms says (a downloader or a
   research's record read them so once) no longer shuts the agent's browser there quietly: `strom doctor`, `strom run`
   and `strom allow archive` say since when, why and what the list says, What waits and the Strom app ask the person once
   whether to keep it or take the archive's terms (`strom allow archive <host> --keep` or `--level <level>`), after which
@@ -77,6 +115,17 @@ The changes of each version in short. The full notes and the install lines are o
   the ID — a person's, or the partners' of a family — is never said twice.
   Runs side by side on one tree ("start another one beside it", a conversation beside a run): a run whose next task another
   took just before it began goes on with the next free task instead of ending the whole run; no task is taken twice.
+  A line ended within a wider one still at work no longer leaves its tasks waiting for good: they count toward the
+  narrowest line at work their people are in (nothing on them changes, so a line taken up again has them back); a
+  paused line's tasks wait as before.
+  A file sent to the research no longer starts the agent by itself, in a research started before too: neither a batch
+  from the Strom app or a phone, nor a single file or the scan of a source from the app, nor material added in the menu
+  (asked there whether the agent goes through it). The files wait in the material until sorted by hand or with Sort
+  with the agent…; the person alone turns going through them by itself on for a research (`strom config set
+  intake.auto on --for-tree`, Settings → 1, or the research's settings in the Strom app). Tasks made already stay.
+  When the images searched in a book do not cover the years around a date known only from an age (born about 1761 by the
+  age at death), the agent is told which years are missing and where the book goes on, before a “not found” is relied on
+  — how many years either side is the research's setting `search.ageMargin` (default 5).
 
 ## 1.35.0
 

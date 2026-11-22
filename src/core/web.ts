@@ -11,7 +11,9 @@
 //     says its limit is used up, or its hourly cap is full;
 //   - over web.perHost requests (WEB_PER_HOST unless the person set it) to one site in one session — its registrable
 //     domain (metrics.ts webDomain: a server's mirrors and API hosts count together; the pace stays the exact host's),
-//     the same number for every site, no list of archives —
+//     the same number for every site, no list of archives —, and as many to it from every session of this computer within
+//     the time of one session (run.minutes; core/machine.ts: the site's pages in the limiter's folder, of each session
+//     here) — runs side by side never let more pages of a site go than one session would —
 //     refused in a run nobody watches (more pages or items of one server go through strom fetch with a connector), and
 //     in a conversation the person is asked (in the research language, impersonal) once per site and session — never
 //     a series of questions: their yes stands for the site (counted and paced still; a stopped host or a full cap
@@ -35,23 +37,26 @@
 // The hook never stands in the way by itself: anything wrong (no tree, no strom, a line it cannot read) lets the call go
 // without a word. Waiting for its turn at a host is no error. It fetches nothing itself, robots.txt neither.
 
+import { beatSession } from "./holds.ts";
 import { bridgeRefusal, fetchReachesBridge } from "./bridgeguard.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { agentRequest, clock, hostAllowed, type AgentSlot, type HostRefusal } from "./net.ts";
 import { LockedError } from "./errors.ts";
+import { noteSitePage, sitePagesHere } from "./machine.ts";
 import { metricsDir, PUBLIC_SECOND_LEVEL, recordWebRequest, webDomain, webHost, webHourOf, webRequestsOf, metricsOn, WEB_PER_HOST, WEB_SAID_NO, WEB_SOFT, type AgentWebRecord, type WebRequests } from "./metrics.ts";
 import { listConnectors, suggestName } from "./connector.ts";
 import { deadlineOf, finishAsked } from "./clock.ts";
 import type { Session, Task } from "./model.ts";
 import { currentSession } from "./session.ts";
 import { findTreeUpwards, Tree } from "./tree.ts";
-import { Settings } from "./config.ts";
+import { DEFAULT_RUN_MINUTES, Settings } from "./config.ts";
 import { calibrationKey, viewModel } from "./viewsizes.ts";
 import { ui } from "../cli/ui.ts";
 import { isAgent } from "./which.ts";
 import { browserGate, otherWay, webGate, type WebGate } from "./webgate.ts";
 import { humanPace } from "./terms.ts";
+import { archiveHeldText, takeSiteFor } from "./archiveholds.ts";
 import { APP_BROWSER_HOOK_MATCHER, APP_BROWSER_NAVIGATE_MATCHER, CHROME_HOOK_MATCHER, CHROME_NAVIGATE } from "./browser.ts";
 import { searchText } from "./knownterms.ts";
 import { forHistory } from "./pastevents.ts";
@@ -368,9 +373,13 @@ export function wayText(host: string, way: ConnectorWay): string {
 }
 
 /** More than the threshold to one host in a run: the way on for exactly this host — never round the limit. */
-function manyText(host: string, site: string, n: number, way: ConnectorWay): string {
-  return `strom: ${n} requests to ${siteText(host, site)} through the web fetch tool in this session — the limit for one site (web.perHost). ${wayText(host, way)} ${NEVER}`;
+function manyText(host: string, site: string, n: number, way: ConnectorWay, where = IN_SESSION): string {
+  return `strom: ${n} requests to ${siteText(host, site)} through the web fetch tool ${where} — the limit for one site (web.perHost). ${wayText(host, way)} ${NEVER}`;
 }
+
+/** Where the requests to a site are counted, as the agent hears it: its session, or every session of this computer. */
+const IN_SESSION = "in this session";
+const hereText = (minutes: number) => `on this computer in the last ${minutes} min (every session here)`;
 
 /** The site the threshold counts, as the agent hears it: the host itself, or its domain with its other hosts. */
 function siteText(host: string, site: string): string {
@@ -381,18 +390,18 @@ function siteText(host: string, site: string): string {
  * Many calls to one host at once in a run: its pace keeps one request at a time — a slot too far ahead (waitMs), or the
  * host's turn not had (none) — and the way on for more pages of it.
  */
-function paceText(host: string, waitMs: number | undefined, way: ConnectorWay, slow?: { site: string; soft: number }): string {
+function paceText(host: string, waitMs: number | undefined, way: ConnectorWay, slow?: { site: string; soft: number; where?: string }): string {
   const why =
     waitMs === undefined
       ? `another request to it is under way (strom's own, a strom fetch, or another call of yours) and its turn did not come within ${WEB_LOCK_WAIT_MS / 1000} s`
       : `its next free moment is ${Math.ceil(waitMs / 1000)} s away, longer than the web fetch tool waits`;
-  const pace = slow ? `past ${slow.soft} pages of ${siteText(host, slow.site)} in this session, one request per ${WEB_SOFT_GAP_MS / 1000} s to it` : "a person's pace";
+  const pace = slow ? `past ${slow.soft} pages of ${siteText(host, slow.site)} ${slow.where ?? IN_SESSION}, one request per ${WEB_SOFT_GAP_MS / 1000} s to it` : "a person's pace";
   return `strom: one request at a time to ${host}, ${pace} — ${why}. Fetch its pages one after another, never many at once (this one again in a moment); more pages of this server: ${wayText(host, way)} ${NEVER}`;
 }
 
 /** The advice once a session past the soft threshold of a site: slower from now, refused past the hard one — and the way on. */
-function softText(host: string, site: string, soft: number, perHost: number): string {
-  return `strom: ${soft} pages of ${siteText(host, site)} through the web fetch tool in this session — from now one request per ${WEB_SOFT_GAP_MS / 1000} s to it, and past ${perHost} the web fetch tool is refused (web.perHost). For the rest of its pages:`;
+function softText(host: string, site: string, soft: number, perHost: number, where = IN_SESSION): string {
+  return `strom: ${soft} pages of ${siteText(host, site)} through the web fetch tool ${where} — from now one request per ${WEB_SOFT_GAP_MS / 1000} s to it, and past ${perHost} the web fetch tool is refused (web.perHost). For the rest of its pages:`;
 }
 
 /**
@@ -418,6 +427,8 @@ async function answerWeb(ev: WebEvent, o: { env: Env; cwd: string; now?: () => n
   const tree = Tree.open(root, o.env);
   if (!metricsOn(tree)) return {};
   const session = currentSession(tree, o.env);
+  // a page of the agent's is a sign of life of its session: its task stays held (core/holds.ts; at most once a minute)
+  if (session) beatSession(root, session, o.env);
   // as a command of the agent's is logged: its session, else "agent" (never the user)
   if (session) tree.actor = session.id;
   else if (isAgent(o.env)) tree.actor = "agent";
@@ -460,6 +471,18 @@ async function answerWeb(ev: WebEvent, o: { env: Env; cwd: string; now?: () => n
   const lang = tree.lang;
   // the soft threshold: never above the hard one the person set
   const soft = Math.min(WEB_SOFT, perHost);
+  // the site's pages of every session of this computer within the time of one session (core/machine.ts): the thresholds
+  // count the more of them and the session's own — never more for one session than before
+  const stateDir = shared ? path.join(shared, "net") : path.join(metricsDir(root), "net");
+  const minutes = Math.max(1, Math.round(settings.number("run.minutes", tree.config, DEFAULT_RUN_MINUTES)));
+  let wide = false;
+  const count = (had: WebRequests): number => {
+    const mine = had.domains.get(site) ?? 0;
+    const here = sitePagesHere(stateDir, site, minutes * 60_000, o.now?.() ?? Date.now());
+    wide = here > mine;
+    return Math.max(mine, here);
+  };
+  const where = () => (wide ? hereText(minutes) : IN_SESSION);
   // what the archive's terms let the agent's own tool do here (core/webgate.ts; read only, before the host's lock)
   let gate: WebGate | undefined;
   if (!ev.phase && !seen()) {
@@ -470,6 +493,14 @@ async function answerWeb(ev: WebEvent, o: { env: Env; cwd: string; now?: () => n
       const record: AgentWebRecord = { ...base, decision: "deny", why: gate.why ?? "terms", n: webRequestsOf(root, who).domains.get(site) ?? 0 };
       recordWebRequest(tree, o.env, record);
       return { decision: "deny", reason: gate.reason ?? `strom: ${host} — not through the web fetch tool.`, record };
+    }
+    // an archive that restricts automated access, another session uses now (spec 127 K2): refused, nothing asked of it
+    // — its own hold taken or beaten (a request of its session to it)
+    const taken = shared ? takeSiteFor(shared, { env: o.env, tree, host: ev.netHost ?? host, ...(gate.level ? { level: gate.level } : {}), ...(gate.human ? { human: true } : {}), ...(session ? { session } : {}), ...(ev.agentSession ? { agentSession: ev.agentSession } : {}) }) : undefined;
+    if (taken && !taken.ok) {
+      const record: AgentWebRecord = { ...base, decision: "deny", why: "held", n: webRequestsOf(root, who).domains.get(site) ?? 0 };
+      recordWebRequest(tree, o.env, record);
+      return { decision: "deny", reason: archiveHeldText(host, taken, root), record };
     }
   }
   const lvl = gate?.level;
@@ -485,37 +516,40 @@ async function answerWeb(ev: WebEvent, o: { env: Env; cwd: string; now?: () => n
    * second call is refused, never asked again.
    */
   const beyond = (why: "many" | "pace" | "busy", had: WebRequests, waitMs?: number): { take: boolean; value: WebAnswer } => {
-    const before = had.domains.get(site) ?? 0;
+    // (the session's own in its records; the thresholds and the words count the computer's too)
+    const mine = had.domains.get(site) ?? 0;
+    const before = count(had);
     const said = had.answered.get(site);
     const w = way();
-    const deny = (reason: string, as: string = why): { take: boolean; value: WebAnswer } => ({ take: false, value: { decision: "deny", reason, record: { ...base, decision: "deny", why: as, n: before } } });
-    const paced = () => paceText(host, why === "pace" ? waitMs : undefined, w, before >= soft ? { site, soft } : undefined);
+    const deny = (reason: string, as: string = why): { take: boolean; value: WebAnswer } => ({ take: false, value: { decision: "deny", reason, record: { ...base, decision: "deny", why: as, n: mine } } });
+    const paced = () => paceText(host, why === "pace" ? waitMs : undefined, w, before >= soft ? { site, soft, where: where() } : undefined);
     if (why !== "many" && before >= soft) return deny(paced());
-    if (unattended(o.env)) return deny(why === "many" ? manyText(host, site, before, w) : paced());
+    if (unattended(o.env)) return deny(why === "many" ? manyText(host, site, before, w, where()) : paced());
     // below the soft threshold, in a conversation: the person is never disturbed for the pace — let go once the hook's
     // wait is over, counted (in the session; in the host's hour where its lock was had)
-    if (why !== "many") return { take: true, value: { record: { ...base, decision: "allow", why, n: before + 1 } } };
-    if (said === "yes") return { take: true, value: { record: { ...base, decision: "allow", why: "answered", n: before + 1 } } };
+    if (why !== "many") return { take: true, value: { record: { ...base, decision: "allow", why, n: mine + 1 } } };
+    if (said === "yes") return { take: true, value: { record: { ...base, decision: "allow", why: "answered", n: mine + 1 } } };
     if (said === "no") return deny(`strom: the user said no to more requests to ${siteText(host, site)} through the web fetch tool in this session — none goes to it again in this session. ${wayText(host, w)} ${NEVER}`, "answered");
     if (said === "pending") return deny(`strom: the user is being asked about requests to ${siteText(host, site)} already — no second question: wait for that answer, then one page at a time. ${wayText(host, w)} ${NEVER}`, "pending");
     // asked: counted (in the session and the host's hour) only once it goes out — the hook after the call (confirm);
     // past the threshold the person hears the way for this site: its connector here, or the one to build
     const reason = w.have ? ui(lang, "ui.web.ask.have", { n: before, host: site, connector: w.have }) : ui(lang, "ui.web.ask", { n: before, host: site, name: w.name, url: w.url });
-    return { take: false, value: { decision: "ask", reason, record: { ...base, decision: "ask", why, n: before + 1 } } };
+    return { take: false, value: { decision: "ask", reason, record: { ...base, decision: "ask", why, n: mine + 1 } } };
   };
   // the session's requests as read under the host's and the site's locks (the site's pace asks them first)
   let locked: WebRequests | undefined;
   const decide = ({ refused, waitMs, late }: AgentSlot): { take: boolean; value: WebAnswer | undefined } => {
     const had = locked ?? webRequestsOf(root, who);
     if (ev.toolUse && had.toolUses.has(ev.toolUse)) return { take: false, value: undefined };
-    const before = had.domains.get(site) ?? 0;
+    const mine = had.domains.get(site) ?? 0;
+    const before = count(had);
     // the host stopped (it refused, its limit, its cap): refused, whatever the person said
-    if (refused) return { take: false, value: { decision: "deny", reason: refusedText(host, refused), record: { ...base, decision: "deny", why: refused.why, n: before } } };
+    if (refused) return { take: false, value: { decision: "deny", reason: refusedText(host, refused), record: { ...base, decision: "deny", why: refused.why, n: mine } } };
     if (late) return beyond("pace", had, waitMs);
     if (before >= perHost) return beyond("many", had);
-    // past the soft threshold: let through at the site's slower pace — the first of them carries the advice (once)
-    if (before >= soft) return { take: true, value: { record: { ...base, decision: "allow", why: "soft", ...(before === soft ? { advice: true } : {}), n: before + 1 } } };
-    return { take: true, value: { record: { ...base, decision: "allow", n: before + 1 } } };
+    // past the soft threshold: let through at the site's slower pace — the first of them in the session carries the advice (once)
+    if (before >= soft) return { take: true, value: { record: { ...base, decision: "allow", why: "soft", ...(!had.advisedSites?.has(site) ? { advice: true } : {}), n: mine + 1 } } };
+    return { take: true, value: { record: { ...base, decision: "allow", n: mine + 1 } } };
   };
   const write = (a: WebAnswer | undefined, waitedMs: number) => {
     if (!a?.record) return;
@@ -523,6 +557,8 @@ async function answerWeb(ev: WebEvent, o: { env: Env; cwd: string; now?: () => n
     if (gate?.why === "terms" && a.record.decision === "allow" && (!a.record.why || a.record.why === "soft")) a.record.why = "terms";
     if (waitedMs > 0) a.record.paceMs = waitedMs;
     recordWebRequest(tree, o.env, a.record);
+    // a page that goes out counts for every session of this computer too (under the site's lock where it was had)
+    if (a.record.decision === "allow") noteSitePage(stateDir, site, session?.id ?? ev.agentSession ?? "agent", o.now?.() ?? Date.now());
   };
   // after the call ran: one the person was asked about (the hook's last line of it: ask) went out — counted now, no pause
   // (it is gone already); anything else was counted before it or never goes
@@ -540,19 +576,19 @@ async function answerWeb(ev: WebEvent, o: { env: Env; cwd: string; now?: () => n
     if (!ev.toolUse) return {};
     const had = webRequestsOf(root, who);
     if (!had.toolUses.has(ev.toolUse)) return {};
-    const n = had.domains.get(site) ?? 0;
+    const n = count(had);
     const event = ev.phase === "failed" ? "PostToolUseFailure" : "PostToolUse";
     // a site whose own search strom's list knows: its addresses with the first page of it in the session, and after a
     // call that failed (what was tried blind before: brackets unencoded, HTTP 400)
     const search = n === 1 || ev.phase === "failed" ? searchText(ev.netHost ?? host) : undefined;
     if (n < Math.max(1, perHost - WEB_NOTE_BEFORE)) {
       if (!had.advised.has(ev.toolUse)) return search ? { context: search, event } : {};
-      return { context: `${softText(host, site, soft, perHost)} ${wayText(host, way())} ${NEVER}${search ? ` ${search}` : ""}`, event };
+      return { context: `${softText(host, site, soft, perHost, where())} ${wayText(host, way())} ${NEVER}${search ? ` ${search}` : ""}`, event };
     }
     const head =
       n <= perHost
-        ? `strom: ${n} of the ${perHost} requests to ${siteText(host, site)} the web fetch tool takes in this session (web.perHost) used${n === perHost ? " — the next one is refused working alone, and asked of the user once in a conversation" : ""}.`
-        : `strom: ${n} requests to ${siteText(host, site)} through the web fetch tool in this session, past web.perHost (${perHost}) on the user's yes.`;
+        ? `strom: ${n} of the ${perHost} requests to ${siteText(host, site)} the web fetch tool takes ${where()} (web.perHost) used${n === perHost ? " — the next one is refused working alone, and asked of the user once in a conversation" : ""}.`
+        : `strom: ${n} requests to ${siteText(host, site)} through the web fetch tool ${where()}, past web.perHost (${perHost}) on the user's yes.`;
     return { context: `${head} The rest of this server's pages: ${wayText(host, way())} ${NEVER}`, event };
   };
   // (nothing asked of this call — most of them: no host's lock taken for nothing)
@@ -563,7 +599,7 @@ async function answerWeb(ev: WebEvent, o: { env: Env; cwd: string; now?: () => n
   const pace = shared ? listConnectors(shared).find((c) => c.manifest.hosts.some((h) => hostAllowed(netHost, [h])))?.manifest.policy.pace : undefined;
   let value: WebAnswer | undefined;
   try {
-    ({ value } = await agentRequest(shared ? path.join(shared, "net") : path.join(metricsDir(root), "net"), netHost, pace, {
+    ({ value } = await agentRequest(stateDir, netHost, pace, {
       // (a call that went out while the host's hour filled or it was left alone: written, its hour as it is)
       inside: ev.phase ? confirm : decide,
       after: write,
@@ -578,7 +614,7 @@ async function answerWeb(ev: WebEvent, o: { env: Env; cwd: string; now?: () => n
         key: site,
         gapMs: () => {
           locked = webRequestsOf(root, who);
-          return (locked.domains.get(site) ?? 0) >= soft ? WEB_SOFT_GAP_MS : 0;
+          return count(locked) >= soft ? WEB_SOFT_GAP_MS : 0;
         },
       },
       // the host's state broken: made again from this tree's journal of it
@@ -674,7 +710,8 @@ export function claudeWebHooks(root: string, platform: NodeJS.Platform = process
   return {
     PreToolUse: [{ matcher: "WebFetch|WebSearch", hooks }, { matcher: CHROME_HOOK_MATCHER, hooks }, { matcher: APP_BROWSER_HOOK_MATCHER, hooks }],
     PostToolUse: [{ matcher: "WebFetch", hooks }, { matcher: CHROME_NAVIGATE, hooks }, { matcher: APP_BROWSER_NAVIGATE_MATCHER, hooks }],
-    PostToolUseFailure: [{ matcher: "WebFetch", hooks }, { matcher: CHROME_NAVIGATE, hooks }, { matcher: APP_BROWSER_NAVIGATE_MATCHER, hooks }],
+    // after any tool of Claude in Chrome failed: a navigate counted, and a word on its tab (a tab outside the group, no answer in time)
+    PostToolUseFailure: [{ matcher: "WebFetch", hooks }, { matcher: CHROME_HOOK_MATCHER, hooks }, { matcher: APP_BROWSER_NAVIGATE_MATCHER, hooks }],
   };
 }
 

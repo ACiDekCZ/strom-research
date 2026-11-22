@@ -20,7 +20,8 @@ import { viewSizesFor } from "../core/viewsizes.ts";
 import type { Tree } from "../core/tree.ts";
 import type { Settings } from "../core/config.ts";
 import type { Env } from "../core/paths.ts";
-import { refuseReadersWhenFinishing } from "../core/clock.ts";
+import { deadlineOf, finishOf, refuseReadersWhenFinishing } from "../core/clock.ts";
+import { readerSlot, readerSlotWait } from "../core/machine.ts";
 import { recordReader, tokensOf, usageOpt } from "../core/metrics.ts";
 import { imageSizeOfFile } from "../image/index.ts";
 import { currentSession } from "../core/session.ts";
@@ -223,6 +224,29 @@ export function readersLang(ctx: Context, tree: Tree): string {
   return isAgent(ctx.env) ? "en" : tree.lang;
 }
 
+/**
+ * A slot of this computer's readers of scans for one reader (core/machine.ts readerSlot): at most read.parallel (or the
+ * readers this reading asked for, if more) of every reading here at once. Waited for — said once, what it waits for — at
+ * most READER_SLOT_WAIT_MS and never past the session's time; let go by `release` as the reader ends. Not had in time:
+ * `busy`, why in one line (the reader is not started).
+ */
+export async function readerSlotFor(ctx: Context, tree: Tree, name: string, parallel: number, progress: (s: string) => void, stop?: () => boolean): Promise<{ release: () => void } | { busy: string }> {
+  const n = Math.max(ctx.settings.readParallel(tree.config), parallel);
+  const deadline = deadlineOf(ctx.env);
+  const waitMs = Math.max(0, Math.min(readerSlotWait(ctx.env), deadline !== undefined ? deadline - Date.now() : Infinity));
+  const minutes = Math.max(1, Math.ceil(waitMs / 60_000));
+  const lang = readersLang(ctx, tree);
+  const session = ctx.env.STROM_SESSION;
+  const release = await readerSlot(ctx.settings.shared()?.value, n, {
+    owner: `reader ${name}`,
+    waitMs,
+    onWait: () => progress(ui(lang, "ui.read.slot.wait", { name, n, minutes })),
+    // the session asked to finish: no new reader, as when none would start
+    stop: () => Boolean(stop?.() || (session && finishOf(tree.root, session))),
+  });
+  return release ? { release } : { busy: ui(lang, "ui.read.failed.busy", { n, minutes }) };
+}
+
 export function readerAuthSaid(ctx: Context, tree: Tree, agentId: string): string {
   const lang = readersLang(ctx, tree);
   if (agentId === "claude") return ui(lang, "ui.read.auth", { command: claudeLoginCommand(ctx.env) });
@@ -266,7 +290,20 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
   let partial = false;
   const failed: string[] = [];
   let authTold = false;
+  // each reader in a slot of this computer's readers (readerSlotFor): none free in time — not started, said as failed
   const read = async (name: string, views: string[], title: string, prompt: (report: string) => string, more: ReadMore = {}) => {
+    const slot = await readerSlotFor(ctx, tree, name, parallel, progress, () => Boolean(more.signal?.aborted));
+    if ("busy" in slot) {
+      failed.push(`${name} (${slot.busy})`);
+      return { report: path.join(reportsDir, `${stem}-${name}.md`), text: "", outcome: "error" as const };
+    }
+    try {
+      return await readIn(name, views, title, prompt, more);
+    } finally {
+      slot.release();
+    }
+  };
+  const readIn = async (name: string, views: string[], title: string, prompt: (report: string) => string, more: ReadMore = {}) => {
     const report = path.join(reportsDir, `${stem}-${name}.md`);
     const own = readerRoomDir(shared, `${stem}-${name}`);
     const settingsFile = path.join(own, "reader-settings.json");

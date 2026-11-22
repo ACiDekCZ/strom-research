@@ -9,7 +9,7 @@ import { isAgent } from "../core/which.ts";
 import fs from "node:fs";
 import { commands, register, type CommandDef, type Input } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { LIST_PAGE_MAX, counted, lines, moreLine, paginate, shellArg, table, truncate } from "../cli/format.ts";
+import { LIST_PAGE_MAX, counted, lines, moreLine, narrowLine, paginate, shellArg, table, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
 import { ui } from "../cli/ui.ts";
 import {
@@ -663,7 +663,7 @@ register(
     tree: true,
     args: [{ name: "filter", description: "text in title, place or call number", mistaken: ["find", "search", "text"] }],
     options: [
-      { name: "place", type: "string", value: "<name>", description: "only the books of this place (diacritics optional)" },
+      { name: "place", type: "string", value: "<name>", description: "only the books of this place (diacritics optional)", readAs: ["parish"] },
       { name: "kind", type: "string", value: "<kind>", description: "only the books holding this kind of record (baptism, marriage, burial…)" },
       { name: "years", type: "string", value: "<from-to>", description: "only the books whose years reach into these" },
       { name: "repo", type: "string", value: "<R…>", description: "only the books of this archive", aliases: ["repo-of"] },
@@ -693,7 +693,7 @@ register(
       // A page at most (--limit, LIST_PAGE_MAX rows: under ~20 kB — an agent's tool keeps a longer output in a file and
       // shows only its start, N0280, N0281); a long list says its filters first, where a cut output still shows them.
       const page = paginate(all, Math.min(ctx.limit, LIST_PAGE_MAX), ctx.page);
-      const narrow = all.length > LONG_LIST && filters.length ? `${all.length} record sets — narrow: strom recordset list ${filters.join(" ")}` : undefined;
+      const narrow = all.length > LONG_LIST ? narrowLine(counted(all.length, "record set"), "strom recordset list", filters) : undefined;
       return {
         text: all.length
           ? lines(

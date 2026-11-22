@@ -94,6 +94,8 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
               parts.push({ label: t("ui.settings.runconfirm", { state: t(ctx.settings.runConfirm() === "no" ? "ui.runconfirm.no" : "ui.runconfirm.ask") }), act: () => runConfirmStep(ctx, run, lang) });
               // census records as a source of this research (spec 106): the person's switch, with the census tasks held while off
               if (root) parts.push({ label: censusLabel(ctx, lang, root), act: () => censusStep(ctx, run, lang, root) });
+              // the batches from the app sorted by the agent by themselves (spec 130): the person's switch, off by default
+              if (root) parts.push({ label: t("ui.settings.intake", { state: t(ctx.settings.intakeAuto(Tree.open(root, ctx.env).config) ? "ui.settings.on" : "ui.settings.off") }), act: () => intakeStep(ctx, run, lang, root) });
             }
             if (parts.length) {
               const i = await ctx.choose(t("ui.settings.wizard.what"), [{ label: t("ui.settings.wizard.all") }, ...parts.map((p) => ({ label: p.label }))], 0, { back: t("ui.browse.back") });
@@ -234,6 +236,18 @@ async function censusStep(ctx: Context, run: Run, lang: string, root: string): P
   const tree = Tree.open(root, ctx.env);
   const held = censusHeldCount(tree.list<Task>("task"), ctx.settings.census(tree.config));
   if (held) ctx.io.stdout(t("ui.settings.census.back", { n: held }) + "\n");
+}
+
+/**
+ * The batches from the Strom app sorted by the agent by themselves in this research (spec 130): what it means said first,
+ * then the person's yes to switch it (Enter: nothing changed). Written for this research (--for-tree).
+ */
+async function intakeStep(ctx: Context, run: Run, lang: string, root: string): Promise<void> {
+  const t = translator(lang);
+  const on = ctx.settings.intakeAuto(Tree.open(root, ctx.env).config);
+  ctx.io.stdout(t("ui.settings.intake.about") + "\n");
+  if (!(await ctx.confirm(t(on ? "ui.settings.intake.off" : "ui.settings.intake.on"), false))) return;
+  await run(["config", "set", "intake.auto", on ? "off" : "on", "--for-tree"], true);
 }
 
 /**

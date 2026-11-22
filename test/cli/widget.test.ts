@@ -220,6 +220,7 @@ test("a task strom wrote of material from the app (\"Karel Němec [P0001]\"): ea
     await w.ok(["lang", "cs"]);
     await w.ok(["research", "new", "Předci Karla Němce", "--new-person", "Karel /Němec/", "--sex", "M"]); // P0001
     await w.ok(["person", "add", "Marie /Němcová/", "--sex", "F"], AGENT); // P0002
+    await w.ok(["config", "set", "intake.auto", "on", "--for-tree"], { tty: true }); // the person's switch: files get their tasks
     const photo = path.join(w.env.HOME!, "fotka.png");
     fs.writeFileSync(photo, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
     await w.ok(["media", "original", photo, "--name", "fotka.png", "--person", "P0001", "--person", "P0002"]); // as the bridge takes it from the app

@@ -45,7 +45,11 @@ test("C9: task next, task start and brief never offer a task another agent holds
   assert.match((await w.ok(["brief"], { env: B })).out, /Křest Josefa/);
   const held = await w.run(["task", "start", first], { env: B });
   assert.equal(held.code, 2);
-  assert.match(held.err, new RegExp(`${first} is being worked on in session N0001`));
+  // a person reads it in the research's language (who, since, the last sign, free by); an agent the English sentence
+  assert.match(held.err, new RegExp(`${first} drží .*N0001.* od (?:\\d{4}-\\d\\d-\\d\\d )?\\d{1,2}:\\d{2}, naposledy (?:\\d{4}-\\d\\d-\\d\\d )?\\d{1,2}:\\d{2}; uvolní se nejpozději v`, "u"));
+  const agent = await w.run(["task", "start", first], { env: { ...B, AI_AGENT: "1" } });
+  assert.equal(agent.code, 2);
+  assert.match(agent.err, new RegExp(`${first} is being worked on in session N0001 \\(.*since (?:\\d{4}-\\d\\d-\\d\\d )?\\d{1,2}:\\d{2}, last sign (?:\\d{4}-\\d\\d-\\d\\d )?\\d{1,2}:\\d{2}, free by (?:\\d{4}-\\d\\d-\\d\\d )?\\d{1,2}:\\d{2} at the latest\\)`));
   w.cleanup();
 });
 

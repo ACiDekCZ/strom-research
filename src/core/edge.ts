@@ -8,7 +8,7 @@
 import type { Conflict, Family, Hypothesis, Person, RecordSet, Research, Search, Session, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { now } from "./tree.ts";
-import { aboutPeople, directionOf, hypothesisPeople, joiningVariants, namesId, scopes, type Scope } from "./directions.ts";
+import { aboutPeople, effectiveDirection, hypothesisPeople, joiningVariants, namesId, scopes, type Scope } from "./directions.ts";
 import { birthEstimate, birthRecordProven, birthWindow, frontier, FRONTIER_LEVELS, RECORD_KINDS, recordsetsCovering, type FrontierItem } from "./frontier.ts";
 import { kinship, offTree } from "./kin.ts";
 import { familiesAsChild, familiesAsPartner, parentsOf, primaryName } from "./people.ts";
@@ -289,7 +289,7 @@ export function treeEdges(tree: Tree, opts: { named?: boolean } = {}): { edges: 
       .map((t) => {
         const state = effectiveState(t, today);
         const at = position.get(t.id);
-        const dir = directionOf(tree, t, all);
+        const dir = effectiveDirection(tree, t, all);
         const dirState = dir ? researches.get(dir)?.state : undefined;
         const held: EdgeTask["held"] =
           state === "parked" ? "parked" : state !== "open" || at ? undefined : dirState === "paused" || dirState === "done" ? dirState : off(t) ? "off-tree" : undefined;

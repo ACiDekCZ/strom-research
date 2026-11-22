@@ -331,7 +331,7 @@ function numbersOf(v: Record<string, unknown>, masker: Masker, depth = 0): Recor
 }
 
 const FETCH_KEYS = ["at", "cmd", "connector", "via", "book", "rs", "requests", "pages", "got", "located", "books", "later", "stopped", "status", "refused", "result", "hosts", "ms", "gain", "media", "by", "worker", "session", "host", "domain", "decision", "why", "advice", "n", "paceMs", "tool"] as const;
-const GATE_KEYS = ["at", "run", "gate", "status", "signal", "verdict", "reason", "waitMs", "until", "hard", "task", "sessions", "costUsd", "then"] as const;
+const GATE_KEYS = ["at", "run", "gate", "status", "signal", "verdict", "reason", "waitMs", "until", "hard", "task", "sessions", "costUsd", "then", "pace"] as const;
 
 export interface LogLimits {
   live: number;
@@ -613,7 +613,8 @@ export function launchedFrom(env: Env, tty: boolean): Record<string, unknown> {
 
 /** The settings that say nothing of a person (a whitelist: anything else of the settings never goes). */
 const CONFIG_PLAIN = [
-  "lang", "mode", "stromVersion", "lastVersion", "lastChannel", "npmChannel", "stories", "runGate", "runConfirm", "archivePace", "readApp", "briefBudget", "runMinutes",
+  "lang", "mode", "stromVersion", "lastVersion", "lastChannel", "npmChannel", "stories", "runGate", "runConfirm", "archivePace", "readApp", "briefBudget", "runMinutes", "runParallel",
+  "taskHold", "archiveHold", "archiveWait",
   "webPerHost", "readParallel", "queueStrategy", "queueOffLine", "queueOffLineShare", "queueSuggestLines", "queueSuggestTasks", "queueSuggestPersons", "queueSameBook", "booksMinTasks",
   "connectorsConsent", "browserDownloads", "experimentsHistory", "experimentsHistoryPace", "experimentsHistoryPlaces", "experimentsPlaceHistory",
   "historyKinds", "historyAsked", "stromApp", "links", "shortcut", "appBrowser", "terminal", "updates", "excerptsQuality", "excerptsFor", "excerptsMb",

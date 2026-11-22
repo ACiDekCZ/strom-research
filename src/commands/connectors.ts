@@ -115,7 +115,9 @@ import { allows, forgetConnector, grantWay, keyHost, latchedPace, liftRefusal, l
 import { waitsOnHost } from "../core/archivewait.ts";
 import { waysOffered } from "../core/archiveasks.ts";
 import { archivesOverview, browserOnlyRefusal, checkEnvironment, gateArchive, levelsOf, levelText, NeedsPermissionError, permissionText, robotsPermits, syncTrees, taskHere, verdictKeeper } from "./archives.ts";
-import { currentSession, othersAtWork } from "../core/session.ts";
+import { currentSession, lifeOf, othersAtWork } from "../core/session.ts";
+import { archiveWaitMs, BULK, cappedConnector, claimSite, holderWords, joinQueue, leaveQueue, releaseSite, restrictedLevel, siteOf, type Holder, type SiteClaim } from "../core/archiveholds.ts";
+import { isWorkerId } from "../core/workers.ts";
 import { refuseInHistorySession } from "../core/pastevents.ts";
 import { askedAgain, noteLeftAlone } from "../core/leftalone.ts";
 import { opsLogsOf } from "../core/opslog.ts";
@@ -1438,6 +1440,12 @@ register(
       "and the time — other work meanwhile, or close the session with --continue; a fetch with --background waits\n" +
       "for it by itself when it frees within 30 min. A session is told so once: a fetch of it asking that archive\n" +
       "again before then ends at once with exit 8 (nothing estimated, nothing sent).\n" +
+      "An archive that restricts automated access (a person's pace, the browser alone, a connector's hourly cap) is\n" +
+      "used by one session at a time of all the researches sharing the folder, and one bulk download of such images\n" +
+      "runs at a time on a computer. Held by another: a download of images says \"queued behind …\" and waits its turn\n" +
+      "by itself (the one waiting longest goes first), at most archive.wait (default 30 min, 5 min–24 h) — do not stop\n" +
+      "it; any other fetch, or the wait over, ends with exit 7 and data.held {key, by, until} (and data.later): work\n" +
+      "without it meanwhile, then the same command again. Nothing is asked of the archive while it waits.\n" +
       "With --recordset the images are registered as they come, 10 at a time (strom read of the book may begin\n" +
       "meanwhile); Ctrl-C keeps what came, the same command fetches the rest; a connector that stops on an error\n" +
       "keeps what came too: it ends with exit 1, the images not fetched and the command that fetches them\n" +
@@ -1481,7 +1489,7 @@ register(
       { name: "find", type: "string", value: "<place>", description: "find the books that cover a place" },
       { name: "years", type: "string", value: "<from-to>", description: "with --find" },
       { name: "list", type: "boolean", description: "describe the book (title, images)" },
-      { name: "take", type: "boolean", description: "through the browser: take over what it downloaded (checked, registered)" },
+      { name: "take", type: "boolean", description: "through the browser: take over what it downloaded (checked, registered) — the plans of this session (and of none, or of a session that ended); another session's at work are left to it" },
       { name: "result", type: "string", value: "<line>", description: "with --take: the line the browser script returned (strom-result …)" },
       { name: "again", type: "string", value: "<reason>", description: "fetch although a book of the research is this book (the same link, or its images came from it): why — into --recordset, another book (kept on it); without it, into the inbox" },
       { name: "no-index", type: "boolean", description: "fetch the images although an index of the book's parish and years is known (read already, or of no use here) — a session of strom run needs it from as many images on as strom read --no-index says" },
@@ -2131,11 +2139,12 @@ function planPages(ctx: Context, c: Connector, want: PageRequest, resume: Resume
   const key = pageKey(want);
   const open = c.manifest.browser?.open && new URL(c.manifest.browser.open).origin === u.origin ? c.manifest.browser.open : `${u.origin}/robots.txt`;
   const page: PlanPage = { key, method: want.method, url: want.url, headers: want.headers, ...(want.body !== undefined ? { body: want.body } : {}), file: `strom-${c.name}-page-${key}`, at: times[0]! };
-  // a page planned again replaces its older plan
-  for (const old of loadPlans(tree.root, c.name)) if (old.pages?.some((p) => p.key === key)) removePlan(tree.root, old.id);
+  // a page planned again replaces its older plan (never one of another session at work)
+  const by = plansBy(ctx, tree, loadPlans(tree.root, c.name));
+  for (const old of by.mine) if (old.pages?.some((p) => p.key === key)) removePlan(tree.root, old.id);
   const now = Date.now();
   const book = "request" in resume && typeof resume.request.book === "string" ? resume.request.book : "";
-  const plan: BrowserPlan = { id: `${c.name}-${now}-p`, connector: c.name, book, pages: [page], resume, open, origin: u.origin, host: u.hostname, gap: pace.minIntervalMs, created: now, until: now + PLAN_TTL_MS, items: [] };
+  const plan: BrowserPlan = { id: `${c.name}-${now}-p`, connector: c.name, book, pages: [page], resume, open, origin: u.origin, host: u.hostname, gap: pace.minIntervalMs, created: now, until: now + PLAN_TTL_MS, items: [], ...(by.me ? { session: by.me } : {}) };
   savePlan(tree.root, plan);
   const script = pageScript(plan);
   const take = `strom fetch ${c.name} --take --result "<the line it returned>"`;
@@ -2886,6 +2895,9 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   if (request.cmd === "part") ctx.io.stderr(estimate(ctx, c, 1, request.image, gate.human) + "\n");
   if (gate.human.size) ctx.io.stderr(`  · ${[...gate.human.keys()].join(", ")}: its terms restrict automated access — images at a person's pace, as the user allowed (strom allow archive)\n`);
   if (owner && request.cmd === "fetch" && recordset) return startBackground(ctx, c, request, recordset, owner, noIndex, background?.again);
+  // a restricted archive (spec 127 K2): one session at a time on it on this computer, and one bulk download of images
+  const held = await holdArchive(ctx, c, request, gate.human);
+  if ("result" in held) return held.result;
   const workDir = path.join(tree.root, ".strom", "fetch", `${c.name}-${Date.now()}`);
   const t0 = Date.now();
   const pages = pagesOf(ctx, c);
@@ -2916,6 +2928,8 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
       waitMs: waits.waitMs,
       onWait: (w) => (count.clear(), batches?.waiting(w.until), waits.onWait(w)),
       ...metered(meter),
+      // each request to a restricted archive: a sign of life of its hold (never a request more)
+      onRequest: (h: string) => (meter.request(h), held.beat(h)),
       ...(pages ? { pages } : {}),
       ...pacing(ctx, c, gate.human),
       ...netWords(ctx, c, "levels" in gate ? gate.levels : []),
@@ -3057,6 +3071,129 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
         });
     }
     batches?.end();
+    held.release();
+  }
+}
+
+/** How often strom fetch looks whether its turn on a restricted archive came (a file read, nothing asked of the archive). */
+const HOLD_POLL_MS = 1000;
+
+interface ArchiveHandle {
+  beat: (host: string) => void;
+  release: () => void;
+}
+
+/**
+ * The holds of a restricted archive for a fetch (spec 127 K2): its sites (the connector's hosts whose terms or the
+ * person's permission want a person's pace or browser, or all of them when its service has an hourly cap) taken for its
+ * session (or, without one, for this process) — and strom fetch of images takes this computer's one bulk download too.
+ * Held by another: strom fetch of images waits its turn in the queue (the one waiting longest first), at most
+ * archive.wait and never into a run's last minutes, then ends as one that comes later (exit 7); the catalogue and a
+ * part are refused at once ("held"). An archive that restricts nothing: nothing held, as before.
+ */
+async function holdArchive(ctx: Context, c: Connector, request: ConnectorRequest, human: Map<string, Pace>): Promise<{ result: Result } | ArchiveHandle> {
+  const sh = ctx.settings.shared()?.value;
+  const none: ArchiveHandle = { beat: () => {}, release: () => {} };
+  if (!sh || ctx.tree().dryRun) return none;
+  const sites = [
+    ...new Set([
+      ...(cappedConnector(c.manifest) ? c.manifest.hosts.map((h) => siteOf(h.replace(/^\*\./, ""))) : []),
+      ...levelsOf(ctx, c, true).filter((a) => restrictedLevel(a)).map((a) => siteOf(a.host)),
+      ...[...human.keys()].map(siteOf),
+    ]),
+  ];
+  if (!sites.length) return none;
+  const tree = ctx.tree();
+  const env = ctx.env;
+  const s = currentSession(tree, env);
+  const worker = isWorkerId(env.STROM_WORKER) ? env.STROM_WORKER : undefined;
+  const who: Holder = s
+    ? { tree: tree.root, session: s.id, ...(s.task ? { task: s.task } : {}), ...(s.research ? { research: s.research } : {}), by: s.runner ? "run" : worker ? "chat" : "agent", ...(worker ? { worker } : {}), ...(s.agent ? { agent: s.agent } : {}) }
+    : { tree: tree.root, by: "fetch", pid: process.pid };
+  const bulk = request.cmd === "fetch";
+  // the bulk hold is this process's alone (another fetch of the same session waits for it as well)
+  const bulkMine: Holder = { tree: tree.root, by: "fetch", pid: process.pid };
+  const deadline = Date.now() + Math.min(archiveWaitMs(env), limitWait(ctx).waitMs);
+  const queued = new Set<string>();
+  const leave = () => {
+    for (const k of queued) leaveQueue(sh, k, tree.root);
+    queued.clear();
+  };
+  const held = new Set<string>();
+  let said = "";
+  for (;;) {
+    let blocked: { key: string; claim: Exclude<SiteClaim, { ok: true }> } | undefined;
+    let tookBulk = false;
+    if (bulk) {
+      const b = claimSite(sh, BULK, bulkMine, env);
+      if (b.ok) tookBulk = true;
+      else blocked = { key: BULK, claim: b };
+    }
+    const fresh: string[] = [];
+    if (!blocked)
+      for (const site of sites) {
+        const r = claimSite(sh, site, who, env);
+        if (r.ok) {
+          if (r.fresh) fresh.push(site);
+          held.add(site);
+        } else {
+          blocked = { key: site, claim: r };
+          break;
+        }
+      }
+    if (!blocked) {
+      leave();
+      const beat = setInterval(() => (bulk ? claimSite(sh, BULK, bulkMine, env) : undefined), 60_000);
+      beat.unref();
+      return {
+        beat: (h) => {
+          const site = siteOf(h);
+          if (held.has(site)) claimSite(sh, site, who, env);
+        },
+        release: () => {
+          clearInterval(beat);
+          if (bulk) releaseSite(sh, BULK, bulkMine);
+          // a session keeps its archive (it lapses with the session, or with no request for archive.hold)
+          if (!s) for (const site of held) releaseSite(sh, site, who);
+        },
+      };
+    }
+    // not all of it had: what was taken now let go again, in the queue for what is held
+    for (const site of fresh) releaseSite(sh, site, who);
+    if (tookBulk) releaseSite(sh, BULK, bulkMine);
+    const now = Date.now();
+    const what = blocked.key === BULK ? "this computer's one bulk download of images from an archive that restricts automated access" : `${blocked.key}, an archive that restricts automated access`;
+    const holder = blocked.claim.hold ? holderWords(blocked.claim.hold, tree.root) : `${blocked.claim.waiter.by === "fetch" ? "strom fetch" : blocked.claim.waiter.by === "run" ? "strom run" : "an agent"} waiting longer`;
+    const until = blocked.claim.hold ? blocked.claim.life.until : blocked.claim.until;
+    const since = blocked.claim.hold ? `since ${clock(blocked.claim.life.since, now)}, last request ${clock(blocked.claim.life.lastSign, now)}, ` : "";
+    const line = `${what} is used by ${holder} (${since}free by ${clockUp(Math.max(until, now))} at the latest)`;
+    if (!bulk) {
+      leave();
+      return {
+        result: {
+          text: lines(`strom: ${line} — one session at a time on it. Nothing was asked of it: work without it meanwhile, then the same command again.`),
+          data: { held: { key: blocked.key, by: holder, until: new Date(until).toISOString() }, later: new Date(until).toISOString() },
+          exitCode: EXIT.later,
+        },
+      };
+    }
+    if (now >= deadline) {
+      leave();
+      return {
+        result: {
+          text: lines(`strom: ${line} — strom fetch waited its turn ${Math.round(archiveWaitMs(env) / 60_000)} min at most and ends. Nothing was asked of it: work without it meanwhile, then the same command again.`),
+          data: { held: { key: blocked.key, by: holder, until: new Date(until).toISOString() }, later: new Date(until).toISOString() },
+          exitCode: EXIT.later,
+        },
+      };
+    }
+    // in the queue of what is held (the one waiting longest goes first once it is let go)
+    joinQueue(sh, blocked.key, blocked.key === BULK ? bulkMine : who);
+    queued.add(blocked.key);
+    const say = `  · queued behind ${holder} on ${what} (${since}free by ${clockUp(Math.max(until, now))} at the latest) — strom waits its turn, at most until ${clockUp(deadline)}; do not stop it\n`;
+    if (`${holder} ${what}` !== said) ctx.io.stderr(say);
+    said = `${holder} ${what}`;
+    await new Promise((r) => setTimeout(r, HOLD_POLL_MS));
   }
 }
 
@@ -3151,9 +3288,11 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
     .map((l, i) => ({ n: l.n, src: l.src, url: l.url ?? l.src, ...(l.page ? { page: l.page } : {}), ...(l.region ? { region: l.region } : {}), file: fileBase(c.name, request.book, l.n, part), at: times[i + 1]! }))
     .filter((it, i) => i === 0 || it.at - times[1]! <= SCRIPT_MS);
   const now = Date.now();
-  const plan: BrowserPlan = { id: `${c.name}-${now}`, connector: c.name, book: request.book, ...(recordset ? { recordset } : {}), open, origin: first.origin, host: first.hostname, gap: times.length > 1 ? times[1]! - times[0]! : pace.minIntervalMs, created: now, until: now + PLAN_TTL_MS, items, ...(viewer ? { viewer } : {}) };
+  // (the session's own: never a plan of another session at work)
+  const by = plansBy(ctx, tree, loadPlans(tree.root, c.name));
+  const plan: BrowserPlan = { id: `${c.name}-${now}`, connector: c.name, book: request.book, ...(recordset ? { recordset } : {}), open, origin: first.origin, host: first.hostname, gap: times.length > 1 ? times[1]! - times[0]! : pace.minIntervalMs, created: now, until: now + PLAN_TTL_MS, items, ...(viewer ? { viewer } : {}), ...(by.me ? { session: by.me } : {}) };
   // an image planned again replaces its older plan
-  for (const old of loadPlans(tree.root, c.name)) {
+  for (const old of by.mine) {
     const left = old.items.filter((i) => !(old.book === plan.book && items.some((x) => x.file === i.file)));
     if (left.length === old.items.length) continue;
     if (left.length) savePlan(tree.root, { ...old, items: left });
@@ -3191,6 +3330,33 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
   };
 }
 
+/**
+ * The plans of the browser this command may take over or plan anew (spec 126 U8): the session's own, those of no session
+ * (planned outside one, by a strom before), and of a session that ended or lapsed; a plan of another session still at
+ * work is left to it (`theirs`). `me`: the session of the agent that runs the command.
+ */
+function plansBy(ctx: Context, tree: Tree, plans: BrowserPlan[]): { me?: string; mine: BrowserPlan[]; theirs: BrowserPlan[] } {
+  const me = currentSession(tree, ctx.env)?.id;
+  const mine: BrowserPlan[] = [];
+  const theirs: BrowserPlan[] = [];
+  for (const p of plans) {
+    if (!p.session || p.session === me) {
+      mine.push(p);
+      continue;
+    }
+    const s = tree.get<Session>(p.session);
+    if (s?.state === "open" && lifeOf(tree, s).alive) theirs.push(p);
+    else mine.push(p);
+  }
+  return { ...(me ? { me } : {}), mine, theirs };
+}
+
+/** The one sentence of the plans left to the sessions at work that made them. */
+function theirsLine(theirs: BrowserPlan[]): string {
+  const sessions = [...new Set(theirs.map((p) => p.session!))];
+  return `left alone: ${theirs.length === 1 ? "a plan" : `${theirs.length} plans`} of the browser made by ${sessions.length === 1 ? "session" : "sessions"} ${sessions.join(", ")}, still at work — that session takes ${theirs.length === 1 ? "it" : "them"} over itself`;
+}
+
 /** What the browser downloaded: taken over from the downloads folder, checked, registered (or put into the inbox). */
 async function takeOver(ctx: Context, c: Connector, result: string | undefined): Promise<Result> {
   // the script still waits for a viewer's tiles (browser.tileWait): nothing taken yet — it is run again first
@@ -3200,7 +3366,16 @@ async function takeOver(ctx: Context, c: Connector, result: string | undefined):
       data: { taken: [], waiting: true },
     };
   const tree = ctx.tree();
-  const all = loadPlans(tree.root, c.name);
+  // only this session's plans (and those nobody works on now): another session's at work stays its own, said in one line
+  const by = plansBy(ctx, tree, loadPlans(tree.root, c.name));
+  if (!by.theirs.length) return takeOverPlans(ctx, c, result, tree, by.mine);
+  const others = by.theirs.map((p) => ({ plan: p.id, session: p.session }));
+  if (!by.mine.length) return { text: theirsLine(by.theirs), data: { taken: [], others } };
+  const r = await takeOverPlans(ctx, c, result, tree, by.mine);
+  return { ...r, text: lines(r.text, theirsLine(by.theirs)), data: { ...(r.data && typeof r.data === "object" ? (r.data as Record<string, unknown>) : {}), others } };
+}
+
+async function takeOverPlans(ctx: Context, c: Connector, result: string | undefined, tree: Tree, all: BrowserPlan[]): Promise<Result> {
   const dir = ctx.settings.downloads();
   const got = parseResult(result ?? "");
   // pages for the connector first: what they were planned for goes on — unless the browser saved images

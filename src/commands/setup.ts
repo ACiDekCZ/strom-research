@@ -10,7 +10,7 @@ import { spawnSync } from "node:child_process";
 import { APP_URL_INVALID_SETTING, register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, secondsIn, shellArg, table } from "../cli/format.ts";
-import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_HISTORY_PACE, DEFAULT_LIVE_IDLE_MINUTES, DEFAULT_READ_PARALLEL, DEFAULT_RUN_MINUTES, HISTORY_PACES, historySwitches, OTHER_ENV, readStored, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
+import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_HISTORY_PACE, DEFAULT_LIVE_IDLE_MINUTES, DEFAULT_READ_PARALLEL, DEFAULT_RUN_MINUTES, DEFAULT_RUN_PARALLEL, HISTORY_PACES, historySwitches, OTHER_ENV, readStored, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import type { Input, Media, Task, TreeConfig } from "../core/model.ts";
 import type { UserConfig } from "../core/config.ts";
@@ -1227,6 +1227,7 @@ const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | unde
   "queue.suggestTasks": (s, tree) => String(s.suggestLines(tree).tasks),
   "queue.sameBook": (s, tree) => (s.sameBook(tree) ? "yes" : "no"),
   "books.minTasks": (s, tree) => String(s.booksMinTasks(tree)),
+  "search.ageMargin": (s, tree) => String(s.ageMargin(tree)),
   "queue.suggestPersons": (s, tree) => String(s.suggestLines(tree).persons),
   "gedcom.for": () => "both",
   stories: () => "yes",
@@ -1247,6 +1248,9 @@ const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | unde
   "archive.pace": () => "auto",
   "read.app": () => "auto",
   "live.idleMinutes": () => DEFAULT_LIVE_IDLE_MINUTES,
+  "task.hold": (s) => s.holdMinutes("task.hold"),
+  "archive.hold": (s) => s.holdMinutes("archive.hold"),
+  "archive.wait": (s) => s.holdMinutes("archive.wait"),
 };
 
 /** Effective value of a setting, with the default filled in (views.size of one book: `recordset`). */
@@ -1300,10 +1304,12 @@ function effective(ctx: Context, def: SettingDef, recordset?: string): { value: 
   if (def.key === "run.minutes") return { value: DEFAULT_RUN_MINUTES, source: "default" };
   if (def.key === "web.perHost") return { value: WEB_PER_HOST, source: "default" };
   if (def.key === "read.parallel") return { value: DEFAULT_READ_PARALLEL, source: "default" };
+  if (def.key === "run.parallel") return { value: DEFAULT_RUN_PARALLEL, source: "default" };
   if (def.key === "connectors.consent") return { value: "off", source: "default" };
   if (def.key === "agent.addons") return { value: "off", source: "default" };
   if (def.key === "experiments.history") return { value: "off", source: "default" };
   if (def.key === "census") return { value: "off", source: "default" };
+  if (def.key === "intake.auto") return { value: "off", source: "default" };
   if (def.key === "experiments.historyPace") return { value: ctx.settings.historyPace(tree), source: "default" };
   if (def.key === "experiments.historyPlaces") return { value: "off", source: "default" };
   if (def.key === "history.kinds") return { value: "all", source: "default" };
@@ -1575,6 +1581,27 @@ function effortDecision(ctx: Context, key: string, value: string | number | unde
  * anyone's. Compared in the layer written, before and after: the user's (it reaches every tree without its own value,
  * whatever this tree has), else the tree's over the user's; none: the default.
  */
+/**
+ * More runs at once in a tree (run.parallel, spec 126): each spends the agent's plan, they add up — raised by the person
+ * alone, as web.perHost; lowering it is anyone's.
+ */
+function runsDecision(ctx: Context, key: string, value: string | number | undefined, scope: "tree" | "user"): void {
+  if (key !== "run.parallel") return;
+  const given = value === undefined ? undefined : Math.round(Number(value));
+  if (given !== undefined && !Number.isFinite(given)) return; // (checkValue says what is wrong with it)
+  const count = (v: string | number | undefined) => (typeof v === "number" && v >= 1 ? Math.round(v) : DEFAULT_RUN_PARALLEL);
+  const change = layerChange(ctx, key, given, scope);
+  const now = count(change.now);
+  const next = count(change.next);
+  if (next <= now) return;
+  ctx.requireHuman(
+    `Let up to ${next} runs of the agent work at once in one family tree (now ${now})? Each spends the agent's plan: they add up`,
+    given === undefined ? "strom config unset run.parallel" : `strom config set run.parallel ${given}`,
+    "run.parallel",
+    ui(ctx.uiLang(), "ui.consent.runParallel", { n: next, now }),
+  );
+}
+
 function webDecision(ctx: Context, key: string, value: string | number | undefined, scope: "tree" | "user"): void {
   if (key !== "web.perHost") return;
   const given = value === undefined ? undefined : Math.max(1, Math.round(Number(value)));
@@ -1626,6 +1653,26 @@ function censusDecision(ctx: Context, key: string, value: string | number | unde
   }
 }
 
+/**
+ * The batches from the Strom app sorted by the agent by themselves (spec 130): turned on by the person alone — in their
+ * terminal, the menu, a window of the system the agent can neither see nor click, or the Strom app (the bridge writes in
+ * the app's environment: the person's decision there, no window); an agent never turns it on (it spends the plan and
+ * changes the tree unasked). Off is anyone's.
+ */
+function intakeDecision(ctx: Context, key: string, value: string | number | undefined, scope: "tree" | "user"): void {
+  if (key !== "intake.auto") return;
+  const { now, next } = layerChange(ctx, key, value, scope);
+  if (next !== "on" || now === "on") return;
+  if (ctx.env.STROM_FOR_APP === "1" && !isAgent(ctx.env)) return;
+  const forTree = scope === "tree" ? " --for-tree" : "";
+  ctx.requireHuman(
+    scope === "tree" ? "Let the agent go through the files sent to this research by itself (the Strom app's batches and files, a phone, material added)?" : "Let the agent go through the files sent to the research by itself (the Strom app's batches and files, a phone, material added), in every research on this computer?",
+    `strom config set intake.auto on${forTree}`,
+    "intake.auto",
+    ui(ctx.uiLang(), scope === "tree" ? "ui.consent.intake.tree" : "ui.consent.intake"),
+  );
+}
+
 /** The tree here, or undefined where none opens. */
 function safeTree(ctx: Context): Tree | undefined {
   try {
@@ -1646,11 +1693,13 @@ function closeCensusProposal(tree: Tree): string[] {
 export function setTreeSetting(ctx: Context, key: string, value: string | number | undefined): Tree {
   syncDecisions(ctx, key, value, "tree");
   censusDecision(ctx, key, value, "tree");
+  intakeDecision(ctx, key, value, "tree");
   addonsDecision(ctx, key, value, "tree");
   experimentsDecision(ctx, key, value, "tree");
   browserDecision(ctx, key, value, "tree");
   effortDecision(ctx, key, value, "tree");
   webDecision(ctx, key, value, "tree");
+  runsDecision(ctx, key, value, "tree");
   const def = settingDef(key);
   if (!def.tree) throw new UsageError(`${key} is a setting of this computer, not of a tree`, { hint: `strom config set ${key} <value>` });
   const tree = ctx.tree();
@@ -1783,10 +1832,12 @@ async function setUserSetting(ctx: Context, key: string, value: string | number 
   addonsDecision(ctx, key, value, "user");
   experimentsDecision(ctx, key, value, "user");
   censusDecision(ctx, key, value, "user");
+  intakeDecision(ctx, key, value, "user");
   const pace = await askPace(ctx, key, value);
   browserDecision(ctx, key, value, "user");
   effortDecision(ctx, key, value, "user");
   webDecision(ctx, key, value, "user");
+  runsDecision(ctx, key, value, "user");
   if ((key === "home" || key === "trees" || key === "shared") && value !== undefined) refuseInProgram(ctx, key, String(value));
   // Claude Code's folder: one that is there (Claude Code logged in there first), never a file or a typo
   if (key === "agent.claudeConfigDir" && typeof value === "string" && !isFolder(value))

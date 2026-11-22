@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.36.0
 
-*Připravuje se: bety do 1.36.0-beta.7. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.36.0-beta.8. Oddíl bude úplný s vydáním.*
 
 - **Zkouška hromadného ověření hned:** úkoly zkoušky hromadného ověření (`strom verify bulk --try`) stojí na začátku
   fronty – vezme je příští sezení – a aplikace Strom je dá zpracovat hned, každý úkol jedno sezení, odkazem, který úkoly
@@ -52,10 +52,45 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   svatby, i v ženském tvaru; jméno zvolené v aplikaci Strom jako nynější se převezme a platí, dokud se nezvolí znovu.
   Soubor pro aplikaci Strom dává jména po sňatku na konec, nynější úplně poslední, takže i starší aplikace Strom ukáže
   to správné.
-- **Soubor rodokmenu v materiálu:** aplikace Strom ukáže v Materiálech importované soubory rodokmenu (GEDCOM, JSON
+- **Více agentů a výzkumů najednou bez střetů a méně ztracených kroků v dlouhých bězích:**
+  každé sezení drží svůj úkol, dokud jeho agent dává znamení života –
+  úkol, který drží jiný agent, zůstává jemu, a úkol agenta, který se odmlčel, se po `task.hold` převezme (co zapsal,
+  zůstává, úkol se vrací do fronty). Archiv, který omezuje automatický přístup (lidské tempo, jen prohlížeč, hodinový
+  limit stahovače), používá najednou jen jedno sezení ze všech výzkumů se společnou složkou: úkol na něm počká, dokud ho
+  používá jiné sezení, a mezitím jde jiná práce; samostatná práce, které zbyly jen takové úkoly, čeká na archiv nejvýš
+  `archive.wait` a na počítači běží najednou jen jedno hromadné stahování snímků z takového archivu, další čeká ve
+  frontě za ním. Archivu se během čekání nic neposílá. Menu ukazuje i agenty, kteří pracují přímo, a aplikace Strom se
+  dozví, kdo drží úkol nebo archiv, odkdy a nejpozději dokdy. Časy jsou nastavení tohoto počítače: `task.hold`,
+  `archive.hold` (držení archivu bez požadavku na něj) a `archive.wait`, každé ve výchozím stavu 30 minut, od 5 minut do
+  24 hodin. Každá linie může mít vlastní běh agenta: `strom run --research G…` (v menu volbou linie, běh pak ve vlastním
+  okně pojmenovaném po linii) bere úkoly té linie, druhý běh téže linie se odmítne a práce na celé frontě nechává linie
+  s vlastním během stranou; v jednom výzkumu pracuje najednou nejvýš `run.parallel` běhů (výchozí 3, zvýšit je smí jen
+  člověk) – čerpání předplatného se sčítá. Nová linie uvnitř jiné nabídne převzít otevřené úkoly o svých lidech (`strom
+  research gather`). Aplikace Strom vidí každý běh, spouští a zastavuje je po liniích (`strom run stop`); běhy na jednom
+  počítači sdílejí limit předplatného, plány prohlížeče, stránky webu i čtenáře skenů.
+  Pravidla agenta říkají pracovat ve vlastní záložce prohlížeče; po záložce mimo jeho skupinu nebo stránce, která
+  neodpovídá, hned dostane, co dělat (nová záložka; práce v prohlížeči odložena až po druhém vypršení času). Dlouhý text
+  `strom readings` nebo `strom searched` skončí kolem 20 kB řádkem, jak ho zúžit, a `--full` pro všechno (`--json`
+  zůstává celý; `strom searched` má stránky jako ostatní seznamy). Dávka s chybnými řádky řekne i to, které řádky nebyly
+  zkontrolovány, protože závisí na chybném. Volby, které agenti hádají a které znamenají přesně jinou, se vezmou a
+  řeknou na řádku (`strom recordset list --parish` jako `--place`, `strom media list --image 5` jako `--images 5-5`,
+  `strom readings --recordset`, `strom search add --query`); `strom person list --surname` najde příjmení i s jeho tvary
+  jako `strom query --surname`. Záznam brány označí čekání, přes které běh spuštěný člověkem pokračoval (`pace`). Každý
+  běh si zapíše, proč skončil (`.strom/runs/<běh>.end.json`: tytéž důvody, jaké ukazuje aplikace Strom, sezení, cena,
+  poslední a další úkol).
+- **Drobné opravy:** Rozsah snímků přes prohlížeč agenta: archiv v seznamu stromu může dostat rozsah snímků najednou (nejvýš 20, snímek po snímku lidským tempem, se zastavením u první kontroly nebo odmítnutí archivu; další rozsah z toho archivu až po ručním uložení zbylých snímků), každý archiv jen s vlastním souhlasem člověka (`strom allow archive <archiv> --range` nebo v menu); zatím ho nemá žádný archiv. Fotky z aplikace Strom docházejí mnohem rychleji: poslání fotek nebo dávky souborů z aplikace Strom
+  do velkého výzkumu už u každého souboru nečte všechny záznamy obrázků výzkumu: co výzkum už má, se hledá v rejstříku
+  otisků souborů (v `.strom/cache`, sestaví se znovu sám, když chybí nebo je zastaralý), a most zapisuje, co aplikace
+  pošle, jedním stále běžícím procesem stromu místo nového procesu pro každý soubor. Novější aplikace Strom předá celou
+  dávku najednou: každý soubor se zkontroluje a potvrdí hned, jak dorazí, a dávka se zapíše při uzavření – jedno
+  uložení, jedna přestavba souboru rodokmenu a jedno oznámení aplikaci – a pracující agent se k výzkumu dostane mezi
+  jednotlivými částmi. Starší aplikace Strom posílá jako dřív, jen rychleji.
+  Aplikace Strom ukáže v Materiálech importované soubory rodokmenu (GEDCOM, JSON
   aplikace) a smaže je natrvalo jako každý soubor materiálu; ten, ze kterého vznikl pramen, jen spolu s tímto pramenem,
   v jednom kroku s jedním potvrzením (`strom input delete … --retract-sources`).
-- **Drobné opravy:** archiv, který strom drží přísněji, než říká jeho vlastní seznam podmínek archivů (stahovač nebo
+  Osobu odebranou od souboru materiálu (Přiřadit v aplikaci Strom, `strom input assign --remove`) už k němu třídění
+  agenta znovu nepřipojí; po opětovném přidání soubor k osobě zase patří.
+  Archiv, který strom drží přísněji, než říká jeho vlastní seznam podmínek archivů (stahovač nebo
   záznam ve výzkumu je tak jednou přečetl), už tam potichu nevypíná prohlížeč agenta: `strom doctor`, `strom run` i
   `strom allow archive` řeknou, od kdy, proč a co říká seznam, Co čeká i aplikace Strom se člověka jednou zeptají, zda
   úroveň ponechat, nebo vzít podmínky archivu (`strom allow archive <host> --keep` nebo `--level <úroveň>`), a pak se do
@@ -74,6 +109,17 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   nikdy neopakuje.
   Běhy vedle sebe v jednom stromu („spustit další vedle něj“, konverzace vedle běhu): běh, jehož další úkol těsně před
   začátkem vzal jiný, pokračuje dalším volným úkolem místo konce celého běhu; žádný úkol se nevezme dvakrát.
+  Linie ukončená uvnitř širší, která běží, už nenechá své úkoly čekat navždy: počítají se k nejužší běžící linii, do
+  které patří jejich osoby (na úkolech se nic nemění, takže znovu spuštěná linie je má zpátky); úkoly pozastavené linie
+  čekají jako dřív.
+  Soubor poslaný do výzkumu už agenta sám nespustí, ani ve výzkumu založeném dřív: ani dávka z aplikace Strom nebo
+  z telefonu, ani jednotlivý soubor či sken pramene z aplikace, ani podklady přidané v nabídce (tam se zeptá, zda je
+  agent projde). Soubory čekají v Materiálech, dokud se neroztřídí ručně nebo přes Roztřídit agentem…; samostatné
+  procházení zapíná pro výzkum jen člověk (`strom config set intake.auto on --for-tree`, Nastavení → 1, nebo
+  nastavení výzkumu v aplikaci Strom). Už založené úkoly zůstávají.
+  Když prohledané snímky knihy nepokrývají roky kolem data známého jen z věku (narozen asi 1761 podle věku při úmrtí),
+  agent se dozví, které roky chybí a kde kniha pokračuje, dřív než se na „nenalezeno“ spolehne – kolik let na každou
+  stranu, určuje nastavení výzkumu `search.ageMargin` (výchozí 5).
 
 ## 1.35.0
 

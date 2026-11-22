@@ -354,9 +354,10 @@ test("the browser in a run: only for a session whose task may need it — never 
   await w.ok(["session", "close", "--continue", "--summary", "s", "--next", "n"]);
   w.env.CODEX_THREAD_ID = "x";
   const codex = (await w.ok(["session", "start", "T2"])).out;
-  delete w.env.CODEX_THREAD_ID;
   assert.doesNotMatch(codex, /## The browser/);
+  // (the same conversation closes it: an agent working directly finds its session by its conversation's ID)
   await w.ok(["session", "close", "--continue", "--summary", "s", "--next", "n"]);
+  delete w.env.CODEX_THREAD_ID;
   // agent.browser always (the person's choice): every session
   await w.ok(["config", "set", "agent.browser", "always"], { tty: true, answers: ["a"] });
   await w.run(["run", "--agent", "claude", "--task", "T2,T3", "--max", "2"]);

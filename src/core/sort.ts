@@ -12,7 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { UsageError } from "./errors.ts";
 import { MATERIAL_KINDS, type Family, type Input, type MediaLink, type Person, type Source } from "./model.ts";
-import { checkEdit, filesAsked, live, materialPersons } from "./material.ts";
+import { checkEdit, declinedOf, filesAsked, live, materialPersons } from "./material.ts";
 import { listBatches } from "./batches.ts";
 import { displayName, familiesAsChild, familiesAsPartner, lifespan } from "./people.ts";
 import { foldText } from "./text.ts";
@@ -615,7 +615,7 @@ function fileLines(tree: Tree, f: SortFileView): string {
   const i = f.input;
   const user = !!i.title && i.titled?.by !== "research";
   const now = (i.links ?? []).filter((l) => !l.retracted).map((l) => `${l.type} ${l.ref}${l.event ? ` ${l.event}` : ""}`);
-  const off = (i.links ?? []).filter((l) => l.retracted && l.retracted.reason !== "replaced").map((l) => `${l.type} ${l.ref}${l.event ? ` ${l.event}` : ""}`);
+  const off = [...new Set([...(i.links ?? []).filter((l) => l.retracted && l.retracted.reason !== "replaced").map((l) => `${l.type} ${l.ref}${l.event ? ` ${l.event}` : ""}`), ...[...declinedOf(tree, i)].map((p) => `person ${p}`)])];
   const persons = materialPersons(tree, i);
   const out = [`- ${i.id} · "${i.name}"${i.mime ? ` · ${i.mime}` : ""}${i.path ? ` · path in the batch: ${i.path}` : ""}`];
   for (const n of i.notes ?? []) out.push(`  note${n.by === "user" || n.by === "app" ? " by the person" : ""}: ${n.text.replace(/\s+/gu, " ").slice(0, 500)}`);
@@ -910,7 +910,7 @@ export function keptProposals(tree: Pick<Tree, "get">, files: readonly string[],
         const theirs = (i.links ?? []) as MediaLink[];
         const why = !p0 || p0.type !== "person" || p0.retracted ? "not in the research"
           : !isPicture(i) ? "not a picture"
-          : theirs.some((x) => x.type === "personPortrait" && x.ref === person && x.retracted && x.retracted.reason !== "replaced") ? "taken off by the person"
+          : theirs.some((x) => x.type === "personPortrait" && x.ref === person && x.retracted && x.retracted.reason !== "replaced") || declinedOf(tree as Tree, i).has(person!) ? "taken off by the person"
           : links.some((x) => x.type === "portrait" && x.ref !== person) ? "one portrait per file" : undefined;
         if (why) drop(r.id, `link ${said}`, why);
         // there already (the person's portrait is this file), or said twice: nothing to propose
@@ -923,7 +923,7 @@ export function keptProposals(tree: Pick<Tree, "get">, files: readonly string[],
         continue;
       }
       const theirs = (i.links ?? []) as MediaLink[];
-      if (theirs.some((x) => x.retracted && x.retracted.reason !== "replaced" && sameLink(x, l))) {
+      if (theirs.some((x) => x.retracted && x.retracted.reason !== "replaced" && sameLink(x, l)) || (l.type === "person" && declinedOf(tree as Tree, i).has(l.ref))) {
         drop(r.id, `link ${said}`, "taken off by the person");
         continue;
       }

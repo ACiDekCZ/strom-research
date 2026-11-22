@@ -25,6 +25,7 @@ test("each answer of the gate is recorded: .strom/gate.log, the next session's l
     ["zkouska", 0, "go", "go", 1],
     ["zkouska", 2, "stop", "stop", 2],
   ]);
+  assert.ok(log.every((l) => !("pace" in l)), "a run that goes on by itself: its gate's verdict is its own, no pace");
   assert.equal(log[0].reason, "dost místa");
   assert.equal(log[2].reason, "týden je z 90 % pryč");
   assert.match(log[0].run, /^run-/);
@@ -58,6 +59,7 @@ test("a wait past --until and a gate that fails are recorded with what the run d
     [7, "error", "stop"],
     [1, "wait", "anyway"],
   ]);
+  assert.ok(log.every((l) => !("pace" in l)), "asked once (the person's yes) or by itself: no pace");
   assert.deepEqual(log[0].args, ["10"], "what the gate was given");
   assert.equal(log[0].waitMs, 7_200_000);
   assert.ok(Math.abs(Date.parse(log[0].until) - Date.parse(log[0].at) - 7_200_000) < 1000, "until: when it said to ask again");

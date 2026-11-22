@@ -47,6 +47,10 @@ import {
   rank,
   settlePending,
   revokeWay,
+  grantRange,
+  revokeRange,
+  browserRangeOf,
+  knownTerms,
   setFloor,
   strictest,
   takenOverWaiting,
@@ -670,7 +674,10 @@ register({
     "says it may do more than before) — the person's; --keep keeps what strom kept instead (the person's too), and so a\n" +
     "level strom keeps stricter than its list of the archive's terms (a downloader or a research's record read it so once:\n" +
     "asked in What waits — kept, or --level as the list says). After a milder level the tasks that waited come back where\n" +
-    "it opens them. Without a target: the archives, such levels with what holds them, and what waits.",
+    "it opens them. --range: the person's own consent, for this archive alone, to a range of its images saved through the\n" +
+    "agent's browser in one call (strom media save --images) — besides \"through the browser\", only where strom's list\n" +
+    "lets the archive have it (none yet); --range --revoke takes it back, one image at a time again. Without a target: the\n" +
+    "archives, such levels with what holds them, and what waits.",
   args: [{ name: "archive", description: "a connector's name, or a host (www.example.org) or site (example.org) of its connectors" }],
   options: [
     { name: "way", type: "string", value: "<slow|browser|manual>", description: "the person's permission for its images" },
@@ -678,6 +685,7 @@ register({
     { name: "level", type: "string", value: "<allowed|restricted|manual|forbidden>", description: "the archive's level: stricter by anyone, milder by the person" },
     { name: "accept", type: "boolean", description: "accept the connectors' readings as they are now (without a target: those taken over)" },
     { name: "keep", type: "boolean", description: "keep what strom kept of a connector that says now the archive allows more, or a level strom keeps stricter than its list: not asked again" },
+    { name: "range", type: "boolean", description: "the person's consent to a range of its images through the browser in one call (strom media save --images), for this archive alone — where strom's list lets it have one; with --revoke: taken back" },
   ],
   examples: ["strom allow archive www.example.org --way slow", "strom allow archive example-archive --way browser", "strom allow archive example.org --level restricted", "strom allow archive example.org --revoke", "strom allow archive --accept"],
   run: async (ctx, { args, opts }) => {
@@ -784,6 +792,7 @@ register({
         data: { hosts, level, effective: after, ...(holding.length ? { stricter: holding.map((x) => ({ ...(x.c ? { connector: x.c.name } : {}), level: x.a.level, from: x.a.from })) } : {}), woken: woken.map((r) => ({ tree: r.name, path: r.root, woken: r.woken, inbox: r.inbox, kept: r.kept })) },
       };
     }
+    if (opts.range) return rangeConsent(ctx, target!, hosts, bare, title, !!opts.revoke, lang);
     if (opts.revoke) {
       ctx.requireHuman(`Forget the permission for ${title} (${hosts.join(", ")})?`, `strom allow archive ${target} --revoke`, `archive:${hosts.join(",")}`, ui(lang, "ui.archive.revoke", { title }));
       revokeWay(ctx.env, hosts);
@@ -833,12 +842,35 @@ register({
 });
 
 /**
+ * strom allow archive <host> --range (spec 132 K1.2): the person's own consent, for this one archive, to a range of its
+ * images saved by the agent's browser in one call (strom media save --images) — only where strom's list lets the
+ * archive have it (browserRange) and its images go through the browser as the person allowed. Asked of the person as
+ * every permission is (their terminal, a window when an agent asks, exit 4 with none); --revoke takes it back.
+ */
+function rangeConsent(ctx: Context, target: string, hosts: string[], bare: ArchiveLevel | undefined, title: string, revoke: boolean, lang: string) {
+  if (revoke) {
+    ctx.requireHuman(`Take back the consent to a range of ${title}'s images through the browser (${hosts.join(", ")})?`, `strom allow archive ${target} --range --revoke`, `archive:range:${hosts.join(",")}`, ui(lang, "ui.archive.range.revoke", { title }));
+    revokeRange(ctx.env, hosts);
+    return { text: `${hosts.join(", ")}: the consent to a range taken back — its images through the browser one at a time again`, data: { hosts, range: false } };
+  }
+  const max = Math.max(0, ...hosts.map((h) => browserRangeOf(ctx.env, h) ?? 0));
+  if (!max) throw new UsageError(`${title}: strom's list gives it no range — its images through the browser one at a time`, { hint: `strom media save <task> --image <n> --at <the archive's page of that one image>`, code: "archive.range.none" });
+  const a = bare ?? archiveLevel(ctx.env, { url: `https://${hosts[0]}/`, ...(ctx.hasTree() ? { tree: ctx.tree() } : {}), readOnly: true });
+  if (a.permission !== "browser")
+    throw new UsageError(`${title}: a range only besides the permission "through the browser" — ${a.permission ? `it is "${WAY_TEXT[a.permission]}" now` : "none given yet"}`, { hint: `strom allow archive ${target} --way browser, then --range`, code: "archive.range.way" });
+  const how = ctx.requireHuman(`Allow ${title} (${hosts.join(", ")}): a range of its images through the browser, up to ${max} in one call, at a person's pace?`, `strom allow archive ${target} --range`, `archive:range:${hosts.join(",")}`, ui(lang, "ui.archive.range.consent", { title, max: String(max) }));
+  grantRange(ctx.env, hosts, how === "window" ? "window" : "terminal");
+  return { text: ui(lang, "ui.archive.range.granted", { title, max: String(max), host: hosts[0]! }), data: { hosts, range: true, max, by: how } };
+}
+
+/**
  * An archive with no connector here that strom's list keeps as only a person's browser's (the host itself, or its
  * site's entry) and where the agent's browser could help: its level as strom reads it now. Others without a connector:
  * none (nothing to allow there).
  */
 export function bareArchive(ctx: Context, host: string): ArchiveLevel | undefined {
-  const entry = shippedTerms().filter((k) => k.browserOnly && within(host, k.host));
+  // strom's list, and a test's own (STROM_ARCHIVES_FILE, settings of its own)
+  const entry = knownTerms(ctx.env).filter((k) => k.browserOnly && within(host, k.host));
   if (!entry.length) return undefined;
   const tree = ctx.hasTree() ? ctx.tree() : undefined;
   const net = netHere(ctx);

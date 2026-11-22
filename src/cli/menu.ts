@@ -37,6 +37,10 @@ import { truncate } from "./format.ts";
 import { appUrlSetting, installedStromApp, noticeStromApp, stromAppState } from "../core/stromapp.ts";
 import { appBrowsers } from "../core/chromium.ts";
 import { liveWorkers, runsAtWork } from "../core/workers.ts";
+import { lineHolds, lineRunFilter } from "../core/linerun.ts";
+import { openInNewTerminal } from "../core/shortcut.ts";
+import { clockUp } from "../core/net.ts";
+import { directAtWork } from "../core/holdsview.ts";
 import { askStromApp, settleInstall, shortcutName } from "./wizard.ts";
 import { openForUser } from "../core/open.ts";
 import type { Person, Research } from "../core/model.ts";
@@ -268,8 +272,15 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       // the scan views tuned before, but for another agent or model: offered again (the settings), never run unasked
       const offer = !archive && ready ? timed("menu.views", () => calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config, tree.root)) : undefined;
       if (offer) out(sentence(t("ui.views.offer", { before: calibrationLabel(offer.before[0]!, t("ui.settings.model.own")), now: calibrationLabel(offer.now, t("ui.settings.model.own")) })));
-      const runs = timed("menu.runs", () => runsAtWork(root!).length);
-      if (runs) out(t(runs > 1 ? "ui.menu.working.more" : "ui.menu.working", { n: runs }));
+      // who works: the runs strom started, the agents working directly (their sessions' holds, spec 127), and a run's wait
+      // for a restricted archive another session uses
+      const atWork = timed("menu.runs", () => runsAtWork(root!));
+      const runs = atWork.length;
+      const direct = timed("menu.direct", () => directAtWork(tree).length);
+      const working = [...(runs ? [t(runs > 1 ? "ui.menu.working.more" : "ui.menu.working", { n: runs })] : []), ...(direct ? [t(direct > 1 ? "ui.menu.working.direct.more" : "ui.menu.working.direct", { n: direct })] : [])];
+      if (working.length) out(working.join(" "));
+      const archiveWait = atWork.find((w) => w.paused?.archive);
+      if (archiveWait?.paused?.archive) out(t("ui.menu.working.archive", { site: archiveWait.paused.archive, until: clockUp(Date.parse(archiveWait.paused.until)) }));
       // the history of the places, never asked about here (set up before strom had it): asked once — Enter "not now"
       if (!archive && ready) await offerHistory(ctx, run, lang);
       items.push(
@@ -310,10 +321,27 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
             // their pace (the places to map before the research), without what others hold.
             const fresh = Tree.open(root!, ctx.env);
             const held = othersAtWork(fresh, fresh.env).tasks;
-            const queue = taskQueue(fresh, { strategy: ctx.settings.strategy(fresh.config), ...RUN_TURNS }).filter((x) => !held.has(x.id));
+            // Two lines or more: the whole queue or one line's own run (spec 126) — a line with a run is said, not offered.
+            const lines = fresh.list<Research>("research").filter((r) => r.state === "active");
+            let line: Research | undefined;
+            if (lines.length >= 2) {
+              const holds = lineHolds(root!);
+              const k = await ctx.choose(t("ui.run.where"), [{ label: t("ui.run.whole") }, ...lines.map((r) => ({ label: t(holds.has(r.id) ? "ui.run.line.busy" : "ui.run.line.item", { name: r.name, research: r.id }) }))], 0, { back: t("ui.browse.back") });
+              if (k === undefined) return;
+              if (k > 0) {
+                line = lines[k - 1]!;
+                if (holds.has(line.id)) {
+                  out(t("ui.run.line.held", { name: line.name, since: new Date(holds.get(line.id)!.since).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" }) }));
+                  await pause(lang);
+                  return;
+                }
+              }
+            }
+            const lineOk = lineRunFilter(fresh, line?.id, "");
+            const queue = taskQueue(fresh, { ...(line ? { research: line.id } : {}), strategy: ctx.settings.strategy(fresh.config), ...RUN_TURNS }).filter((x) => !held.has(x.id) && lineOk(x));
             const shown = queue.slice(0, RUN_LIST);
-            // The tasks of history alone, in their order whatever its pace (strom run --history): only while it is on.
-            const history = historyOn(fresh, ctx.settings) ? taskQueue(fresh, { strategy: ctx.settings.strategy(fresh.config), history: "only" }).filter((x) => !held.has(x.id)) : [];
+            // The tasks of history alone, in their order whatever its pace (strom run --history): only while it is on — the whole queue's.
+            const history = !line && historyOn(fresh, ctx.settings) ? taskQueue(fresh, { strategy: ctx.settings.strategy(fresh.config), history: "only" }).filter((x) => !held.has(x.id)) : [];
             // Another run already at work: said first, and started beside it only on a yes.
             const running = runsAtWork(root!).length;
             if (running) {
@@ -372,6 +400,27 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
               if (follow) {
                 args.push("--follow");
                 out(t("ui.run.follow.later"));
+              }
+            }
+            // A run of a line in a window of its own, named after its line: another line's run can start from here meanwhile.
+            if (line) {
+              args.push("--research", line.id);
+              const terminal = ctx.settings.terminal();
+              const opened = openInNewTerminal(["run", ...args], root!, ctx.env, process.platform, {
+                ...(terminal ? { terminal } : {}),
+                lang,
+                title: ["Strom", fresh.config.name, `${line.name} (${line.id})`].join(" · "),
+                key: line.id,
+              });
+              if (opened === "recent") {
+                out(t("ui.run.window.recent", { name: line.name }));
+                await pause(lang);
+                return;
+              }
+              if (opened) {
+                out(t("ui.run.window", { name: line.name }));
+                await pause(lang);
+                return;
               }
             }
             out(t("ui.run.start"));

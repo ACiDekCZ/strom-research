@@ -240,6 +240,11 @@ export class Tree {
   readonly env: Env;
   /** Bumped on every write; lets derived indexes know they are stale. */
   version = 0;
+  /**
+   * Bumped whenever this process forgets what it read (the lock taken, a rollback, a savepoint put back): what is derived
+   * from the files (core/shaindex.ts) is checked against them again.
+   */
+  epoch = 0;
   private keyCache: Buffer | null | undefined;
 
   private constructor(root: string, config: TreeConfig, env: Env) {
@@ -288,6 +293,15 @@ export class Tree {
   }
 
   private lockDepth = 0;
+  /** The files this command changed so far (relative, with /): what it wrote, what it put back. */
+  touchedFiles(): string[] {
+    return [...this.undo.keys()].map((f) => this.relative(f));
+  }
+
+  /** Whether this process holds the tree's lock now. */
+  get holdsLock(): boolean {
+    return this.lockDepth > 0;
+  }
   private counters: Record<string, number> | undefined;
 
   /**
@@ -350,6 +364,7 @@ export class Tree {
     this.single.clear();
     this.lastSigs.clear();
     this.version++;
+    this.epoch++;
   }
 
   private flushCounters(): void {
@@ -415,6 +430,7 @@ export class Tree {
     this.told = Math.min(this.told, sp.written);
     this.committedTo = Math.min(this.committedTo, sp.written);
     this.version++;
+    this.epoch++;
   }
 
   /** Undo every change this command made — a failed command leaves nothing behind. */
@@ -460,6 +476,7 @@ export class Tree {
     this.told = 0;
     this.committedTo = 0;
     this.version++;
+    this.epoch++;
     if (failed) throw failed;
     return restored;
   }
@@ -537,6 +554,13 @@ export class Tree {
       this.cache.set(type, map);
     }
     return [...map.values()] as T[];
+  }
+
+  /** The records of a type this process holds one by one (read or written before the whole type was loaded). */
+  heldRecords<T extends AnyRecord>(type: RecordType): T[] {
+    const out: T[] = [];
+    for (const rec of this.single.values()) if (rec && rec.type === type) out.push(rec as T);
+    return out;
   }
 
   /** Whether this process holds every record of a type in memory already. */

@@ -43,7 +43,7 @@ import type { OffLine, Research, Session, Strategy, Task } from "./model.ts";
 import { parentsOf } from "./people.ts";
 import { taskRecordsets } from "./frontier.ts";
 import { now, type Tree } from "./tree.ts";
-import { aboutPeople, directionOf, scopes } from "./directions.ts";
+import { aboutPeople, effectiveDirection, scopes } from "./directions.ts";
 import { workOrder } from "./order.ts";
 import { offTree } from "./kin.ts";
 import { forStory } from "./stories.ts";
@@ -173,7 +173,7 @@ export function goesAhead(tree: Tree): (t: Task) => boolean {
     const r = get();
     if (ownTurn(t, r.ended)) return false;
     const p = r.placeOf(t);
-    if (r.stopped.has(directionOf(tree, t, r.all) ?? p.research ?? "")) return false;
+    if (r.stopped.has(effectiveDirection(tree, t, r.all) ?? p.research ?? "")) return false;
     if (p.off) {
       const mode = branchModeOf(r.choices, r.offLine, p.branch).mode;
       if (mode === "last" || mode === "never") return false;
@@ -260,7 +260,8 @@ export function ancestorLines(tree: Tree, focus: string, max = 50): Map<string, 
 export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced", opts: { storyTurn?: boolean; awake?: boolean; history?: boolean | "only"; turn?: HistoryTurn; offLine?: OffLine; sameBook?: boolean } = {}): Ranked[] {
   const today = now().slice(0, 10);
   const researches = tree.list<Research>("research");
-  // a direction the user paused or ended: its tasks wait (one at work goes on)
+  // a direction the user paused or ended: its tasks wait (one at work goes on) — those of an ended line within an
+  // active one count toward the narrowest active line their people are in (core/directions.ts effectiveDirection)
   const stopped = new Set(researches.filter((r) => r.state !== "active").map((r) => r.id));
   const all = scopes(tree);
   // where each task stands among the lines: its own, the one it helps, or off them (core/offline.ts)
@@ -294,7 +295,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   const censusHide = censusHidden(settings.census(tree.config), today);
   const waits = (t: Task) =>
     t.state !== "doing" &&
-    (censusHide(t) || (stopped.size > 0 && stopped.has(directionOf(tree, t, all) ?? placing(t).research ?? "")) || off(t) || !!decision(t) || !!asleep(t) || (modeOf(t) === "never" && !own(t)));
+    (censusHide(t) || (stopped.size > 0 && stopped.has(effectiveDirection(tree, t, all) ?? placing(t).research ?? "")) || off(t) || !!decision(t) || !!asleep(t) || (modeOf(t) === "never" && !own(t)));
   // the tasks of history: only where asked for, and not while the experiment is off, in an archive, or held by another tree
   let held: ((t: Task) => string | undefined) | undefined;
   const history = (t: Task) => {
@@ -315,7 +316,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   /** The nearest ancestor a task is about: its generation and line. */
   const place = (t: Task) => {
     // a task of no research of its own: the direction its people are in (directions.ts), as the menu and the app say
-    const map = linesOf(t.research ?? directionOf(tree, t, all));
+    const map = linesOf(effectiveDirection(tree, t, all));
     // a family's task: its partners' (a couple's story)
     const found = [...t.subject, ...aboutPeople(tree, t.subject)].map((s) => map?.get(s)).filter((x): x is { gen: number; line: string } => !!x);
     return found.sort((a, b) => a.gen - b.gen)[0];
@@ -467,7 +468,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
       recent ? `its line had ${recent} of the last ${RECENT} sessions` : undefined,
       tried ? `tried ${tried}×` : undefined,
     ].filter((x): x is string => !!x);
-    const lineOwn = hist ? undefined : (directionOf(tree, t, all) ?? p.research);
+    const lineOwn = hist ? undefined : (effectiveDirection(tree, t, all) ?? p.research);
     const reason: Reason | undefined = mine
       ? { kind: "own", do: mine }
       : lineOwn && stopped.has(lineOwn)

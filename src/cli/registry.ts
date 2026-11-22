@@ -28,6 +28,13 @@ export interface OptionDef {
   mistaken?: string[];
   /** At most this many characters (said in help and under a mistake). */
   max?: number;
+  /**
+   * Names agents type for it that mean exactly it, the same thing in the same unit (--parish for strom recordset list
+   * --place): taken as it and said in a line, "(--parish read as --place)" — never where the meaning or unit differs
+   * (that is `mistaken`). With `readAsValue` the value is put as it takes it (--image 5 → --images 5-5).
+   */
+  readAs?: string[];
+  readAsValue?: (value: string) => string;
 }
 
 export interface ArgDef {
@@ -41,6 +48,11 @@ export interface ArgDef {
   max?: number;
   /** Options agents type meaning it (--find for strom recordset list <filter>): never taken — the error points to it. */
   mistaken?: string[];
+  /**
+   * Options agents type that mean exactly it (--query "…" for strom search add <question>): taken as it — a command of
+   * this one argument only — and said in a line, "(--query read as <question>)".
+   */
+  readAs?: string[];
 }
 
 export const GROUPS = {

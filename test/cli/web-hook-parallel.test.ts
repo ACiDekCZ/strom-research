@@ -12,7 +12,7 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { World, hasGit, readJsonFile } from "../helpers.ts";
+import { World, fakeConnector, hasGit, readJsonFile } from "../helpers.ts";
 import { politeGet, setOwnPace } from "../../src/core/net.ts";
 import { WEB_CALL_MAX_MS, WEB_HOOK_TIMEOUT_S, WEB_PER_HOST, WEB_SOFT, WEB_SOFT_GAP_MS, WEB_WAIT_MAX_MS } from "../../src/core/web.ts";
 import { recordAgentWeb } from "../../src/core/metrics.ts";
@@ -319,4 +319,34 @@ test("nothing else slowed: the hook's wait holds no host's lock (strom's own req
   t.diagnostic(`one hook call: median ${ms[ms.length >> 1]} ms, max ${ms.at(-1)} ms, light within ${light} ms (the wait at most ${WEB_WAIT_MAX_MS} ms, the call at most ${WEB_CALL_MAX_MS} ms)`);
   assert.ok(ms[ms.length >> 1]! < light, "a light start");
   w.cleanup();
+});
+
+test("an agent strays onto a restricted archive another research's session holds (spec 127 ch. 8 #12): its web fetch refused (held), in English with who holds it and until when, nothing asked of the archive", { skip: !hasGit || process.platform === "win32", timeout: SLOW }, async () => {
+  const w = new World();
+  try {
+    const base = "http://127.0.0.1:9";
+    const a = await w.withTree("Lhoták");
+    await w.ok(["init", "Lhotka"]);
+    const b = w.treeDir("Lhotka");
+    await fakeConnector(w, "lhota", base, { automation: "allowed", pace: { minIntervalMs: 2000, perHour: 120, source: "test" } });
+    for (const cwd of [a, b]) {
+      for (const t of (await w.ok(["task", "list", "--state", "all", "--json"], { cwd })).json.tasks as { id: string }[]) await w.ok(["task", "drop", t.id, "--reason", "test"], { cwd });
+    }
+    await w.ok(["recordset", "add", "Lhota N 1784–1820", "--kinds", "baptism", "--url", `${base}/kniha/5359`], { cwd: a });
+    const onSite = (await w.ok(["task", "add", "Křest Jana Lhotáka (~1790)", "--level", "locate", "--where", "B0001", "--why", "rodiče", "--done-when", "zápis", "--json"], { cwd: a })).json.task.id as string;
+    const elsewhere = (await w.ok(["task", "add", "Pohřeb Marie Lhotkové", "--level", "locate", "--where", "matrika Lhotka", "--why", "úmrtí", "--done-when", "zápis", "--json"], { cwd: b })).json.task.id as string;
+    // Lhoták's agent holds the archive with its task on it; Lhotka's agent works on a task of no archive
+    await w.ok(["session", "start", onSite], { env: { CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: "lhotak-a" }, cwd: a });
+    const B = { CLAUDE_CODE_SESSION_ID: "lhotka-b" };
+    await w.ok(["session", "start", elsewhere], { env: { CLAUDECODE: "1", ...B }, cwd: b });
+    w.cwd = b;
+    const r = await hook(w, fetchEvent(w, `${base}/kniha/5359?strana=3`, "stray-1"), B);
+    const answer = (JSON.parse(r.out) as { hookSpecificOutput: { permissionDecision: string; permissionDecisionReason: string } }).hookSpecificOutput;
+    assert.equal(answer.permissionDecision, "deny", r.out + r.err);
+    assert.match(answer.permissionDecisionReason, /^strom: 127\.0\.0\.1:9 — 127\.0\.0\.1 restricts automated access and an agent of another research \(Lhoták\) uses it now \(since (?:\d{4}-\d\d-\d\d )?\d\d:\d\d, last request (?:\d{4}-\d\d-\d\d )?\d\d:\d\d, free by (?:\d{4}-\d\d-\d\d )?\d\d:\d\d at the latest\): one session at a time on it\. Nothing was asked of it — work without it meanwhile \(strom task next\), then try again\.$/u);
+    const mine = journal(w).filter((l) => l.why === "held" || String(l.host).startsWith("127.0.0.1"));
+    assert.deepEqual(mine.map((l) => [l.decision, l.why]), [["deny", "held"]]);
+  } finally {
+    w.cleanup();
+  }
 });

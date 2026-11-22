@@ -50,7 +50,8 @@ export function isHistoryPath(p: string): boolean {
 
 export function snapshot(tree: Tree): Snapshot {
   if (!git.hasHead(tree.root)) return { changes: [], head: new Map(), leftovers: [] };
-  const all = git.changes(tree.root, SEALED_PATHS);
+  // (under the lock: kept for the index of the files' hashes, which needs it in the same hold)
+  const all = git.changes(tree.root, SEALED_PATHS, tree.holdsLock);
   const head = git.showFiles(tree.root, "HEAD", all.map((c) => c.path));
   const leftovers = all.filter((c) => leftoverOf(tree.root, c, head.get(c.path))).map((c) => c.path);
   const changes = leftovers.length ? all.filter((c) => !leftovers.includes(c.path)) : all;

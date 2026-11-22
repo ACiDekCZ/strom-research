@@ -1027,6 +1027,14 @@ function personAnswers(tree: Tree, task: Task): string[] {
   return out;
 }
 
+/**
+ * How a session keeps its tabs (seen in a long run, 21 November 2026): a tab of tabs_context_mcp outside the session's
+ * group refused ("not in Claude's tab group"), and a browser that stopped answering after a long while of saving images
+ * put the work aside at its first timeout. The hook says the same after such a failure (core/chromehook.ts).
+ */
+export const BROWSER_TABS =
+  "at the session's start open your own (tabs_create_mcp) and work in it — never a tab of availableTabs outside your group. A navigate or javascript_tool that does not answer in time: close that tab (tabs_close_mcp), open a new one, go on there; put the browser's work aside only after a second timeout. At the end close the tabs you opened.";
+
 /** At most this many of the browser's sites are named in the brief; the rest by their number. */
 const BROWSER_SITES = 12;
 
@@ -1043,6 +1051,7 @@ export function browserRules(sites: readonly string[], alone: boolean, task?: st
     "## The browser (Claude in Chrome)",
     `Its sites: ${named || "none yet"} — no other.`,
     "- strom watches it, and the built-in browser of Claude's desktop app the same way (the same hook before each page). That one, Codex's browser (in the terminal strom watches it by the addresses its code names, once the person confirmed strom's hooks in Codex; the ChatGPT app's runs through ChatGPT's cloud and strom does not watch it) and the desktop apps' computer use (strom does not watch it) strom does not recommend: never of your own accord (strom doc R12). Only when the person explicitly asks for them: the person's choice — say in one sentence whether strom watches that way and what the site's terms say; never a way round them, never a check whether a person is there.",
+    `- Tabs: ${BROWSER_TABS}`,
     "- Use it without asking where a connector (strom fetch), WebFetch and WebSearch lead nowhere — never where they led nowhere because the site refused strom (401/403/429) or its terms forbid or restrict automation; images only through strom fetch.",
     "- As gently as strom fetch: the site's terms and robots.txt, its pace and hourly cap (strom connector show; else a page at a time, 2 s apart at least), only the pages the task needs, nothing ahead. A site that forbids automated access: never through the browser, never a way round.",
     `- A site that forbids automation, refused strom, or restricts it without the person's permission "through the browser" (strom net web --check <url> --browser says it): no connector, no browser — another way to the same records (another archive or fonds of the jurisdiction, the parish, an index, secondary sources), the search recorded (strom search add … --result inconclusive --note "<host>: …"); only if the source stays necessary: strom task wait ${task ?? "T…"} --check <url> --on "<what the person checks there>"${alone ? ", then close the session" : ""}.`,
@@ -1655,6 +1664,8 @@ export function buildBrief(
         : '- then: strom session close --summary "what was proven, what was searched in vain" --next "the next cheapest step"',
       task ? `- put aside: strom task park|wait ${task.id} …, then strom session close --summary "…" --next "…"` : "",
       `- if the task is not finished: strom session close --continue --summary "…" --next "exactly where you stopped"`,
+      // a session of an agent working directly lives by its commands (a run or a conversation strom started: by its process too)
+      alone ? "" : "- run a strom command at least once every 20 minutes (the task's hold lapses after task.hold without one)",
       // what the user reads of a session is its summary (strom's run output, the menu, the Strom app): strom's own words
       // there are impersonal, so is what it shows of the agent's
       alone

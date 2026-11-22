@@ -222,13 +222,14 @@ test("person show: how sure each name is and the person's confirmation, in --jso
   }
 });
 
-test("the gate APP_READS_NAME_STATUS: not set yet — nothing for any app; set, from its version on, an unknown version never; its beta from its own", () => {
+test("the gate APP_READS_NAME_STATUS: not set yet — nothing for a released app; set, from its version on, an unknown version never; its beta from its own (3.31.0-beta.5)", () => {
   const prod = new Settings({ STROM_APP_URL: "https://stromapp.info/run/" }, {});
   const beta = new Settings({ STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
-  assert.equal(APP_READS_NAME_STATUS, undefined, "waits for the app's 3.32.0");
-  assert.equal(APP_READS_NAME_STATUS_BETA, undefined);
+  assert.equal(APP_READS_NAME_STATUS, undefined, "waits for the app's 3.31.0");
+  assert.equal(APP_READS_NAME_STATUS_BETA, "3.31.0-beta.5");
   for (const v of [undefined, "3.31.0", "3.32.0", "9.0.0"]) assert.equal(appReadsNameStatus(prod, v), false, String(v));
-  for (const v of [undefined, "3.32.0-beta.1", "9.0.0"]) assert.equal(appReadsNameStatus(beta, v), false, `beta ${v}`);
+  for (const v of [undefined, "3.30.0", "3.31.0-beta.4"]) assert.equal(appReadsNameStatus(beta, v), false, `beta ${v}`);
+  for (const v of ["3.31.0-beta.5", "3.31.0", "9.0.0"]) assert.equal(appReadsNameStatus(beta, v), true, `beta ${v}`);
   for (const v of [undefined, "3.31.0", "3.32.0-beta.3"]) assert.equal(appReadsNameStatus(prod, v, "3.32.0"), false, String(v));
   for (const v of ["3.32.0", "3.32.1", "9.0.0"]) assert.equal(appReadsNameStatus(prod, v, "3.32.0"), true, v);
   assert.equal(appReadsNameStatus(beta, "3.32.0-beta.1", "3.32.0", "3.32.0-beta.2"), false);

@@ -103,6 +103,10 @@ export class World {
       STROM_TEST_ANCESTRY: "",
       // strom's checks of the readings looked through at once, not by a strom of their own in the background
       STROM_FIXES_REFRESH: "now",
+      // a bridge answers a send of the app once it is written, never "pending" because a busy computer (the whole suite
+      // beside it) took longer than the 20 s an app is given (found: sync-again, the answer without `applied`); a test
+      // of the pending answer sets its own
+      STROM_SYNC_ANSWER_MS: "300000",
       // each bridge notes itself where the run keeps them (test/bridges.ts): ended with its world, none left after the run
       STROM_TEST_BRIDGES: bridges,
     };

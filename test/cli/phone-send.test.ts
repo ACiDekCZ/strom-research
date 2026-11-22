@@ -58,6 +58,8 @@ test("photos from a phone: a batch of the phone's as from \"Add materials\", the
     await w.withTree("Dvořákovi");
     await w.ok(["lang", "cs"]);
     await w.ok(["person", "add", "Anežka /Dvořáková/", "--sex", "F"]); // P0001
+    // the batches sorted by themselves: the person's switch (spec 130; off by default)
+    await w.ok(["config", "set", "intake.auto", "on", "--for-tree"], { tty: true });
     // the part of an upload cut short a day ago: cleared when the phone's server starts
     const incoming = path.join(w.home, "shared", "media", ".incoming");
     fs.mkdirSync(incoming, { recursive: true });

@@ -45,6 +45,8 @@ export interface StatusMade {
   full: string;
   lite: string;
   parts: Record<StatusPart, { rev: string; text: string }>;
+  /** It tells the runs (spec 126: not an archive, nor a research waiting for its agent) — read at each ask, never kept. */
+  runs?: boolean;
 }
 
 /** The rev of a part: what it says, in short (the same JSON, the same rev). */
@@ -68,7 +70,7 @@ export function splitStatus(status: Record<string, unknown>, key: string, at = D
     revs[name] = rev;
     parts[name] = { rev, text: JSON.stringify({ part: name, rev, head: status.head, ...of }) };
   }
-  return { key, at, full: JSON.stringify(status), lite: JSON.stringify({ ...lite, parts: revs }), parts };
+  return { key, at, full: JSON.stringify(status), lite: JSON.stringify({ ...lite, parts: revs }), parts, ...(status.limits !== undefined ? { runs: true } : {}) };
 }
 
 /** What the thread is asked: /status for the app of that version, for the state key. */

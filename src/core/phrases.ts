@@ -195,6 +195,8 @@ export const PHRASES = {
   "session.chat": "the conversation ended before the session was closed",
   "session.agent": "the agent stopped ({outcome}) without closing the session",
   "session.limit": "the agent's plan limit ran out before the session was closed{resets}",
+  "session.taken": "taken over after {minutes, plural, one {# minute} other {# minutes}} without a sign of life; work in progress in {session}",
+  "session.taken.dead": "taken over, its process had ended; work in progress in {session}",
 
   "transcript.read": "Transcript written by a reader ({model}) from the entry cut out of its scan and checked by a second reader ({date}, strom transcripts).",
 
@@ -246,6 +248,8 @@ export const PHRASES = {
   // who is at work, for the Strom app (the bridge's working)
   "who.run": "{agent} on its own",
   "who.chat": "{agent} conversation",
+  "who.agent": "{agent} working directly",
+  "who.someone": "Agent",
 
   // what a commit saved, for the Strom app (core/changelog.ts)
   "log.person.add": "New person: {who}",
@@ -308,6 +312,11 @@ export const PHRASES = {
   "browser.wait": "images {images} of {book}, saved by the agent's browser from {url}",
   "browser.save.other": "the browser's tab shows another image than {n} ({url}), nothing was saved",
   "browser.wait.held": "images {images} of {book}, saved by the agent's browser from {url} — the browser held image {n} back: {host} to be allowed to download several files in the browser profile the agent works in, once (the icon at the right end of the browser's address bar)",
+  "browser.range.stopped": "images {images} of {book}: the archive stopped the agent's browser at image {n} ({why}) — to be saved by hand from {url} into the task's folder; nothing goes to {host} through the agent's browser before {until}",
+  "browser.range.why.check": "its check whether a person is there",
+  "browser.range.why.login": "it asked for a login",
+  "browser.range.why.http": "it answered HTTP {status}",
+  "browser.range.why.failed": "the viewer did not show the image",
   "wait.group.app": "The Strom app",
   "wait.group.tune": "The reading of scans",
   "wait.group.aside": "Images saved by hand",

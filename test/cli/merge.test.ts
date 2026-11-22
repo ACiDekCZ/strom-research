@@ -117,7 +117,7 @@ test("an imported tree: the people already researched are pointed out, a wife un
     "0 TRLR",
   ].join("\n");
   fs.writeFileSync(path.join(w.dir, "tree.ged"), ged + "\n");
-  const intake = await w.ok(["intake", path.join(w.dir, "tree.ged")]);
+  const intake = await w.ok(["intake", path.join(w.dir, "tree.ged"), "--sort"]);
   assert.match(intake.out, /Nejspíš už v rodokmenu: P0004≈P0001, P0005≈P0002, P0006≈P0003/);
   const brief = (await w.ok(["brief", "T1"])).out;
   assert.match(brief, /## Probably already in the tree \(I0001\)/);
@@ -174,7 +174,7 @@ test("a merge never rewrites the IDs a record had in another file (refs): a REFN
   await w.ok(["person", "add", "Hynek /Lhotak/", "--sex", "M", "--born", "1811"]); // P2
   const file = path.join(w.dir, "cizi.ged");
   fs.writeFileSync(file, ["0 HEAD", "1 SOUR GRAMPS", "1 CHAR UTF-8", "0 @I1@ INDI", "1 NAME Zdislava /Lhotková/", "1 SEX F", "1 REFN P0002", "0 TRLR", ""].join("\n"));
-  await w.ok(["intake", file]);
+  await w.ok(["intake", file, "--sort"]);
   const before = readJsonFile(path.join(w.cwd, "data", "persons", "P0003.json"));
   assert.ok(before.refs.some((r: any) => r.system === "refn" && r.id === "P0002"), "the foreign REFN kept");
   await w.ok(["person", "merge", "P1", "P2", "--reason", "týž Hynek"]);

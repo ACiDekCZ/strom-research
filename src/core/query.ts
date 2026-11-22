@@ -35,6 +35,12 @@ import type { Tree } from "./tree.ts";
 export const KIN_SETS = ["ancestors", "blood", "family", "all"] as const;
 export type KinSet = (typeof KIN_SETS)[number];
 
+/** Whether a person bears the surname: any of its forms (Lhotakova), the groups the user made one family. */
+export function surnameOfFor(tree: Tree, surname: string): (p: Person) => boolean {
+  const forms = familyForms(tree, surname);
+  return (p) => p.names.some((n) => [...surnameForms(surnameFormOf(n.surname ?? ""))].some((f) => forms.has(f)));
+}
+
 export const FACT_GROUPS = ["generation", "kin", "place", "decade", "surname"] as const;
 export type FactGroup = (typeof FACT_GROUPS)[number];
 
@@ -173,8 +179,7 @@ export function findFacts(tree: Tree, q: FactQuery): FactAnswer {
   const sourceOf = (e: Event) =>
     !sourceAsked ||
     (e.citations ?? []).some((c) => (sourceId ? c.source === sourceId : !!sourceWords && foldText(sources.get(c.source)?.title ?? "").includes(sourceWords)));
-  const surname = q.surname ? familyForms(tree, q.surname) : undefined;
-  const surnameOf = (p: Person) => !surname || p.names.some((n) => [...surnameForms(surnameFormOf(n.surname ?? ""))].some((f) => surname.has(f)));
+  const surnameOf = q.surname ? surnameOfFor(tree, q.surname) : () => true;
   const factOk = (e: Event) =>
     !e.retracted &&
     statuses.has(e.status) &&

@@ -67,7 +67,7 @@ test("deleted for good: the impacts said are the impacts done, a source keeps it
   fs.writeFileSync(path.join(given, nfd), a);
   fs.writeFileSync(path.join(given, "Lhota dopis.png"), b);
   fs.writeFileSync(path.join(given, "Lhota statek.png"), d);
-  await w.ok(["intake", given]);
+  await w.ok(["intake", given, "--sort"]);
   const tree = Tree.open(w.cwd, w.env);
   const inputs = tree.list<Input>("input");
   const byName = (n: string) => inputs.find((i) => i.name.normalize("NFC") === n)!.id;

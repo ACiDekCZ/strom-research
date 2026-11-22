@@ -209,6 +209,7 @@ test("hidden in a research with an agent: the task at it given up, shown again i
   const w = new World();
   await w.withTree();
   await w.ok(["person", "add", "Žofie /Dvořáková/", "--sex", "F"]); // P1
+  await w.ok(["config", "set", "intake.auto", "on", "--for-tree"], { tty: true }); // the person's switch: files get their tasks
   const dir = path.join(w.cwd, "inputs-in", "Krabice");
   fs.mkdirSync(dir, { recursive: true });
   fs.copyFileSync(path.join(fixtures, "s0001.jpg"), path.join(dir, "dopis.jpg"));
@@ -341,7 +342,11 @@ test("every write of the app's answers the head after it and its parent, the hea
     known = gitHead(w.cwd);
     wrote(await put(read("s0001.jpg"), "Dopis.jpg", { "X-Strom-Batch": batch, "X-Strom-Path": encodeURIComponent("Krabice/Dopis.jpg") }), known, true);
     known = gitHead(w.cwd);
-    wrote(await post(`${info.url}/batch/${batch}/done`, { name: "Krabice", person: "P0001" }), known, true);
+    // closed unsorted (intake.auto off, spec 130): nothing of the research changes
+    wrote(await post(`${info.url}/batch/${batch}/done`, { name: "Krabice", person: "P0001" }), known, false);
+    known = gitHead(w.cwd);
+    // sorted when the app asks for this batch: its tasks (put aside in an archive) written
+    wrote(await post(`${info.url}/batch/${batch}/done`, { sort: true }), known, true);
     known = gitHead(w.cwd);
     wrote(await post(`${info.url}/material/assign`, { files: [c], add: ["P0001"] }), known, true);
     // the same again: nothing written, parent = head

@@ -15,7 +15,9 @@ import { isArchive } from "../core/mode.ts";
 import type { UIKey } from "./ui.ts";
 import { actsAsArchive, kindOf, type Kind } from "../core/state.ts";
 import { Tree } from "../core/tree.ts";
-import { DEFAULT_RUN_MINUTES, readStored } from "../core/config.ts";
+import { DEFAULT_RUN_MINUTES, DEFAULT_RUN_PARALLEL, readStored } from "../core/config.ts";
+import { lineRunFilter, runRefusal } from "../core/linerun.ts";
+import { runsAtWork } from "../core/workers.ts";
 import { choosePace } from "../commands/setup.ts";
 import type { Conflict, Family, Hypothesis, HypothesisVariant, HypothesisWrote, Person, Research, Session, Source, Task, VariantLink } from "../core/model.ts";
 import { costPartial, monthSpend, sessionCost } from "../core/session.ts";
@@ -516,18 +518,45 @@ const WORK_LIST = 5;
  * link names (do=tasks&task=T…,T…: the app's "work on them now", spec 065 K7.2): those still open and held by nobody,
  * one session each in the link's order (strom run --task), the rest said left out; none left: nothing started.
  */
-export async function workRun(ctx: Context, run: Run, lang: string, root: string, what: (typeof LINK_WORK_DOS)[number], n?: number, picked?: string[]): Promise<boolean> {
+export async function workRun(ctx: Context, run: Run, lang: string, root: string, what: (typeof LINK_WORK_DOS)[number], n?: number, picked?: string[], byLine?: { research: string; agent?: string }): Promise<boolean> {
   const t = translator(lang);
   const tree = Tree.open(root, ctx.env);
-  // its sessions are strom run's: the agent's CLI not here said before anything else
-  if (!(await agentCliHere(ctx, run, lang, tree))) return false;
-  // a run or a session at work already (the app's state may be older than the click): nothing more started
-  const busy = busyIn(tree);
-  if (busy.runs || busy.sessions.length) return stop(ctx, t("ui.link.work.busy", { runs: busy.runs, sessions: busy.sessions.length }));
+  const max = ctx.settings.number("run.parallel", undefined, DEFAULT_RUN_PARALLEL);
+  let line: Research | undefined;
+  if (byLine) {
+    // a run of one line (spec 126): the line, the agent the app chose, and a refusal (the limit of runs, the line held,
+    // a run of an older strom) said in one sentence — nothing started
+    const r = tree.get<Research>(byLine.research);
+    if (!r || r.type !== "research" || r.retracted) return stop(ctx, t("ui.link.direction.none", { id: byLine.research }));
+    if (r.state !== "active") return stop(ctx, t("ui.link.work.line.state", { name: r.name, state: t(r.state === "paused" ? "ui.link.work.line.paused" : "ui.link.work.line.done") }));
+    if (byLine.agent && !agentsHere(ctx.env).some((a) => a.id === byLine.agent && a.cli && PROFILES[a.id])) return stop(ctx, t("ui.link.work.agent", { agent: PROFILES[byLine.agent]?.name ?? byLine.agent }));
+    if (!byLine.agent && !(await agentCliHere(ctx, run, lang, tree))) return false;
+    const refused = runRefusal(root, { research: r.id, max });
+    if (refused?.code === "run.line.older") return stop(ctx, t("ui.link.work.older", { name: r.name }));
+    if (refused?.code === "run.line.held") {
+      const since = String(refused.params?.since ?? "");
+      return stop(ctx, t("ui.run.line.held", { name: r.name, since: since ? new Date(since).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" }) : "–" }));
+    }
+    if (refused) return stop(ctx, t("ui.link.work.cap", { running: runsAtWork(root).length, max }));
+    line = r;
+  } else {
+    // its sessions are strom run's: the agent's CLI not here said before anything else
+    if (!(await agentCliHere(ctx, run, lang, tree))) return false;
+    // a run of the whole queue or a session of none of the lines' runs at work already (the app's state may be older
+    // than the click): nothing more started; the runs of lines beside it count only against the limit of runs
+    const busy = busyIn(tree);
+    const lineRuns = new Set(runsAtWork(root).filter((w) => w.research).map((w) => w.id));
+    const sessions = busy.sessions.filter((x) => !lineRuns.has(tree.get<Session>(x.id)?.worker ?? ""));
+    const runs = busy.runs - lineRuns.size;
+    if (runs > 0 || sessions.length) return stop(ctx, t("ui.link.work.busy", { runs, sessions: sessions.length }));
+    if (runRefusal(root, { max })) return stop(ctx, t("ui.link.work.cap", { running: runsAtWork(root).length, max }));
+  }
   if (picked) return workOn(ctx, run, lang, root, tree, picked);
-  // the queue as strom run takes it: a story now and then, history by its pace, the one put next first, without what others hold
+  // the queue as strom run takes it: a story now and then, history by its pace, the one put next first, without what
+  // others hold — a line's run: its tasks only; the whole queue's: without the tasks of the lines with a run of their own
   const held = othersAtWork(tree, tree.env).tasks;
-  const queue = taskQueue(tree, { strategy: ctx.settings.strategy(tree.config), ...RUN_TURNS }).filter((x) => !held.has(x.id));
+  const takes = lineRunFilter(tree, line?.id, "");
+  const queue = taskQueue(tree, { strategy: ctx.settings.strategy(tree.config), ...RUN_TURNS }).filter((x) => !held.has(x.id) && takes(x));
   if (!queue.length) return stop(ctx, t("ui.link.work.empty"));
   let tasks = what === "tasks" ? (n ?? LINK_WORK_DEFAULT) : undefined;
   if (what === "loop" && !ctx.settings.runGate()) {
@@ -557,6 +586,8 @@ export async function workRun(ctx: Context, run: Run, lang: string, root: string
   const spec = ctx.settings.runGate();
   const gate = spec ? gateLabel(ctx.settings.shared()?.value, spec) : undefined;
   const note = lines(
+    line ? t("ui.run.line", { name: line.name, research: line.id }) : undefined,
+    line && byLine?.agent ? t("ui.link.work.agent.is", { agent: PROFILES[byLine.agent]?.name ?? byLine.agent }) : undefined,
     t("ui.run.next"),
     ...shown.map((x, k) => `  ${String(k + 1).padStart(2)}. ${truncate(humanTask(fresh, x.what, lang), 100)}${forStory(x) ? t("ui.run.story") : forHistory(x) ? t("ui.run.ofhistory") : ""}${lacksImages(fresh, x) ? t("ui.plan.images") : ""}`),
     queue.length > shown.length ? `      ${t("ui.plan.more", { n: queue.length - shown.length })}` : undefined,
@@ -568,7 +599,8 @@ export async function workRun(ctx: Context, run: Run, lang: string, root: string
   const said = tasks !== undefined ? t("ui.link.what.work.tasks", { n: tasks }) : t("ui.link.what.work.loop");
   if (!(await asksToStart(ctx, lang, root, said, note, false))) return false;
   out(ctx, t("ui.link.work.stop"));
-  return (await run(tasks !== undefined ? ["run", "--tasks", String(tasks)] : ["run", "--loop"])) === 0;
+  const of = line ? ["--research", line.id, ...(byLine?.agent ? ["--agent", byLine.agent] : [])] : [];
+  return (await run(tasks !== undefined ? ["run", ...of, "--tasks", String(tasks)] : ["run", ...of, "--loop"])) === 0;
 }
 
 /** The tasks a link names worked on now (workRun): one session each, in the link's order, on the person's yes. */
@@ -694,6 +726,23 @@ export async function finishSession(ctx: Context, run: Run, lang: string, root: 
   const agent = PROFILES[s.agent ?? ""]?.name ?? s.agent ?? "";
   if (!(await asks(ctx, lang, root, t("ui.link.what.finish", { agent, session: s.id, task: task ? truncate(humanTask(tree, task.what, lang), 80) : "–" })))) return false;
   return (await run(["session", "finish", s.id])) === 0;
+}
+
+/**
+ * A run asked to finish and end (strom-research://finish?run=…, spec 126): its session's agent writes down what it
+ * found and closes it, the run starts no next one; a run that waits (its gate, the plan's limit, an archive) ends at
+ * once — strom run stop <run> --finish on the person's yes. A run no longer at work: said, nothing asked.
+ */
+export async function finishRun(ctx: Context, run: Run, lang: string, root: string, id: string): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const w = runsAtWork(root).find((x) => x.id === id);
+  if (!w) return stop(ctx, t("ui.link.finish.run.none"));
+  const r = w.research ? tree.get<Research>(w.research) : undefined;
+  const agent = PROFILES[w.agent ?? ""]?.name ?? w.agent ?? "";
+  const what = r?.type === "research" ? `${r.name} (${r.id})` : t("ui.link.finish.run.queue");
+  if (!(await asks(ctx, lang, root, t("ui.link.what.finish.run", { agent, line: what })))) return false;
+  return (await run(["run", "stop", id, "--finish"])) === 0;
 }
 
 /** The agent's sessions, the latest first, and what this month's cost. */

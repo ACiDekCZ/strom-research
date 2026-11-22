@@ -111,11 +111,42 @@ export class TaskTaken extends UsageError {
   readonly task: string;
   readonly session: string;
 
-  constructor(task: string, session: string, agent?: string) {
-    super(`${task} is being worked on in session ${session}${agent ? ` (${agent})` : ""}`, { hint: "take another task: strom session start (the next free one)" });
+  /**
+   * A task another session holds (spec 127 K1.5): who, since when, its last sign of life, free by when at the latest
+   * (none: a live process on this computer holds it, free when it ends).
+   */
+  constructor(task: string, session: string, agent?: string, held?: { who: string; since: string; last: string; until?: string; hint?: string }) {
+    const free = held ? (held.until ? `free by ${held.until} at the latest` : "free when it ends") : "";
+    super(`${task} is being worked on in session ${session}${held ? ` (${held.who}, since ${held.since}, last sign ${held.last}, ${free})` : agent ? ` (${agent})` : ""}`, {
+      hint: held?.hint ?? "take another task: strom session start (the next free one)",
+      code: "task.held",
+      ...(held ? { textCode: held.until ? "task.held" : "task.held.here", hintCode: "task.held", params: { task, session, who: held.who, since: held.since, last: held.last, ...(held.until ? { until: held.until } : {}) } } : {}),
+    });
     this.name = "TaskTaken";
     this.task = task;
     this.session = session;
+  }
+}
+
+/**
+ * A task whose archive (a site that restricts automated access) another session uses now (spec 127 K2.5): who, since
+ * when, its last request and when it is free at the latest — one research at a time on such an archive.
+ */
+export class ArchiveHeld extends UsageError {
+  readonly site: string;
+  readonly task: string;
+
+  constructor(task: string, site: string, held: { who: string; own?: string; since: string; last: string; until: string; hint?: string }) {
+    super(`${task} needs ${site}, an archive that restricts automated access, and ${held.who} uses it now (since ${held.since}, last request ${held.last}, free by ${held.until} at the latest) — one session at a time on it`, {
+      hint: held.hint ?? "take another task: strom task next",
+      code: "archive.held",
+      textCode: held.own ? "archive.held.own" : "archive.held",
+      hintCode: "archive.held",
+      params: { task, site, since: held.since, last: held.last, until: held.until, ...(held.own ? { session: held.own } : {}) },
+    });
+    this.name = "ArchiveHeld";
+    this.site = site;
+    this.task = task;
   }
 }
 

@@ -317,3 +317,18 @@ test("before setup: a cap is checked all the same, and nothing of the gates is p
   assert.match((await w.ok(["gate", "list"])).out, /claude-usage ◀ run\.gate \(claude-usage 15\)/);
   w.cleanup();
 });
+
+test("a run the person started, asked again for its cap alone: a wait recorded as it said, then go, marked pace (only its hard stop counts); a run by itself never so", unix, async () => {
+  const w = await capWorld([
+    { code: 0, say: { reason: "týden 60 %", watch: WATCH } },
+    { code: 1, say: { reason: "tempo: týden 70 %", wait: 3600, watch: WATCH } },
+  ]);
+  const r = await w.ok(["run", "--agent", "claude", "--max", "2", "--json"], { env: { FAKE_WEEK: "0.6" } });
+  assert.equal(r.json.sessions.length, 2, r.err);
+  const log = fs.readFileSync(path.join(w.cwd, ".strom", "gate.log"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  assert.deepEqual(log.map((l) => [l.verdict, l.then, l.pace]), [
+    ["go", "go", undefined],
+    ["wait", "go", true],
+  ]);
+  w.cleanup();
+});

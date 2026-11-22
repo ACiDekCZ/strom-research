@@ -265,6 +265,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     batch: S(),
     path: S({ max: 500 }),
     sorted: { t: "any" },
+    declined: { t: "any" },
     read: { t: "strings" },
     title: S({ max: 200 }),
     date: S({ date: true }),

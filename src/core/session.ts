@@ -7,45 +7,73 @@
 // STROM_SESSION (set by `strom run`). An agent may hold one session in each
 // research (two conversations of the desktop app, neither started by strom):
 // each research's session has its own pointer, .strom/sessions/<worker>~<G…>.json,
-// and a command finds its own by what it names (a task, a session, a research).
+// and a command finds its own by what it names (a task, a session, a research). An agent working directly (no
+// worker) whose CLI tells its conversation (CLAUDE_CODE_SESSION_ID…) has pointers of its own, .strom/session-@<id>.json,
+// and its session's hold names it (core/holds.ts): two such agents never take each other's session.
 
 import fs from "node:fs";
 import path from "node:path";
-import { TaskTaken, UsageError } from "./errors.ts";
-import type { Session, Task } from "./model.ts";
+import { ArchiveHeld, EXIT, StromError, TaskTaken, UsageError } from "./errors.ts";
+import type { Research, Session, Task } from "./model.ts";
+import { effectiveDirection, scopes } from "./directions.ts";
 import { now, VERSION, type Tree } from "./tree.ts";
 import { makeNote, makeNotes } from "./actions.ts";
 import type { Env } from "./paths.ts";
 import { detectAgent } from "./which.ts";
 import { finishAsked, finishByLimit, finishFile, timeSaidFile } from "./clock.ts";
-import { isLiveWorker, isWorkerId } from "./workers.ts";
+import { isLiveWorker, isWorkerId, otherVersionsAtWork } from "./workers.ts";
+import { compareVersions } from "./semver.ts";
+import { clearOld, directAgentId, newHold, readHold, readTaken, removeHold, sessionLife, takenFile, writeHold, writeTaken, type Life, type Taken } from "./holds.ts";
+import { phrase } from "./phrases.ts";
+import { clock } from "./net.ts";
+import { PROFILES } from "../agents/profiles.ts";
 import { readCodexConfig } from "../agents/effort.ts";
 import { clearSessionWait, permissionWait, waitingForDecision } from "./archivewait.ts";
 import { forgetLeftAlone } from "./leftalone.ts";
 import { Settings } from "./config.ts";
+import { claimSite, heldSiteOfTask, heldSites, holderWords, releaseHolder, restrictedSiteOfTask, transferSite, type Holder, type SiteClaim } from "./archiveholds.ts";
 import { forGaps, regionOfTask, takeRegion } from "./pastevents.ts";
 import { placeOfTask, takePlace } from "./placehistory.ts";
 import { PLACES_IDENTIFY_ORIGIN, placesSessionCounts } from "./placeid.ts";
 
-function currentFile(tree: Tree, env: Env = tree.env): string {
+/** Whose pointers: a worker's, an agent's own conversation's ("@<id>": no letter of a worker's name), or anyone else's (""). */
+function pointerName(env: Env): string {
   const w = env.STROM_WORKER;
-  return path.join(tree.root, ".strom", isWorkerId(w) ? `session-${w}.json` : "session.json");
+  if (isWorkerId(w)) return w;
+  const id = directAgentId(env);
+  return id ? `@${id}` : "";
 }
 
-/** Who holds a session, for keeping agents apart: its worker, a run, or anyone else. */
-function holder(s: Pick<Session, "worker" | "runner">): string {
-  return s.worker ?? (s.runner ? "run" : "");
+function currentFile(tree: Tree, env: Env = tree.env): string {
+  const name = pointerName(env);
+  return path.join(tree.root, ".strom", name ? `session-${name}.json` : "session.json");
+}
+
+/** Who holds a session, for keeping agents apart: its worker, a run, an agent's own conversation (its hold), or anyone else. */
+function holder(tree: Tree, s: Pick<Session, "id" | "worker" | "runner">): string {
+  if (s.worker) return s.worker;
+  if (s.runner) return "run";
+  const id = readHold(tree.root, s.id)?.hold.agentSession;
+  return id ? `@${id}` : "";
 }
 
 /** Who this process works for. */
 function holderOf(env: Env, runner?: string): string {
-  return isWorkerId(env.STROM_WORKER) ? env.STROM_WORKER : runner ? "run" : "";
+  if (isWorkerId(env.STROM_WORKER)) return env.STROM_WORKER;
+  if (runner) return "run";
+  const id = directAgentId(env);
+  return id ? `@${id}` : "";
+}
+
+/** Is this open session the one asking's own (env: its worker, its run, its agent's conversation)? */
+export function isOwnSession(tree: Tree, s: Session, env: Env = tree.env, runner?: string): boolean {
+  return holder(tree, s) === holderOf(env, runner);
 }
 
 /** Open sessions of other agents, and the tasks they hold. */
 export function othersAtWork(tree: Tree, env: Env = tree.env, runner?: string): { sessions: Session[]; tasks: Set<string> } {
   const me = holderOf(env, runner);
-  const sessions = openSessions(tree).filter((s) => holder(s) !== me);
+  const sessions = openSessions(tree).filter((s) => holder(tree, s) !== me);
   return { sessions, tasks: new Set(sessions.flatMap((s) => (s.task ? [s.task] : []))) };
 }
 
@@ -64,8 +92,7 @@ function researchPointers(tree: Tree): string {
 
 /** This agent's pointer to its session in one research ("~" is no letter of a worker's name). */
 function researchFile(tree: Tree, research: string, env: Env = tree.env): string {
-  const w = env.STROM_WORKER;
-  return path.join(researchPointers(tree), `${isWorkerId(w) ? w : ""}~${research}.json`);
+  return path.join(researchPointers(tree), `${pointerName(env)}~${research}.json`);
 }
 
 function pointerId(file: string): string | undefined {
@@ -78,8 +105,7 @@ function pointerId(file: string): string | undefined {
 
 /** The open sessions this agent's pointers name: the one pointer of an older strom, and one per research. */
 export function ownSessions(tree: Tree, env: Env): Session[] {
-  const w = env.STROM_WORKER;
-  const prefix = `${isWorkerId(w) ? w : ""}~`;
+  const prefix = `${pointerName(env)}~`;
   let names: string[] = [];
   try {
     names = fs.readdirSync(researchPointers(tree)).filter((n) => n.startsWith(prefix) && n.endsWith(".json"));
@@ -153,19 +179,29 @@ export function openSessions(tree: Tree): Session[] {
   return tree.list<Session>("session").filter((s) => s.state === "open");
 }
 
+/**
+ * The line a session on a task works for when none is named: the task's own, or — its line ended — the narrowest active
+ * line its people are in (core/directions.ts effectiveDirection; the task keeps its research); a task of no research: none.
+ */
+function taskLine(tree: Tree, task: Task | undefined): string | undefined {
+  if (!task?.research) return undefined;
+  if (tree.get<Research>(task.research)?.state !== "done") return task.research;
+  return effectiveDirection(tree, task, scopes(tree));
+}
+
 /** Start a session on a task (the task goes to "doing"). One open session per agent; one agent per task. */
 export function startSession(tree: Tree, opts: { task?: Task; research?: string; runner?: string; model?: string; effort?: string }): Session {
   return tree.withTreeLock(() => {
     const me = holderOf(tree.env, opts.runner);
     // one open session per agent in each research (each has its own pointer); a session of no research is the agent's only one
-    const research = opts.research ?? opts.task?.research;
-    const busy = openSessions(tree).filter((s) => holder(s) === me && (!research || !s.research || s.research === research));
+    const research = opts.research ?? taskLine(tree, opts.task);
+    const busy = openSessions(tree).filter((s) => holder(tree, s) === me && (!research || !s.research || s.research === research));
     if (busy.length)
       throw new UsageError(`session ${busy[0]!.id} is still open${busy[0]!.task ? ` on ${busy[0]!.task}` : ""}`, {
         hint: `finish it: strom session close --summary "…" --next "…"   (or, if it died: strom session close ${busy[0]!.id} --interrupted)`,
       });
     const taken = opts.task ? othersAtWork(tree, tree.env, opts.runner).sessions.find((s) => s.task === opts.task!.id) : undefined;
-    if (taken) throw new TaskTaken(opts.task!.id, taken.id, taken.agent);
+    if (taken) throw heldError(tree, taken, opts.task!.id);
     const task = opts.task ? (tree.get<Task>(opts.task.id) ?? opts.task) : undefined;
     const agent = detectAgent(tree.env) ?? (opts.runner && opts.runner !== "script" ? opts.runner : undefined);
     // the model strom started the agent with (strom run, strom chat): what it read with, for a later review
@@ -182,7 +218,7 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
       created: t,
       updated: t,
       ...(opts.task ? { task: opts.task.id } : {}),
-      ...(opts.research ?? opts.task?.research ? { research: (opts.research ?? opts.task?.research)! } : {}),
+      ...(research ? { research } : {}),
       ...(opts.runner ? { runner: opts.runner } : {}),
       ...(isWorkerId(tree.env.STROM_WORKER) ? { worker: tree.env.STROM_WORKER } : {}),
       ...(agent ? { agent } : {}),
@@ -206,8 +242,373 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
     if (region && shared) takeRegion(shared, region, tree.config.id, forGaps(task!));
     if (place && shared) takePlace(shared, tree, place);
     setCurrent(tree, s.id);
+    // its hold: who works in it, and the sign of life that keeps it (core/holds.ts)
+    if (!tree.dryRun) writeHold(tree.root, newHold(tree.root, s, tree.env));
     return s;
   });
+}
+
+/** How long a task stays held without a sign of life, ms (task.hold: this computer's setting). */
+export function holdMs(env: Env): number {
+  return new Settings(env, {}).holdMinutes("task.hold") * 60_000;
+}
+
+/** The life of an open session (core/holds.ts sessionLife) with this computer's task.hold. */
+export function lifeOf(tree: Tree, s: Session, now = Date.now()): Life {
+  return sessionLife(tree.root, tree.dataDir, s, now, holdMs(tree.env));
+}
+
+/** Who holds a session, as the sentences say it: the agent's name, else what strom started. */
+function whoHolds(s: Session, life?: Life): string {
+  if (s.agent) return PROFILES[s.agent]?.name ?? s.agent;
+  const by = life?.hold?.by ?? (s.runner ? "run" : s.worker ? "chat" : "agent");
+  return by === "run" ? "strom run" : by === "chat" ? "strom chat" : "agent";
+}
+
+/**
+ * A task held by another's open session (spec 127 K1.5): who, since when, the last sign of life and when it is free at the
+ * latest — or, held by a live process on this computer, free when it ends.
+ */
+export function heldError(tree: Tree, s: Session, task: string, hint = "take another task: strom task next"): TaskTaken {
+  const now = Date.now();
+  const life = lifeOf(tree, s, now);
+  return new TaskTaken(task, s.id, s.agent, {
+    who: whoHolds(s, life),
+    since: clock(life.since, now),
+    last: clock(life.lastSign, now),
+    ...(life.here || life.until === undefined ? {} : { until: clock(Math.max(life.until, now), now) }),
+    hint,
+  });
+}
+
+export interface Want {
+  /** The task asked for by its ID (session start T…, task start T…): held by another, refused (K1.5). */
+  task?: Task;
+  /** The task proposed before (strom run, asked of its gate): taken when still free, else the next free one. */
+  prefer?: string;
+  /** The next free task of the queue, the tasks others hold left out. */
+  next?: (busy: Set<string>) => Task | undefined;
+  /** No session without a task: nothing free, nothing started (strom run). */
+  need?: boolean;
+  /** Sessions taken over before (takeOverLapsed): their records get the session that takes the work over. */
+  tookOver?: Taken[];
+  /** Told the tasks left out for their archive when nothing free is left (strom run: it waits for the archive). */
+  archiveHeld?: ArchiveSkip[];
+  research?: string;
+  runner?: string;
+  model?: string;
+  effort?: string;
+}
+
+export interface Claimed {
+  session: Session;
+  task?: Task;
+  /** The sessions of others taken over first (their holder gave no sign of life for task.hold, or its process is gone). */
+  tookOver: Taken[];
+  /** The task proposed, taken meanwhile by another: the one started instead is `task`. */
+  instead?: string;
+  /** Tasks left out because the archive they need (a restricted site) another session uses now (spec 127 K2.3). */
+  archiveHeld: ArchiveSkip[];
+}
+
+/** A task left out because its archive is held: the site, who holds it, until when at the latest. */
+export interface ArchiveSkip {
+  task: string;
+  site: string;
+  /** For the agent: who uses it (core/archiveholds.ts holderWords). */
+  who: string;
+  /** The session holding it when it is of this research. */
+  own?: string;
+  since?: number;
+  last?: number;
+  until: number;
+}
+
+/** What a site held (or waited for first by another) tells of itself, for the sentences. */
+export function archiveSkip(task: string, site: string, c: Exclude<SiteClaim, { ok: true }>, tree: string): ArchiveSkip {
+  if (c.hold) {
+    const own = path.resolve(c.hold.tree) === path.resolve(tree) && c.hold.session ? c.hold.session : undefined;
+    return { task, site, who: holderWords(c.hold, tree), ...(own ? { own } : {}), since: c.life.since, last: c.life.lastSign, until: c.life.until };
+  }
+  return { task, site, who: `${c.waiter.by === "fetch" ? "strom fetch" : c.waiter.by === "run" ? "strom run" : "an agent"} of ${path.resolve(c.waiter.tree) === path.resolve(tree) ? "this research" : `another research (${path.basename(c.waiter.tree)})`}, waiting longer`, until: c.until };
+}
+
+function dedupe(skips: ArchiveSkip[]): ArchiveSkip[] {
+  const seen = new Set<string>();
+  return skips.filter((k) => !seen.has(k.task) && !!seen.add(k.task));
+}
+
+/** A task whose archive another session uses: refused, with the next free task offered (K2.5). */
+export function archiveHeldError(skip: ArchiveSkip, free?: string): ArchiveHeld {
+  const now = Date.now();
+  return new ArchiveHeld(skip.task, skip.site, {
+    who: skip.who,
+    ...(skip.own ? { own: skip.own } : {}),
+    since: clock(skip.since ?? now, now),
+    last: clock(skip.last ?? now, now),
+    until: clock(Math.max(skip.until, now), now),
+    hint: free ? `take another task: strom session start ${free} (the next free one)` : "take another task: strom task next",
+  });
+}
+
+/** The tasks a session start left out for their archive, said to the agent in one line each site (K2.5). */
+export function archiveHeldLines(skips: ArchiveSkip[], took?: string): string[] {
+  const now = Date.now();
+  const bySite = new Map<string, ArchiveSkip[]>();
+  for (const k of skips) bySite.set(k.site, [...(bySite.get(k.site) ?? []), k]);
+  return [...bySite.values()].map((ks) => {
+    const k = ks[0]!;
+    return `${ks.map((x) => x.task).join(", ")} left for now: ${k.site} restricts automated access and ${k.who} uses it (${k.since !== undefined ? `since ${clock(k.since, now)}, last request ${clock(k.last ?? k.since, now)}, ` : ""}free by ${clock(Math.max(k.until, now), now)} at the latest)${took ? ` — took ${took} instead` : ""}`;
+  });
+}
+
+/**
+ * The open sessions of others that lapsed (core/holds.ts sessionLife), taken over under the tree's lock: closed as
+ * interrupted by the one taking work (its kind: run, chat, agent), their task back to the queue with a note, a record
+ * for their old holder (.strom/taken/<N…>.json; the session that took the work over is added by claimTask). Holds of
+ * sessions no longer open, and records long read, go.
+ */
+export function takeOverLapsed(tree: Tree, runner?: string): Taken[] {
+  if (tree.dryRun) return [];
+  return tree.withTreeLock(() => {
+    const env = tree.env;
+    const now = Date.now();
+    const ms = holdMs(env);
+    const kind: NonNullable<Session["endedBy"]> = runner ? "run" : isWorkerId(env.STROM_WORKER) ? "chat" : "agent";
+    const took: Taken[] = [];
+    for (const s of openSessions(tree)) {
+      if (isOwnSession(tree, s, env, runner)) continue;
+      const life = sessionLife(tree.root, tree.dataDir, s, now, ms);
+      if (life.alive) continue;
+      took.push(takeOver(tree, s, life, kind, now));
+    }
+    clearOld(tree.root, new Set(openSessions(tree).map((s) => s.id)), now);
+    return took;
+  });
+}
+
+/**
+ * One open session taken over (its holder gave no sign of life, or its process is gone): closed as interrupted, its task
+ * back to the queue with a note of the takeover, and the record its old holder is told by when it writes again
+ * (.strom/taken/<N…>.json) — `summary`: what the session's summary says instead of the takeover (a run's own words).
+ */
+export function takeOver(tree: Tree, s: Session, life: Life, endedBy: NonNullable<Session["endedBy"]>, now = Date.now(), summary?: string): Taken {
+  const minutes = Math.max(0, Math.round((now - life.lastSign) / 60_000));
+  // a process gone (kill -9, a closed window): taken at once, never "after 0 minutes"
+  const why = life.reason === "dead" ? phrase(tree.lang, "session.taken.dead", { session: s.id }) : phrase(tree.lang, "session.taken", { minutes, session: s.id });
+  closeSession(tree, s, { summary: summary ?? why, next: why, interrupted: true, endedBy });
+  const worker = s.worker ?? life.hold?.worker;
+  const agentSession = life.hold?.agentSession;
+  const t: Taken = { session: s.id, ...(s.task ? { task: s.task } : {}), at: new Date(now).toISOString(), reason: life.reason ?? "expired", minutes, ...(worker ? { worker } : {}), ...(agentSession ? { agentSession } : {}) };
+  if (!tree.dryRun) writeTaken(tree.root, t);
+  return t;
+}
+
+/**
+ * Take work (spec 127): under the tree's lock, (1) the sessions of others that lapsed are taken over — closed as
+ * interrupted, their task back to the queue with a note, .strom/taken/<N…>.json for their old holder; (2) the tasks the
+ * live ones hold are left out; (3) the session starts; (4) its hold is written (startSession). The one way a session
+ * begins: strom run, session start (an agent of strom chat, or working directly), task start.
+ */
+export function claimTask(tree: Tree, want: Want): Claimed | undefined {
+  return tree.withTreeLock(() => {
+    const env = tree.env;
+    // the sites others hold now (restricted archives, spec 127 K2): read under the tree's lock, each site's own lock
+    // only taken after it (tree → archive, never the reverse)
+    const shared = tree.dryRun ? undefined : new Settings(env, {}).shared()?.value;
+    const by: Holder["by"] = want.runner ? "run" : isWorkerId(env.STROM_WORKER) ? "chat" : "agent";
+    const me: Holder = { tree: tree.root, by, pid: process.pid };
+    const held = heldSites(shared, me, env);
+    const skipped: ArchiveSkip[] = [];
+    // the archive of a task taken for it (its process first, its session once it starts): not taken — another took it
+    // a moment ago, or waits for it first — the task is left out as the ones held already
+    const takeArchive = (t: Task): { site?: string; ok: boolean } => {
+      if (!shared) return { ok: true };
+      const site = restrictedSiteOfTask(tree, t, shared);
+      if (!site) return { ok: true };
+      const c = claimSite(shared, site, me, env);
+      if (c.ok) return { site, ok: true };
+      held.set(site, c);
+      skipped.push(archiveSkip(t.id, site, c, tree.root));
+      return { site, ok: false };
+    };
+    const leaveOut = (t: Task): boolean => {
+      const site = heldSiteOfTask(tree, t, held);
+      if (!site) return false;
+      skipped.push(archiveSkip(t.id, site, held.get(site)!, tree.root));
+      return true;
+    };
+    // the next free one of the queue whose archive is free (a bounded look: each left out is out of the queue)
+    const nextFree = (busy: Set<string>): { task?: Task; site?: string } => {
+      const out = new Set(busy);
+      for (let i = 0; i < 500; i++) {
+        const t = want.next?.(out);
+        if (!t) return {};
+        out.add(t.id);
+        if (leaveOut(t)) continue;
+        const a = takeArchive(t);
+        if (a.ok) return { task: t, ...(a.site ? { site: a.site } : {}) };
+      }
+      return {};
+    };
+    const refuse = (holder: Session, busy: Set<string>) => {
+      const free = nextFree(busy).task;
+      return heldError(tree, holder, want.task!.id, free ? `take another task: strom session start ${free.id} (the next free one)` : "take another task: strom task next");
+    };
+    const refuseArchive = (busy: Set<string>) => {
+      const skip = skipped.find((k) => k.task === want.task!.id)!;
+      const free = nextFree(new Set([...busy, want.task!.id])).task;
+      return archiveHeldError(skip, free?.id);
+    };
+    // the task asked for held by another who lives, or its archive: refused before anything is taken over — a refused
+    // command writes nothing, and a takeover it wrote would be taken back with it
+    if (want.task) {
+      const before = othersAtWork(tree, env, want.runner);
+      const holder = before.sessions.find((s) => s.task === want.task!.id);
+      if (holder && lifeOf(tree, holder).alive) throw refuse(holder, before.tasks);
+      if (leaveOut(want.task)) throw refuseArchive(before.tasks);
+    }
+    const took = [...(want.tookOver ?? []), ...takeOverLapsed(tree, want.runner)];
+    const others = othersAtWork(tree, env, want.runner);
+    const busy = others.tasks;
+    let task: Task | undefined;
+    let site: string | undefined;
+    let instead: string | undefined;
+    if (want.task) {
+      const holder = others.sessions.find((s) => s.task === want.task!.id);
+      if (holder) throw refuse(holder, busy);
+      task = tree.get<Task>(want.task.id) ?? want.task;
+      const a = takeArchive(task);
+      if (!a.ok) throw refuseArchive(busy);
+      site = a.site;
+    } else if (want.prefer) {
+      const p = tree.get<Task>(want.prefer);
+      const a = p && !busy.has(p.id) && ["open", "doing", "parked"].includes(p.state) && !leaveOut(p) ? takeArchive(p) : undefined;
+      if (p && a?.ok) {
+        task = p;
+        site = a.site;
+      } else {
+        instead = want.prefer;
+        ({ task, site } = nextFree(new Set([...busy, want.prefer])));
+      }
+    } else ({ task, site } = nextFree(busy));
+    const record = (by?: string) => {
+      if (tree.dryRun) return;
+      for (const t of took) writeTaken(tree.root, { ...t, ...(by ? { by } : {}) });
+    };
+    if (!task && want.need) {
+      record();
+      want.archiveHeld?.push(...dedupe(skipped));
+      return undefined;
+    }
+    const session = startSession(tree, { ...(task ? { task } : {}), ...(want.research ? { research: want.research } : {}), ...(want.runner ? { runner: want.runner } : {}), ...(want.model ? { model: want.model } : {}), ...(want.effort ? { effort: want.effort } : {}) });
+    record(session.id);
+    // the archive taken for the task: its session's now (it lapses with the session, or with no request for archive.hold)
+    if (site && shared) {
+      const worker = isWorkerId(env.STROM_WORKER) ? env.STROM_WORKER : undefined;
+      const agentSession = worker ? undefined : directAgentId(env);
+      transferSite(shared, site, me, { tree: tree.root, session: session.id, ...(task ? { task: task.id } : {}), ...(want.research ? { research: want.research } : {}), by, ...(worker ? { worker } : {}), ...(session.agent ? { agent: session.agent } : {}), ...(agentSession ? { agentSession } : {}) });
+    }
+    return { session, ...(task ? { task: tree.get<Task>(task.id) ?? task } : {}), tookOver: took, ...(instead && task?.id !== instead ? { instead } : {}), archiveHeld: dedupe(skipped) };
+  });
+}
+
+/** The first strom that holds tasks (spec 127): one before it works as before beside this one. */
+const HOLDS_SINCE = "1.36.0-0";
+
+/** The versions of strom without holds of tasks at work in this tree ("< 1.25": one that says none). */
+export function olderBeside(root: string): string[] {
+  return otherVersionsAtWork(root, VERSION)
+    .filter((v) => !v || compareVersions(v, HOLDS_SINCE) < 0)
+    .map((v) => v || "< 1.25");
+}
+
+/** Said to the agent once a session starts: an older strom beside this one, whose sessions are never taken over while it works. */
+export function olderBesideLine(root: string): string | undefined {
+  const older = olderBeside(root);
+  return older.length ? `strom ${older.join(", ")} works beside this one, without holds of tasks: its sessions are not taken over while it runs, and restricted archives are watched only by the limiter` : undefined;
+}
+
+/** A session taken over, said to the agent that took work. */
+export function tookOverLine(t: Taken): string {
+  return `took over session ${t.session}${t.task ? ` (${t.task})` : ""}: ${t.reason === "dead" ? "its process had ended" : `no sign of life for ${t.minutes} min`}; its task is back in the queue`;
+}
+
+/** The IDs this agent's pointers name, open or not (core/holds.ts: a session taken over from it is closed). */
+function pointedIds(tree: Tree, env: Env): string[] {
+  const prefix = `${pointerName(env)}~`;
+  let names: string[] = [];
+  try {
+    names = fs.readdirSync(researchPointers(tree)).filter((n) => n.startsWith(prefix) && n.endsWith(".json"));
+  } catch {
+    // none
+  }
+  return [pointerId(currentFile(tree, env)), ...names.map((n) => pointerId(path.join(researchPointers(tree), n)))].filter((x): x is string => !!x);
+}
+
+/**
+ * The session taken over from the one asking (spec 127 K4): the session strom run gave it, or the one its pointers name,
+ * closed by another who took the work over — none while it holds an open session of its own.
+ */
+export function takenOf(tree: Tree, env: Env): Taken | undefined {
+  if (env.STROM_SESSION) {
+    const s = tree.get<Session>(env.STROM_SESSION);
+    return s && s.state !== "open" ? readTaken(tree.root, s.id) : undefined;
+  }
+  if (ownSessions(tree, env).length) return undefined;
+  for (const id of pointedIds(tree, env)) {
+    const s = tree.get<Session>(id);
+    const t = s && s.state !== "open" ? readTaken(tree.root, id) : undefined;
+    if (t) return t;
+  }
+  return undefined;
+}
+
+/** What the old holder of a session taken over is told when it writes again (exit 3): its work stays, the task is another's. */
+export function takenError(t: Taken): StromError {
+  const at = clock(Date.parse(t.at));
+  const what = t.task ? `task ${t.task}` : `the work of session ${t.session}`;
+  return new StromError(
+    `${what} was taken over${t.by ? ` by session ${t.by}` : ""} at ${at} ${t.reason === "dead" ? "as its process had ended" : `after ${t.minutes} min without a sign of life`}; your session ${t.session} is closed as interrupted, what you wrote stays.${t.task ? ` Do not write to ${t.task}.` : ""}`,
+    {
+      exitCode: EXIT.needsInput,
+      code: "session.taken",
+      ...(t.reason === "dead" ? { textCode: "session.taken.dead", hintCode: "session.taken" } : {}),
+      hint: "next free task: strom task next",
+      params: { task: t.task ?? t.session, by: t.by ?? "–", at, minutes: String(t.minutes), session: t.session },
+    },
+  );
+}
+
+/** Commands that take work themselves (a session of their own): never refused for a session taken over before. */
+const TAKES_WORK = new Set(["session start", "task start", "run", "chat"]);
+
+/** Commands of one task: refused when another's open session holds it (task.held). */
+const OF_A_TASK = new Set(["task start", "task done", "task park", "task wait", "note add"]);
+
+/** The task a command of one task names (its first argument, a T…), else none. */
+function taskOfCommand(cmd: string[], args: string[]): string | undefined {
+  const id = args[0]?.trim().toUpperCase();
+  return OF_A_TASK.has(cmd.join(" ")) && id && /^T\d+$/.test(id) ? `T${id.slice(1).padStart(4, "0")}` : undefined;
+}
+
+/** A task held by another's open session: refused to the one asking (spec 127 K1.5, task.held). */
+export function assertNotHeld(tree: Tree, env: Env, task: string): void {
+  const other = othersAtWork(tree, env).sessions.find((s) => s.task === task);
+  if (other) throw heldError(tree, other, task);
+}
+
+/**
+ * Fencing (spec 127 K4), before a writing command: a command of one task another's session holds is refused with
+ * task.held; any other write of one whose session was taken over, with session.taken — reads pass.
+ */
+export function fence(tree: Tree, env: Env, cmd: string[], args: string[]): void {
+  const name = cmd.join(" ");
+  const task = taskOfCommand(cmd, args);
+  if (task && name !== "task start" && tree.get<Task>(task)) assertNotHeld(tree, env, task);
+  if (TAKES_WORK.has(name)) return;
+  const taken = takenOf(tree, env);
+  if (taken) throw takenError(taken);
 }
 
 export function sessionNote(tree: Tree, s: Session, text: string): Session {
@@ -280,6 +681,12 @@ export function closeSession(tree: Tree, s: Session, input: CloseInput): Session
   });
   // asked to finish (strom session finish): done
   if (!tree.dryRun) {
+    removeHold(tree.root, closed.id);
+    // the restricted archives it held let go: the one waiting longest for each goes first (spec 127 K2)
+    releaseHolder(new Settings(tree.env, {}).shared()?.value, { tree: tree.root, session: closed.id, by: "agent" });
+    // a record of a takeover a failed command took back (its session open again): never its holder's refusal once it
+    // closes (takeOver writes its own record after this close)
+    fs.rmSync(takenFile(tree.root, closed.id), { force: true });
     fs.rmSync(finishFile(tree.root, closed.id), { force: true });
     clearSessionWait(tree.root, closed.id);
     forgetLeftAlone(tree.root, closed.id);

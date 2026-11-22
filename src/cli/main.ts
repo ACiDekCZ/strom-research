@@ -47,7 +47,7 @@ import { otherVersionsAtWork } from "../core/workers.ts";
 import { refreshGlobal } from "../agents/global.ts";
 import { expandFromLine, refreshLinks } from "../core/links.ts";
 import { clockLine, FINISH_LINE, finishLimitLine, finishOf, timeLine } from "../core/clock.ts";
-import { currentSession } from "../core/session.ts";
+import { currentSession, fence } from "../core/session.ts";
 import { backgroundOf } from "../core/fetching.ts";
 import { markWidget } from "../core/widget.ts";
 import { callMistake, checkArgs, GroupOnly, parseOptions, resolveCommand, firstWord, severalRecords, splitPassthrough, usageOf } from "./execute.ts";
@@ -276,6 +276,8 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     typed = resolved.rest;
     const { rest, passthrough } = def.passthrough ? splitPassthrough(resolved.rest) : { rest: resolved.rest, passthrough: [] };
     const parsed = parseOptions(def, rest, own);
+    // an option typed by another name that means exactly it: taken, said in a line (never in --json's answer)
+    if (parsed.readAs?.length) io.stderr(`${parsed.readAs.join(" ")}\n`);
     const v = parsed.values;
     // what writes the tree: a command that writes only with some of its options reads as any read without them
     const writes = !!def.writes && (!def.writesWith || def.writesWith({ args: parsed.positionals, opts: v }));
@@ -544,6 +546,8 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
       // Never write on top of data that was changed outside strom.
       // (a command that locks only while it writes looks under the lock too: another strom may be in the middle of a write)
       if (writes && def.tree) def.lock === "sections" ? ctx.tree().withTreeLock(() => assertIntact(ctx.tree())) : assertIntact(ctx.tree());
+      // a task another's session holds, or a session taken over from the one writing (spec 127): refused before the command
+      if (writes && def.tree && !ctx.dryRun && env.STROM_FOR_APP !== "1") fence(ctx.tree(), env, def.path, parsed.positionals);
       let result: Result;
       let blocked: ReturnType<typeof autoCommit>;
       // a write of the Strom app's (through the bridge, which holds the tree from its first read to its commit): the

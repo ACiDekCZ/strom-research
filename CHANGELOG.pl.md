@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.36.0
 
-*W przygotowaniu: bety do 1.36.0-beta.7. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.36.0-beta.8. Sekcja będzie kompletna z wydaniem.*
 
 - **Próba zbiorczej weryfikacji od razu:** zadania próby zbiorczej weryfikacji (`strom verify bulk --try`) stoją na
   początku kolejki – weźmie je następna sesja – a aplikacja Strom pozwala przerobić je od razu, każde zadanie w jednej
@@ -54,10 +54,49 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   z najpóźniejszego ślubu, także w formie żeńskiej; nazwisko wybrane w aplikacji Strom jako obecne jest przejmowane i
   obowiązuje, dopóki nie zostanie wybrane ponownie. Plik dla aplikacji Strom podaje nazwiska po ślubie na końcu, obecne
   na samym końcu, więc także starsza aplikacja Strom pokaże właściwe.
-- **Plik drzewa genealogicznego w materiałach:** aplikacja Strom pokazuje w Materiałach zaimportowane pliki drzewa
+- **Kilku agentów i kilka badań naraz, bez kolizji, i mniej straconych kroków w długich przebiegach:**
+  każda sesja trzyma swoje zadanie, dopóki jej agent daje znaki
+  życia – zadanie trzymane przez innego agenta zostaje przy nim, a zadanie agenta, który umilkł, zostaje przejęte po
+  `task.hold` (to, co zapisał, zostaje, zadanie wraca do kolejki). Z archiwum, które ogranicza dostęp automatyczny
+  (tempo człowieka, tylko przeglądarka, godzinny limit narzędzia pobierającego), korzysta naraz tylko jedna sesja ze
+  wszystkich badań ze wspólnym folderem: zadanie z niego czeka, dopóki korzysta z niego inna sesja, a w tym czasie idzie
+  inna praca; praca samodzielna, której zostały tylko takie zadania, czeka na archiwum najwyżej `archive.wait`, a na
+  komputerze działa naraz tylko jedno zbiorcze pobieranie skanów z takiego archiwum, następne czeka w kolejce za nim.
+  Podczas czekania archiwum nie dostaje żadnych zapytań. Menu pokazuje też agentów pracujących bezpośrednio, a aplikacja
+  Strom dowiaduje się, kto trzyma zadanie lub archiwum, od kiedy i najpóźniej do kiedy. Czasy są ustawieniami tego
+  komputera: `task.hold`, `archive.hold` (trzymanie archiwum bez zapytań do niego) i `archive.wait`, każde domyślnie 30
+  minut, od 5 minut do 24 godzin. Każda linia może mieć własny przebieg agenta: `strom run --research G…` (w menu przez
+  wybór linii, przebieg we własnym oknie nazwanym od linii) bierze zadania tej linii, drugi przebieg tej samej linii
+  zostaje odrzucony, a praca nad całą kolejką pomija linie z własnym przebiegiem; w jednym badaniu pracuje naraz
+  najwyżej `run.parallel` przebiegów (domyślnie 3, zwiększyć może tylko człowiek) – zużycie subskrypcji się sumuje. Nowa
+  linia wewnątrz innej proponuje przejęcie otwartych zadań o swoich osobach (`strom research gather`). Aplikacja Strom
+  widzi każdy przebieg, uruchamia i zatrzymuje je według linii (`strom run stop`); przebiegi na jednym komputerze dzielą
+  limit subskrypcji, plany przeglądarki, strony witryny i czytelników skanów.
+  Zasady agenta mówią, by pracował we własnej karcie przeglądarki; po karcie spoza jego grupy albo stronie, która nie
+  odpowiada, od razu dostaje, co robić (nowa karta; praca w przeglądarce odłożona dopiero po drugim przekroczeniu
+  czasu). Długi tekst `strom readings` lub `strom searched` kończy się przy około 20 kB wierszem, jak go zawęzić, oraz
+  `--full` dla całości (`--json` pozostaje cały; `strom searched` ma strony jak inne listy). Partia z błędnymi wierszami
+  mówi też, których wierszy nie sprawdzono, bo zależą od błędnego. Opcje, które agenci zgadują i które znaczą dokładnie
+  inną, są przyjmowane i podawane w wierszu (`strom recordset list --parish` jako `--place`, `strom media list --image
+  5` jako `--images 5-5`, `strom readings --recordset`, `strom search add --query`); `strom person list --surname`
+  znajduje nazwisko z jego formami jak `strom query --surname`. Zapis bramki oznacza czekanie, przez które przebieg
+  uruchomiony przez osobę przeszedł dalej (`pace`). Każdy przebieg zapisuje, dlaczego się zakończył
+  (`.strom/runs/<przebieg>.end.json`: te same powody, które pokazuje aplikacja Strom, sesje, koszt, ostatnie i następne
+  zadanie).
+- **Drobne poprawki:** Zakres skanów przez przeglądarkę agenta: archiwum z listy stroma może dostać zakres skanów naraz (najwyżej 20, skan po skanie w tempie człowieka, z zatrzymaniem przy pierwszym sprawdzeniu lub odmowie archiwum; kolejny zakres z tego archiwum dopiero po ręcznym zapisaniu pozostałych skanów), każde archiwum tylko za własną zgodą człowieka (`strom allow archive <archiwum> --range` lub w menu); na razie nie ma go żadne archiwum. Zdjęcia z aplikacji Strom docierają znacznie szybciej: wysyłanie zdjęć lub paczki plików z
+  aplikacji Strom do dużego badania nie odczytuje już przy każdym pliku wszystkich wpisów skanów badania: to, co badanie
+  już ma, jest wyszukiwane w indeksie skrótów plików (w `.strom/cache`, odbudowywanym samoczynnie, gdy go brak lub jest
+  nieaktualny), a most zapisuje to, co wysyła aplikacja, jednym stale działającym procesem strom zamiast uruchamiać nowy
+  dla każdego pliku. Nowsza aplikacja Strom przekazuje całą paczkę naraz: każdy plik jest sprawdzany i potwierdzany
+  zaraz po nadejściu, a paczka zapisywana przy zamknięciu – jeden zapis, jedna przebudowa pliku drzewa i jedno
+  powiadomienie aplikacji – a pracujący agent dostaje się do badania między częściami. Starsza aplikacja Strom wysyła
+  jak dotąd, tylko szybciej.
+  Aplikacja Strom pokazuje w Materiałach zaimportowane pliki drzewa
   genealogicznego (GEDCOM, JSON aplikacji) i usuwa je na stałe jak każdy plik materiałów; ten, z którego powstało
   źródło, tylko razem z tym źródłem, w jednym kroku z jednym potwierdzeniem (`strom input delete … --retract-sources`).
-- **Drobne poprawki:** archiwum, które strom trzyma surowiej, niż mówi jego własna lista warunków archiwów (konektor lub
+  Osoby odłączonej od pliku materiału (Przypisz w aplikacji Strom, `strom input assign --remove`) sortowanie przez
+  agenta już do niego nie dołącza; po ponownym dodaniu plik znów do niej należy.
+  Archiwum, które strom trzyma surowiej, niż mówi jego własna lista warunków archiwów (konektor lub
   wpis w badaniu raz tak je odczytał), nie wyłącza już tam po cichu przeglądarki agenta: `strom doctor`, `strom run` i
   `strom allow archive` mówią, od kiedy, dlaczego i co mówi lista, Co czeka i aplikacja Strom pytają osobę raz, czy
   zachować poziom, czy przyjąć warunki archiwum (`strom allow archive <host> --keep` lub `--level <poziom>`), po czym do
@@ -78,6 +117,17 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   Przebiegi obok siebie w jednym drzewie („uruchomić kolejnego obok niego”, rozmowa obok przebiegu): przebieg, którego
   następne zadanie tuż przed rozpoczęciem wziął inny, kontynuuje następnym wolnym zadaniem zamiast kończyć cały
   przebieg; żadne zadanie nie jest brane dwa razy.
+  Linia zakończona wewnątrz szerszej, która trwa, nie zostawia już swoich zadań czekających na zawsze: liczą się do
+  najwęższej trwającej linii, do której należą ich osoby (w zadaniach nic się nie zmienia, więc wznowiona linia ma je
+  z powrotem); zadania wstrzymanej linii czekają jak dotąd.
+  Plik wysłany do badania nie uruchamia już sam agenta, także w badaniu założonym wcześniej: ani paczka z aplikacji
+  Strom lub z telefonu, ani pojedynczy plik czy skan źródła z aplikacji, ani materiały dodane w menu (tam pada pytanie,
+  czy agent ma je przejrzeć). Pliki czekają w Materiałach, aż zostaną uporządkowane ręcznie lub przez porządkowanie
+  agentem; samodzielne przeglądanie włącza dla badania tylko osoba (`strom config set intake.auto on --for-tree`,
+  Ustawienia → 1 lub ustawienia badania w aplikacji Strom). Już założone zadania zostają.
+  Gdy przeszukane skany księgi nie obejmują lat wokół daty znanej tylko z wieku (urodzony około 1761 według wieku przy
+  śmierci), agent dowiaduje się, których lat brakuje i gdzie księga ciągnie się dalej, zanim „nie znaleziono” zostanie
+  przyjęte – ile lat w każdą stronę, określa ustawienie badania `search.ageMargin` (domyślnie 5).
 
 ## 1.35.0
 

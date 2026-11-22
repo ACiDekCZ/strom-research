@@ -16,6 +16,7 @@ import { create, update } from "./records.ts";
 import { foldText } from "./text.ts";
 import type { Clip, Input, Media, Place, Source } from "./model.ts";
 import type { Tree } from "./tree.ts";
+import { recordsBySha } from "./shaindex.ts";
 
 /** What a source of the app says of the reading it comes from. */
 export interface ReadingMark {
@@ -292,7 +293,7 @@ export function takeReadingImages(tree: Tree, source: Source, check: ReadingChec
   const input = rec?.type === "input" ? (rec as Input) : undefined;
   if (input) {
     const sha = input.sha;
-    media = sha ? tree.list<Media>("media").find((m) => !m.retracted && m.sha === sha) : undefined;
+    media = sha ? recordsBySha<Media>(tree, "media", sha).find((m) => !m.retracted) : undefined;
     const file = inputPath(tree, input);
     const mime = input.mime ?? mimeOf(input.name);
     const shared = new Settings(tree.env, {}).shared()?.value;

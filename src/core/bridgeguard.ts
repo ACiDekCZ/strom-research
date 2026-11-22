@@ -7,6 +7,7 @@
 // off by its rules and by the bridge's own checks alone. The terminal of Claude's desktop app the same, and there what
 // the tree's rules of Bash deny too (core/desktopterminal.ts).
 
+import { beatHolds } from "./holds.ts";
 import path from "node:path";
 import { readJsonIfExists } from "./json.ts";
 import { findTreeUpwards } from "./tree.ts";
@@ -29,6 +30,8 @@ export interface ShellEvent {
   cwd?: string;
   /** The terminal of Claude's desktop app (no permission rule of the tree reaches it). */
   terminal?: true;
+  /** The agent's own conversation (Claude Code's session_id): its session's hold beats (core/holds.ts). */
+  session?: string;
 }
 
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v : undefined);
@@ -50,7 +53,8 @@ export function shellEvent(text: string): ShellEvent | undefined {
   const command = str(input.command) ?? str(input.cmd) ?? str(input.script);
   if (!command) return undefined;
   const cwd = str(j.cwd) ?? str(j.workspaceRoot);
-  return { tool, command, ...(cwd ? { cwd } : {}), ...(terminal ? { terminal: true as const } : {}) };
+  const session = str(j.session_id) ?? str(j.sessionId);
+  return { tool, command, ...(cwd ? { cwd } : {}), ...(terminal ? { terminal: true as const } : {}), ...(session ? { session } : {}) };
 }
 
 /** What the bridge of a tree was and is: its ports and secrets from its notes (none: no bridge ever ran). */
@@ -139,6 +143,9 @@ export function bridgeRefusal(what: string): string {
 export function answerShellEvent(ev: ShellEvent, o: { cwd: string; env?: Env }): { decision?: "deny"; reason?: string } {
   const root = findTreeUpwards(ev.cwd && path.isAbsolute(ev.cwd) ? ev.cwd : o.cwd);
   if (!root) return {};
+  // a command of the agent's shell is a sign of life of its session: its task stays held (core/holds.ts; at most once a minute)
+  const env = o.env ?? {};
+  beatHolds(root, ev.session && !env.CLAUDE_CODE_SESSION_ID ? { ...env, CLAUDE_CODE_SESSION_ID: ev.session } : env);
   const why = reachesBridge(ev.command, bridgeMarks(root));
   if (why) return { decision: "deny", reason: bridgeRefusal(why) };
   if (!ev.terminal) return {};

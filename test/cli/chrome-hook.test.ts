@@ -12,7 +12,8 @@ import { World, hasGit, readJsonFile } from "../helpers.ts";
 import { testHooks } from "../../src/core/net.ts";
 import { claudeWebHooks } from "../../src/core/web.ts";
 import { CHROME_HOOK_MATCHER, CHROME_NAVIGATE } from "../../src/core/browser.ts";
-import { CHROME_TABS, chromeEvent, navigateUrl } from "../../src/core/chromehook.ts";
+import { CHROME_TABS, chromeEvent, failedTabAdvice, navigateUrl } from "../../src/core/chromehook.ts";
+import { BROWSER_TABS, browserRules } from "../../src/brief/brief.ts";
 import { grantWay } from "../../src/core/terms.ts";
 
 const opts = { skip: !hasGit };
@@ -80,11 +81,12 @@ test("the tree's Claude Code settings run strom's hook before Claude in Chrome's
   for (const name of ["navigate", "computer", "find", "read_page", "get_page_text", "form_input", "javascript_tool", "read_network_requests", "read_console_messages"])
     assert.match(`${PAGE}${name}`, new RegExp(`^(?:${CHROME_HOOK_MATCHER})$`), name);
   for (const name of ["tabs_create_mcp", "tabs_context_mcp", "resize_window", "gif_creator"]) assert.doesNotMatch(`${PAGE}${name}`, new RegExp(`^(?:${CHROME_HOOK_MATCHER})$`), name);
-  for (const ev of ["PostToolUse", "PostToolUseFailure"]) {
-    const g = s.hooks[ev]!.find((x) => x.matcher === CHROME_NAVIGATE);
-    assert.ok(g, `${ev}: after a navigate`);
-    assert.deepEqual(g!.hooks, web.hooks);
-  }
+  const after = s.hooks.PostToolUse!.find((x) => x.matcher === CHROME_NAVIGATE);
+  assert.ok(after, "PostToolUse: after a navigate");
+  assert.deepEqual(after!.hooks, web.hooks);
+  const failed = s.hooks.PostToolUseFailure!.find((x) => x.matcher === CHROME_HOOK_MATCHER);
+  assert.ok(failed, "PostToolUseFailure: after any of its tools failed (a word on the tab)");
+  assert.deepEqual(failed!.hooks, web.hooks);
   const win = claudeWebHooks("C:\\Users\\Lhoták\\Strom\\Lhota", "win32") as Record<string, Group[]>;
   const g = win.PreToolUse!.find((x) => x.matcher === CHROME_HOOK_MATCHER)!;
   assert.equal(g.hooks[0]!.shell, "powershell");
@@ -266,4 +268,33 @@ test("strom net web --check <url> --browser: whether the browser may open it, at
   const bad = await w.run(["net", "web", "--browser"]);
   assert.equal(bad.code, 2, bad.err);
   w.cleanup();
+});
+
+test("after a tool of Claude in Chrome failed: a tab outside the session's group — open its own; no answer in time — a fresh tab, put aside only after a second timeout; other failures nothing", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  const failed = (name: string, error: string, input: Record<string, unknown> = { tabId: 7 }) =>
+    hook(w, JSON.stringify({ session_id: "agent-1", cwd: w.cwd, hook_event_name: "PostToolUseFailure", tool_name: `${PAGE}${name}`, tool_input: input, tool_use_id: `f-${name}`, error }));
+  const note = (out: string) => (out ? (JSON.parse(out) as { hookSpecificOutput: { hookEventName: string; additionalContext?: string } }).hookSpecificOutput : undefined);
+  const group = note((await failed("computer", "Tab 1234 is not in Claude's tab group for this session. Tools can only target tabs inside the group.")).out);
+  assert.equal(group?.hookEventName, "PostToolUseFailure");
+  assert.match(group?.additionalContext ?? "", /open your own \(tabs_create_mcp\)/);
+  const slow = note((await failed("javascript_tool", 'The "javascript_tool" tool did not respond in time. The page may also be loading or unresponsive.', { tabId: 7, text: "1" })).out);
+  assert.match(slow?.additionalContext ?? "", /close this tab \(tabs_close_mcp\), open a new one \(tabs_create_mcp\).*second time/);
+  const shot = note((await failed("computer", 'Error capturing screenshot: CDP sendCommand "Page.captureScreenshot" timed out after 30000ms on tab 12.')).out);
+  assert.match(shot?.additionalContext ?? "", /did not answer in time/);
+  // a navigate that timed out: still counted as before, and the word on the tab beside it
+  const nav = note((await failed("navigate", 'The "navigate" tool did not respond in time.', { url: "https://lhota-katalog.example.org/kniha/1", tabId: 7 })).out);
+  assert.match(nav?.additionalContext ?? "", /open a new one/);
+  assert.equal((await failed("find", "No element matches.")).out, "", "another failure: nothing");
+  assert.equal(failedTabAdvice(undefined), undefined);
+  w.cleanup();
+});
+
+test("the brief's rule of the browser keeps its tabs: its own at the start, a fresh one after a timeout, closed at the end", () => {
+  const text = browserRules(["lhota-katalog.example.org"], true, "T0001");
+  assert.ok(text.includes(`- Tabs: ${BROWSER_TABS}`));
+  assert.match(BROWSER_TABS, /tabs_create_mcp.*never a tab of availableTabs outside your group/);
+  assert.match(BROWSER_TABS, /second timeout/);
+  assert.match(BROWSER_TABS, /close the tabs you opened/);
 });

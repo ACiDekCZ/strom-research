@@ -119,7 +119,7 @@ test("brief: a lesson of a family goes with a task that names its names, a look-
   // the material an intake task takes in names the family
   const file = path.join(w.home, "pameti.txt");
   fs.writeFileSync(file, "Paměti: rod Hrabálek z Hájku, mlynáři.\n".normalize("NFD"));
-  await w.ok(["intake", file]);
+  await w.ok(["intake", file, "--sort"]);
   const intake = (await w.ok(["task", "list", "--json"])).json.tasks.find((t: any) => t.level === "intake");
   assert.match(await known(intake.id), /Rod Hrabálek z Hájku/u);
   w.cleanup();
@@ -256,7 +256,7 @@ test("brief: what the method used to fetch separately is in it — the task's no
   // a small text file of the user: its words in the brief, as strom input show gives them
   const file = path.join(w.home, "vzpominky.txt");
   fs.writeFileSync(file, "Děda Jan Novák byl mlynář v Lhotě.\n");
-  await w.ok(["intake", file]);
+  await w.ok(["intake", file, "--sort"]);
   await w.ok(["input", "amend", "I1", "--person", "P0001", "--note", "od tety"]);
   const task = (await w.ok(["task", "list", "--json"])).json.tasks.find((t: any) => t.level === "intake");
   const material = section((await w.ok(["brief", task.id])).out, "## The material");

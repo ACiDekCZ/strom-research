@@ -13,7 +13,7 @@ import { humanDay } from "./human.ts";
 import { Tree } from "../core/tree.ts";
 import { isArchive } from "../core/mode.ts";
 import { bareHost, listConnectors, routeOf, routesOf, type Connector } from "../core/connector.ts";
-import { claimOf, loadArchives, pendingQuestions, questionHosts, rank, type ArchiveLevel, type Claim, type PendingQuestion, type Way } from "../core/terms.ts";
+import { browserRangeOf, claimOf, loadArchives, pendingQuestions, questionHosts, rank, type ArchiveLevel, type Claim, type PendingQuestion, type Way } from "../core/terms.ts";
 import { connectorFor, levelWords, tasksStanding, tasksWaitingOn, termsText, waysOffered, wokenLines } from "../core/archiveasks.ts";
 import { wakeForArchive } from "../core/archivewait.ts";
 import { archivesOverview, bareArchive, capWords, levelsOf, paceFor } from "../commands/archives.ts";
@@ -102,16 +102,25 @@ export async function decideArchive(ctx: Context, run: Run, lang: string, root: 
   // no downloader: its images through the agent's browser (Claude Code here) or by hand — never slowly through strom
   const ways: Way[] = allowed ? ["manual"] : c ? waysOffered(c, claudeHere(ctx, tree?.config), q?.way, !!(a?.browserOnly ?? q?.browserOnly)) : [...(claudeHere(ctx, tree?.config) ? (["browser"] as const) : []), "manual"];
   const now = a?.permission;
-  const choices: { label: string; way?: Way }[] = ways.map((w) => ({
+  const choices: { label: string; way?: Way; range?: boolean }[] = ways.map((w) => ({
     way: w,
     label: t(w === "slow" ? "ui.archive.way.slow" : w === "browser" ? "ui.archive.way.browser" : "ui.archive.way.manual", { seconds: secondsIn(lang, slow.minIntervalMs), cap: capWords(lang, slow.perHour) }),
   }));
   if (now) choices.push({ label: t("ui.archive.way.revoke") });
+  // through the browser, at an archive strom's list lets have a range of images (spec 132): the person's own consent
+  // to it, for this archive alone — or taken back
+  const range = now === "browser" ? browserRangeOf(ctx.env, host) : undefined;
+  if (range) choices.push({ range: true, label: a?.range ? t("ui.archive.range.off") : t("ui.archive.range.on", { max: range }) });
   // what holds now is suggested (Enter keeps it); a question nobody answered yet: 0, nothing changes
   const kept = now ? choices.findIndex((x) => x.way === now) : -1;
   const i = await ctx.choose(t("ui.archive.choose", { title }), choices, kept >= 0 ? kept : choices.length, { back: t("ui.archive.way.back") });
   if (i === undefined || (now && choices[i]!.way === now)) return false;
   const chosen = choices[i]!.way;
+  if (choices[i]!.range) {
+    if ((await run(["allow", "archive", target, "--range", ...(a?.range ? ["--revoke"] : [])], true)) !== 0) return false;
+    out(a?.range ? t("ui.archive.range.revoked", { title }) : t("ui.archive.range.granted", { title, max: range!, host: target }));
+    return true;
+  }
   if (!chosen) {
     if ((await run(["allow", "archive", target, "--revoke"], true)) !== 0) return false;
     out(t("ui.archive.revoked", { title }));

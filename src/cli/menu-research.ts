@@ -107,6 +107,10 @@ async function addMaterial(ctx: Context, run: Run, lang: string, root: string): 
     }
     if (!paths.length) return;
     argv = ["intake", ...paths, ...(documents ? ["--documents"] : [])];
+    // the files go through the agent only on the person's word (spec 130 K1.3): asked here unless intake.auto is on —
+    // Enter says no, they wait in the material; where nobody researches nothing of an agent is asked
+    const tree = Tree.open(root, ctx.env);
+    if (!quiet && !ctx.settings.intakeAuto(tree.config) && (await ctx.confirm(t("ui.intake.sort.ask"), false))) argv.push("--sort");
   }
   const before = Tree.open(root, ctx.env).count("input");
   if ((await run(argv, true)) !== 0) return;
@@ -117,6 +121,8 @@ async function addMaterial(ctx: Context, run: Run, lang: string, root: string): 
   // a tree the Strom app has: where the material is there (its Materials, at the person)
   const app = appHasTree(root, ctx.settings) ? ` ${t("ui.intake.app")}` : "";
   if (actsAsArchive(kept)) return void out(t(isArchive(kept) ? "ui.intake.done.archive" : "ui.intake.done.waiting", { n: added }) + app);
+  // files the person did not give the agent: they wait in the material, no agent offered (the person's text always goes)
+  if (how === 0 && !argv.includes("--sort") && !ctx.settings.intakeAuto(kept.config)) return void out(t("ui.intake.done.waits", { n: added }) + app);
   out(t("ui.intake.done", { n: added }) + app);
   await offerChat(ctx, run, lang, root, t("ui.intake.chat"), t("ui.intake.say"));
 }

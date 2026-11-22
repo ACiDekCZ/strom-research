@@ -204,6 +204,11 @@ export interface BrowserPlan {
   /** The script refuses to run after this. */
   until: number;
   items: PlanItem[];
+  /**
+   * The session that planned it (spec 126 U8): only it takes the plan over while it is at work — a plan of a session
+   * that ended (or lapsed), or of none (planned outside a session, by a strom before), is anyone's.
+   */
+  session?: string;
 }
 
 /** The folder a browser saves downloads into by default: ~/Downloads, or what the desktop names it (Linux). */
@@ -897,6 +902,57 @@ export function storeSaves(root: string, saves: SaveRecord[]): void {
   else fs.rmSync(savesFile(root), { force: true });
 }
 
+/**
+ * A range's script the archive stopped (strom media save --result, spec 132 K1.5): the task it was for, its book, the
+ * host of the viewer, the image it stopped at, when. While that task waits for images of that book (by the person's
+ * hand), no other range of that archive is given (strom media save --images) — for no task.
+ */
+export interface RangeStop {
+  task: string;
+  recordset: string;
+  host: string;
+  n: number;
+  at: number;
+}
+
+function stopsFile(root: string): string {
+  return path.join(root, ".strom", "browser-stops.json");
+}
+
+/** The file of the stops: its path, said to the person when it cannot be read. */
+export const STOPS_FILE = path.join(".strom", "browser-stops.json");
+
+/**
+ * The stops kept — "broken" when the file is there but cannot be read as stops (not JSON, not a list, a stop without
+ * its task, book, host or image): then strom cannot tell which archive stopped, so it takes every one as stopped
+ * (no range through the browser anywhere) until the person looks at the file; one image at a time is not held back.
+ */
+export function loadStops(root: string): RangeStop[] | "broken" {
+  let all: unknown;
+  try {
+    all = readJsonIfExists<unknown>(stopsFile(root));
+  } catch {
+    return "broken";
+  }
+  if (all === undefined) return [];
+  if (!Array.isArray(all)) return "broken";
+  const ok = (r: RangeStop) => r && typeof r.task === "string" && typeof r.recordset === "string" && typeof r.host === "string" && Number.isInteger(r.n);
+  return all.every(ok) ? (all as RangeStop[]) : "broken";
+}
+
+export function storeStops(root: string, stops: RangeStop[]): void {
+  if (stops.length) writeJson(stopsFile(root), stops);
+  else fs.rmSync(stopsFile(root), { force: true });
+}
+
+/** A range stopped now: the one record of the task at that host (an earlier one replaced). */
+export function noteStop(root: string, stop: RangeStop): void {
+  const all = loadStops(root);
+  // a broken file is left as it is: it holds every range back already, and the person decides what becomes of it
+  if (all === "broken") return;
+  storeStops(root, [...all.filter((r) => r.task !== stop.task || r.host !== stop.host), stop]);
+}
+
 /** The script for image n of a task was given now: the one record of it (an earlier one of the same image replaced). */
 export function noteSave(root: string, rec: SaveRecord): void {
   storeSaves(root, [...loadSaves(root).filter((r) => r.task !== rec.task || r.n !== rec.n), rec]);
@@ -978,5 +1034,126 @@ export function saveScript(o: { url: string; file: string; n: number; until: num
   const ext = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif", "image/tiff": ".tif" }[(blob.type || "").split(";")[0].trim()] || ".jpg";
   save(blob, plan.file + ext);
   return "strom-result " + plan.n + ":200:" + blob.size;${slow ? RESUME_TAIL : ""}
+})()`;
+}
+
+/** One image of a range the agent's browser saves from a viewer (strom media save --images): its file, its slot. */
+export interface RangeItem {
+  n: number;
+  /** The name it is saved under, without the extension (waitFileBase). */
+  file: string;
+  /** Not before this time (ms): the slot the limiter reserved. */
+  at: number;
+}
+
+/** What a range's script said of one image: saved (status 200 and its bytes), what stopped it, or failed. */
+export interface RangeResult {
+  n: number;
+  status?: number;
+  bytes?: number;
+  /** The archive's check whether a person is there, or a login, shown instead of the image. */
+  stop?: "check" | "login";
+  failed?: boolean;
+}
+
+/** The line a range's script returned: "strom-result 3:200:412918 4:200:398112 5:429 — image 5: …" (5:check, 5:login, 5:failed). */
+export function parseRangeResult(s: string): RangeResult[] {
+  const out: RangeResult[] = [];
+  const head = s.replace(/^\s*["']?\s*strom-result\s*/iu, "").split(/\s—\s/u)[0] ?? "";
+  for (const tok of head.split(/[\s,"']+/u)) {
+    const m = /^(\d+):(\d{3}|check|login|failed)(?::(\d+))?$/u.exec(tok);
+    if (!m) continue;
+    const n = Number(m[1]);
+    if (m[2] === "check" || m[2] === "login") out.push({ n, stop: m[2] });
+    else if (m[2] === "failed") out.push({ n, failed: true });
+    else out.push({ n, status: Number(m[2]), ...(m[3] ? { bytes: Number(m[3]) } : {}) });
+  }
+  return out;
+}
+
+/**
+ * The script that saves a range of a book's images from the archive's own viewer in the tab (strom media save
+ * --images; spec 132; top-level await): the tab on the book's page, each image its page n−1 of the viewer, shown and
+ * saved at its slot, one after the other — never a reload, never a request of its own. It runs in the tab's keeping
+ * (window.__stromRange): a call of the browser's JavaScript tool ends in time with "strom-wait …" while it works, and
+ * `await window.__stromResume()` in the same tab goes on with it (the whole script again does too). It stops at the
+ * first image that does not come: what stopped it (an answer of the archive the browser saw, its check whether a person
+ * is there, a login) after the images saved — "strom-result 3:200:412918 4:429 — image 4: …". A viewer of one image a
+ * page saves nothing: "one image per page here".
+ */
+export function rangeScript(o: { url: string; task: string; until: number; gap: number; items: RangeItem[] }, c: CaptureOptions = {}): string {
+  const u = new URL(o.url);
+  const data = { origin: u.origin, path: u.pathname, url: o.url, task: o.task, until: o.until, gap: o.gap, items: o.items.map((i) => ({ n: i.n, file: i.file, at: i.at })) };
+  return `await (async () => {
+  const plan = ${JSON.stringify(data)};
+  if (location.origin !== plan.origin || location.pathname !== plan.path) return "strom: this tab is not on the book's page — open " + plan.url + " (once; the script pages through its viewer itself, never reload it)";
+  const key = JSON.stringify(plan);
+  // the run kept in the tab: a call answers within ${WAIT_CALL_MS / 1000} s, the next goes on where it is
+  const answer = async (live) => {
+    const t0 = Date.now();
+    while (!live.done && Date.now() - t0 < ${WAIT_CALL_MS}) await new Promise((r) => setTimeout(r, 200));
+    if (!live.done) return "strom-wait — " + live.out.length + " of " + plan.items.length + " images saved so far" + (live.out.length ? " (" + live.out.join(" ") + ")" : "") + ": run in this same tab: await window.__stromResume() — it goes on where it is and asks nothing anew; only its last answer, strom-result …, counts";
+    if (window.__stromRange === live) delete window.__stromResume;
+    if (live.error) throw live.error;
+    return live.result;
+  };
+  const was = window.__stromRange;
+  if (was && was.key === key) return answer(was);
+  if (Date.now() > plan.until) return "strom: this script is over — run strom media save again";
+  // another script of strom at work in this tab: it stops first, the viewer as it was
+  for (const other of [was, window.__stromCapture]) {
+    if (other && !other.done) {
+      other.cancel = true;
+      await other.promise;
+    }
+  }
+  const live = (window.__stromRange = { key, cancel: false, done: false, slow: false, tiles: 0, out: [] });
+  window.__stromResume = () => answer(live);
+  ${captureJs(c)}
+  // what the archive answered the browser since a time (its addresses' own answers, as the browser keeps them)
+  const answered = (since) => {
+    try {
+      const bad = performance.getEntriesByType("resource").filter((e) => e.startTime >= since && e.responseStatus >= 400);
+      const worst = bad.find((e) => [401, 403, 429, 503].includes(e.responseStatus)) || bad[0];
+      return worst ? worst.responseStatus : undefined;
+    } catch (e) {
+      return undefined;
+    }
+  };
+  // the page shows the archive's check whether a person is there, or asks for a login
+  const shown = (sel) => {
+    try {
+      const el = document.querySelector(sel);
+      return !!el && (!el.getBoundingClientRect || el.getBoundingClientRect().width > 0 || el.tagName === "ALTCHA-WIDGET");
+    } catch (e) {
+      return false;
+    }
+  };
+  const person = () => (shown("altcha-widget, .g-recaptcha, .h-captcha, #anubis_challenge, iframe[src*='captcha'], iframe[src*='challenges.cloudflare.com']") ? "check" : shown("input[type=password]") ? "login" : undefined);
+  live.promise = (async () => {
+    const v = findViewer();
+    if (!v) return "strom: no image viewer on this page yet — wait until it shows an image; a check whether a person is there or a login is the user's to pass, never yours";
+    if (!Array.isArray(v.tileSources) || v.tileSources.length < 2)
+      return "strom: one image per page here — the viewer of this page shows one image, nothing saved: one at a time, strom media save " + plan.task + " --image <n> --at <the page of that one image>";
+    let last = 0;
+    for (const it of plan.items) {
+      const wait = Math.max(it.at, last + plan.gap) - Date.now();
+      if (wait > 0) await sleep(wait);
+      if (live.cancel) return "strom-result " + live.out.join(" ") + " — another script of strom took this tab over";
+      last = Date.now();
+      const since = typeof performance !== "undefined" && performance.now ? performance.now() : 0;
+      const got = await capture(v, it.n - 1, undefined, ${VIEWER_WHOLE_PX});
+      if (!got.blob) {
+        const status = answered(since);
+        const what = status || person() || (got.check ? "check" : "failed");
+        live.out.push(it.n + ":" + what);
+        return "strom-result " + live.out.join(" ") + " — image " + it.n + ": " + (status ? "the archive answered HTTP " + status + "; " : what === "check" ? "the archive's check whether a person is there; " : what === "login" ? "the archive asks for a login; " : "") + got.why;
+      }
+      save(got.blob, it.file + ".jpg");
+      live.out.push(it.n + ":200:" + got.blob.size);
+    }
+    return "strom-result " + live.out.join(" ");
+  })().then((r) => ((live.result = r), (live.done = true)), (e) => ((live.error = e), (live.done = true)));
+  return answer(live);
 })()`;
 }

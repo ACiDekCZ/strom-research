@@ -65,6 +65,17 @@ function windowOf(ctx: Context): { terminal?: string; lang: string } {
   return { ...(terminal ? { terminal } : {}), lang: ctx.uiLang() };
 }
 
+/**
+ * A run of one line from the link work (spec 126): its window named after the line ("Strom · <tree> · <line> (G…)"),
+ * and the guard against a second window within a moment only for the same line.
+ */
+function lineWindow(ctx: Context, link: TakenLink, root: string): { title?: string; key?: string } {
+  if (link.action !== "work" || !link.research) return {};
+  const tree = Tree.open(root, ctx.env);
+  const line = tree.get<Research>(link.research);
+  return { title: ["Strom", tree.config.name, line?.type === "research" ? `${line.name} (${line.id})` : link.research].join(" · "), key: link.research };
+}
+
 /** The chosen terminal not here: the window opened in the system's (said in it). */
 function fellBack(opened: boolean | "recent" | "fallback"): { terminal?: "fallback" } {
   return opened === "fallback" ? { terminal: "fallback" } : {};
@@ -296,7 +307,9 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       return end(await directionDo(ctx, run, treeLang, root, link.id, link.do));
     }
     case "finish": {
-      const { finishSession } = await import("../cli/menu-links.ts");
+      const { finishSession, finishRun } = await import("../cli/menu-links.ts");
+      // a run (spec 126): its session's agent writes down what it found, the run ends; one waiting ends at once
+      if ("run" in link) return end(await finishRun(ctx, run, treeLang, root, link.run));
       return end(await finishSession(ctx, run, treeLang, root, link.session));
     }
     case "archive": {
@@ -323,7 +336,7 @@ async function inTerminal(ctx: Context, link: TreeLink) {
     case "work": {
       // the agent working on the queue alone: what starts shown here, started in this terminal only on the person's yes
       const { workRun } = await import("../cli/menu-links.ts");
-      return end(await workRun(ctx, run, treeLang, root, link.do, link.n === undefined ? undefined : Number(link.n), link.task?.split(",")));
+      return end(await workRun(ctx, run, treeLang, root, link.do, link.n === undefined ? undefined : Number(link.n), link.task?.split(","), link.research ? { research: link.research, ...(link.agent ? { agent: link.agent } : {}) } : undefined));
     }
     case "fixes": {
       // strom's fixes: shown here; set right or put back only on the person's word, asked by strom fixes itself
@@ -541,7 +554,7 @@ async function openLink(ctx: Context, link: TakenLink, handed: { on: boolean }):
     if (refused) return say(ctx, refused.key, refused.values, { action: link.action, tree: copies[0]!.root, refused: refused.state });
     const quiet = await withoutTerminal(ctx, link, copies[0]!.root);
     if (quiet) return quiet;
-    const opened = openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], copies[0]!.root, ctx.env, process.platform, windowOf(ctx));
+    const opened = openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], copies[0]!.root, ctx.env, process.platform, { ...windowOf(ctx), ...lineWindow(ctx, link, copies[0]!.root) });
     handed.on = opened !== false;
     if (opened === false)
       return link.action === "send"
@@ -605,6 +618,9 @@ register(
       "taken up again (strom research pause|done|resume).\n" +
       "strom-research://chat?tree=<id>&research=G0002 — a conversation about one direction, its tasks only.\n" +
       "strom-research://finish?tree=<id>&session=N0012 — the session at work asked to finish (strom session finish).\n" +
+      "strom-research://finish?tree=<id>&run=run-… — a run asked to finish and end (strom run stop <run> --finish): its session's\n" +
+      "  agent writes down what it found and closes it, no next session; a run that waits (its gate, the plan's limit, an\n" +
+      "  archive) ends at once. Asked in the terminal first.\n" +
       "strom-research://archive?tree=<id>&host=www.example.org — the question about an archive's images (slowly, through the\n" +
       "browser, by hand), answered in the terminal as in the menu's What waits; the answer is never in the link.\n" +
       "strom-research://places?tree=<id>&do=run[&place=L0012] — the places of the facts identified by the agent: the queue\n" +
@@ -617,6 +633,10 @@ register(
       "  only on the person's yes (no by default; the bridge never starts it). Refused where nobody researches.\n" +
       "  &do=tasks&task=T0003,T0007 (not with n): these tasks alone, one session each in this order (strom run --task) —\n" +
       "  those no longer open or held by another left out, none left: nothing started.\n" +
+      "  &research=G0001[&agent=codex] (not with task): a run of that line alone (strom run --research G0001 [--agent …]), in a\n" +
+      "  window named after the line; its queue shown is the line's. Refused in one sentence: run.parallel reached, the line\n" +
+      "  has a run already, a run of an older strom at work, the agent not here. Without agent: the agent of the line's last\n" +
+      "  run, else the research's.\n" +
       "strom-research://fixes?tree=<id>[&id=street-places][&do=undo] — strom's fixes of the research (strom fixes), one of them\n" +
       "  shown, or what it set right to be put back: set right or put back only on the person's word in the terminal.\n" +
       "strom-research://back?tree=<id>[&change=<hash>] — the research back in time (strom history back): the change named by\n" +

@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
-import { counted, lines, runs, shellArg, truncate } from "../cli/format.ts";
+import { counted, lines, narrowLine, runs, shellArg, truncate, withinBudget } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
 import type { Media, RecordSet, Search, Session } from "../core/model.ts";
 import { requireRecord } from "../core/records.ts";
@@ -473,13 +473,14 @@ register({
     "the page numbering and the parts of the book they saw. One image's block word for word: --image N.\n" +
     "Default: the newest reading; with --images, --image or --match all of them — with --match only the readings\n" +
     "that mention it (the newest 20; --limit for more), the others counted. Nothing is written.",
-  args: [{ name: "which", description: "a record set (B…), a reading: its report's name or the start of it (a day), or a reading of a document (D…)" }],
+  args: [{ name: "which", description: "a record set (B…), a reading: its report's name or the start of it (a day), or a reading of a document (D…)", readAs: ["recordset"] }],
   options: [
     { name: "images", type: "string", value: "<from-to>", description: "only these image numbers, e.g. 40-69 or 5-113,130-228" },
     { name: "image", type: "string", value: "<n>", description: "that image's whole block, word for word (a few: 35-38)" },
     { name: "match", type: "string", multiple: true, value: "<words>", description: "only blocks that mention it — any spelling of accents (repeatable: variants)" },
     { name: "list", type: "boolean", description: "the readings there are, one line each" },
     { name: "limit", type: "string", value: "<n>", description: `at most this many readings (with --match: ${MATCH_READINGS} unless said)` },
+    { name: "full", type: "boolean", description: "the whole text, however long (else cut at ~20 kB, said how to narrow it; --json always whole)" },
   ],
   examples: ["strom readings", "strom readings B0001 --images 40-69 --match Novák --match Nowak", "strom readings B0001 --image 57", "strom readings D20260101120000-ab12", "strom readings --list"],
   run(ctx, { args, opts }) {
@@ -516,6 +517,16 @@ register({
     const match = (Array.isArray(opts.match) ? opts.match : typeof opts.match === "string" ? [opts.match] : []).map(String).filter((m) => m.trim());
     const limit = opts.limit === undefined ? undefined : Number(opts.limit);
     if (limit !== undefined && !(Number.isInteger(limit) && limit > 0)) throw new UsageError(`invalid --limit "${String(opts.limit)}": a whole number, 1 or more`, { hint: "e.g. --limit 40" });
+    // a text within the budget unless --full (a longer one is kept in a file the agent may not read: N0991, N1009, N1014);
+    // its last line says what was left out, how to narrow it and how to get it all
+    const command = ["strom readings", ...(which ? [shellArg(which)] : []), ...(typeof opts.images === "string" ? [`--images ${shellArg(opts.images)}`] : []), ...(opts.image !== undefined ? [`--image ${shellArg(String(opts.image))}`] : []), ...match.map((m) => `--match ${shellArg(m)}`), ...(opts.list ? ["--list"] : []), ...(limit !== undefined ? [`--limit ${limit}`] : [])].join(" ");
+    const cut = (rows: string[]): string[] => {
+      if (opts.full) return rows;
+      const { kept, left } = withinBudget(rows);
+      if (!left) return rows;
+      const filters = [!which && "<B…>", typeof opts.images !== "string" && opts.image === undefined && "--images <from-to>", opts.image === undefined && "--image <n>", "--match <words>"];
+      return [...kept, narrowLine(`+${counted(left, "more line")}`, command, filters, "--full")!];
+    };
     const pick = (r: Reading) => r.blocks.filter((b) => (!book || b.recordset === book) && (!ranges || within(b.num, ranges)) && (image === undefined || (b.num !== undefined && image.has(b.num))));
     const picked = all.map((r) => ({ r, blocks: pick(r) })).filter((x) => x.blocks.length);
     // words looked for: only the readings that mention them (the rest counted), the newest first, at most the limit
@@ -532,11 +543,11 @@ register({
 
     if (opts.list) {
       const docs = which || ranges || image !== undefined || match.length ? [] : documents();
-      const text = lines(...shown.flatMap(({ r, blocks }) => readingHead(r, blocks)[0]!.concat(r.question ? ` · "${truncate(r.question, 60)}"` : "")), ...docs.map((d) => d.line));
+      const text = lines(...cut([...shown.flatMap(({ r, blocks }) => readingHead(r, blocks)[0]!.concat(r.question ? ` · "${truncate(r.question, 60)}"` : "")), ...docs.map((d) => d.line)]));
       return { text, data: { readings: shown.map(({ r, blocks }) => ({ stem: r.stem, question: r.question, reports: r.reports, images: blocks.map((b) => b.num) })), ...(docs.length ? { documents: docs.map((d) => d.data) } : {}) } };
     }
     if (image !== undefined) {
-      const text = lines(...shown.flatMap(({ r, blocks }) => blocks.flatMap((b) => [`${b.report}${b.recordset ? ` · ${b.recordset}` : ""}${r.question ? ` · question: ${truncate(r.question, 120)}` : ""}`, `## ${b.text}`, ""])));
+      const text = lines(...cut(shown.flatMap(({ r, blocks }) => blocks.flatMap((b) => [`${b.report}${b.recordset ? ` · ${b.recordset}` : ""}${r.question ? ` · question: ${truncate(r.question, 120)}` : ""}`, ...`## ${b.text}`.split("\n"), ""])).slice(0, -1)));
       return { text: text.trimEnd(), data: { blocks: shown.flatMap(({ r, blocks }) => blocks.map((b) => ({ reading: r.stem, report: b.report, recordset: b.recordset, image: b.num, media: b.media, result: b.result, text: `## ${b.text}` }))) } };
     }
     const parts: string[] = [];
@@ -558,6 +569,7 @@ register({
       };
     });
     const at = book ?? (which ? shellArg(which) : shown[0]!.blocks[0]?.recordset ?? shellArg(shown[0]!.r.stem));
+    parts.splice(0, parts.length, ...cut(parts.join("\n").split("\n")));
     if (beyond > 0) parts.push(`… ${counted(beyond, "more reading")}${match.length ? " mention it" : ""}: --limit ${every.length}`);
     if (silent > 0) parts.push(`${counted(silent, "other reading")} ${silent === 1 ? "does" : "do"} not mention it`);
     parts.push(`one image's whole block: strom readings ${at} --image <n>`);

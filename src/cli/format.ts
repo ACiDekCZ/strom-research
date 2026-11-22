@@ -44,6 +44,39 @@ export function paginate<T>(items: T[], limit: number, page: number): Page<T> {
  */
 export const LIST_PAGE_MAX = 100;
 
+/**
+ * The most a listing's text says by default (bytes; --full: all of it, --json never cut): an agent's tool keeps a
+ * longer output in a file outside the research — Claude Code past ~30 kB — where the agent may not read it (N0280;
+ * 21 November 2026: strom readings --match at 115 kB, strom searched at 33 kB).
+ */
+export const TEXT_BUDGET = 20_000;
+
+/**
+ * A long listing says how to narrow it, first (a cut output still shows its start): "130 record sets — narrow: strom
+ * recordset list --place <name> …", with `all` the way to everything ("…, or all: strom searched X --full").
+ */
+export function narrowLine(total: string, command: string, filters: readonly (string | undefined | false)[], all?: string): string | undefined {
+  const given = filters.filter((f): f is string => typeof f === "string" && !!f);
+  if (!given.length && !all) return undefined;
+  return `${total} — ${given.length ? `narrow: ${command} ${given.join(" ")}` : ""}${given.length && all ? ", or " : ""}${all ? `all: ${command} ${all}` : ""}`;
+}
+
+/**
+ * The lines of a text within TEXT_BUDGET (whole lines; the first always): those kept and how many were left out.
+ * `budget` Infinity: all of them (--full).
+ */
+export function withinBudget(rows: readonly string[], budget = TEXT_BUDGET): { kept: string[]; left: number } {
+  let used = 0;
+  let n = 0;
+  for (const r of rows) {
+    const size = Buffer.byteLength(r, "utf8") + 1;
+    if (n > 0 && used + size > budget) break;
+    used += size;
+    n++;
+  }
+  return { kept: rows.slice(0, n), left: rows.length - n };
+}
+
 /** Footer telling the caller how to see more — in the research's language where the listing is (lang), else English. */
 export function moreLine(page: Page<unknown>, command: string, lang?: string): string {
   // a page past the last: the last one shown, and said so (found on Windows: --page 99 gave the last page silently)

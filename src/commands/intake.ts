@@ -27,10 +27,11 @@ import type { Tree } from "../core/tree.ts";
 import { amendInput, checkOriginalMeta } from "../core/originals.ts";
 import { batchStatus, closeBatch, listBatches, readBatch } from "../core/batches.ts";
 import { HIDE_REASONS, MATERIAL_KINDS, SORT_KINDS, type Source } from "../core/model.ts";
-import { assignMaterial, editMaterial, hideMaterial, MATERIAL_MOST_EDIT, MATERIAL_TITLE_MAX, materialPersons, unhideMaterial } from "../core/material.ts";
+import { assignMaterial, declinedOf, editMaterial, hideMaterial, MATERIAL_MOST_EDIT, MATERIAL_TITLE_MAX, materialPersons, unhideMaterial } from "../core/material.ts";
 import { checkDeleteConfirm, checkRetractWith, DELETE_MOST_FILES, deleteImpacts, deleteMaterial, deleteSourceImpacts, refuseLiveSources, type DeleteImpact } from "../core/materialdelete.ts";
 import { RETRACT_MOST } from "../core/sourceretract.ts";
 import { wouldLine } from "./sourceretract.ts";
+import { batchQueued, takeQueued } from "../core/mediaqueue.ts";
 import { autoCommit } from "../cli/commit.ts";
 import { normalizeDate } from "../core/gdate.ts";
 import { actsAsArchive } from "../core/state.ts";
@@ -198,7 +199,9 @@ register(
     writes: true,
     lock: "sections",
     description:
-      "Every file is registered unchanged as an input (duplicates skipped) and gets an intake task.\n" +
+      "Every file is registered unchanged as an input (duplicates skipped). It gets an intake task only with --sort (the\n" +
+      "user asked you to go through it now) or where the person turned intake.auto on; else it waits in the material\n" +
+      "unsorted — a file added starts nothing of an agent by itself. --text (what the user tells) always gets its task.\n" +
       `Files up to ${MAX_IN_TREE / 1024 / 1024} MB are kept in the tree (and its history); bigger ones in shared/media.\n` +
       "Family trees are imported at once — every person and fact as a lead citing that tree.\n" +
       "--answers T…: the files came for what that waiting task waits for (a reply, a document asked for): inputs of its\n" +
@@ -213,12 +216,13 @@ register(
       { name: "person", type: "string", multiple: true, value: "<P…>", description: "the person it is of, as the user says (repeatable): its task is shown with them" },
       { name: "answers", type: "string", value: "<T…>", description: "the files came for what this waiting task waits for: handed to it, the task back in the queue (no intake task)" },
       { name: "note", type: "string", value: "<text>", description: "what the user says of the files, kept with them (a sentence)" },
+      { name: "sort", type: "boolean", description: "intake tasks for the files although intake.auto is off: the user asked to go through them now" },
     ],
     examples: [
       'strom intake ~/Downloads/rodina',
       "strom intake strom-export.json",
       'strom intake --text "Děda Jan, narozen asi 1905 v Týnci, byl mlynář"',
-      "strom intake ~/Downloads/rodina/dopis.txt --research G0001",
+      "strom intake ~/Downloads/rodina/dopis.txt --research G0001 --sort",
       'strom intake ~/Downloads/reply.pdf --answers T0005 --note "the reply of the registry office"',
     ],
     run(ctx: Context, { args, opts }) {
@@ -229,6 +233,8 @@ register(
       if (answers !== undefined && typeof opts.text === "string")
         throw new UsageError("--answers takes files — the user's answer in words is theirs alone", { hint: `strom task wake ${answers || "T…"} --answer "…" (the user, in their terminal or strom's menu)` });
       if (answers !== undefined && !args.length) throw new UsageError("give the files that came for the task", { hint: `strom intake <file> --answers ${answers || "T…"}` });
+      // before the task is looked up: the two never go together, whatever the task is
+      if (opts.sort && answers !== undefined) throw new UsageError("--answers hands the files to that task: no tasks of their own to sort them", { hint: `strom intake <file> --answers ${answers || "T…"}` });
       const forTask = answers !== undefined ? taskForFile(tree, answers) : undefined;
       const note = typeof opts.note === "string" ? opts.note.replace(/[\p{Cc}]/gu, " ").trim().slice(0, 500) || undefined : undefined;
       const research = forTask?.research ?? researchFor(tree, opts.research);
@@ -236,6 +242,9 @@ register(
       // where nobody researches (an archive, a research waiting for its agent): said to the person, in the research's
       // language — kept, no task to take next (an archive's waits put aside until research is switched on)
       const quiet = actsAsArchive(tree);
+      // the files go through an agent only where the person asked for it: --sort now, or intake.auto (spec 130 K1.3)
+      const auto = ctx.settings.intakeAuto(tree.config);
+      const sort = !!opts.sort || auto;
       // Files per argument: a folder becomes one intake task, not one per file.
       const groups = args.map((a) => {
         const p = ctx.resolvePath(a);
@@ -262,6 +271,8 @@ register(
       const handed: string[] = [];
       let skipped = 0;
       let task: Task | undefined;
+      /** The files that wait in the material unsorted (no --sort, intake.auto off). */
+      const waits: string[] = [];
       tree.withTreeLock(() => {
         for (const group of groups) {
         const plain: Input[] = [];
@@ -360,6 +371,7 @@ register(
           }
           // A family tree gets its own review task; the other files of a folder share one — files for a task: none
           if (forTask) handed.push(input.id);
+          else if (!sort) waits.push(input.id);
           else if (kind === "tree" || !group.folder) intakeTask(tree, input, research, imported, persons);
           else plain.push(input);
           added.push(input);
@@ -389,9 +401,21 @@ register(
         added.length ? table(added.map((i) => [`  ${i.id}`, i.kind, truncate(i.name, 60)])) : undefined,
         ...report,
         !quiet && tasks ? `\n${ui(tree.lang, "ui.intake.tasks", { n: tasks })}` : undefined,
+        !quiet && waits.length ? `\n${ui(tree.lang, "ui.intake.waits", { n: waits.length })}` : undefined,
         task ? ui(tree.lang, "ui.intake.handed", { task: task.id, inputs: [...new Set(handed)].join(", ") }) : undefined,
       );
-      return { text, data: { inputs: added.map((i) => ({ ...i, ...notes.get(i.id) })), skipped, ...(task ? { task: task.id, handed: [...new Set(handed)], state: task.state } : {}) } };
+      return {
+        text,
+        data: {
+          inputs: added.map((i) => ({ ...i, ...notes.get(i.id) })),
+          skipped,
+          ...(task ? { task: task.id, handed: [...new Set(handed)], state: task.state } : {}),
+          // what of the files goes through an agent (spec 130 K1.3): sorted (--sort or intake.auto), else they wait
+          auto,
+          sort: forTask ? false : sort,
+          waiting: waits,
+        },
+      };
     },
   },
   {
@@ -493,7 +517,8 @@ register(
     writes: true,
     description:
       "Each skipped or hidden file gets back the state it had: new, or processed when a source was made of it. One that\n" +
-      "waits again and that no task holds gets an intake task (in an archive put aside); sorted as unrelated, that sorting\n" +
+      "waits again and that no task holds waits in the material, with an intake task only where the person turned\n" +
+      "intake.auto on (in an archive put aside); sorted as unrelated, that sorting\n" +
       "goes (the history keeps it). A file not skipped: nothing. Many files: --files-from <file> (one ID a line; - = stdin).",
     args: [{ name: "inputs", description: "input IDs (I0001 …)", variadic: true, unless: ["files-from"] }],
     options: [{ name: "files-from", type: "string", value: "<file|->", description: "the input IDs from a file, one a line (- = stdin)" }],
@@ -502,7 +527,7 @@ register(
       const tree = ctx.tree();
       const ids = idsGiven(ctx, args, opts);
       const before = filesOfTasks(tree);
-      const got = tree.withTreeLock(() => unhideMaterial(tree, ids));
+      const got = tree.withTreeLock(() => unhideMaterial(tree, ids, { auto: ctx.settings.intakeAuto(tree.config) }));
       const tasks = got.tasks.map((id) => ui(tree.lang, "ui.input.task.gather", { task: id, what: tree.get<Task>(id)?.what ?? "" }));
       return { text: got.changed.length ? lines(...materialLines(tree, before), ...tasks) : ui(tree.lang, "ui.input.unskip.none"), data: got };
     },
@@ -690,7 +715,8 @@ register(
     writes: true,
     description:
       "Only what the input lacks is added: the people not named yet (a couple's partners too), the couples, a note not given yet. When something came and no task\n" +
-      "at hand holds the input, an intake task looks at it again (in an archive put aside). Nothing new: nothing written.",
+      "at hand holds the input, it waits in the material again — with an intake task only where the person turned intake.auto\n" +
+      "on (in an archive put aside). Nothing new: nothing written.",
     args: [{ name: "input", description: "input ID", required: true }],
     options: [
       { name: "person", type: "string", multiple: true, value: "<P…>", description: "a person it is of (repeatable)" },
@@ -703,7 +729,7 @@ register(
       const id = normId(args[0]!, "input");
       const persons = (Array.isArray(opts.person) ? opts.person : opts.person ? [opts.person] : []).flatMap((p) => String(p).split(",")).map((p) => p.trim().toUpperCase()).filter(Boolean);
       const families = (Array.isArray(opts.family) ? opts.family : opts.family ? [opts.family] : []).flatMap((f) => String(f).split(",")).map((f) => f.trim().toUpperCase()).filter(Boolean);
-      const got = tree.withTreeLock(() => amendInput(tree, id, { persons, note: typeof opts.note === "string" ? opts.note : undefined, ...(families.length ? { families } : {}) }));
+      const got = tree.withTreeLock(() => amendInput(tree, id, { persons, note: typeof opts.note === "string" ? opts.note : undefined, ...(families.length ? { families } : {}) }, { auto: ctx.settings.intakeAuto(tree.config) }));
       return { text: tree.written.length ? lines(...tree.written.map((o) => o.summary)) : `${id}: nothing new`, data: got };
     },
   },
@@ -800,13 +826,18 @@ register(
   },
   {
     path: ["input", "batch", "done"],
-    summary: "Close a batch from the Strom app: its files become sorting tasks of about 25 each (the bridge runs it)",
+    summary: "Close a batch from the Strom app: with intake.auto on (or --sort) its files become sorting tasks of about 25 each (the bridge runs it)",
     group: "inputs",
     tree: true,
     writes: true,
     description:
       "The app says the batch is whole (POST <token>/batch/<id>/done), or the bridge closes it a day after its last file\n" +
-      "(--idle). Its new files become intake tasks, by the folders they came in; in an archive they wait put aside.",
+      "(--idle). With intake.auto on its new files become intake tasks, by the folders they came in; in an archive they\n" +
+      "wait put aside. Off (the default): no task, the files wait in the material unsorted. --sort / --no-sort decide for\n" +
+      "this batch alone (the app's choice); --sort on a batch closed unsorted makes its tasks then. auto says the setting,\n" +
+      "sort whether this batch is sorted by tasks.\n" +
+      "Files the bridge queued for it (PUT with Prefer: respond-async) are taken first, in the same commit; files says\n" +
+      "what became of each: {sha, path, batch, input | known | refused: {code, why} | zip}.",
     args: [{ name: "batch", description: "the batch's mark", required: true }],
     options: [
       { name: "name", type: "string", value: "<name>", description: "its name (\"Krabice od babičky\")" },
@@ -814,16 +845,28 @@ register(
       { name: "expected", type: "string", value: "<n>", description: "how many files the app sent" },
       { name: "idle", type: "boolean", description: "closed because no file came for a day" },
       { name: "note", type: "string", value: "<text>", description: "the user's note to the whole batch (told in its tasks)" },
+      { name: "sort", type: "boolean", description: "sorting tasks for this batch although intake.auto is off (a batch closed unsorted: made now)" },
+      { name: "no-sort", type: "boolean", description: "no sorting task for this batch although intake.auto is on" },
     ],
-    examples: ["strom input batch done 4f1c2a9e-0b7d-4c55-9a7e-3d2c1b0a9f88 --name \"Krabice od babičky\""],
+    examples: ["strom input batch done 4f1c2a9e-0b7d-4c55-9a7e-3d2c1b0a9f88 --name \"Krabice od babičky\"", "strom input batch done 4f1c2a9e-0b7d-4c55-9a7e-3d2c1b0a9f88 --sort"],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const id = args[0]!;
-      if (!readBatch(tree.root, id)) throw new UsageError(`no batch ${id} here`, { hint: "strom input batch" });
+      // files the bridge queued for it (PUT with Prefer: respond-async) are taken first, in the same commit
+      if (!readBatch(tree.root, id) && !batchQueued(tree.root, id)) throw new UsageError(`no batch ${id} here`, { hint: "strom input batch" });
       const persons = checkOriginalMeta(tree, { persons: (Array.isArray(opts.person) ? opts.person : opts.person ? [opts.person] : []).map((p) => String(p).trim().toUpperCase()) }).persons;
-      const b = tree.withTreeLock(() => closeBatch(tree, id, { name: typeof opts.name === "string" ? opts.name : undefined, persons, expected: Number(opts.expected) || undefined, note: typeof opts.note === "string" ? opts.note : undefined, why: opts.idle ? "idle" : "app" }));
-      const data = { batch: b.id, name: b.name, inputs: b.inputs.length, known: b.known.length, refused: b.refused.length, nested: b.nested, tasks: b.tasks };
-      return { text: lines(...tree.written.map((o) => o.summary), `${counted(b.inputs.length, "file")} taken, ${b.known.length} known already, ${b.refused.length} refused — ${counted(b.tasks.length, "task")} to sort them`), data };
+      if (opts.sort && opts["no-sort"]) throw new UsageError("give --sort or --no-sort, not both", { code: "batch.sort-both" });
+      // the batch's own choice (the app's), else the research's setting (spec 130: off unless the person turned it on)
+      const auto = ctx.settings.intakeAuto(tree.config);
+      const sort = opts.sort ? true : opts["no-sort"] ? false : auto;
+      const b = tree.withTreeLock(() => {
+        if (batchQueued(tree.root, id)) takeQueued(tree, ctx.settings.shared()!.value, ctx.env, { batch: id });
+        return closeBatch(tree, id, { name: typeof opts.name === "string" ? opts.name : undefined, persons, expected: Number(opts.expected) || undefined, note: typeof opts.note === "string" ? opts.note : undefined, why: opts.idle ? "idle" : "app", sort });
+      });
+      // files: what became of each file queued for it, by its hash and path (none queued: empty)
+      const data = { batch: b.id, name: b.name, inputs: b.inputs.length, known: b.known.length, refused: b.refused.length, nested: b.nested, tasks: b.tasks, auto, sort: b.sort !== false, files: b.taken ?? [] };
+      const sorting = b.sort === false ? `not sorted: the files wait in the material (strom input batch done ${b.id} --sort sorts them)` : `${counted(b.tasks.length, "task")} to sort them`;
+      return { text: lines(...tree.written.map((o) => o.summary), `${counted(b.inputs.length, "file")} taken, ${b.known.length} known already, ${b.refused.length} refused — ${sorting}`), data };
     },
   },
   {
@@ -861,6 +904,8 @@ register(
       const date = typeof opts.date === "string" ? normalizeDate(opts.date) : undefined;
       if (typeof opts.date === "string" && !date) throw new UsageError(`--date: "${opts.date}" is no date (GEDCOM: 1932, ABT 1930, 12 MAY 1932)`);
       const at = new Date().toISOString();
+      // a person the person took off a file is never put back on it by sorting (Input.declined)
+      const ofFile = (i: Input) => persons.filter((p) => !declinedOf(tree, i).has(p));
       tree.withTreeLock(() => {
         for (const id of ids)
           update<Input>(
@@ -869,18 +914,22 @@ register(
             "input",
             (i) => ({
               ...i,
-              ...(persons.length ? { persons: [...new Set([...(i.persons ?? []), ...persons])] } : {}),
+              ...(ofFile(i).length ? { persons: [...new Set([...(i.persons ?? []), ...ofFile(i)])] } : {}),
               ...(source ? { source } : {}),
               ...(title ? { title } : {}),
               ...(date ? { date } : {}),
               // nothing of the family: hidden, the state it had kept (strom input unskip gives it back)
               ...(as === "unrelated" && i.state !== "skipped" ? { state: "skipped" as const, hidden: { at, by: tree.actor, reason: "unrelated" as const, was: i.state === "processed" ? ("processed" as const) : ("new" as const) } } : {}),
-              sorted: { as: as as (typeof SORT_KINDS)[number], ...(persons.length ? { persons } : {}), ...(source ? { source } : {}), ...(reason ? { reason } : {}), at, by: tree.actor },
+              sorted: { as: as as (typeof SORT_KINDS)[number], ...(ofFile(i).length ? { persons: ofFile(i) } : {}), ...(source ? { source } : {}), ...(reason ? { reason } : {}), at, by: tree.actor },
             }),
-            { op: "input.sort", summary: `${id} ${as}${persons.length ? ` of ${persons.join(", ")}` : ""}${source ? ` → ${source}` : ""}`, ...(reason ? { reason } : {}), targets: persons },
+            { op: "input.sort", summary: `${id} ${as}${ofFile(tree.get<Input>(id)!).length ? ` of ${ofFile(tree.get<Input>(id)!).join(", ")}` : ""}${source ? ` → ${source}` : ""}`, ...(reason ? { reason } : {}), targets: persons },
           );
       });
-      return { text: lines(...tree.written.map((o) => o.summary)), data: { inputs: ids, as } };
+      const kept = ids.flatMap((id) => persons.filter((p) => declinedOf(tree, tree.get<Input>(id)!).has(p)).map((person) => ({ id, person })));
+      return {
+        text: lines(...tree.written.map((o) => o.summary), ...kept.map((k) => `${k.person} not put on ${k.id}: the person took them off it (strom input assign ${k.id} --add ${k.person} is the person's)`)),
+        data: { inputs: ids, as, ...(kept.length ? { declined: kept } : {}) },
+      };
     },
   },
 );

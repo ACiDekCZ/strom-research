@@ -171,6 +171,10 @@ const RECEIVED = /^R\d{17}-[0-9a-f]{4}$/;
 const RESEARCH = /^G\d{1,9}$/;
 const BOOK = /^B\d{1,9}$/;
 const SESSION = /^N\d{1,9}$/;
+/** A run (strom run's worker, as /status runs[] says it), a line of a run and an agent's id (spec 126). */
+const LINK_RUN = /^run-[A-Za-z0-9._-]{1,36}$/;
+const LINK_LINE = /^G\d{1,7}$/;
+const LINK_AGENT = /^[a-z0-9-]{1,32}$/;
 /** A change of the research's history by its commit hash (the app's /log head, or its first 8 as strom history shows it). */
 const CHANGE = /^[0-9a-f]{7,40}$/;
 /** An archive's host, as a connector names it (www.example.org): letters, digits, hyphens and dots only. */
@@ -251,11 +255,12 @@ export type Link =
   | { action: "sync"; tree: string; do: (typeof LINK_SYNC_DOS)[number]; intake?: string }
   | { action: "direction"; tree: string; id: string; do: (typeof LINK_DIRECTION_DOS)[number] }
   | { action: "finish"; tree: string; session: string }
+  | { action: "finish"; tree: string; run: string }
   | { action: "archive"; tree: string; host: string }
   | { action: "experiment"; tree: string; name: (typeof LINK_EXPERIMENTS)[number]; do: (typeof LINK_EXPERIMENT_DOS)[number] }
   | { action: "history"; tree: string; place: string; do: (typeof LINK_HISTORY_DOS)[number] }
   | { action: "places"; tree: string; do: (typeof LINK_PLACES_DOS)[number]; place?: string }
-  | { action: "work"; tree: string; do: (typeof LINK_WORK_DOS)[number]; n?: string; task?: string }
+  | { action: "work"; tree: string; do: (typeof LINK_WORK_DOS)[number]; n?: string; task?: string; research?: string; agent?: string }
   | { action: "fixes"; tree: string; id?: (typeof LINK_FIX_IDS)[number]; do?: (typeof LINK_FIX_DOS)[number] }
   | { action: "back"; tree: string; change?: string }
   | { action: "history-kinds"; tree: string; scope: (typeof LINK_KINDS_SCOPES)[number]; kinds?: string; inherit?: "1" }
@@ -411,8 +416,16 @@ function linkParts(text: string | undefined, scheme: string): Link {
     }
     case "direction":
       return { action, tree: id, id: idOf(q, "id", RESEARCH, true)!, do: oneOf(q, "do", LINK_DIRECTION_DOS) };
-    case "finish":
+    case "finish": {
+      // a session at work, or a run (spec 126: its session's agent writes down what it found, the run ends) — one of them
+      if (q.has("run")) {
+        if (q.has("session")) throw new LinkError("run or session, not both");
+        const run = q.get("run") ?? "";
+        if (!LINK_RUN.test(run)) throw new LinkError("no run named");
+        return { action, tree: id, run };
+      }
       return { action, tree: id, session: idOf(q, "session", SESSION, true)! };
+    }
     case "archive": {
       // the archive whose question the person answers in the terminal — only its host, never the answer
       const host = (q.get("host") ?? "").toLowerCase();
@@ -436,18 +449,25 @@ function linkParts(text: string | undefined, scheme: string): Link {
       // at most three digits — never a text
       if (!q.has("do")) throw new LinkError("nothing to do named");
       const what = oneOf(q, "do", LINK_WORK_DOS);
+      // a run of one line (spec 126, feature run.lines): its ID as the app sends it; its agent (run.agents) only with it
+      const line = q.has("research") ? (q.get("research") ?? "") : undefined;
+      if (line !== undefined && !LINK_LINE.test(line)) throw new LinkError("research is a line's ID, G…");
+      const agent = q.has("agent") ? (q.get("agent") ?? "") : undefined;
+      if (agent !== undefined && (line === undefined || !LINK_AGENT.test(agent))) throw new LinkError("agent only with research, an agent's id");
+      const run = { ...(line ? { research: line } : {}), ...(agent ? { agent } : {}) };
       if (q.has("task")) {
+        if (line) throw new LinkError("task not with research");
         // the tasks named (feature work.tasks): only with do=tasks, never with n; IDs alone, at most LINK_WORK_MAX, each once
         if (what !== "tasks" || q.has("n")) throw new LinkError("task only with do=tasks, not with n");
         const ids = (q.get("task") ?? "").split(",").map((x) => x.trim().toUpperCase());
         if (!ids.length || ids.length > LINK_WORK_MAX || !ids.every((x) => TASK.test(x))) throw new LinkError(`task is 1–${LINK_WORK_MAX} task IDs, T…,T…`);
         return { action, tree: id, do: what, task: [...new Set(ids)].join(",") };
       }
-      if (!q.has("n")) return { action, tree: id, do: what };
+      if (!q.has("n")) return { action, tree: id, do: what, ...run };
       if (what !== "tasks") throw new LinkError("n only with do=tasks");
       const n = q.get("n") ?? "";
       if (!/^\d{1,3}$/.test(n) || Number(n) < 1 || Number(n) > LINK_WORK_MAX) throw new LinkError(`n is 1–${LINK_WORK_MAX}`);
-      return { action, tree: id, do: what, n: String(Number(n)) };
+      return { action, tree: id, do: what, n: String(Number(n)), ...run };
     }
     case "fixes": {
       // strom's fixes: all of them, one of strom's own by its id, or what one set right put back — only shown in the

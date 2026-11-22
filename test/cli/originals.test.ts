@@ -41,6 +41,8 @@ test("originals from the app: material of a person an input outside git with one
   await w.withTree();
   await w.ok(["lang", "cs"]);
   await w.ok(["person", "add", "Josef /Novák/", "--sex", "M"]); // P1
+  // the person turned it on: what comes is taken up by itself (off, the default: intake-auto-single.test.ts)
+  await w.ok(["config", "set", "intake.auto", "on", "--for-tree"], { tty: true });
   w.env.STROM_MEDIA_MAX_BYTES = String(2 * 1024 * 1024);
   w.env.CLAUDECODE = "1";
   // the bridge started from an agent's shell: what the app sends through it is still the person's
@@ -199,9 +201,14 @@ test("the scan of a source from the app: an image of it with the part the entry 
     assert.equal(got.task, undefined);
     const tasks = (await w.ok(["task", "list", "--json"])).json.tasks.filter((x: { level: string }) => x.level === "verify");
     assert.equal(tasks.length, 1);
-    // a scan of a source with no such task: one to read it
-    const jpg2 = fs.readFileSync(path.join(fixtures, "s0003.jpg"));
+    // a scan of a source with no such task: none while intake.auto is off (the default — a file sent starts nothing of
+    // an agent by itself, spec 130 K1.3), one to read it once the person turned it on
     await w.ok(["task", "drop", tasks[0].id, "--reason", "test"]);
+    const jpg1 = fs.readFileSync(path.join(fixtures, "s0001.jpg"));
+    const r1 = json(await request("PUT", `${info.url}/media/${sha(jpg1)}`, jpg1, { ...app, "X-Strom-Name": "sken-1.jpg", "X-Strom-Source": source }));
+    assert.deepEqual([r1.source, r1.task], [source, undefined]);
+    await w.ok(["config", "set", "intake.auto", "on", "--for-tree"], { tty: true });
+    const jpg2 = fs.readFileSync(path.join(fixtures, "s0003.jpg"));
     const r2 = json(await request("PUT", `${info.url}/media/${sha(jpg2)}`, jpg2, { ...app, "X-Strom-Name": "sken-2.jpg", "X-Strom-Source": source }));
     assert.equal(r2.clip, undefined, "the source has its clip");
     const task = (await w.ok(["task", "show", r2.task, "--json"])).json.task;
@@ -236,9 +243,16 @@ test("the scan of a source from the app: an image of it with the part the entry 
     assert.equal(json(await request("GET", `${arch.url}/status`)).accepts.media.tasks, "parked");
     const png = fs.readFileSync(path.join(fixtures, "png-rgba.png"));
     const got = json(await request("PUT", `${arch.url}/media/${sha(png)}`, png, { ...app, "X-Strom-Name": "foto.png", "X-Strom-Person": "P0001" }));
-    const task = (await w.ok(["task", "show", got.task, "--json"])).json.task;
-    assert.equal(task.state, "parked");
+    // intake.auto off (the default): no task at all; where the person had it on, its task is put aside
+    assert.match(got.input, /^I\d{4}$/);
+    assert.equal(got.task, undefined);
     assert.deepEqual((await request("GET", `${arch.url}/media/${sha(png)}?file=1`)).body, png, "the original opens from the archive");
+    // the person turned it on: the task is made, put aside (nobody works on an archive)
+    await w.ok(["config", "set", "intake.auto", "on", "--for-tree"], { tty: true });
+    const jpg = fs.readFileSync(path.join(fixtures, "s0002.jpg"));
+    const on = json(await request("PUT", `${arch.url}/media/${sha(jpg)}`, jpg, { ...app, "X-Strom-Name": "foto-2.jpg", "X-Strom-Person": "P0001" }));
+    assert.match(on.task, /^T\d{4}$/);
+    assert.equal((await w.ok(["task", "show", on.task, "--json"])).json.task.state, "parked");
   } finally {
     await w.ok(["live", "stop"]);
     w.cleanup();
@@ -250,6 +264,7 @@ test("an input the research worked through, said of again with more: added, back
   await w.withTree();
   await w.ok(["person", "add", "Josef /Novák/", "--sex", "M"]); // P1
   await w.ok(["person", "add", "Marie /Nováková/", "--sex", "F"]); // P2
+  await w.ok(["config", "set", "intake.auto", "on", "--for-tree"], { tty: true });
   const file = path.join(w.dir, "dopis.jpg");
   fs.copyFileSync(path.join(fixtures, "s0001.jpg"), file);
   const first = (await w.ok(["media", "original", file, "--person", "P0001", "--json"])).json;

@@ -1210,6 +1210,12 @@ export interface Input extends BaseRecord {
   /** A batch of the Strom app it came in (.strom/batches/<id>.json), and its path there ("Babička/Dopisy/1946.jpg"). */
   batch?: string;
   path?: string;
+  /**
+   * The people the person took off the file (the Strom app's Assign, strom input assign --remove): never put back on it
+   * by sorting, strom input sort or strom intake --person (the sorting's prompt lists them as taken off); added back by
+   * the person, the mark goes.
+   */
+  declined?: { person: string; at: string; by: string }[];
   /** What it is, as whoever sorted the batch found (strom input sort): a record, a document, a photo, nothing of the family. */
   sorted?: { as: (typeof SORT_KINDS)[number]; persons?: string[]; source?: string; reason?: string; at: string; by: string };
   /** The readings of it (strom document read): D… — their results in notes/readings/<D…>.json. */
@@ -1419,6 +1425,8 @@ export interface TreeConfig {
   queueSuggestPersons?: number;
   /** The tasks a book needs to be offered to download by hand (books.minTasks; spec 105). */
   booksMinTasks?: number;
+  /** Years either side of a date estimated from an age a search has to cover (search.ageMargin; spec 131). */
+  searchAgeMargin?: number;
   /** After a session in a book on disk, the next task of that book first: no (default) or yes (queue.sameBook). */
   queueSameBook?: string;
   /** Stories of the ancestors: yes or no (overrides the user's). */

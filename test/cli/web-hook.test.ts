@@ -596,14 +596,15 @@ test("near the threshold the agent hears it after each call: from the threshold 
   assert.match(soon, /^strom: 1 of the 1 requests to ukazka-example\.org .*The way for this server is its connector \(strom connector new ukazka-example .*too soon to build it: add its task now — strom task add "Connector for ukazka-example\.org"/);
   await w.ok(["config", "unset", "web.perHost", "--for-tree"], { tty: true });
   // Grok's events (its own names): the same note, in the shape it reads — and after a call that failed on its way
+  // (another site: soupis-example.org has had its pages on this computer — every session here counts them)
   const grok = (use: string, phase: string, extra: Record<string, unknown> = {}) =>
-    JSON.stringify({ hookEventName: phase, sessionId: "g-1", cwd: w.cwd, toolName: "web_fetch", toolInput: { url: `https://soupis-example.org/${use}` }, toolUseId: use, ...extra });
+    JSON.stringify({ hookEventName: phase, sessionId: "g-1", cwd: w.cwd, toolName: "web_fetch", toolInput: { url: `https://rejstrik-example.org/${use}` }, toolUseId: use, ...extra });
   const genv = { ...env, GROK_AGENT: "1" };
   await w.ok(["config", "set", "web.perHost", "2", "--for-tree"]);
   for (const use of ["k1", "k2"]) assert.equal((await hook(w, grok(use, "pre_tool_use"), { ...genv, STROM_SESSION: "" })).out, "", `${use}: Grok's call let go`);
   const g = JSON.parse((await hook(w, grok("k2", "post_tool_use_failure", { error: "HTTP 404" }), { ...genv, STROM_SESSION: "" })).out).hookSpecificOutput;
   assert.equal(g.hookEventName, "PostToolUseFailure");
-  assert.match(g.additionalContext, /^strom: 2 of the 2 requests to soupis-example\.org/);
+  assert.match(g.additionalContext, /^strom: 2 of the 2 requests to rejstrik-example\.org/);
   // a call that never ran (the hook refused it): no note
   assert.equal((await hook(w, afterEvent(w, "https://soupis-example.org/13", "n13", "Hook denied: strom"), env)).out, "");
   w.cleanup();

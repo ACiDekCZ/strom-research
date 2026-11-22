@@ -321,6 +321,7 @@ test("spec 108: a package carries every record's original and working copy; unpa
 for (const mode of ["research", "archive"] as const)
   test(`spec 108 V9 (${mode}): a couple's original (PUT /media, X-Strom-Family) is material of both partners with an intake task, beside X-Strom-Person too; a bad or unknown couple refused; the bridge says media.app, material.links and accepts.media.family`, opts, async () => {
     const { w } = await world();
+    await w.ok(["config", "set", "intake.auto", "on", "--for-tree"], { tty: true }); // the person's switch: files get their tasks
     if (mode === "archive") await w.ok(["mode", "archive"], { tty: true, answers: ["a"] });
     await w.ok(["person", "add", "Jan /Lhoták/", "--sex", "M"]); // P3
     const info = (await w.ok(["live", "start", "--json"])).json as { url: string };

@@ -82,6 +82,25 @@ export function directionOf(tree: Tree, t: Pick<Task, "subject"> & { research?: 
 }
 
 /**
+ * The direction a task counts toward now: its own (directionOf); of a line ended (strom research done), the narrowest
+ * active line its people are in — computed, nothing written (the task keeps its research), so the line's tasks are its
+ * own again once it is resumed. A paused line keeps its tasks (they wait: "not now"); an ended line no active line
+ * reaches: its own, as before. The queue, the frontier's work, a session's line and the app go by it.
+ */
+export function effectiveDirection(tree: Tree, t: Pick<Task, "subject"> & { research?: string }, all: Scope[]): string | undefined {
+  const own = directionOf(tree, t, all);
+  if (!own) return undefined;
+  const line = all.find((s) => s.research.id === own)?.research ?? tree.get<Research>(own);
+  if (line?.state !== "done") return own;
+  const about = aboutPeople(tree, t.subject);
+  return (
+    all
+      .filter((s) => s.research.state === "active" && !s.research.retracted && about.some((p) => s.people.has(p)))
+      .sort((a, b) => a.people.size - b.people.size || a.research.id.localeCompare(b.research.id))[0]?.research.id ?? own
+  );
+}
+
+/**
  * Whether a task is work of a research (strom session start --research, strom
  * run --research): its own, or about the people it is about (a task added
  * elsewhere or before it began); a task about nobody and of no research, any

@@ -19,6 +19,7 @@ import { create } from "../../src/core/records.ts";
 import { inboxFolderFor } from "../../src/core/media.ts";
 import { keepSourceReading } from "../../src/core/sourceread.ts";
 import { queueRun } from "../../src/core/sort.ts";
+import { enterWorker } from "../../src/core/workers.ts";
 
 import { encodeImage } from "../../src/image/index.ts";
 import { makePdf } from "../image-samples.ts";
@@ -159,11 +160,11 @@ async function seeded(): Promise<World> {
   // a family tree of another program imported (I0004), its married name (_MARNM) to take in again (input names)
   const ged = ["0 HEAD", "1 SOUR MYHERITAGE", "0 @I1@ INDI", "1 NAME Ludmila /Kopecká/", "2 _MARNM Horká", "1 SEX F", "0 TRLR", ""].join("\n");
   fs.writeFileSync(path.join(w.env.HOME!, "Downloads", "rodokmen.ged"), ged);
-  await w.ok(["intake", path.join(w.env.HOME!, "Downloads", "rodokmen.ged")]);
+  await w.ok(["intake", path.join(w.env.HOME!, "Downloads", "rodokmen.ged"), "--sort"]);
   // a document the user gave as a PDF of two scanned pages (I0005), read page by page (media view I0005:2)
   const scan = (grey: number) => ({ bytes: encodeImage({ width: 30, height: 40, channels: 3, data: new Uint8Array(30 * 40 * 3).fill(grey) }, "jpeg"), width: 30, height: 40 });
   fs.writeFileSync(path.join(w.env.HOME!, "Downloads", "dopis.pdf"), makePdf([{ jpeg: scan(60) }, { jpeg: scan(200) }]));
-  await w.ok(["intake", path.join(w.env.HOME!, "Downloads", "dopis.pdf")]);
+  await w.ok(["intake", path.join(w.env.HOME!, "Downloads", "dopis.pdf"), "--sort"]);
   // a reading of a document done (strom document show, cancel): its state as strom document read leaves it
   const reads = path.join(w.cwd, ".strom", "reads");
   fs.mkdirSync(reads, { recursive: true });
@@ -245,7 +246,9 @@ test("every example in the help runs", opts, async () => {
       // a report with the data of people: where the problem happened (the default), yes to the data, yes to make it
       // paid readings of a sort: the person's Enter says no — nothing sorted
       const answers = def.path.join(" ") === "source reading" ? { answers: ["0", ""] } : withData ? { answers: ["", "y", "y"] } : def.path.join(" ") === "material sort" ? { answers: [""] } : {};
-      const r = await w.run([...argv, ...(def.writes ? ["--dry-run"] : [])], person ? { tty: true, ...answers } : {});
+      // a run at work to be told to stop (strom run stop): present as strom run is, only for its examples
+      const leaveRun = def.path.join(" ") === "run stop" ? enterWorker(w.cwd, "run-12345-abc", "Claude Code on its own") : undefined;
+      const r = await w.run([...argv, ...(def.writes ? ["--dry-run"] : [])], person ? { tty: true, ...answers } : {}).finally(() => leaveRun?.());
       if (r.code !== 0 && !(def.path.at(-1) === "revert" && /nothing to put back/.test(r.err + r.out))) failures.push(`${example}\n    → ${(r.err || r.out).trim().split("\n").slice(0, 2).join(" | ")}`);
     }
   }

@@ -78,6 +78,14 @@ export interface KnownTerms {
    */
   imageFileTimes?: number;
   /**
+   * The archive lets the agent's browser save a range of a book's images in one call, paging through its viewer in the
+   * tab (strom media save --images; spec 132) — besides the person's permission "through the browser" only with the
+   * person's own consent for a range, given for this archive alone (strom allow archive <host> --range). `max`: at most
+   * this many images a call, never above RANGE_MAX. None: one image at a time. No archive of strom's list has it yet:
+   * opening it for one is a decision of its own.
+   */
+  browserRange?: { max?: number };
+  /**
    * The census records the host holds (spec 106): the years online, the area, a name index, how a household is found
    * there, the way for strom — never milder than the entry's level (test/unit/known-terms.test.ts keeps it so) —, what
    * its terms or pages say of them (word for word), the day the census part was read. For the agent's brief of a census
@@ -186,6 +194,9 @@ export function imageFileTimesOf(host: string): number | undefined {
     .sort((a, b) => b.host.split(".").length - a.host.split(".").length)[0];
   return hit?.imageFileTimes;
 }
+
+/** The most images one call of strom media save --images saves (spec 132): the rest by the same command again. */
+export const RANGE_MAX = 20;
 
 /** The slowest pause strom's list asks of a host (its Crawl-delay; 0: none) — a floor, slower only. */
 export function knownPaceMs(host: string): number {

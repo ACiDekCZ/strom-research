@@ -67,6 +67,7 @@ import { cleanTitle, currentName, familiesAsPartner, formatName, foundTitles, ge
 import { canonicalize } from "./json.ts";
 import { askShorterNote, shorterAsked, shorterWaiting, SHORTER_ORIGIN } from "./shorternote.ts";
 import { appIdBlocks, entryOf, idsAdded, joinIds, livePerson, matchByIds, personIndex, withoutIds, type AddedIds, type IdBlock } from "./originalids.ts";
+import { recordsBySha } from "./shaindex.ts";
 
 // ── snapshots ────────────────────────────────────────────────────────────────
 
@@ -5377,9 +5378,9 @@ function inputKindOf(mime: string | undefined, f: SMediaFile, origin: Input["ori
 
 /** Where the research keeps an original by its hash already (a record of the material, a scan of a source): its file. */
 function originalFile(tree: Tree, sha: string): { file: string; size?: number; mime?: string } | undefined {
-  const i = tree.list<Input>("input").find((x) => !x.retracted && x.sha === sha && x.file?.startsWith("media:"));
+  const i = recordsBySha<Input>(tree, "input", sha).find((x) => !x.retracted && x.file?.startsWith("media:"));
   if (i) return { file: i.file!, ...(i.size !== undefined ? { size: i.size } : {}), ...(i.mime ? { mime: i.mime } : {}) };
-  const m = tree.list<Media>("media").find((x) => !x.retracted && x.sha === sha);
+  const m = recordsBySha<Media>(tree, "media", sha).find((x) => !x.retracted);
   return m ? { file: `media:${m.file}`, size: m.size, mime: m.mime } : undefined;
 }
 

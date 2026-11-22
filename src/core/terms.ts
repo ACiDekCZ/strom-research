@@ -38,7 +38,7 @@ import { spawnSync } from "node:child_process";
 import { configDir, type Env } from "./paths.ts";
 import { readJsonIfExists, writeJson } from "./json.ts";
 import { acquireLock } from "./lock.ts";
-import { bare, loopbackGuard, openByTerms, readPack, shippedTerms, strictestEntry, within, type KnownTerms, type WholeBook } from "./knownterms.ts";
+import { bare, loopbackGuard, openByTerms, RANGE_MAX, readPack, shippedTerms, strictestEntry, within, type KnownTerms, type WholeBook } from "./knownterms.ts";
 import { webDomain } from "./metrics.ts";
 import { HUMAN_PACE, MIN_INTERVAL_MS, readHostState, REFUSED_FOREVER, robotsAll, robotsNamesAi, type NetVerdict, type Pace, type RefusedKind, type ServicePace } from "./net.ts";
 import { loadUserConfig, Settings } from "./config.ts";
@@ -208,6 +208,12 @@ export interface ArchiveRecord {
   at?: string;
   /** Where the person gave it: in their terminal, in a window of the system, in strom's menu. */
   by?: "terminal" | "window" | "menu";
+  /**
+   * The person's own consent to a range of images saved through the agent's browser in one call (spec 132: strom
+   * media save --images), for this archive alone — besides the way "browser", only where strom's list lets the archive
+   * have it (KnownTerms.browserRange). Gone with the way (another way, the permission forgotten).
+   */
+  range?: { at: string; by: "terminal" | "window" | "menu" };
   connector?: string;
   terms?: string;
   /** The strictest level strom ever saw for the host: an agent makes it stricter, only the person milder. */
@@ -503,6 +509,8 @@ export interface ArchiveLevel {
   from: LevelSource[];
   /** The person's permission for the images, if any. */
   permission?: Way;
+  /** The person's consent to a range of images through the browser (ArchiveRecord.range): only with the permission "browser". */
+  range?: true;
   /**
    * The level rests on terms nobody has read yet: a connector that found none (or one the person has not confirmed),
    * and the floor strom kept of that same reading — restricted as a floor, still not terms that restrict.
@@ -691,6 +699,7 @@ export function archiveLevel(env: Env, input: LevelInput): ArchiveLevel {
     from: by,
     ...(termsUnknown ? { termsUnknown: true as const } : {}),
     ...(permission ? { permission } : {}),
+    ...(permission === "browser" && rec.range ? { range: true as const } : {}),
     ...(!trust.verified ? { unverified: trust.why ?? "the settings are not verified as the person's" } : {}),
     title: known?.name ?? t?.repo.name ?? c?.manifest.title ?? host,
     // robots.txt said so (strom's list quotes it, or strom read it): said as robots.txt, never as the terms (with its address)
@@ -896,6 +905,8 @@ export function grantWay(env: Env, hosts: string[], way: Way, o: { by: NonNullab
         r.prior = { ...(fresh ? { none: true } : {}), ...(r.connector !== undefined ? { connector: r.connector } : {}), ...(r.terms !== undefined ? { terms: r.terms } : {}) };
       }
       Object.assign(r, { way, at: new Date().toISOString(), by: o.by, ...(o.connector ? { connector: o.connector.name } : {}), ...(o.connector?.manifest.policy.terms ? { terms: o.connector.manifest.policy.terms } : {}) });
+      // the consent to a range goes with the way through the browser: another way, and it is asked anew
+      if (way !== "browser") delete r.range;
       // the pace the person agreed to goes with it: the connector's own, as it is now (a faster one later: asked)
       const p = o.connector?.manifest.policy.pace;
       if (o.connector && p && !r.seen?.[o.connector.name]?.pace && !r.seenPace?.[o.connector.name]) {
@@ -923,6 +934,7 @@ export function revokeWay(env: Env, hosts: string[]): boolean {
       delete r.at;
       delete r.by;
       delete r.prior;
+      delete r.range;
       if (prior) {
         for (const k of ["connector", "terms"] as const) {
           if (prior[k] !== undefined) r[k] = prior[k];
@@ -934,6 +946,40 @@ export function revokeWay(env: Env, hosts: string[]): boolean {
       }
     }
   });
+}
+
+/** The person's consent to a range of images through the browser for hosts of one archive (strom allow archive --range). */
+export function grantRange(env: Env, hosts: string[], by: NonNullable<ArchiveRecord["range"]>["by"]): boolean {
+  return updateArchives(env, (s) => {
+    for (const h of hosts) {
+      const r = s.archives[h];
+      if (r?.way === "browser") r.range = { at: new Date().toISOString(), by };
+    }
+  });
+}
+
+/** The consent to a range taken back (strom allow archive --range --revoke): one image at a time again, the way kept. */
+export function revokeRange(env: Env, hosts: string[]): boolean {
+  return updateArchives(env, (s) => {
+    for (const h of hosts) delete s.archives[h]?.range;
+  });
+}
+
+/**
+ * How many images one call may save of a host's book through the agent's browser (strom media save --images; spec
+ * 132): what strom's list gives the archive (KnownTerms.browserRange, never above RANGE_MAX), else undefined — one at a
+ * time. The strictest entry of strom's own list for the host decides; a test's own list (STROM_ARCHIVES_FILE) only for
+ * hosts strom's own list says nothing of, so that it never opens one of strom's archives.
+ */
+export function browserRangeOf(env: Env, host: string): number | undefined {
+  const own = shippedTerms().filter((k) => within(host, k.host));
+  // a test's own list only in an isolated environment (as its "allowed"): never a range at a real archive by a file given
+  const isolated = env.STROM_ISOLATED === "1" || installation().kind === "source";
+  const entry = own.length ? strictestEntry(own) : isolated ? strictestEntry(knownTerms(env).filter((k) => k.extra && within(host, k.host))) : undefined;
+  const r = entry?.browserRange;
+  if (!r || typeof r !== "object") return undefined;
+  const max = r.max === undefined ? RANGE_MAX : Number(r.max);
+  return Number.isInteger(max) && max >= 2 ? Math.min(max, RANGE_MAX) : undefined;
 }
 
 /**

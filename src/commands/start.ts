@@ -2,6 +2,7 @@
 // the way they chose, the Strom app, the shortcut on the desktop, and teaching
 // the agents about strom in any folder.
 
+import { BEAT_MS, beatHolds } from "../core/holds.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { configDir, userHome, type Env } from "../core/paths.ts";
@@ -291,6 +292,9 @@ register({
     let code: number;
     // present from here to the end, whatever fails between (else the app shows a conversation that never ends)
     let leave: (() => void) | undefined;
+    // the sign of life of the conversation's session while its agent lives (its task stays held: core/holds.ts)
+    const beating = setInterval(() => beatHolds(tree.root, { STROM_WORKER: worker }, { force: true }), BEAT_MS);
+    beating.unref();
     try {
       leave = enterWorker(tree.root, worker, `${profile.name} conversation`, VERSION);
       ctx.io.stdout(ui(lang, "ui.chat.open", { agent: profile.name, exit: profile.exit }) + "\n");
@@ -307,6 +311,7 @@ register({
       if (code !== 0 && agent === "claude" && level === "auto" && Date.now() - started < 5000)
         code = await waitFor(spawnAgent(profile.command, conversationArgs(agent, { ...base, level: "ask" }), { cwd: tree.root, env, stdio: "inherit" }));
     } finally {
+      clearInterval(beating);
       leave?.();
       unpinShim(tree.root);
     }

@@ -150,7 +150,7 @@ test("a run waiting for its gate is paused, not at work: the Strom app hears unt
     // a worker from its start (enterWorker): busy sees the run while it waits for its gate — the app offers no second one
     assert.deepEqual(status.busy, { sessions: 0, runs: 1 });
     // before the link work: the gate as the settings name it, a session's minutes (features work.link, run.tasks)
-    assert.deepEqual(status.work, { gate: "Zkouška", minutes: 60 });
+    assert.deepEqual(status.work, { gate: "Zkouška", minutes: 60, confirm: "ask" });
     assert.ok(status.features.includes("work.link") && status.features.includes("run.tasks"), status.features.join(" "));
     const run = status.working.find((x) => x.paused);
     assert.ok(run, JSON.stringify(status.working));

@@ -34,7 +34,7 @@ import { recordReader, tokensOf, usageOpt } from "../core/metrics.ts";
 import { readerLimit } from "../core/readstats.ts";
 import { guardIndexFirst, INDEX_FIRST_DEFAULT } from "../core/indexfirst.ts";
 import { bookViewSizes, readingOf, treeTuning, tuningOn } from "../core/tune.ts";
-import { claimStem, leaveReaderRoom, noReaderFor, readerAgent, readerAuthSaid, readerDesk, readerRoomDir, readersLang, refuseReadersInArchive, refuseReadersInSandbox, refuseReadersLoggedOut, refuseReadersWithoutCli } from "./readers.ts";
+import { claimStem, leaveReaderRoom, noReaderFor, readerAgent, readerAuthSaid, readerDesk, readerRoomDir, readerSlotFor, readersLang, refuseReadersInArchive, refuseReadersInSandbox, refuseReadersLoggedOut, refuseReadersWithoutCli } from "./readers.ts";
 import { ui } from "../cli/ui.ts";
 import { claudeLoginCommand } from "../core/claudedir.ts";
 import { noReaderHere, refusedBySandbox } from "../core/sandbox.ts";
@@ -214,7 +214,7 @@ register({
     { name: "contrast", type: "boolean", description: "more contrast (faded ink)" },
     { name: "max", type: "string", value: "<px>", description: `size of the views (default: what the readers' model takes, ${IMAGE_MAX} or ${IMAGE_MAX_LARGE}); smaller = cheaper browsing` },
     { name: "batch", type: "string", value: "<n>", description: `views per reader — a double page in halves is two (default ${BATCH}, fewer where strom tuned the reading of this agent and model: strom config get reading.batch; at most ${BATCH_MAX})` },
-    { name: "parallel", type: "string", value: "<n>", description: `readers at the same time, 1 to ${READ_PARALLEL_MAX} (default ${DEFAULT_READ_PARALLEL}, or the setting read.parallel: strom config set read.parallel <n>)` },
+    { name: "parallel", type: "string", value: "<n>", description: `readers at the same time, 1 to ${READ_PARALLEL_MAX} (default ${DEFAULT_READ_PARALLEL}, or the setting read.parallel: strom config set read.parallel <n>) — counted for the computer: readers of other readings here take their share, a reader waits for a free one` },
     { name: "model", type: "string", value: "<model>", description: "model of the readers (default: model.vision — never weaker for handwriting)" },
     { name: "minutes", type: "string", value: "<n>", description: READER_MINUTES_HELP, mistaken: ["timeout", "time", "time-limit", "max-minutes"] },
     { name: "until-found", type: "boolean", description: "no more readers once one reports a find (those at work finish) — only for ONE particular entry, never for every entry of a place or a surname, nor where a namesake may follow; only the images read are searched (--result partial)" },
@@ -494,7 +494,17 @@ register({
         }, FIND_LOOK_MS)
       : undefined;
     const stopped = () => foundBy !== undefined;
+    // each reader in a slot of this computer's readers (readerSlotFor): none free in time — not started, said as failed
     const readGroup = async (group: ReaderImage[], k: number) => {
+      const slot = refused ? { release: () => {} } : await readerSlotFor(ctx, tree, `reader ${k + 1}`, parallel, progress, stopped);
+      if ("busy" in slot) return { group, report: path.join(reportsDir, `${stem}-${k + 1}.md`), outcome: "error" as const, cost: undefined, findings: [] as Finding[], minutes: 0, stalled: false, busy: slot.busy };
+      try {
+        return await readGroupIn(group, k);
+      } finally {
+        slot.release();
+      }
+    };
+    const readGroupIn = async (group: ReaderImage[], k: number) => {
       const report = path.join(reportsDir, `${stem}-${k + 1}.md`);
       const views = group.reduce((n, g) => n + viewCount(g), 0);
       // its time limit: by hand, else by its views and what the readers of this agent and model before it needed
@@ -687,7 +697,7 @@ register({
         : undefined,
       notReadSaid,
       missing.length ? `NOT reported: ${runs(missing.map((m) => m.image ?? 0))} — read these again` : undefined,
-      failed.length ? ui(readersLang(ctx, tree), "ui.read.failed", { list: failed.map((r) => `${runs(r.group.map((g) => g.image ?? 0))} (${r.stalled ? ui(readersLang(ctx, tree), "ui.read.stalled") : r.outcome === "timeout" ? ui(readersLang(ctx, tree), "ui.read.failed.timeout", { minutes: r.minutes }) : r.outcome})`).join(", ") }) : undefined,
+      failed.length ? ui(readersLang(ctx, tree), "ui.read.failed", { list: failed.map((r) => `${runs(r.group.map((g) => g.image ?? 0))} (${"busy" in r && r.busy ? r.busy : r.stalled ? ui(readersLang(ctx, tree), "ui.read.stalled") : r.outcome === "timeout" ? ui(readersLang(ctx, tree), "ui.read.failed.timeout", { minutes: r.minutes }) : r.outcome})`).join(", ") }) : undefined,
       // not logged in: what to do, never only "auth" (K040)
       failed.some((r) => r.outcome === "auth") ? readerAuthSaid(ctx, tree, agentId) : undefined,
       late.length

@@ -122,3 +122,47 @@ test("the Strom app: each direction with how it goes (its tasks, why paused and 
   assert.match((await link("chat?research=G0002", ["n"])).out, /Aplikace Strom žádá: rozhovor s agentem \(.*\) o linii „Kdo byla Anna\?“, jen její úkoly\./);
   w.cleanup();
 });
+
+test("a line ended within an active one: its tasks count toward the narrowest active line their people are in (nothing written) — a session of that line takes them; a paused line's tasks wait; resumed, they are its own again", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["research", "new", "Předci Jana Lhotáka", "--new-person", "Jan /Lhoták/", "--sex", "M"]);
+  await w.ok(["person", "add", "Václav /Lhoták/", "--sex", "M"]);
+  await w.ok(["person", "add", "Ludmila /Lhotáková/", "--sex", "F"]);
+  await w.ok(["family", "add", "--partner", "P0002", "--partner", "P0003", "--child", "P0001"]);
+  // a narrower line within the first: the ancestors of Jan's father
+  await w.ok(["research", "new", "Předci Václava Lhotáka", "--person", "P0002"]);
+  const add = await w.ok(["task", "add", "Křest Václava Lhotáka", "--level", "link", "--where", "Lhota", "--why", "a", "--done-when", "b", "--about", "P0002", "--research", "G0002", "--json"]);
+  const id = add.json.task.id as string;
+  type Row = { id: string; reason?: { kind: string; research: string } };
+  const row = async (g: string) => ((await w.ok(["task", "list", "--research", g, "--json"])).json.tasks as Row[]).find((t) => t.id === id);
+  const stored = async () => (await w.ok(["task", "show", id, "--json"])).json.task.research as string;
+  assert.equal((await row("G0002"))?.reason?.research, "G0002");
+  // the narrower line ended: the task is the wider line's work now — it does not wait, and nothing is written
+  const done = await w.ok(["research", "done", "G0002", "--json"]);
+  assert.equal(done.json.tasks, 0, "none of its tasks waits");
+  assert.deepEqual(done.json.movedOn, { G0001: 1 });
+  const moved = await row("G0001");
+  assert.ok(moved, "the task of the ended line is in the queue of the active line its person is in");
+  assert.deepEqual(moved.reason, { kind: "line", research: "G0001" });
+  assert.equal(await stored(), "G0002", "the task keeps its research");
+  assert.ok(((await w.ok(["task", "list", "--json"])).json.tasks as Row[]).some((t) => t.id === id), "in the whole queue too");
+  // a session of the active line takes it; one started on it by its ID works for that line too
+  const s = (await w.ok(["session", "start", "--research", "G0001", "--json"])).json.session;
+  assert.equal(s.task, id);
+  assert.equal(s.research, "G0001");
+  await w.ok(["session", "close", "--continue", "--summary", "Křest hledán.", "--next", "Dál."]);
+  const direct = (await w.ok(["session", "start", id, "--json"])).json.session;
+  assert.equal(direct.research, "G0001", "a session on a task of an ended line works for the narrowest active one");
+  await w.ok(["session", "close", "--continue", "--summary", "Křest hledán.", "--next", "Dál."]);
+  assert.equal(await stored(), "G0002");
+  // paused instead: its tasks wait, as before
+  await w.ok(["research", "resume", "G0002"]);
+  await w.ok(["research", "pause", "G0002"]);
+  assert.equal(await row("G0001"), undefined, "a paused line's tasks wait");
+  // resumed: its own again
+  await w.ok(["research", "resume", "G0002"]);
+  assert.deepEqual((await row("G0002"))?.reason, { kind: "line", research: "G0002" });
+  assert.deepEqual((await row("G0001"))?.reason, { kind: "line", research: "G0002" });
+  w.cleanup();
+});

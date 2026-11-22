@@ -30,10 +30,10 @@ test("batch: every failing line said at once, nothing written, the lines between
     "event add @anna DEAT --date nonsense",
   ]);
   assert.equal(r.code, 2);
-  assert.match(r.err, /4 of 6 lines failed — the batch wrote nothing/);
+  assert.match(r.err, /3 of 6 lines failed, 1 more not checked \(they depend on a line that failed\) — the batch wrote nothing/);
   assert.match(r.err, /line 2 \(event add\): no person P0099/);
   assert.match(r.err, /line 3 \(person add\):/);
-  assert.match(r.err, /line 4 \(family add\): skipped: it uses @šimon, which line 3 should have created/);
+  assert.match(r.err, /line 4 \(family add\): not checked: depends on line 3 \(@šimon\)/);
   assert.match(r.err, /line 6 \(event add\): invalid date "nonsense"/);
   assert.doesNotMatch(r.err, /line 1 |line 5 /);
   // nothing of the good lines either: all or nothing
@@ -85,4 +85,29 @@ test("batch: a line failing after it wrote is undone alone, the lines before it 
 
 test("batch lines: every line that cannot be read is said at once", () => {
   assert.throws(() => parseBatch('person add "Jan\nperson add X #1x\nperson add Y'), (e: Error) => /2 of 3 lines failed/.test(e.message) && /line 1: unclosed double quote/.test(e.message) && /line 2: invalid label "#1x"/.test(e.message));
+});
+
+test("batch: lines that use a label of a line that failed are not checked — counted apart, each naming the line it depends on; nothing written", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["person", "add", "Jan /Lhoták/", "--sex", "M"]);
+  const r = await w.run([
+    "batch",
+    "--json",
+    'source add "Matrika Lhota 1850–1870" --kind nonsense #s',
+    "event add P0001 BIRT --date 1852 --cite @s",
+    "event add P0001 DEAT --date nonsense",
+    "event add P0001 BURI --date 1901 --cite @s",
+  ]);
+  assert.equal(r.code, 2);
+  const e = r.json as { message?: string; error?: string; details: { errors: { message: string; details?: { notChecked?: boolean; dependsOn?: number; label?: string } }[] } };
+  assert.match(e.message ?? e.error ?? "", /^2 of 4 lines failed, 2 more not checked \(they depend on a line that failed\) — the batch wrote nothing:/);
+  const [first, second, third, fourth] = e.details.errors;
+  assert.match(first!.message, /^line 1 \(source add\): invalid --kind/);
+  assert.equal(second!.message, "line 2 (event add): not checked: depends on line 1 (@s)");
+  assert.deepEqual(second!.details, { notChecked: true, dependsOn: 1, label: "s" });
+  assert.match(third!.message, /^line 3 \(event add\): invalid date "nonsense"/);
+  assert.equal(fourth!.message, "line 4 (event add): not checked: depends on line 1 (@s)");
+  assert.equal(status(w), "");
+  w.cleanup();
 });

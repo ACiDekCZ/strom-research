@@ -39,7 +39,7 @@ import { clipNote, inboxFolderFor, parseImageList, transcriptNote } from "../cor
 import { handedImages, inboxState, inboxWaitOf } from "../core/inboxwait.ts";
 import { actsAsArchive } from "../core/state.ts";
 import { conflictsToDecide } from "../core/conflicts.ts";
-import { othersAtWork } from "../core/session.ts";
+import { assertNotHeld, claimTask, othersAtWork, tookOverLine } from "../core/session.ts";
 import { isAgent } from "../core/which.ts";
 import { currentSession } from "../core/session.ts";
 import { webDomain } from "../core/metrics.ts";
@@ -55,6 +55,7 @@ import { takeWaiting } from "./media.ts";
 import { BOOKS_MIN_TASKS, bookOfTask, bookRows, booksOfTask, liveBook, minTasksOf, needsBooks, sameBookLine, tasksOfBook, type BookRow } from "../core/books.ts";
 import { parseTaskKind, TASK_KINDS, taskKind } from "../core/taskkind.ts";
 import { CENSUS_PREFIX, censusHeld, censusProposal } from "../core/census.ts";
+import { closeCoverage, coverageLine } from "../core/coverage.ts";
 
 
 function written(tree: Tree): string {
@@ -1089,22 +1090,40 @@ register(
   {
     path: ["task", "start"],
     summary: "Mark a task as being worked on",
+    description:
+      "A task another open session holds (another agent, a run) is refused with task.held: who holds it, since when,\n" +
+      "its last sign of life and free by when at the latest — take another: strom task next.",
     group: "tasks",
     tree: true,
     writes: true,
     args: [{ name: "task", description: "task ID", required: true }],
     run(ctx, { args }) {
       const tree = ctx.tree();
-      const taken = othersAtWork(tree, ctx.env).sessions.find((x) => x.task === normId(args[0]!, "task"));
-      if (taken)
-        throw new UsageError(`${taken.task} is being worked on in session ${taken.id}${taken.agent ? ` (${taken.agent})` : ""}`, { hint: "take another task: strom task next", code: "task.held" });
-      const t = stateChange(tree, args[0]!, "doing", {}, undefined, "start");
-      return { text: lines(written(tree), `details: strom task show ${t.id}`), data: { task: t } };
+      const id = normId(args[0]!, "task");
+      // one with a session of its own: the task marked in it (another's open session holding it refused, K1.5)
+      if (currentSession(tree, ctx.env, ctx.refs)) {
+        assertNotHeld(tree, ctx.env, id);
+        const t = stateChange(tree, args[0]!, "doing", {}, undefined, "start");
+        return { text: lines(written(tree), `details: strom task show ${t.id}`), data: { task: t } };
+      }
+      // none: a session opens on it, so every task being worked on has its holder (spec 127) — the sessions of others
+      // that gave no sign of life taken over first
+      const asked = requireRecord<Task>(tree, id, "task");
+      if (!["open", "doing", "parked", "waiting"].includes(asked.state)) throw new UsageError(`${asked.id} is ${asked.state}`, { hint: "take another task: strom task next" });
+      const claimed = claimTask(tree, { task: asked, next: (busy) => taskQueue(tree, { strategy: ctx.settings.strategy(tree.config) }).find((t) => !busy.has(t.id)) })!;
+      const t = claimed.task ?? asked;
+      return {
+        text: lines(written(tree), ...claimed.tookOver.map((x) => tookOverLine(x)), `session ${claimed.session.id} started on ${t.id}; its brief: strom brief`, `details: strom task show ${t.id}`),
+        data: { task: t, session: claimed.session.id, ...(claimed.tookOver.length ? { tookOver: claimed.tookOver } : {}) },
+      };
     },
   },
   {
     path: ["task", "done"],
     summary: "Close a task with its result (also a negative one)",
+    description:
+      "Only in the session that holds the task: one another open session holds is refused with task.held (who, since\n" +
+      "when, free by when at the latest).",
     group: "tasks",
     tree: true,
     writes: true,
@@ -1117,7 +1136,9 @@ register(
       const tree = ctx.tree();
       if (!opts.result) throw new UsageError("--result is required", { hint: "say what was found — or where it was searched without success" });
       const { task, said } = finishTask(tree, args[0]!, String(opts.result), csvOpt(opts.produced));
-      return { text: lines(written(tree), ...said), data: { task } };
+      // the years its people's estimated dates ask for, not all searched (spec 131): said once a session and book, never refused
+      const coverage = closeCoverage(tree, task.id, currentSession(tree, ctx.env, ctx.refs)?.id, ctx.settings.ageMargin(tree.config));
+      return { text: lines(written(tree), ...said, ...coverage.map(coverageLine)), data: { task, ...(coverage.length ? { coverage } : {}) } };
     },
   },
   {

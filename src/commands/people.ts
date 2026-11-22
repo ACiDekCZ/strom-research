@@ -1,6 +1,7 @@
 // person add · list · show · edit · name add · retract · restore · family add · show · child · event add · note add · list · edit · retract · restore · cite
 
 import { opLine } from "../core/proposals.ts";
+import { surnameOfFor as surnameOf } from "../core/query.ts";
 import { register, type Input } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
@@ -342,6 +343,7 @@ register(
     options: [
       { name: "research", type: "string", value: "<G…>", description: "only people in scope of this research, with generations" },
       { name: "generation", type: "string", value: "<n>", description: "only this generation (with --research)" },
+      { name: "surname", type: "string", value: "<surname>", description: "only people of this surname (its other forms too, as strom query --surname)", aliases: ["surnames"] },
       { name: "unproven", type: "boolean", description: "only people no record of their own proves: how each stands, the records naming them, open tasks" },
       { name: "full", type: "boolean", description: "--json: whole records instead of one row each" },
     ],
@@ -350,6 +352,11 @@ register(
       const tree = ctx.tree();
       let people = tree.list<Person>("person").filter((p) => !p.retracted);
       if (args[0]) people = findPersons(tree, args[0]);
+      // a surname's forms, as strom query finds them (N1009's guess: person list --surname)
+      if (typeof opts.surname === "string" && opts.surname.trim()) {
+        const of = surnameOf(tree, opts.surname);
+        people = people.filter(of);
+      }
       let gens: Map<string, number> | undefined;
       if (opts.research) {
         const r = resolveResearch(tree, opts.research as string);
@@ -369,7 +376,7 @@ register(
         p.events.some((e) => e.status === "proven" || e.status === "probable") ? "" : ui(tree.lang, "ui.person.leadsonly"),
       ]);
       // in the research's language (the person follows it in the agent's session too)
-      const filtered = !!args[0] || !!opts.research;
+      const filtered = !!args[0] || !!opts.research || typeof opts.surname === "string";
       const text = people.length === 0 ? ui(tree.lang, filtered ? "ui.person.nomatch" : "ui.person.none") : lines(table(rows), moreLine(page, "strom person list", tree.lang));
       return {
         text,

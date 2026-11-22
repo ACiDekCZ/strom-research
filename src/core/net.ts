@@ -1422,6 +1422,34 @@ export function refusedBy(stateDir: string, host: string, status: number, now: (
   }
 }
 
+/**
+ * What stopped a range of images the agent's browser saved from an archive's viewer (strom media save --images; spec
+ * 132): its check whether a person is there, a login, a refusal (401/403), slow down (429), busy (503) — counted as a
+ * refusal of strom: the host left alone as refusedBy leaves it (401/403 a day, the rest an hour), nothing goes there
+ * meanwhile, through the agent's browser either. What it says, with until when.
+ */
+export function browserStopped(stateDir: string, host: string, what: number | "check" | "login", now: () => number = Date.now): string {
+  if (what === 401 || what === 403 || what === 429) return refusedBy(stateDir, host, what, now)!;
+  fs.mkdirSync(stateDir, { recursive: true });
+  const file = stateFile(stateDir, host);
+  const release = acquireLock(`${file}.lock`, { owner: "strom net", waitMs: 10 * 60_000, staleMs: 10 * 60_000 });
+  try {
+    const s = hostState(stateDir, host, now());
+    const reason =
+      what === "check"
+        ? `it showed the browser its check whether a person is there (at ${stamp(now())})`
+        : what === "login"
+          ? `it asked the browser for a login (at ${stamp(now())})`
+          : `it answered the browser HTTP ${what} (at ${stamp(now())})`;
+    s.blockedUntil = Math.max(s.blockedUntil ?? 0, now() + COOL_OFF_MS);
+    s.reason = reason;
+    writeJson(file, s);
+    return `${host}: ${reason} — strom leaves it alone until ${clockUp(s.blockedUntil)}`;
+  } finally {
+    release();
+  }
+}
+
 /** Why a host takes no request of another program now: left alone (a refusal, silence), its own limit, its hourly cap. */
 export interface HostRefusal {
   why: "blocked" | "limit" | "cap";
