@@ -30,17 +30,19 @@ const NOT_RUN = new Set(["setup", "init", "run", "read", "document read", "docum
 
 async function seeded(): Promise<World> {
   const w = new World();
+  // the agents the examples name (strom chat --agent codex) here, as on every computer the tests run on
+  w.agentsHere("codex");
   await w.withTree();
   await w.ok(["research", "new", "Předci Jana Nováka", "--new-person", "Jan /Novák/", "--sex", "M", "--born", "ABT 1905", "--born-place", "Týnec nad Labem"]);
   await w.ok(["event", "edit", "E0001", "--with", "witness:Marie Dvořáková"]); // entered in the wrong role (event edit --without)
   await w.ok(["person", "add", "Josef /Novák/", "--sex", "M", "--born", "ABT 1870"]);
   await w.ok(["person", "add", "Marie /Svobodová/", "--sex", "F", "--born", "ABT 1875"]);
-  await w.ok(["person", "add", "Antonín /Víšek/", "--sex", "M"]);
+  await w.ok(["person", "add", "Antonín /Brdíšek/", "--sex", "M"]);
   await w.ok(["person", "add", "Marie /Nováková/", "--sex", "F"]);
   await w.ok(["family", "add", "--partner", "P0004", "--partner", "P0005"]);
   await w.ok(["event", "add", "F0001", "MARR", "--date", "1910"]); // E0004
   await w.ok(["family", "add", "--partner", "P0004"]); // the same couple recorded twice (family merge)
-  await w.ok(["person", "add", "Josef /Víšek/", "--sex", "M"]); // P0006
+  await w.ok(["person", "add", "Josef /Brdíšek/", "--sex", "M"]); // P0006
   await w.ok(["family", "child", "F0002", "P0006"]);
   await w.ok(["repo", "add", "SOA Praha"]);
   await w.ok(["recordset", "add", "Týnec 17", "--repo", "R0001"]);
@@ -122,7 +124,7 @@ async function seeded(): Promise<World> {
   await w.ok(["task", "add", "Opis křtu z matriky", "--level", "request", "--where", "matrika", "--why", "křest", "--done-when", "opis"]); // T0005
   await w.ok(["task", "wait", "T0005", "--on", "Odpověď matriky na žádost o opis.", "--kind", "letter"]);
   fs.writeFileSync(path.join(w.env.HOME!, "Downloads", "reply.pdf"), "%PDF-1.4\n%%EOF\n");
-  // a hypothesis about whose son Josef Víšek was, one variant saying what it would connect (hypothesis link --remove)
+  // a hypothesis about whose son Josef Brdíšek was, one variant saying what it would connect (hypothesis link --remove)
   await w.ok(["hypothesis", "add", "Čí syn byl Josef?", "--about", "P0006", "--variant", "A: sourozenec Antonína", "--variant", "B: syn Josefa a Marie"]); // H0001
   await w.ok(["hypothesis", "link", "H0001", "A", "--siblings", "P0004", "P0006"]);
   // the agent's proposal the person decides (hypothesis decide --proposed|--keep-open), a second one to propose
@@ -178,7 +180,7 @@ async function seeded(): Promise<World> {
   // a second record of Horní Lhota close by (place merge)
   const dup = (await w.ok(["place", "add", "Nová Lhota", "--lat", "49.611", "--lon", "15.231", "--json"])).json.place.id;
   assert.equal(dup, "L0003", "the place merge example's ID");
-  // a second line, the ancestors of Marie Nováková (G0002): Josef Víšek, the son of her husband Antonín, is a branch off the lines (strom offline, B-P0006)
+  // a second line, the ancestors of Marie Nováková (G0002): Josef Brdíšek, the son of her husband Antonín, is a branch off the lines (strom offline, B-P0006)
   await w.ok(["research", "new", "Předci Marie Novákové", "--person", "P0005"]);
   fs.writeFileSync(path.join(reads, "D20260101120000-ab12.json"), JSON.stringify({ id: "D20260101120000-ab12", state: "done", version: 1, readers: 1, lang: "cs", pages: [{ n: 1, file: "I0005", name: "dopis.pdf", page: 1 }], groups: [[1]], reports: [], at, since: at }));
   // a godmother's note the Strom app 3.29.0 sent shorter than the research's: a task asks the person (strom sync note) — before any fact cites its original, so no sync queues one to verify

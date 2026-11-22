@@ -1,5 +1,5 @@
 // Person helpers: names, life spans, relatives, and resolving a reference
-// ("P0039", "Antonín Víšek", "visek antonin") to exactly one person.
+// ("P0039", "Antonín Brdíšek", "brdisek antonin") to exactly one person.
 
 import { AmbiguousError, UsageError } from "./errors.ts";
 import { dateYears, yearLabel } from "./gdate.ts";
@@ -101,8 +101,8 @@ export function notAName(given: string): string | undefined {
 }
 
 /**
- * The same name: letter for letter (case aside), whatever its kind. "Višek"
- * and "Víšek" are two spellings — a variant worth keeping, not one name.
+ * The same name: letter for letter (case aside), whatever its kind. "Brdišek"
+ * and "Brdíšek" are two spellings — a variant worth keeping, not one name.
  */
 export function sameName(a: Name, b: Name): boolean {
   const key = (n: Name) => formatName(n).normalize("NFC").toLowerCase();
@@ -514,7 +514,7 @@ export function resolvePerson(tree: Tree, ref: string): Person {
   throw new AmbiguousError(ref, hits.map((p) => ({ id: p.id, label: candidateLabel(tree, p) })));
 }
 
-/** Surnames that may be one family name: "Víšek"/"Víšková", "Nowak"/"Nowakowa", "Novotný"/"Novotná"; an unknown one fits any. */
+/** Surnames that may be one family name: "Brdíšek"/"Brdíšková", "Nowak"/"Nowakowa", "Novotný"/"Novotná"; an unknown one fits any. */
 export function sameSurname(a: string, b: string): boolean {
   const fa = foldText(a);
   const fb = foldText(b);
@@ -527,7 +527,7 @@ const VOWELS = "aeiouy";
 
 /**
  * A surname and the forms of it a record or a search may give instead (folded): the man's of a woman's — Czech and
- * Slovak "Nováková"/"Víšková"/"Svobodová" → Novák, Víšek, Svoboda; "Novotná" → Novotný; Polish "Nowakowa",
+ * Slovak "Nováková"/"Brdíšková"/"Svobodová" → Novák, Brdíšek, Svoboda; "Novotná" → Novotný; Polish "Nowakowa",
  * "Nowakówna" → Nowak, "Kowalska" → Kowalski; Russian/Bulgarian "Иванова" → Иванов, "Толстая" → Толстой/Толстый.
  * Only forms a feminine ending gives — no stem of anything else, so a different family name stays different.
  */
@@ -537,7 +537,7 @@ export function surnameForms(surname: string): Set<string> {
   const out = new Set<string>(f ? [f] : []);
   if (!f) return out;
   const add = (x: string) => x.length > 1 && out.add(foldText(x));
-  // a woman's -ová / -owa / -ówna: the man's form is the stem, a stem with its vowel, or its fleeting e (Víšk-ová → Víšek)
+  // a woman's -ová / -owa / -ówna: the man's form is the stem, a stem with its vowel, or its fleeting e (Brdíšk-ová → Brdíšek)
   const fem = /^(.+?)(?:ova|owa|ovna|owna)$/u.exec(f)?.[1];
   if (fem && fem.length > 1) {
     add(fem);

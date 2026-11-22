@@ -136,12 +136,16 @@ test("run.confirm no: still asked — a price in money said, a request sent, a c
 
 test("the menu's settings: the question before the agent starts from the app, turned off with the person's yes and on again (K1.5)", opts, async () => {
   const { w, config } = await world();
-  // 8 settings · 1 what to set · 6 the step (last) · 2 without the question · the person's yes · 0 back
-  const off = await w.ok([], { tty: true, answers: ["8", "1", "6", "2", "a", "0", "0"] });
+  // 8 settings · 1 what to set · the step · 2 without the question · the person's yes · 0 back — the step's number as
+  // shown: the parts of the setup differ by the system (the terminal's part on macOS and Windows alone)
+  const look = await w.ok([], { tty: true, answers: ["8", "1", "0", "0", "0"] });
+  const n = look.out.split("\n").find((l) => /Spouštění agenta z aplikace Strom/u.test(l))?.match(/^\s*(\d+)/u)?.[1];
+  assert.ok(n, look.out);
+  const off = await w.ok([], { tty: true, answers: ["8", "1", n, "2", "a", "0", "0"] });
   assert.match(off.out, /Spouštění agenta z aplikace Strom: s potvrzením/u);
   assert.match(off.out, /Ptá se dál: dotaz s cenou v penězích/u);
   assert.equal(config().runConfirm, "no");
-  const on = await w.ok([], { tty: true, answers: ["8", "1", "6", "1", "0", "0"] });
+  const on = await w.ok([], { tty: true, answers: ["8", "1", n, "1", "0", "0"] });
   assert.match(on.out, /Spouštění agenta z aplikace Strom: bez potvrzení/u);
   assert.equal(config().runConfirm, undefined);
   // strom config says it, with what it is

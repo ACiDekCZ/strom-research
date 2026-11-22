@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { Readable } from "node:stream";
 import { main } from "../src/cli/main.ts";
 import type { ChoiceText } from "../src/core/dialog.ts";
 import { BRIDGE, bridgesFolder, endOurs, notedBridges, ourNoted, PHONE, within, type Ours } from "./bridges.ts";
@@ -114,6 +115,19 @@ export class World {
     worlds.add(this);
   }
 
+  /**
+   * More agents here beside the stand-in Claude Code: a stand-in CLI of each command (codex, grok, agy, opencode) in
+   * the world's own folder of agents, first on PATH — the same on every computer, whatever agents the one running the
+   * tests has (a CI runner has none).
+   */
+  agentsHere(...commands: string[]): void {
+    const agents = path.join(this.dir, "agents");
+    for (const c of commands) {
+      if (process.platform === "win32") fs.writeFileSync(path.join(agents, `${c}.cmd`), "@exit /b 0\r\n");
+      else fs.writeFileSync(path.join(agents, c), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    }
+  }
+
   /** The world's folder, also as the system names it (its links followed: /var is /private/var on a Mac). */
   dirs(): string[] {
     try {
@@ -145,7 +159,11 @@ export class World {
       // A window with choices, answered by the person at the screen (null: none — later, Esc, no answer in time).
       ...(opts.choice !== undefined ? { choice: typeof opts.choice === "function" ? opts.choice : () => opts.choice as string | null } : {}),
     };
-    const code = await main(args, io, opts.env ? { ...this.env, ...opts.env } : this.env, opts.cwd ?? this.cwd);
+    // A terminal with no answers given: a question is answered by an input already ended (each question its own), never
+    // by the test process's stdin — that one may stay open for ever (node --test on a CI runner: a test waited for its
+    // answer until the timeout, found at "Jazyk (cs, en, de, pl, …)"); strom's input ending settles the question.
+    if (opts.tty && !opts.answers) Object.defineProperty(io, "stdin", { get: () => Readable.from([]), enumerable: true });
+    const code = await main(args, io,opts.env ? { ...this.env, ...opts.env } : this.env, opts.cwd ?? this.cwd);
     let json: any;
     if (args.includes("--json")) {
       try {
@@ -283,9 +301,10 @@ export function readJsonFile(file: string): any {
  * launcher (`<command>.cmd`) names no folder: cmd reads a batch file's lines in the console's code page (852, …), so
  * a folder with "ě" written into it is another folder there (found on Windows: Cannot find module '…─Ť…'). The script
  * is the one beside it (%~dp0, as npm's own launchers say it) and Node comes from FAKE_NODE — cmd expands both in
- * Unicode, so the folder keeps its diacritics.
+ * Unicode, so the folder keeps its diacritics. `base`: the PATH after it — a world's (`w.env.PATH`) keeps that world's
+ * agents here (its stand-in Claude Code); by default the test process's own.
  */
-export function agentStandIn(dir: string, command: string): Record<string, string> {
+export function agentStandIn(dir: string, command: string, base: string = process.env.PATH ?? ""): Record<string, string> {
   const bin = path.join(dir, "bin");
   fs.mkdirSync(bin, { recursive: true });
   const script = path.join(bin, "agent.mjs");
@@ -293,7 +312,7 @@ export function agentStandIn(dir: string, command: string): Record<string, strin
   fs.writeFileSync(script, 'import fs from "node:fs";\nif (process.env.FAKE_STDERR) process.stderr.write(fs.readFileSync(process.env.FAKE_STDERR, "utf8"));\nprocess.stdout.write(fs.readFileSync(process.env.FAKE_STREAM, "utf8"));\n');
   fs.writeFileSync(path.join(bin, command), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`, { mode: 0o755 });
   fs.writeFileSync(path.join(bin, `${command}.cmd`), `@"%FAKE_NODE%" "%~dp0agent.mjs" %*\r\n`);
-  return { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, HOME: dir, USERPROFILE: dir, FAKE_NODE: process.execPath };
+  return { PATH: `${bin}${path.delimiter}${base}`, HOME: dir, USERPROFILE: dir, FAKE_NODE: process.execPath };
 }
 
 /**

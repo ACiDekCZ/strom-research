@@ -376,13 +376,17 @@ test("doctor --fix: what strom can put right, each with the user's yes — here,
   w.env.STROM_GIT = path.join(w.dir, "no git");
   w.env.CLAUDECODE = "1";
   const o = await w.ok(["--json"]);
-  assert.equal(o.json.next.command, "strom doctor --fix");
+  // Linux: the package manager's command, sudo the user's (core/deps.ts) — strom installs nothing there itself
+  if (process.platform === "linux") assert.match(o.json.next.command, /^sudo \S+ (install|-S) git$/u);
+  else assert.equal(o.json.next.command, "strom doctor --fix");
   const d = await w.run(["doctor", "--fix", "--json"], { dialog: false });
   assert.equal(d.code, 1);
   assert.equal(d.json.checks.find((c: any) => c.name === "git").status, "fail");
-  // Yes in the window: Apple's installer is opened (not in a test) and the user finishes it there.
+  // Yes in the window: Apple's installer is opened (not in a test) and the user finishes it there; Linux has no window
+  // — the command said instead
   const y = await w.run(["doctor", "--fix"], { dialog: true });
-  assert.match(y.out, /Dokončit instalaci v okně systému/);
+  if (process.platform === "linux") assert.match(y.out, /Nainstalovat ho příkazem: sudo /u, y.out);
+  else assert.match(y.out, /Dokončit instalaci v okně systému/);
   w.cleanup();
 });
 

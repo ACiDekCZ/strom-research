@@ -62,7 +62,7 @@ export interface HeldError extends NodeJS.ErrnoException {
  * Waiting is synchronous (Atomics.wait: the thread sleeps, no busy loop). Elsewhere a file is not held by an open one:
  * these codes mean a lasting refusal, thrown at once (EBUSY marked all the same: it says the file is in use).
  */
-function retryingHeld<T>(file: string, platform: NodeJS.Platform, fn: () => T): T {
+export function retryingHeld<T>(file: string, platform: NodeJS.Platform, fn: () => T): T {
   let wait = RENAME_FIRST_WAIT;
   let left = platform === "win32" ? RENAME_PATIENCE : 0;
   for (;;) {

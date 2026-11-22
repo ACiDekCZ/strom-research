@@ -1690,6 +1690,7 @@ export const UI = {
   "ui.review.nothing": "{name} — nothing new to review",
   "ui.media.large": "The file is larger than the research takes from the app ({mb} MB): keep it on the computer and give it to the research there (strom intake).",
   "ui.media.full": "There is not enough room on the disk of the research for the file: make room there, then send it again.",
+  "ui.media.held": "Another program is holding a file sent from the app for a moment (an antivirus, a sync or backup tool): nothing was lost, the research takes it again in a while.",
   "ui.sync.title": "{file}: {n, plural, one {# change} other {# changes}} against the research",
   "ui.sync.title.asks": "{file}: {q, plural, one {# question} other {# questions}} to decide, nothing else against the research",
   "ui.sync.title.both": "{file}: {n, plural, one {# change} other {# changes}} against the research, {q, plural, one {# question} other {# questions}} to decide",

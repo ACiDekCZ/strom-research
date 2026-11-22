@@ -379,13 +379,13 @@ test("strom read: batches of at most ten, reports in notes/readings, the finds a
   }
   await w.ok(["media", "add", many, "--recordset", "B1"]);
   w.env.STROM_RUNNER_SCRIPT = path.join(import.meta.dirname, "..", "fixtures", "agent.ts");
-  const r = await w.run(["read", "B1", "--images", "1-23", "--question", "Křty Víšek 1860–1864", "--agent", "script", "--json"]);
+  const r = await w.run(["read", "B1", "--images", "1-23", "--question", "Křty Brdíšek 1860–1864", "--agent", "script", "--json"]);
   assert.equal(r.code, 0, r.out + r.err);
   assert.equal(r.json.reports.length, 3);
   assert.deepEqual(r.json.found.map((f: any) => f.image), [1, 9, 17]);
   assert.deepEqual(r.json.missing, []);
   const report = fs.readFileSync(r.json.reports[0], "utf8");
-  assert.match(report, /^# Reading B0001-1-23 · batch 1 of 3\nQuestion: Křty Víšek 1860–1864/);
+  assert.match(report, /^# Reading B0001-1-23 · batch 1 of 3\nQuestion: Křty Brdíšek 1860–1864/);
   assert.match(report, /## Image 1 · M0001\nresult: found/);
   assert.ok(r.json.reports[0].startsWith(path.join(w.cwd, "notes", "readings")));
   const text = (await w.run(["read", "B1", "--images", "1-3", "--question", "x", "--agent", "script"])).out;

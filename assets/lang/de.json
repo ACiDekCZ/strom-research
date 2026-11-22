@@ -1738,6 +1738,7 @@
   "ui.review.nothing": "{name} — nichts Neues zu prüfen",
   "ui.media.large": "Die Datei ist größer, als die Forschung aus der App annimmt ({mb} MB): sie auf dem Computer behalten und der Forschung dort geben (strom intake).",
   "ui.media.full": "Auf dem Datenträger der Forschung ist nicht genug Platz für die Datei: dort Platz schaffen und sie erneut schicken.",
+  "ui.media.held": "Eine aus der App gesendete Datei hält gerade kurz ein anderes Programm (Virenschutz, Synchronisierung oder Sicherung): nichts ging verloren, die Forschung übernimmt sie gleich noch einmal.",
   "ui.sync.title": "{file}: {n, plural, one {# Änderung} other {# Änderungen}} gegenüber der Forschung",
   "ui.sync.title.asks": "{file}: {q, plural, one {# Frage} other {# Fragen}} zu entscheiden, sonst nichts gegenüber der Forschung",
   "ui.sync.title.both": "{file}: {n, plural, one {# Änderung} other {# Änderungen}} gegenüber der Forschung, {q, plural, one {# Frage} other {# Fragen}} zu entscheiden",

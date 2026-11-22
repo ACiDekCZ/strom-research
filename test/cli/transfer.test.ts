@@ -20,10 +20,21 @@ const opts = { skip: !hasGit || process.platform === "win32" };
 const TOKEN = "UHJlbm9zLXN0cm9tdS16LXNhZmFyaS0wMDAwMDAwMQ";
 const ORIGIN = { Origin: "https://beta.stromapp.info" };
 
-/** Browsers as installed on a Mac, in a folder of the test's own. */
+/** A browser's command on Linux (core/chromium.ts), by its folder on a Mac — none for Safari. */
+const LINUX_COMMAND: Record<string, string> = { "Google Chrome.app": "google-chrome", "Microsoft Edge.app": "microsoft-edge", "Firefox.app": "firefox", "Brave Browser.app": "brave-browser" };
+
+/**
+ * Browsers installed, in a folder of the test's own (STROM_APP_DIRS): as on a Mac (their .app folders) and as on Linux
+ * (their commands) alike, so strom finds the same ones on either — never the computer's own (a runner has Chrome, Edge
+ * and Firefox of its own).
+ */
 function browsers(w: World, ...apps: string[]): string {
   const dir = path.join(w.dir, "Applications");
-  for (const a of apps) fs.mkdirSync(path.join(dir, a), { recursive: true });
+  for (const a of apps) {
+    fs.mkdirSync(path.join(dir, a), { recursive: true });
+    const cmd = LINUX_COMMAND[a];
+    if (cmd) fs.writeFileSync(path.join(dir, cmd), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  }
   return dir;
 }
 

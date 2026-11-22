@@ -400,7 +400,7 @@ register(
     tree: true,
     args: [{ name: "person", description: "ID (P0001) or name", required: true }],
     options: [{ name: "history", type: "boolean", description: "also the names and notes taken back and the texts notes had before they were corrected: when, by whom, why" }],
-    examples: ["strom person show P0001", 'strom person show "Antonín Víšek"', "strom person show P0001 --history"],
+    examples: ["strom person show P0001", 'strom person show "Antonín Brdíšek"', "strom person show P0001 --history"],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const p = resolvePerson(tree, args[0]!);
@@ -486,7 +486,7 @@ register(
     ],
     examples: [
       "strom person edit P0004 --sex M",
-      'strom person edit P0001 --name "Antonín /Víšek/" --reason "misread: the register has Víšek"',
+      'strom person edit P0001 --name "Antonín /Brdíšek/" --reason "misread: the register has Brdíšek"',
       'strom person edit P0003 --prefix "MUDr."',
       'strom person edit P0005 --name "Jan /Lhoták/" --cite S0004 --locator "fol. 7" --reason "the baptism register spells it Lhoták"',
     ],

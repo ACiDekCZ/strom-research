@@ -77,6 +77,18 @@ export function langOf(root: string, env: Env): string {
   }
 }
 
+/** How long the app waits before it sends again what a file another program held stopped (seconds). */
+export const HELD_RETRY = 10;
+/**
+ * A file another program held or that could not be read as it was written (media.held, fs.held — an antivirus, a sync
+ * or backup tool): the sentence in the research's language (`error`), English (`text`), code media.held, never the
+ * file's path; answered 503 with `retry`, the queue written again by the bridge.
+ */
+export function heldSaid(lang: string): { error: string; code: string; text: string; retry: number } {
+  return { error: ui(lang, "ui.media.held"), code: "media.held", text: ui("en", "ui.media.held"), retry: HELD_RETRY };
+}
+const isHeld = (data: { code?: unknown }) => data.code === "media.held" || data.code === "fs.held";
+
 /** Too large, no room: the sentence in the research's language (`error`), English (`text`) and the code. */
 function said(lang: string, key: "ui.media.large" | "ui.media.full", params: Record<string, string> = {}): { error: string; code: string; text: string; params?: Record<string, string> } {
   return { error: ui(lang, key, params), code: key === "ui.media.large" ? "media.large" : "media.full", text: ui("en", key, params), ...(Object.keys(params).length ? { params } : {}) };
@@ -134,7 +146,7 @@ export interface Incoming {
 
 /** Answered with JSON — 503 is only "busy, send it again": always with when (Retry-After). */
 export function replyJson(res: http.ServerResponse, code: number, body: Record<string, unknown>, headers: Record<string, string> = {}): void {
-  if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(code === 503 ? { "Retry-After": "30" } : {}), ...headers }).end(JSON.stringify(body));
+  if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(code === 503 ? { "Retry-After": String(typeof body.retry === "number" ? body.retry : 30) } : {}), ...headers }).end(JSON.stringify(body));
 }
 
 /** Whether a file begins as a ZIP does (a batch's ZIP queued: checked as it comes, unpacked as it is written). */
@@ -342,6 +354,8 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
         r.note(`an original was not taken (exit ${code}): ${why}`);
         // the research busy (another strom holding it longer than a writer waits): the app sends it again later
         if (code === EXIT.locked) return reply(503, { ...refusal(why, "research.busy"), retry: 30 });
+        // a file another program held for a moment (an antivirus): the app sends it again in a while
+        if (isHeld(data)) return reply(503, heldSaid(tree.lang));
         // no room on the disk: said in the research's language, never its inner path (found on Mac: "the disk is full: …")
         if (data.code === DISK_FULL || isDiskFull(why)) return reply(507, diskFullSaid(tree.lang, fullWhere(data, r.root)));
         // the task waits no more (answered meanwhile in the terminal)
@@ -415,6 +429,8 @@ export function closeBatchBy(r: Receiver, id: string, extra: string[], reply: (c
     const why = String(data.message ?? stderr.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? "the batch was not closed");
     r.note(`the batch ${id} was not closed (exit ${code}): ${why}`);
     if (code === EXIT.locked) return reply(503, { ...refusal(why, "research.busy"), retry: 30, batch: id });
+    // a queued file another program held (an antivirus; found on Windows: EBUSY and its path): closed again in a while
+    if (isHeld(data)) return reply(503, { ...heldSaid(langOf(r.root, r.env)), batch: id });
     if (data.code === DISK_FULL || isDiskFull(why)) return reply(507, { ...diskFullSaid(langOf(r.root, r.env), fullWhere(data, r.root)), batch: id });
     reply(/no batch/.test(why) ? 404 : 400, { ...refusalOf(why, data, /no batch/.test(why) ? "batch.none" : "media.refused"), batch: id });
   });

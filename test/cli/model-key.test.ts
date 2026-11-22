@@ -160,6 +160,8 @@ test("Codex with no model asked and Grok's setting run as its build: what was se
     { agent: "antigravity", lead: undefined, asked: "antigravity", reported: undefined, key: "antigravity" },
   ]) {
     const w = await world();
+    // the agent here, as on every computer the tests run on (none of a CI runner's)
+    w.agentsHere("codex", "grok", "agy");
     await w.ok(["config", "set", "agent", c.agent]);
     if (c.lead) await w.ok(["config", "set", "model.lead", c.lead]);
     plant(w.cwd, measured(c.asked, c.reported));

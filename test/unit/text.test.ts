@@ -7,11 +7,11 @@ import { roleWord } from "../../src/core/roles.ts";
 
 test("folding: diacritics go, letters that do not decompose are spelled out", () => {
   assert.deepEqual(
-    ["Víšek", "Łódź", "Straße", "Đurić", "Æbelø", "Œuvre", "Þórr", "İstanbul", "Шевчук"].map(foldText),
-    ["visek", "lodz", "strasse", "duric", "aebelo", "oeuvre", "thorr", "istanbul", "шевчук"],
+    ["Brdíšek", "Łódź", "Straße", "Đurić", "Æbelø", "Œuvre", "Þórr", "İstanbul", "Шевчук"].map(foldText),
+    ["brdisek", "lodz", "strasse", "duric", "aebelo", "oeuvre", "thorr", "istanbul", "шевчук"],
   );
   assert.deepEqual(tokens("Іван  Шевчук, 1862"), ["іван", "шевчук", "1862"]);
-  assert.deepEqual(tokens("Antonín /Víšek/"), ["antonin", "visek"]);
+  assert.deepEqual(tokens("Antonín /Brdíšek/"), ["antonin", "brdisek"]);
 });
 
 test("roles in the language of the record", () => {
@@ -45,10 +45,10 @@ test("a page as it reads: character references and script escapes written out, e
 });
 
 test("folding the same text again (remembered): the same answer, composed or decomposed, any script, a long text too", () => {
-  const words = ["Víšek", "Víšek", "Łódź", "Шевчук", "東京", "Poſt"];
+  const words = ["Brdíšek", "Brdíšek", "Łódź", "Шевчук", "東京", "Poſt"];
   const first = words.map(foldText);
   for (let i = 0; i < 3; i++) assert.deepEqual(words.map(foldText), first);
-  assert.equal(foldText("Víšek"), foldText("Víšek"));
+  assert.equal(foldText("Brdíšek"), foldText("Brdíšek"));
   const long = "Žďár nad Sázavou ".repeat(20);
   assert.equal(foldText(long), foldText(long.normalize("NFD")));
   assert.equal(foldText(long), "zdar nad sazavou ".repeat(20).trim());

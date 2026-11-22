@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.36.0
 
-*In preparation: the betas up to 1.36.0-beta.9. The section is complete with the release.*
+*In preparation: the betas up to 1.36.0-beta.10. The section is complete with the release.*
 
 - **A try of the bulk verification at once:** the tasks of a try of the bulk verification (`strom verify bulk --try`)
   stand first in the queue — the next session takes them — and the Strom app can have them worked on at once, one
@@ -89,7 +89,9 @@ The changes of each version in short. The full notes and the install lines are o
   new one for each file. A newer Strom app hands over a whole batch at once: each file is checked and answered as soon
   as it arrives, and the batch is written as it is closed — one save, one rebuild of the family tree file and one notice
   to the app — while an agent at work gets the research between the parts. An older Strom app sends as before, only
-  faster.
+  faster. A file of a batch that another program holds while the batch is closed (an antivirus, a sync or a backup)
+  is no longer an error: nothing is lost, the Strom app waits a moment and is told why, and the research writes the
+  batch's files by itself a while later.
   The Strom app shows the imported family tree files (GEDCOM, the app's JSON)
   in Materials and deletes them for good as any file of the material; one a source was made of only together with that
   source, in one step with one confirmation (`strom input delete … --retract-sources`).

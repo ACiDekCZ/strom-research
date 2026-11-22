@@ -3,7 +3,9 @@
 // Files of no batch are written a moment after they came (STROM_MEDIA_QUEUE_MS, 300 ms: what comes together, one
 // commit); a batch's once the app says it is whole (POST /batch/<id>/done: its files and its close one commit) or once
 // no file of it came for a while (STROM_MEDIA_BATCH_QUIET_MS, 10 s). The jobs a bridge before it left are taken over as
-// it starts. The research busy (another strom holds it): tried again in a while.
+// it starts. The research busy (another strom holds it): tried again in a while. A close that failed (a file another
+// program held — found on Windows —, the research busy, …): the batch's files written again in a while all the same,
+// never left waiting for the next bridge (the app closes it again as the answer's `retry` says).
 
 import { EXIT } from "./errors.ts";
 import { jobsOf, listJobs, type QueueJob } from "./mediaqueue.ts";
@@ -20,9 +22,10 @@ export interface MediaQueue {
   queued(job: QueueJob): void;
   /**
    * The app says a batch is whole: its queued files written, then `close` runs (strom input batch done, which takes what
-   * is left of them in its commit) and says when it is done.
+   * is left of them in its commit) and says when it is done — and whether the batch was closed (false: its files left
+   * in the queue are written again in a while).
    */
-  close(id: string, close: (done: () => void) => void): void;
+  close(id: string, close: (done: (closed: boolean) => void) => void): void;
   /** A strom of the queue at work now. */
   writing(): boolean;
   /** Files waiting to be written (a moment, a batch not whole yet, the research busy). */
@@ -35,7 +38,7 @@ export function mediaQueue(o: { root: string; env: NodeJS.ProcessEnv; run: RunSt
   const windowMs = Number(o.env.STROM_MEDIA_QUEUE_MS ?? 300);
   const quietMs = Number(o.env.STROM_MEDIA_BATCH_QUIET_MS ?? 10_000);
   // what waits to be done, in order: the files of no batch, a batch's files, a batch closed
-  type Work = { kind: "loose" } | { kind: "batch"; id: string } | { kind: "close"; id: string; close: (done: () => void) => void };
+  type Work = { kind: "loose" } | { kind: "batch"; id: string } | { kind: "close"; id: string; close: (done: (closed: boolean) => void) => void };
   const todo: Work[] = [];
   let busy = false;
   let ended = false;
@@ -58,9 +61,9 @@ export function mediaQueue(o: { root: string; env: NodeJS.ProcessEnv; run: RunSt
       busy = false;
       setImmediate(kick);
     };
-    const later = () => {
+    const later = (work: Work = w) => {
       // tried again in a while (never at once: no loop against a research that fails), the work kept
-      todo.unshift(w);
+      todo.unshift(work);
       retryTimer = setTimeout(() => {
         retryTimer = undefined;
         kick();
@@ -69,7 +72,14 @@ export function mediaQueue(o: { root: string; env: NodeJS.ProcessEnv; run: RunSt
       finish();
     };
     if (w.kind === "close") {
-      const close = () => w.close(finish);
+      const close = () =>
+        w.close((closed) => {
+          if (closed || ended || !jobsOf(o.root, w.id).length) return finish();
+          // not closed and its files wait: written again in a while (the batch open until the app closes it again)
+          backoff = Math.min(backoff ? backoff * 2 : 1000, 300_000);
+          o.note(`the batch ${w.id} not closed now: its queued files written again in ${Math.round(backoff / 1000)} s`);
+          later({ kind: "batch", id: w.id });
+        });
       // its files first while more wait than one strom takes, then the close takes the rest (one commit for a small
       // batch); the research busy meanwhile: closed now all the same — the close says it is busy (503) to the app
       if (jobsOf(o.root, w.id).length > CHUNK_FILES) return take(w.id, (r) => (r === "more" ? (todo.unshift(w), finish()) : close()));

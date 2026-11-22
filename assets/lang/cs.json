@@ -1738,6 +1738,7 @@
   "ui.review.nothing": "{name} — nic nového k revizi",
   "ui.media.large": "Soubor je větší, než výzkum z aplikace přijme ({mb} MB): nechat ho v počítači a předat ho výzkumu tam (strom intake).",
   "ui.media.full": "Na disku výzkumu není pro soubor dost místa: uvolnit tam místo a poslat ho znovu.",
+  "ui.media.held": "Soubor poslaný z aplikace teď na chvíli drží jiný program (antivir, synchronizace nebo zálohování): nic se neztratilo, výzkum ho za chvíli převezme znovu.",
   "ui.sync.title": "{file}: {n, plural, one {# změna} few {# změny} other {# změn}} proti výzkumu",
   "ui.sync.title.asks": "{file}: {q, plural, one {# otázka} few {# otázky} other {# otázek}} k rozhodnutí, jinak nic proti výzkumu",
   "ui.sync.title.both": "{file}: {n, plural, one {# změna} few {# změny} other {# změn}} proti výzkumu, {q, plural, one {# otázka} few {# otázky} other {# otázek}} k rozhodnutí",

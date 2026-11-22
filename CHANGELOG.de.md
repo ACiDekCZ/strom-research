@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.36.0
 
-*In Vorbereitung: die Betas bis 1.36.0-beta.9. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.36.0-beta.10. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein Versuch der Sammelprüfung sofort:** Die Aufgaben eines Versuchs der Sammelprüfung (`strom verify bulk --try`)
   stehen am Anfang der Warteschlange – die nächste Sitzung nimmt sie –, und die Strom-App lässt sie sofort bearbeiten,
@@ -99,7 +99,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   übergibt einen ganzen Stapel auf einmal: Jede Datei wird geprüft und bestätigt, sobald sie ankommt, und der Stapel
   wird beim Abschließen geschrieben – ein Speichern, ein Neuaufbau der Stammbaumdatei und eine Mitteilung an die App –,
   während ein arbeitender Agent zwischen den Teilen an die Forschung kommt. Eine ältere Strom-App sendet wie bisher, nur
-  schneller.
+  schneller. Eine Datei eines Stapels, die beim Abschließen ein anderes Programm hält (Virenschutz, Synchronisierung
+  oder Sicherung), ist kein Fehler mehr: nichts geht verloren, die Strom-App wartet kurz und erfährt warum, und die
+  Forschung schreibt die Dateien des Stapels kurz darauf von selbst.
   Die Strom-App zeigt die importierten Stammbaumdateien (GEDCOM, JSON der
   App) im Material und löscht sie endgültig wie jede Datei des Materials; eine, aus der eine Quelle entstand, nur
   zusammen mit dieser Quelle, in einem Schritt mit einer Bestätigung (`strom input delete … --retract-sources`).

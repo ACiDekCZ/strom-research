@@ -203,6 +203,9 @@ export interface Savepoint {
   single?: Map<string, AnyRecord | null>;
 }
 
+/** The last operation's time of this process (Tree.stamp). */
+let lastStamp = 0;
+
 export class Tree {
   readonly root: string;
   readonly config: TreeConfig;
@@ -690,12 +693,14 @@ export class Tree {
     return this.keyCache ?? undefined;
   }
 
-  private lastStamp = 0;
-
-  /** Strictly increasing timestamps: operations are ordered by time across logs. */
+  /**
+   * Strictly increasing timestamps: operations are ordered by time across logs — across every Tree of this process too
+   * (two opened on one research write two logs; the same millisecond in both left the order to their names' random part,
+   * the older operation's file taken as the last word: "changed outside strom", seen on Linux).
+   */
   private stamp(): string {
-    this.lastStamp = Math.max(Date.now(), this.lastStamp + 1);
-    return new Date(this.lastStamp).toISOString();
+    lastStamp = Math.max(Date.now(), lastStamp + 1);
+    return new Date(lastStamp).toISOString();
   }
 
   /** Operation logs appended to by this process (tree-relative). */

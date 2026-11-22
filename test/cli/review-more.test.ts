@@ -170,9 +170,9 @@ test("strom run: one refused command that starts with strom does not stop a loop
 test("live run findings: a citation without a fact cites the name; a search task without a recorded search is flagged", opts, async () => {
   const w = await world();
   await w.ok(["source", "add", "Vyprávění", "--kind", "family-memory", "--form", "authored"]);
-  const named = await w.ok(["person", "add", "Jakub /Víšek/", "--cite", "S1"]);
-  assert.match(named.out, /\+P\d{4} Jakub \/Víšek\/ ← S0001/);
-  assert.equal((await w.run(["person", "add", "Jan /Víšek/", "--cite", "S1", "--status", "proven"])).code, 2, "a status needs a fact");
+  const named = await w.ok(["person", "add", "Jakub /Brdíšek/", "--cite", "S1"]);
+  assert.match(named.out, /\+P\d{4} Jakub \/Brdíšek\/ ← S0001/);
+  assert.equal((await w.run(["person", "add", "Jan /Brdíšek/", "--cite", "S1", "--status", "proven"])).code, 2, "a status needs a fact");
   await w.ok(["task", "add", "Kde jsou matriky", "--level", "locate", "--where", "Vavřinec", "--why", "a", "--done-when", "b"]);
   assert.match((await w.ok(["task", "done", "T1", "--result", "MZA, Sloup 782"])).out, /no search is recorded for T0001 — record what you looked at/);
   w.cleanup();

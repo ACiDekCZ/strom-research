@@ -7,6 +7,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { Settings } from "./config.ts";
 import { UsageError } from "./errors.ts";
+import { retryingHeld } from "./json.ts";
 import type { Input, Media, Region, Source } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { safeFolderName } from "./text.ts";
@@ -16,7 +17,8 @@ export const MAX_IN_TREE = 20 * 1024 * 1024;
 
 export function fileSha256(file: string): string {
   const h = crypto.createHash("sha256");
-  const fd = fs.openSync(file, "r");
+  // opened again for a while on Windows when another program (an antivirus) holds it for a moment
+  const fd = retryingHeld(file, process.platform, () => fs.openSync(file, "r"));
   try {
     const buf = Buffer.allocUnsafe(1 << 20);
     let n: number;

@@ -125,6 +125,7 @@ test("strom doctor and the bridge's /status: the archives of the tree only a per
     s = status(tree, w.env) as typeof s;
     assert.deepEqual(s.browser.archives.map((a) => [a.host, a.permitted]), [["www.mza.cz", true]]);
 
+    w.agentsHere("codex");
     await w.ok(["config", "set", "agent", "codex"]);
     d = await doc();
     assert.ok(d.some((c) => c.status === "warn" && /with Claude Code and the Claude in Chrome extension the agent would save the images itself; with [^;]*Codex[^;]* they are saved by hand/.test(c.detail)), JSON.stringify(d));
@@ -137,6 +138,7 @@ test("strom doctor and the bridge's /status: the archives of the tree only a per
     assert.ok(cs.some((c) => /jen přes prohlížeč člověka – s Claude Code a rozšířením Claude in Chrome by snímky uložil agent sám/.test(c.detail)), JSON.stringify(cs));
 
     // the desktop apps' browser and computer use: what strom watches of each, never recommended, nothing said off (4 languages)
+    w.agentsHere("opencode");
     for (const [lang, said] of [
       ["en", /built-in browser of the Claude app strom watches like Claude in Chrome, yet does not recommend it; computer use of the Claude app strom does not watch; the browser of the ChatGPT \(Codex\) app strom does not watch \(it runs through ChatGPT's cloud; ChatGPT decides on the sites itself\); Codex in the terminal: its browser strom watches by the addresses its code names, once strom's hooks are confirmed in Codex; computer use strom does not watch; the OpenCode app: a browser or computer use, if it has them, strom does not watch {2}\(strom doc R12\.1, R12\.10\)/],
       ["cs", /vestavěný prohlížeč aplikace Claude strom hlídá jako Claude in Chrome, ale nedoporučuje ho; computer use aplikace Claude strom nehlídá; prohlížeč aplikace ChatGPT \(Codex\) strom nehlídá \(běží přes cloud ChatGPT, o webech rozhoduje ChatGPT sám\); Codex v terminálu: jeho prohlížeč strom hlídá podle adres v jeho kódu/],
@@ -180,6 +182,7 @@ test("Codex's browser once the person confirmed strom's hooks of the tree in Cod
     assert.deepEqual([k.allow, k.route], [true, "browser"]);
     // its web fetch: never at such an archive (a person's browser only)
     assert.equal((await check(w, BOOK, codex, false)).allow, false);
+    w.agentsHere("codex");
     await w.ok(["config", "set", "agent", "codex"]);
     const b = (await w.ok(["brief", "T1"])).out;
     assert.match(b, /your browser: through your browser \(its address written out in your code, tab\.goto/);

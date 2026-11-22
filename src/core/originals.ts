@@ -10,6 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { UsageError } from "./errors.ts";
+import { removeRetrying, retryingHeld } from "./json.ts";
 import type { Family, Input, Media, Person, Region, Source, Task } from "./model.ts";
 import { mimeOf, sharedMediaPath } from "./media.ts";
 import { create, update } from "./records.ts";
@@ -269,13 +270,14 @@ export function takeOriginal(tree: Tree, shared: string, file: string, sha: stri
   const dest = sharedMediaPath(shared, sha, type.ext[0]!);
   if (!tree.dryRun) {
     fs.mkdirSync(path.dirname(dest), { recursive: true });
-    if (fs.existsSync(dest)) fs.rmSync(file, { force: true });
+    // again for a while on Windows when another program (an antivirus) holds the file for a moment
+    if (fs.existsSync(dest)) removeRetrying(file);
     else {
       try {
-        fs.renameSync(file, dest);
+        retryingHeld(file, process.platform, () => fs.renameSync(file, dest));
       } catch {
-        fs.copyFileSync(file, dest);
-        fs.rmSync(file, { force: true });
+        retryingHeld(file, process.platform, () => fs.copyFileSync(file, dest));
+        removeRetrying(file);
       }
     }
   }

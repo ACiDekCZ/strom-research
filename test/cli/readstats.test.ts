@@ -289,7 +289,9 @@ test("a unit's key once kept is its own: another agent or model chosen since mov
   assert.deepEqual([n1.key, n1.hosts["archiv.example"].requests, n1.hosts["archiv.example"].later], [TUNED, 4, 1], "read again from its log, its key from its own record");
   assert.equal(j.key, TUNED);
 
-  // another agent chosen: the history stays where it was — nothing measured for the new one yet
+  // another agent chosen (here, as on every computer the tests run on): the history stays where it was — nothing
+  // measured for the new one yet
+  w.agentsHere("codex");
   await w.ok(["agents", "use", "codex"]);
   await w.ok(["config", "set", "model.lead", "gpt-x"]);
   put(path.join(root, ".strom", "views", "views.jsonl"), [{ at: new Date().toISOString(), key: media.B0001![0], by: "N0001", view: "a.jpg", region: { x: 0, y: 0, w: 300, h: 200 }, scale: 1 }]);

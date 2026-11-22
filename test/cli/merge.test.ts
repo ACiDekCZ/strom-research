@@ -14,15 +14,15 @@ const opts = { skip: !hasGit };
 test("person and family merge: parents first, then the person; every reference follows", opts, async () => {
   const w = new World();
   await w.withTree();
-  await w.ok(["research", "new", "Předci", "--new-person", "Antonín /Víšek/", "--sex", "M", "--born", "BET 1811 AND 1812"]); // P1
-  await w.ok(["person", "add", "Antonín /Višek/", "--sex", "M", "--born", "1811", "--note", "z importovaného rodokmenu"]); // P2
+  await w.ok(["research", "new", "Předci", "--new-person", "Antonín /Brdíšek/", "--sex", "M", "--born", "BET 1811 AND 1812"]); // P1
+  await w.ok(["person", "add", "Antonín /Brdišek/", "--sex", "M", "--born", "1811", "--note", "z importovaného rodokmenu"]); // P2
   await w.ok(["person", "add", "Markéta", "--sex", "F"]); // P3
   await w.ok(["family", "add", "--partner", "P2", "--partner", "P3", "--married", "1839"]); // F1
-  await w.ok(["person", "add", "Jakub /Víšek/", "--sex", "M"]); // P4
+  await w.ok(["person", "add", "Jakub /Brdíšek/", "--sex", "M"]); // P4
   await w.ok(["family", "add", "--partner", "P4", "--child", "P1"]); // F2
-  await w.ok(["person", "add", "Jakub /Višek/"]); // P5
+  await w.ok(["person", "add", "Jakub /Brdišek/"]); // P5
   await w.ok(["family", "add", "--partner", "P5", "--child", "P2"]); // F3
-  await w.ok(["person", "add", "František /Víšek/", "--sex", "M"]); // P6
+  await w.ok(["person", "add", "František /Brdíšek/", "--sex", "M"]); // P6
   await w.ok(["event", "add", "P6", "CHR", "--date", "1862", "--with", "godparent:P2"]);
   await w.ok(["task", "add", "Křest Antonína", "--level", "link", "--where", "Sloup 780", "--why", "a", "--done-when", "b", "--about", "P2"]);
 
@@ -39,7 +39,7 @@ test("person and family merge: parents first, then the person; every reference f
   assert.match(merged.out, /note: P0001 now has BIRT twice — keep the better one/);
 
   const p1 = (await w.ok(["person", "show", "P1", "--json"])).json;
-  assert.deepEqual(p1.person.names.map((n: any) => n.surname), ["Víšek", "Višek"]);
+  assert.deepEqual(p1.person.names.map((n: any) => n.surname), ["Brdíšek", "Brdišek"]);
   assert.equal(p1.person.events.filter((e: any) => e.kind === "BIRT").length, 2);
   assert.equal(p1.person.notes[0].text, "z importovaného rodokmenu");
   assert.deepEqual(p1.partnerFamilies.map((f: any) => f.partners), [["P0001", "P0003"]]);
@@ -103,16 +103,16 @@ test("person retract: a person who does not exist leaves the family and the GEDC
 test("an imported tree: the people already researched are pointed out, a wife under her married name too", opts, async () => {
   const w = new World();
   await w.withTree();
-  await w.ok(["research", "new", "Předci", "--new-person", "Antonín /Víšek/", "--sex", "M", "--born", "BET 1811 AND 1812"]); // P1
-  await w.ok(["person", "add", "Jakub /Víšek/", "--sex", "M"]); // P2
+  await w.ok(["research", "new", "Předci", "--new-person", "Antonín /Brdíšek/", "--sex", "M", "--born", "BET 1811 AND 1812"]); // P1
+  await w.ok(["person", "add", "Jakub /Brdíšek/", "--sex", "M"]); // P2
   await w.ok(["person", "add", "Magdalena /Ševčíková/", "--sex", "F"]); // P3
   await w.ok(["family", "add", "--partner", "P2", "--partner", "P3", "--child", "P1"]);
   const ged = [
     "0 HEAD", "1 GEDC", "2 VERS 5.5.1", "1 CHAR UTF-8",
-    "0 @I1@ INDI", "1 NAME Antonín /Víšek/", "1 SEX M", "1 BIRT", "2 DATE 1812", "1 FAMC @F2@",
-    "0 @I6@ INDI", "1 NAME Jakub /Víšek/", "1 SEX M", "1 FAMS @F2@",
-    "0 @I7@ INDI", "1 NAME Magdalena /Víšková/", "1 SEX F", "1 FAMS @F2@",
-    "0 @I8@ INDI", "1 NAME Antonín /Víšek/", "1 SEX M", "1 BIRT", "2 DATE 1850",
+    "0 @I1@ INDI", "1 NAME Antonín /Brdíšek/", "1 SEX M", "1 BIRT", "2 DATE 1812", "1 FAMC @F2@",
+    "0 @I6@ INDI", "1 NAME Jakub /Brdíšek/", "1 SEX M", "1 FAMS @F2@",
+    "0 @I7@ INDI", "1 NAME Magdalena /Brdíšková/", "1 SEX F", "1 FAMS @F2@",
+    "0 @I8@ INDI", "1 NAME Antonín /Brdíšek/", "1 SEX M", "1 BIRT", "2 DATE 1850",
     "0 @F2@ FAM", "1 HUSB @I6@", "1 WIFE @I7@", "1 CHIL @I1@",
     "0 TRLR",
   ].join("\n");
@@ -121,7 +121,7 @@ test("an imported tree: the people already researched are pointed out, a wife un
   assert.match(intake.out, /Nejspíš už v rodokmenu: P0004≈P0001, P0005≈P0002, P0006≈P0003/);
   const brief = (await w.ok(["brief", "T1"])).out;
   assert.match(brief, /## Probably already in the tree \(I0001\)/);
-  assert.match(brief, /P0006 Magdalena Víšková ≈ P0003 Magdalena Ševčíková → strom person merge P0003 P0006/);
+  assert.match(brief, /P0006 Magdalena Brdíšková ≈ P0003 Magdalena Ševčíková → strom person merge P0003 P0006/);
   assert.doesNotMatch(brief, /P0007 Antonín/, "a namesake born 38 years later is not the same man");
   w.cleanup();
 });

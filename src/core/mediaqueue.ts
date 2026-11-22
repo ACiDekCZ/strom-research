@@ -9,7 +9,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { UsageError } from "./errors.ts";
+import { StromError, UsageError } from "./errors.ts";
+import { HELD, retryingHeld, type HeldError } from "./json.ts";
 import type { Env } from "./paths.ts";
 import type { Tree } from "./tree.ts";
 import { fileSha256, sharedMediaPath } from "./media.ts";
@@ -263,6 +264,21 @@ function bytesBack(shared: string, job: QueueJob): boolean {
 }
 
 /**
+ * A queued file another program holds or that cannot be read now (an antivirus, a sync or backup tool; found on Windows:
+ * EBUSY as a batch was closed): the command fails whole — nothing written, every job kept — said by its code
+ * media.held, never the inner path (the bridge answers 503 and writes the queue again in a while). Another error: itself.
+ */
+function heldOf(e: unknown, job: QueueJob): unknown {
+  const err = e as HeldError;
+  if (!HELD.has(err?.code ?? "") || (err.path !== job.file && err.heldFile !== job.file)) return e;
+  return new StromError(`another program is holding ${job.name}, a file sent from the app (an antivirus, a sync or backup tool), or it cannot be read now — nothing was written, the queue kept`, {
+    hint: "run the same command again in a moment",
+    code: "media.held",
+    params: { name: job.name },
+  });
+}
+
+/**
  * Take the jobs waiting (a batch's, or with `batch` null those of no batch) — each as strom media original takes its file —
  * until `maxMs` passed or `maxFiles` were taken (one at least). A file refused is said (its code and why) and its bytes go;
  * the others go on. A file of no batch gets its intake task only with auto (intake.auto on, spec 130 K1.3). The caller
@@ -284,6 +300,8 @@ export function takeQueued(tree: Tree, shared: string, env: Env, o: { batch: str
     if (j.batch) tree.remember(batchFileOf(tree.root, j.batch));
     const said: TakenFile = { sha: j.sha, ...(j.path ? { path: j.path } : {}), ...(j.batch ? { batch: j.batch } : {}) };
     try {
+      // readable (again for a while on Windows while another program holds it): else nothing of the command written
+      if (fs.existsSync(j.file)) retryingHeld(j.file, process.platform, () => fs.closeSync(fs.openSync(j.file, "r")));
       if (!fs.existsSync(j.file) && !bytesBack(shared, j)) {
         const k = knownOriginal(tree, shared, j.sha);
         if (!k) throw new UsageError(`${j.name}: its bytes are no longer here — send it again`, { code: "media.gone", params: { name: j.name } });
@@ -302,7 +320,7 @@ export function takeQueued(tree: Tree, shared: string, env: Env, o: { batch: str
         if (got.task) said.task = got.task;
       }
     } catch (e) {
-      if (!(e instanceof UsageError)) throw e;
+      if (!(e instanceof UsageError)) throw heldOf(e, j);
       if (!tree.dryRun) fs.rmSync(j.file, { force: true });
       said.refused = { code: e.code ?? "media.refused", why: e.message };
     }

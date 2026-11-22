@@ -328,15 +328,15 @@ test("Strom's own export comes back: ages in words, cause and address from its n
   // the shape the Strom app writes (its strings: "Úmrtí: Věk: 61 let", "Věk ženicha: 27 let" …)
   const ged = [
     "0 HEAD", "1 GEDC", "2 VERS 5.5.1", "1 CHAR UTF-8",
-    "0 @I1@ INDI", "1 NAME Jakub /Víšek/", "1 SEX M",
+    "0 @I1@ INDI", "1 NAME Jakub /Brdíšek/", "1 SEX M",
     "1 DEAT", "2 DATE 1838", "2 PLAC Vavřinec",
     "1 NOTE Úmrtí: Věk: 61 let", "2 CONT Úmrtí: Příčina: Lungensucht", "2 CONT Úmrtí: Adresa: čp. 10", "2 CONT Pohřben u kostela.",
-    "0 @I2@ INDI", "1 NAME Jan /Víšek/", "1 SEX M",
+    "0 @I2@ INDI", "1 NAME Jan /Brdíšek/", "1 SEX M",
     "1 BIRT", "2 DATE 1812", "2 PLAC Vavřinec", "2 ADDR čp. 12",
     "2 _WITN Anna Nová", "3 RELA Present", "3 NOTE porodní bába",
     "2 _WITN Franz Dvořáček", "3 RELA Godparent",
     "1 RESI", "2 DATE 1839", "2 PLAC Vavřinec", "2 NOTE Věk: 27 let 3 měsíce",
-    "0 @I3@ INDI", "1 NAME Anna /Víšková/", "1 SEX F",
+    "0 @I3@ INDI", "1 NAME Anna /Brdíšková/", "1 SEX F",
     "1 DEAT", "2 DATE 1840", "1 NOTE Úmrtí: Věk: kojenec",
     "0 @I4@ INDI", "1 NAME Markéta /Ševčíková/", "1 SEX F",
     "0 @F1@ FAM", "1 HUSB @I2@", "1 WIFE @I4@", "1 MARR", "2 DATE 28 MAY 1839", "2 PLAC Petrovice",

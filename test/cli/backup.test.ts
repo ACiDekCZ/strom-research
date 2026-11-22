@@ -201,7 +201,9 @@ test("a research a newer strom wrote (a beta's schema) is never opened: who wrot
     setConfig(w, { backups: [{ at: new Date().toISOString(), from: VERSION, to: "9.9.0-beta.1", fromChannel: "stable", toChannel: "beta", path: path.join(w.home, "backups", "x"), bytes: 1 }] });
     const file = path.join(tree, "strom.json");
     fs.writeFileSync(file, JSON.stringify({ ...readJsonFile(file), schema: 99, migratedWith: "9.9.0-beta.1" }, null, 2) + "\n");
-    spawnSync("git", ["commit", "-qam", "Data brought to schema 99"], { cwd: tree });
+    // git's own maintenance after a commit (detached where git runs it so, as on Linux) would write into .git while the
+    // snapshot below reads it; strom commits by plumbing and never starts it
+    spawnSync("git", ["-c", "maintenance.auto=false", "commit", "-qam", "Data brought to schema 99"], { cwd: tree });
     const skip = (rel: string) => rel.startsWith(path.join(".strom", "live"));
     const before = snapshot(tree, skip);
     for (const args of [[], ["status"], ["person", "add", "Marie /Nováková/"], ["person", "add", "Marie /Nováková/", "--json"]]) {

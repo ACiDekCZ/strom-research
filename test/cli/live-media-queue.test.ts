@@ -215,6 +215,62 @@ test("the queue outlives its bridge: a file queued and the bridge ended before i
   w.cleanup();
 });
 
+test("a batch's close that failed (a queued file another program holds, or not readable now): 503 with retry and a sentence for a person, no inner path, nothing written; the queue written again by the bridge itself, no restart, the next close closes it", { skip: opts.skip || process.getuid?.() === 0 }, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["person", "add", "Josef /Lhoták/", "--sex", "M"]);
+  w.env.STROM_LIVE_POLL_MS = "100";
+  w.env.STROM_MEDIA_BATCH_QUIET_MS = "600000";
+  const root = w.cwd;
+  const info = (await w.ok(["live", "start", "--json"])).json;
+  const batch = "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
+  let held = "";
+  try {
+    for (const [i, p] of ["Krabice/01.jpg", "Krabice/Žofie.jpg", "Фото/02.jpg"].entries()) {
+      const b = jpgNo(300 + i);
+      const r = await request("PUT", `${info.url}/media/${sha(b)}`, b, { ...later, "X-Strom-Batch": batch, "X-Strom-Path": encodeURIComponent(p), "X-Strom-Name": encodeURIComponent(path.basename(p)) });
+      assert.equal(r.status, 202, r.body.toString());
+    }
+    const jobs = listJobs(root).filter((q) => q.job.batch === batch);
+    assert.equal(jobs.length, 3);
+    // another program holding one of them (Windows: an antivirus, EBUSY; here: not readable)
+    held = jobs[1]!.job.file;
+    fs.chmodSync(held, 0o000);
+    const at = commits(root);
+    const done = await request("POST", `${info.url}/batch/${batch}/done`, Buffer.from(JSON.stringify({ name: "Krabice", files: 3 })), app);
+    assert.equal(done.status, 503, done.body.toString());
+    const d = json(done);
+    assert.equal(d.code, "media.held");
+    assert.equal(typeof d.retry, "number");
+    assert.ok(d.retry > 0 && d.retry <= 60, String(d.retry));
+    assert.equal(done.headers["retry-after"], String(d.retry));
+    assert.equal(d.batch, batch);
+    assert.ok(typeof d.error === "string" && d.error.length > 20 && typeof d.text === "string", JSON.stringify(d));
+    assert.doesNotMatch(`${d.error} ${d.text}`, /\.queued|incoming|EACCES|EBUSY|[\\/]/, "a sentence for a person, never the inner path or the system's error");
+    assert.equal(commits(root), at, "nothing written");
+    assert.equal(listJobs(root).filter((q) => q.job.batch === batch).length, 3, "every job kept");
+    // the other program lets go: the bridge writes the queue again by itself (no restart, no new request)
+    fs.chmodSync(held, 0o644);
+    held = "";
+    try {
+      // (its line in live.log once its strom ended: after the jobs went)
+      await until("the batch's files written again by the bridge", () => listJobs(root).filter((q) => q.job.batch === batch).length === 0 && /3 queued file\(s\) of the batch \S+ written/.test(liveLog(root)), { ms: 30_000 });
+    } catch (e) {
+      throw new Error(`${(e as Error).message}\n${liveLog(root)}`);
+    }
+    assert.match(liveLog(root), /the batch \S+ not closed now: its queued files written again in \d+ s/);
+    // the app closes it again as `retry` said: closed, its three files in it
+    const again = await request("POST", `${info.url}/batch/${batch}/done`, Buffer.from(JSON.stringify({ name: "Krabice", files: 3 })), app);
+    assert.equal(again.status, 200, again.body.toString());
+    assert.equal(json(again).inputs, 3, again.body.toString());
+    assert.deepEqual(fs.readdirSync(path.join(w.home, "shared", "media", ".incoming")).filter((n) => n.endsWith(".queued")), [], "no bytes left behind");
+  } finally {
+    if (held) fs.chmodSync(held, 0o644);
+    await w.ok(["live", "stop"]);
+  }
+  w.cleanup();
+});
+
 test("the warm writer: started by the first write, the writes in one process that lives on; killed, the next write by a strom of its own; the bridge's end ends it", opts, async () => {
   const w = new World();
   await w.withTree();

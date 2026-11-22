@@ -957,6 +957,10 @@ function said(lang: string, key: keyof typeof CODES, params: Record<string, stri
  * - `media.refused` 400 — refused for another reason (the English sentence says why); `media.failed` 500 — went wrong
  * - `media.gone` 410 {known} — GET …?file=1: the research knows it, its file is not on this computer
  * - `research.busy` 503 (and Retry-After, `retry`) — another strom holds the research: send it again in a while
+ * - `media.held` 503 (and Retry-After, `retry` in seconds) — another program (an antivirus, a sync or backup tool) held
+ *   a file sent or queued, or it could not be read now (found on Windows: EBUSY as a batch was closed): `error` in the
+ *   research's language, `text` English, never the file's path; nothing written or lost — POST /batch/<id>/done: the
+ *   bridge writes the batch's queued files again by itself, the app closes it again after `retry`
  * - `batch.bad-id` 400 {batch}; `batch.zip-alone` 400 — a ZIP outside a batch; `batch.zip-unreadable` 400 {name}
  * - `batch.closed` 409 {batch} — the batch is closed already: send the rest as a new batch
  * - `batch.full-files` 413 {batch, files}; `batch.full-bytes` 413 {batch, gb} — the most a batch takes
@@ -4969,7 +4973,8 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     media.close(id, (done) =>
       closeBatchBy(receiver, id, extra, (code, body) => {
         reply(code, body);
-        done();
+        // not closed (a file held, the research busy, …): the queue writes the batch's files again in a while
+        done(code === 200 || code === 202);
       }),
     );
 
@@ -5018,7 +5023,7 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   /** The app says a batch is whole: {name, files, person, note} — its files become sorting tasks (the note told in them). */
   const batchDone = (req: http.IncomingMessage, res: http.ServerResponse, origin: string | undefined, id: string) => {
     const reply = (code: number, body: Record<string, unknown>) => {
-      if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(code === 503 ? { "Retry-After": "30" } : {}) }).end(JSON.stringify(body));
+      if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(code === 503 ? { "Retry-After": String(typeof body.retry === "number" ? body.retry : 30) } : {}) }).end(JSON.stringify(body));
     };
     if (!origin) return reply(403, refusal("only the Strom app may close a batch", "app.only"));
     if (!BATCH_ID.test(id) || (!readBatch(root, id) && !batchQueued(root, id))) {

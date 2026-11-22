@@ -2,8 +2,12 @@
 // told to do in the brief, through the strom on its PATH.
 import { spawnSync } from "node:child_process";
 
+// Windows: strom is a launcher (strom.cmd) only cmd.exe starts, and the shell option joins the arguments with spaces as
+// they are — each one quoted for cmd.exe, else "done by run-…" came as three (found on Windows, W136-T1)
+const win = process.platform === "win32";
+const cmdQuote = (a: string) => (/^[\p{L}\p{N}_.\-/:=@]+$/u.test(a) ? a : `"${a.replace(/"/g, '""')}"`);
 const strom = (...args: string[]) => {
-  const r = spawnSync("strom", args, { encoding: "utf8", env: process.env, shell: process.platform === "win32" });
+  const r = spawnSync("strom", win ? args.map(cmdQuote) : args, { encoding: "utf8", env: process.env, shell: win });
   process.stdout.write(`$ strom ${args.join(" ")} → ${r.status}\n`);
   if (r.status !== 0) process.stdout.write(r.stdout + r.stderr);
   return r;

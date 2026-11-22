@@ -73,9 +73,15 @@ jobs:
           node scripts/dev-node.ts
           node --test --test-shard=${{ matrix.shard }}/8 --import ./test/setup.ts --test-global-setup=./test/global-setup.ts --test-timeout=240000 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tap --test-reporter-destination="$RUNNER_TEMP/tap.txt" "test/**/*.test.ts"
       # what this system skipped, and why (test/JEN-MAC.md lists those a Mac runs)
-      - name: Skipped here
+      - name: Skipped here, the shard's sums
         if: always()
-        run: grep -E "^ *(not )?ok .*# SKIP" "$RUNNER_TEMP/tap.txt" | sed -E "s/^ *//" || echo "none"
+        run: |
+          grep -E "^ *(not )?ok .*# SKIP" "$RUNNER_TEMP/tap.txt" | sed -E "s/^ *//" || echo "none"
+          # the shard's sums on the run's page: tests, passed, failed, skipped, its time
+          {
+            echo "### Shard ${{ matrix.shard }} of 8"
+            grep -E "^# (tests|pass|fail|cancelled|skipped|duration_ms) " "$RUNNER_TEMP/tap.txt" | sed -E "s/^# /- /"
+          } >> "$GITHUB_STEP_SUMMARY" || true
       - name: The shard's results (TAP)
         if: always()
         uses: actions/upload-artifact@v5

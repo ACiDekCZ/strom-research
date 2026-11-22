@@ -1738,6 +1738,7 @@
   "ui.review.nothing": "{name} – nic nowego do przeglądu",
   "ui.media.large": "Plik jest większy, niż badanie przyjmuje z aplikacji ({mb} MB): można go zostawić na komputerze i przekazać badaniu tam (strom intake).",
   "ui.media.full": "Na dysku badania nie ma dość miejsca na plik: trzeba tam zwolnić miejsce i wysłać go ponownie.",
+  "ui.media.held": "Plik wysłany z aplikacji jest teraz na chwilę zajęty przez inny program (antywirus, synchronizacja lub kopia zapasowa): nic nie zginęło, badanie za chwilę przejmie go ponownie.",
   "ui.sync.title": "{file}: {n, plural, one {# zmiana} few {# zmiany} many {# zmian} other {# zmian}} względem badania",
   "ui.sync.title.asks": "{file}: {q, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}} do rozstrzygnięcia, poza tym nic względem badania",
   "ui.sync.title.both": "{file}: {n, plural, one {# zmiana} few {# zmiany} many {# zmian} other {# zmian}} względem badania, {q, plural, one {# pytanie} few {# pytania} many {# pytań} other {# pytania}} do rozstrzygnięcia",

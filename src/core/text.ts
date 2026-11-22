@@ -1,7 +1,7 @@
 // Text helpers for matching names across spellings and diacritics.
 
 /**
- * Lowercase, strip diacritics, collapse whitespace: "Víšek  Antonín" -> "visek antonin". A letter's other shape is the
+ * Lowercase, strip diacritics, collapse whitespace: "Brdíšek  Antonín" -> "brdisek antonin". A letter's other shape is the
  * letter: the long s ("Poſt" -> "post"), the ordinal a and o ("1ª" -> "1a").
  */
 export function foldText(s: string): string {
