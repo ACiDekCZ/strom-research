@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.36.0
 
-*In Vorbereitung: die Betas bis 1.36.0-beta.10. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.36.0-beta.11. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein Versuch der Sammelprüfung sofort:** Die Aufgaben eines Versuchs der Sammelprüfung (`strom verify bulk --try`)
   stehen am Anfang der Warteschlange – die nächste Sitzung nimmt sie –, und die Strom-App lässt sie sofort bearbeiten,
@@ -101,7 +101,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   während ein arbeitender Agent zwischen den Teilen an die Forschung kommt. Eine ältere Strom-App sendet wie bisher, nur
   schneller. Eine Datei eines Stapels, die beim Abschließen ein anderes Programm hält (Virenschutz, Synchronisierung
   oder Sicherung), ist kein Fehler mehr: nichts geht verloren, die Strom-App wartet kurz und erfährt warum, und die
-  Forschung schreibt die Dateien des Stapels kurz darauf von selbst.
+  Forschung schreibt die Dateien des Stapels kurz darauf von selbst. Ein ohne Sortieren abgeschlossener Stapel, dessen
+  Dateien in der Strom-App sortiert wurden („Mit dem Agenten sortieren…“), bleibt im Menü der App nicht mehr
+  „unsortiert“: eine Datei, die eine Sortierung bis zum Ende durchlaufen hat, zählt als sortiert – auch in einer so
+  früher sortierten Forschung, ohne dass sich darin etwas ändert.
   Die Strom-App zeigt die importierten Stammbaumdateien (GEDCOM, JSON der
   App) im Material und löscht sie endgültig wie jede Datei des Materials; eine, aus der eine Quelle entstand, nur
   zusammen mit dieser Quelle, in einem Schritt mit einer Bestätigung (`strom input delete … --retract-sources`).

@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.36.0
 
-*Připravuje se: bety do 1.36.0-beta.10. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.36.0-beta.11. Oddíl bude úplný s vydáním.*
 
 - **Zkouška hromadného ověření hned:** úkoly zkoušky hromadného ověření (`strom verify bulk --try`) stojí na začátku
   fronty – vezme je příští sezení – a aplikace Strom je dá zpracovat hned, každý úkol jedno sezení, odkazem, který úkoly
@@ -87,6 +87,9 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   jednotlivými částmi. Starší aplikace Strom posílá jako dřív, jen rychleji.
   Soubor dávky, který při jejím uzavření drží jiný program (antivir, synchronizace nebo zálohování), už není chyba:
   nic se neztratí, aplikace Strom chvíli počká a dozví se proč a výzkum soubory dávky za chvíli zapíše sám.
+  Dávka uzavřená bez třídění, jejíž soubory se roztřídily v aplikaci Strom (Roztřídit agentem…), už v menu aplikace
+  nezůstává „neroztříděná“: soubor, kterým třídění prošlo až do konce, se počítá jako roztříděný – i ve výzkumu
+  roztříděném takto dřív, aniž se v něm cokoli změní.
   Aplikace Strom ukáže v Materiálech importované soubory rodokmenu (GEDCOM, JSON
   aplikace) a smaže je natrvalo jako každý soubor materiálu; ten, ze kterého vznikl pramen, jen spolu s tímto pramenem,
   v jednom kroku s jedním potvrzením (`strom input delete … --retract-sources`).

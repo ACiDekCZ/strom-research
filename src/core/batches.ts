@@ -16,6 +16,7 @@ import { UsageError } from "./errors.ts";
 import type { Env } from "./paths.ts";
 import type { Tree } from "./tree.ts";
 import { costPartial, sessionCost } from "./session.ts";
+import { listSorts } from "./sort.ts";
 
 /** A batch's mark, as the app makes it (a UUID, or letters, digits and "-"). */
 export const BATCH_ID = /^[A-Za-z0-9-]{8,64}$/;
@@ -337,17 +338,36 @@ export function phoneBatch(root: string, id: string, fresh: () => string): strin
   return at;
 }
 
-/** The batches for the app (/status batches): each with how far it is sorted — the last 30 days', and any not sorted yet. */
+/**
+ * The files a sort of the material went through to its end (done, its files read: with a proposal or without one) — a
+ * file of a batch closed unsorted that the person had sorted in the Strom app (POST /material/sort) or by
+ * `strom material sort` is sorted, though nothing of the sort is written into the research. Found when read, from the
+ * sorts kept in .strom/sorts, so a research whose app sorted its batches before says so with no change of its data.
+ * A sort queued, at work, failed or cancelled sorted nothing.
+ */
+export function filesSortedBySorts(root: string): Set<string> {
+  const out = new Set<string>();
+  for (const s of listSorts(root)) if (s.state === "done") for (const id of s.files) out.add(id);
+  return out;
+}
+
+/**
+ * The batches for the app (/status batches): each with how far it is sorted — the last 30 days', and any not sorted yet.
+ * A file is sorted when its batch's sorting (strom input sort, a reading, media) moved it on, or a sort of the material
+ * went through it to its end (filesSortedBySorts).
+ */
 export function batchStatus(tree: Tree): Record<string, unknown>[] {
   const month = Date.now() - 30 * 24 * 60 * 60_000;
   // In an archive (or a research waiting for its agent) a batch is kept as it came: nothing sorts it, so it is no
   // batch "waiting to be sorted" — said as `kept`, and gone from the list after a month like a sorted one.
   const kept = actsAsArchive(tree);
   const out: Record<string, unknown>[] = [];
+  let bySorts: Set<string> | undefined;
   for (const b of listBatches(tree.root)) {
     // a file deleted for good is no file of the batch any more
     const inputs = b.inputs.map((i) => tree.get<Input>(i)).filter((i): i is Input => !!i && i.retracted?.reason !== "deleted");
-    const sorted = inputs.filter((i) => i.sorted || i.state !== "new").length;
+    // the sorts are read only when a batch has a file its own sorting did not move on (once for all batches)
+    const sorted = inputs.filter((i) => i.sorted || i.state !== "new" || (bySorts ??= filesSortedBySorts(tree.root)).has(i.id)).length;
     if (Date.parse(b.updated) < month && (kept || sorted === inputs.length)) continue;
     const persons = [...new Set(inputs.flatMap((i) => [...(i.persons ?? []), ...(i.sorted?.persons ?? [])]))];
     out.push({

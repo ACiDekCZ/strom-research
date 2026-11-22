@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.36.0
 
-*W przygotowaniu: bety do 1.36.0-beta.10. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.36.0-beta.11. Sekcja będzie kompletna z wydaniem.*
 
 - **Próba zbiorczej weryfikacji od razu:** zadania próby zbiorczej weryfikacji (`strom verify bulk --try`) stoją na
   początku kolejki – weźmie je następna sesja – a aplikacja Strom pozwala przerobić je od razu, każde zadanie w jednej
@@ -92,7 +92,9 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   powiadomienie aplikacji – a pracujący agent dostaje się do badania między częściami. Starsza aplikacja Strom wysyła
   jak dotąd, tylko szybciej. Plik paczki, który przy jej zamykaniu zajmuje inny program (antywirus, synchronizacja lub
   kopia zapasowa), nie jest już błędem: nic nie ginie, aplikacja Strom chwilę czeka i dowiaduje się dlaczego, a badanie
-  samo zapisuje pliki paczki chwilę później.
+  samo zapisuje pliki paczki chwilę później. Paczka zamknięta bez porządkowania, której pliki uporządkowano w aplikacji
+  Strom, nie pozostaje już w menu aplikacji „nieuporządkowana”: plik, przez który porządkowanie przeszło do końca,
+  liczy się jako uporządkowany – także w badaniu uporządkowanym tak wcześniej, bez żadnej zmiany w nim.
   Aplikacja Strom pokazuje w Materiałach zaimportowane pliki drzewa
   genealogicznego (GEDCOM, JSON aplikacji) i usuwa je na stałe jak każdy plik materiałów; ten, z którego powstało
   źródło, tylko razem z tym źródłem, w jednym kroku z jednym potwierdzeniem (`strom input delete … --retract-sources`).
