@@ -112,7 +112,7 @@ import { now } from "../core/tree.ts";
 import { FetchMeter, metricsDir, recordFetch, requestsPerImage, webDomain } from "../core/metrics.ts";
 import { siteConnector } from "../core/web.ts";
 import { allows, forgetConnector, grantWay, keyHost, latchedPace, liftRefusal, loadArchives, pendingQuestions, termsFor, termsOpen, type ArchiveLevel } from "../core/terms.ts";
-import { waitsOnHost } from "../core/archivewait.ts";
+import { setHosts, waitsOnHost } from "../core/archivewait.ts";
 import { waysOffered } from "../core/archiveasks.ts";
 import { archivesOverview, browserOnlyRefusal, checkEnvironment, gateArchive, levelsOf, levelText, NeedsPermissionError, permissionText, robotsPermits, syncTrees, taskHere, verdictKeeper } from "./archives.ts";
 import { currentSession, lifeOf, othersAtWork } from "../core/session.ts";
@@ -1540,6 +1540,7 @@ register(
       const again = typeof opts.again === "string" ? opts.again.trim() || undefined : undefined;
       const task = opts.task === undefined ? undefined : requireRecord<Task>(tree, String(opts.task), "task").id;
       if (task && (request.cmd === "find" || request.cmd === "list")) throw new UsageError("--task names whose images are fetched: with --images (and --recordset)");
+      if (request.cmd === "fetch") rightBookFirst(ctx, c, request, recordset, again);
       if (request.cmd === "fetch") sameBookFirst(ctx, c, request, recordset, again);
       if (opts.background) {
         if (request.cmd !== "fetch" || !recordset)
@@ -2324,6 +2325,42 @@ function fromStore(ctx: Context, c: Connector, request: Extract<ConnectorRequest
       ...(noSharper ? { skipped: { image: request.image, region: request.region, detail: h.most, width: Math.round(h.detail), gain: gain! } } : {}),
     },
   };
+}
+
+/**
+ * A fetch into a book that is not this book of the connector, before any request (found live: a slip of the agent's
+ * fetched an image of one archive's book into a book of another archive, which was then "the same book" as the first):
+ * a book whose images came from another book of this connector, or a book of another archive — its link, or its
+ * archive's, on the portal of another connector and not on this one's, and no image of it from this book (a link
+ * nobody's connector knows says nothing: a catalogue elsewhere, a copy on an aggregator's portal). Said which book it is,
+ * and where the images go: the book of the research this book of the connector is, or a book of its own. Images taken
+ * back (strom media retract) bind a book to nothing. --again with a reason fetches all the same (another film of it).
+ */
+function rightBookFirst(ctx: Context, c: Connector, request: Extract<ConnectorRequest, { cmd: "fetch" }>, recordset: string | undefined, again: string | undefined): void {
+  if (!recordset || again) return;
+  const tree = ctx.tree();
+  const target = tree.get<RecordSet>(recordset);
+  if (!target) return;
+  const book = String(request.book);
+  const from = new Map<string, { connector: string; book: string }>();
+  for (const m of tree.list<Media>("media")) if (m.recordset === recordset && m.fetched && !m.retracted) from.set(`${m.fetched.connector} ${m.fetched.book}`, m.fetched);
+  if (from.has(`${c.name} ${book}`)) return;
+  const otherBook = [...from.values()].find((x) => x.connector === c.name);
+  const portal = new Set(c.manifest.hosts.map((h) => siteOf(h.replace(/^\*\./u, ""))));
+  const hosts = setHosts(tree, target);
+  const ours = hosts.some((h) => hostAllowed(h, c.manifest.hosts) || portal.has(siteOf(h)));
+  const host = !otherBook && !ours ? hosts.find((h) => listConnectors(shared(ctx), ctx.env).some((x) => x.name !== c.name && hostAllowed(h, x.manifest.hosts))) : undefined;
+  const elsewhere = host ? listConnectors(shared(ctx), ctx.env).find((x) => x.name !== c.name && hostAllowed(host, x.manifest.hosts)) : undefined;
+  if (!otherBook && !elsewhere) return;
+  const why = otherBook ? `its images came from book ${otherBook.book} of ${c.name}` : `it is a book of ${host}, connector ${elsewhere!.name}'s portal, not of ${c.name}'s (${c.manifest.hosts.join(", ")})`;
+  const imgs = imagesArg(request.images);
+  const right = sameBooks(tree, { connector: c.name, book }, recordset)[0];
+  const into = right
+    ? `book ${book} of ${c.name} is ${sameBookText(right)}: strom fetch ${c.name} ${shellArg(book)} --images ${imgs} --recordset ${right.book.id}`
+    : `book ${book} of ${c.name} is no book of the research yet: a book of its own — strom recordset add "<title>" --url <its link on ${c.name}'s portal>, then strom fetch ${c.name} ${shellArg(book)} --images ${imgs} --recordset <its B…>`;
+  throw new UsageError(`${recordset} is not book ${book} of ${c.name}: ${why} — nothing fetched`, {
+    hint: `${into} · ${otherBook ? `${recordset}'s own images: strom fetch ${c.name} ${shellArg(otherBook.book)} --images ${imgs} --recordset ${recordset}` : `${recordset}'s own images: strom fetch ${elsewhere!.name} <book> --images ${imgs} --recordset ${recordset}`} · ${recordset} is this book all the same (another film of it): --again "<why>"`,
+  });
 }
 
 /**

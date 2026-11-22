@@ -16,7 +16,7 @@ export function bookUrlKey(url: string): string {
 
 export interface SameBook {
   book: RecordSet;
-  /** Its images registered in the research (whole images, each counted once). */
+  /** Its images registered in the research (whole images, each counted once; none taken back). */
   images: number;
   /** How it is the same: the same link, or images fetched from the same book of the connector. */
   by: "url" | "connector";
@@ -34,7 +34,8 @@ export function sameBooks(tree: Tree, of: { url?: string; connector?: string; bo
   const out: SameBook[] = [];
   for (const b of tree.list<RecordSet>("recordset")) {
     if (skip.has(b.id) || b.duplicates?.of.includes(except ?? "")) continue;
-    const mine = media.filter((m) => m.recordset === b.id);
+    // images taken back (strom media retract: a slip into the wrong book) bind it to nothing
+    const mine = media.filter((m) => m.recordset === b.id && !m.retracted);
     const by =
       key && b.url && bookUrlKey(b.url) === key
         ? "url"
@@ -69,9 +70,9 @@ export interface BookRoute {
  */
 export function bookRoute(tree: Tree, recordset: string, connector?: string): BookRoute | undefined {
   const media = tree.list<Media>("media");
-  const mine = (m: Media) => m.recordset === recordset && !!m.fetched && (!connector || m.fetched.connector === connector);
-  // an image withdrawn (a placeholder the portal gave) came from the book all the same: the others first
-  const got = media.find((m) => mine(m) && !m.retracted) ?? media.find(mine);
+  // images taken back bind it to nothing: fetched into the wrong book by a slip and retracted, the book is free again
+  // (a placeholder withdrawn leaves the image it was the same file as)
+  const got = media.find((m) => m.recordset === recordset && !!m.fetched && !m.retracted && (!connector || m.fetched.connector === connector));
   if (got?.fetched) return { connector: got.fetched.connector, book: got.fetched.book, by: "images" };
   const url = tree.get<RecordSet>(recordset)?.url;
   if (!url) return undefined;
@@ -79,7 +80,7 @@ export function bookRoute(tree: Tree, recordset: string, connector?: string): Bo
   // the books of the research with a link whose images came through a connector: their link and their book
   const known = new Map<string, { url: string; connector: string; book: string }>();
   for (const m of media) {
-    if (!m.fetched || !m.recordset || m.recordset === recordset || (connector && m.fetched.connector !== connector)) continue;
+    if (!m.fetched || !m.recordset || m.retracted || m.recordset === recordset || (connector && m.fetched.connector !== connector)) continue;
     const b = tree.get<RecordSet>(m.recordset);
     if (b?.url) known.set(`${b.id} ${m.fetched.connector} ${m.fetched.book}`, { url: bookUrlKey(b.url), connector: m.fetched.connector, book: m.fetched.book });
   }

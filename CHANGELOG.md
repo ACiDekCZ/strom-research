@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.36.0
 
-*In preparation: the betas up to 1.36.0-beta.8. The section is complete with the release.*
+*In preparation: the betas up to 1.36.0-beta.9. The section is complete with the release.*
 
 - **A try of the bulk verification at once:** the tasks of a try of the bulk verification (`strom verify bulk --try`)
   stand first in the queue — the next session takes them — and the Strom app can have them worked on at once, one
@@ -126,6 +126,14 @@ The changes of each version in short. The full notes and the install lines are o
   When the images searched in a book do not cover the years around a date known only from an age (born about 1761 by the
   age at death), the agent is told which years are missing and where the book goes on, before a “not found” is relied on
   — how many years either side is the research's setting `search.ageMargin` (default 5).
+  A conversation about a line asked from the Strom app is refused in one sentence when the line is ended — nothing is
+  asked or started. An image of another book is no longer fetched into a book by a slip: `strom fetch` refuses a book
+  whose images came from another book of the connector, or a book of another connector's portal, and says which book
+  it is; an image taken back binds the book to nothing.
+  A send of the Strom app no longer takes off the note of a file of the material that the app never had in its tree:
+  such a send stopped every later write of the research (accepting the sorting in the app said only “exit 1”); opening
+  the Strom app or the next write gives the note back and writes what waited. A write of the Strom app that the check of the research
+  refuses leaves nothing behind, and the app hears why.
 
 ## 1.35.0
 

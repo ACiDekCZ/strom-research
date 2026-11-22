@@ -2529,6 +2529,7 @@
   "ui.link.what.direction.done": "die Linie „{name}“ beenden: ihre Aufgaben ({n}) verlassen die Warteschlange. Nichts wird gelöscht, sie kann wieder aufgenommen werden.",
   "ui.link.what.direction.resume": "die Linie „{name}“ wieder aufnehmen: ihre Aufgaben ({n}) kommen zurück in die Warteschlange, und die Forschung schlägt vor, was fehlt.",
   "ui.link.direction.none": "Linie {id} ist nicht in dieser Forschung. Es ist nichts geschehen.",
+  "ui.link.direction.done": "Die Linie „{name}“ ({id}) ist beendet: kein Agent arbeitet an ihr, bis sie in der Übersicht der Linien wieder aufgenommen wird. Nichts wurde gestartet.",
   "ui.link.direction.cannot": "Die Linie „{name}“ ist schon {state}. Es ist nichts geschehen.",
   "ui.link.direction.why": "Warum? (ein paar Worte, bleiben bei der Linie; Enter: ohne Grund)",
   "ui.link.what.chat.research": "ein Gespräch mit dem Agenten ({agent}) über die Linie „{name}“, nur ihre Aufgaben.",

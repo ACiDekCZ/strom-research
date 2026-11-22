@@ -242,7 +242,15 @@ test("two agents working directly, each in its own conversation: a session each,
     assert.equal(held.code, 2, held.out + held.err);
     assert.match(held.err, new RegExp(`${first} is being worked on in session ${a} \\(Claude Code, since (?:\\d{4}-\\d\\d-\\d\\d )?\\d{1,2}:\\d{2}, last sign (?:\\d{4}-\\d\\d-\\d\\d )?\\d{1,2}:\\d{2}, free by (?:\\d{4}-\\d\\d-\\d\\d )?\\d{1,2}:\\d{2} at the latest\\)`, "u"));
     assert.match(held.err, new RegExp(`strom session start ${second} \\(the next free one\\)`, "u"));
-    const b = (await w.ok(["session", "start", "--json"], { env: B })).json.session;
+    // its task done refused alike, a dry run too — never "done" for a dry run the real one would refuse
+    for (const dry of [["--dry-run"], []]) {
+      const done = await w.run(["task", "done", first, "--result", "křest nalezen", ...dry], { env: B });
+      assert.equal(done.code, 2, `${dry.join(" ")}: ${done.out}${done.err}`);
+      assert.match(done.err, new RegExp(`${first} is being worked on in session ${a} \\(Claude Code, since`, "u"));
+      assert.doesNotMatch(done.out, /done/u);
+    }
+    assert.equal(task(w, first).state, "doing");
+    const b =(await w.ok(["session", "start", "--json"], { env: B })).json.session;
     assert.notEqual(b.id, a);
     assert.equal(b.task, second);
     // each writes into its own session

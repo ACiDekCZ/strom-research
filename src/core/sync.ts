@@ -2012,9 +2012,12 @@ export function settleReceived(
 
 /** A send the bridge could not write: so said (the app may send it again); `retry`: the research was busy, tried again later. */
 export function failReceived(root: string, intake: string, reason: string, retry: boolean, code?: { code?: string | undefined; params?: Record<string, string> | undefined }): Received | undefined {
-  const r = receivedAll(root).find((x) => x.intake === intake && x.state === "pending");
+  // pending; or said written by the sync whose commit the check of the research then refused and took back (its input
+  // no longer in data/): never "written" for the app while nothing of it is in the research
+  const gone = (x: Received) => x.state === "written" && !!x.input && !fs.existsSync(path.join(root, "data", "inputs", `${x.input}.json`));
+  const r = receivedAll(root).find((x) => x.intake === intake && (x.state === "pending" || gone(x)));
   if (!r) return undefined;
-  if (retry) {
+  if (retry && r.state === "pending") {
     const next = { ...r, tries: (r.tries ?? 0) + 1 };
     writeReceived(root, next);
     return next;
@@ -5127,8 +5130,12 @@ function mediaBase(tree: Tree, incoming: Snapshot): MediaBase | undefined {
     cache.set(id, got!);
     return got;
   };
-  const records = new Set([...atHead.keys(), ...commits.flatMap((c) => c.records)]);
-  return { links, records, field: (id, k) => fieldsOf(id)?.[k] };
+  // the records the app was given: those in its tree at the head (a place there), and those its own sends wrote since —
+  // never a record of the material that had no place in the tree (found: the note of a file the app first got in that
+  // very send taken as removed by its user, its commit refused, the research stuck for every write after it)
+  const given = [...atHead].filter(([, r]) => !r.retracted && (r.links ?? []).some((l) => !l.retracted)).map(([id]) => id);
+  const records = new Set([...given, ...commits.flatMap((c) => c.records)]);
+  return { links, records, field: (id, k) => (records.has(id) ? fieldsOf(id)?.[k] : undefined) };
 }
 
 /** What of a record only follows the file (no change of the user's): the original come, a working copy, its orientation. */
@@ -5558,7 +5565,10 @@ function applyMedia(
       const before = was.get(id)!;
       const now = JSON.stringify(Object.fromEntries(MEDIA_KEPT.flatMap((k) => (r[k] !== undefined ? [[k, r[k]]] : []))));
       if (now === before) continue;
-      update<Input>(tree, id, "input", () => r, { op: "input.media", summary: `${id} its places in the Strom app's tree, as the app gave them` });
+      // a note its user took off in the app: said why (the history keeps every note: one gone without a reason blocks the commit)
+      const prior = tree.get<Input>(id)?.notes ?? [];
+      const noteOff = prior.some((n) => !(r.notes ?? []).some((x) => x.text === n.text && x.at === n.at));
+      update<Input>(tree, id, "input", () => r, { op: "input.media", summary: `${id} its places in the Strom app's tree, as the app gave them`, ...(noteOff ? { reason: "its note taken off in the Strom app" } : {}) });
       by.applied.push({ do: "input.media.edit", id, before });
     }
   }

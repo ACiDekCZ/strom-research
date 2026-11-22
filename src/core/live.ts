@@ -728,7 +728,7 @@ import { settleNameStatus } from "./namestatusfix.ts";
 import { browserState, treeBrowserArchives } from "./browserhelp.ts";
 import { opsLogsOf } from "./opslog.ts";
 import { placeOfWork } from "./workplace.ts";
-import { notDownloaded } from "./integrity.ts";
+import { notDownloaded, settleNotesBack } from "./integrity.ts";
 import fs from "node:fs";
 import zlib from "node:zlib";
 import os from "node:os";
@@ -768,7 +768,7 @@ import { forStory } from "./stories.ts";
 import { censusHeldCount, censusHidden } from "./census.ts";
 import { kindCounts, kindMatches, parseKnownKinds, parseTaskKind, TASK_KINDS, taskKind, type TaskKind } from "./taskkind.ts";
 import { factMark, nameMark, transcriptMark } from "./readers.ts";
-import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts";
+import { quiet, raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts";
 import { settleReaders } from "./readerfix.ts";
 import { settleProven } from "./provenfix.ts";
 import { settleHeldProposals, settleOrigins } from "./originfix.ts";
@@ -3268,6 +3268,14 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     kids.add(child);
     child.once("exit", () => kids.delete(child));
   };
+  // the notes of the material a send of the app took off with no reason (1.35.0): given back and what waited with them
+  // committed, before anything else is written unasked — the research writable again before anybody writes
+  try {
+    const back = settleNotesBack(Tree.open(root, env), quiet);
+    if (back) noteLive(root, `notes of the material given back: ${counted(back, "file")} a send of the Strom app had taken them off`);
+  } catch (e) {
+    noteLive(root, `the notes of the material not given back now: ${errorText(e)}`);
+  }
   // an archive switched by an older strom: its tasks that wait put aside before the app asks (logged, with the reason)
   try {
     const held = settleArchive(Tree.open(root, env));

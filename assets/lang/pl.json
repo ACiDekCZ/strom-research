@@ -2529,6 +2529,7 @@
   "ui.link.what.direction.done": "zakończenie linii „{name}”: jej zadania ({n}) opuszczą kolejkę. Nic nie jest usuwane, można ją znów uruchomić.",
   "ui.link.what.direction.resume": "ponowne uruchomienie linii „{name}”: jej zadania ({n}) wrócą do kolejki, a badanie zaproponuje, czego brakuje.",
   "ui.link.direction.none": "Linii {id} nie ma w tym badaniu. Nic się nie stało.",
+  "ui.link.direction.done": "Linia „{name}” ({id}) jest zakończona: żaden agent nad nią nie pracuje, dopóki nie zostanie znów uruchomiona w przeglądzie linii. Nic nie uruchomiono.",
   "ui.link.direction.cannot": "Linia „{name}” jest już {state}. Nic się nie stało.",
   "ui.link.direction.why": "Dlaczego? (kilka słów, zostaną przy linii; Enter: bez powodu)",
   "ui.link.what.chat.research": "rozmowa z agentem ({agent}) o linii „{name}”, tylko jej zadania.",

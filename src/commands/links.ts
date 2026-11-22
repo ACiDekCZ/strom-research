@@ -368,6 +368,8 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       // one direction: its tasks only (the research's own name and ID in the first message)
       const direction = link.research ? tree.get<Research>(link.research) : undefined;
       if (link.research && direction?.type !== "research") return said("ui.link.direction.none", { id: link.research });
+      // an ended line: no agent works on it (its tasks are out of the queue) — refused before anything is asked or started
+      if (direction?.type === "research" && direction.state === "done") return said("ui.link.direction.done", { name: direction.name, id: direction.id });
       // the agent costs: said and asked first, then the conversation as strom chat starts it
       const what = direction
         ? ui(treeLang, "ui.link.what.chat.research", { agent, name: direction.name })
@@ -442,6 +444,7 @@ async function withoutTerminal(ctx: Context, link: TreeLink, root: string) {
   } else if (link.action === "chat" && link.research) {
     const direction = tree.get<Research>(link.research);
     if (direction?.type !== "research") return say(ctx, "ui.link.direction.none", { id: link.research }, { tree: link.tree });
+    if (direction.state === "done") return say(ctx, "ui.link.direction.done", { name: direction.name, id: direction.id }, { tree: link.tree });
     first = aboutDirection(tree.lang, direction);
   } else if (link.action === "chat" && link.person) {
     const person = personOf(root, ctx, link.person);

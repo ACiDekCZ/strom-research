@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.36.0
 
-*W przygotowaniu: bety do 1.36.0-beta.8. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.36.0-beta.9. Sekcja będzie kompletna z wydaniem.*
 
 - **Próba zbiorczej weryfikacji od razu:** zadania próby zbiorczej weryfikacji (`strom verify bulk --try`) stoją na
   początku kolejki – weźmie je następna sesja – a aplikacja Strom pozwala przerobić je od razu, każde zadanie w jednej
@@ -128,6 +128,14 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   Gdy przeszukane skany księgi nie obejmują lat wokół daty znanej tylko z wieku (urodzony około 1761 według wieku przy
   śmierci), agent dowiaduje się, których lat brakuje i gdzie księga ciągnie się dalej, zanim „nie znaleziono” zostanie
   przyjęte – ile lat w każdą stronę, określa ustawienie badania `search.ageMargin` (domyślnie 5).
+  Rozmowa o linii z aplikacji Strom jest przy zakończonej linii odrzucana jednym zdaniem – nic nie jest pytane ani
+  uruchamiane. Skan innej księgi nie trafia już przez pomyłkę do księgi: `strom fetch` odrzuca księgę, której skany
+  przyszły z innej księgi konektora, albo księgę z portalu innego konektora, i mówi, która to księga; wycofany skan
+  nie wiąże księgi z niczym.
+  Wysyłka z aplikacji Strom nie usuwa już notatki pliku materiału, którego aplikacja nigdy nie miała w swoim drzewie:
+  taka wysyłka zatrzymywała każdy kolejny zapis badania (przyjęcie sortowania w aplikacji mówiło tylko „exit 1”);
+  otwarcie aplikacji Strom lub kolejny zapis przywraca notatkę i zapisuje to, co czekało. Zapis aplikacji Strom odrzucony przez kontrolę badania
+  nie zostawia niczego, a aplikacja dowiaduje się dlaczego.
 
 ## 1.35.0
 

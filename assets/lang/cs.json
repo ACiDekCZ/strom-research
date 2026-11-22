@@ -2529,6 +2529,7 @@
   "ui.link.what.direction.done": "ukončit linii „{name}“: její úkoly ({n}) odejdou z fronty. Nic se nemaže, jde ji znovu spustit.",
   "ui.link.what.direction.resume": "znovu spustit linii „{name}“: její úkoly ({n}) se vrátí do fronty a výzkum navrhne, co chybí.",
   "ui.link.direction.none": "Linie {id} v tomto výzkumu není. Nic se nestalo.",
+  "ui.link.direction.done": "Linie „{name}“ ({id}) je ukončená: agent na ní nepracuje, dokud se v přehledu linií znovu nespustí. Nic se nespustilo.",
   "ui.link.direction.cannot": "Linie „{name}“ už je {state}. Nic se nestalo.",
   "ui.link.direction.why": "Proč? (pár slov, zůstane u linie; Enter: bez důvodu)",
   "ui.link.what.chat.research": "rozhovor s agentem ({agent}) o linii „{name}“, jen její úkoly.",

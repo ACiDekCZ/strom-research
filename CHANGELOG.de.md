@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.36.0
 
-*In Vorbereitung: die Betas bis 1.36.0-beta.8. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.36.0-beta.9. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein Versuch der Sammelprüfung sofort:** Die Aufgaben eines Versuchs der Sammelprüfung (`strom verify bulk --try`)
   stehen am Anfang der Warteschlange – die nächste Sitzung nimmt sie –, und die Strom-App lässt sie sofort bearbeiten,
@@ -142,6 +142,15 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   1761 nach dem Alter beim Tod), erfährt der Agent, welche Jahre fehlen und wo das Buch weitergeht, bevor man sich auf
   „nicht gefunden“ verlässt – wie viele Jahre zu jeder Seite, bestimmt die Einstellung der Forschung `search.ageMargin`
   (Standard 5).
+  Ein Gespräch über eine Linie aus der Strom-App wird bei einer beendeten Linie mit einem Satz abgelehnt – nichts wird
+  gefragt oder gestartet. Ein Bild eines anderen Buches wird nicht mehr versehentlich in ein Buch geholt: `strom
+  fetch` lehnt ein Buch ab, dessen Bilder aus einem anderen Buch des Konnektors kamen, oder ein Buch vom Portal eines
+  anderen Konnektors, und sagt, welches Buch es ist; ein zurückgenommenes Bild bindet das Buch an nichts.
+  Eine Sendung der Strom-App nimmt die Notiz einer Datei des Materials, die die App nie in ihrem Stammbaum hatte,
+  nicht mehr weg: eine solche Sendung hielt jedes weitere Schreiben der Forschung an (das Übernehmen der Sortierung in
+  der App meldete nur „exit 1“); das Öffnen der Strom-App oder das nächste Schreiben gibt die Notiz zurück und
+  schreibt, was wartete. Ein Schreiben
+  der Strom-App, das die Prüfung der Forschung ablehnt, hinterlässt nichts, und die App erfährt den Grund.
 
 ## 1.35.0
 

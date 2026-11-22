@@ -2483,6 +2483,7 @@ export const UI = {
   "ui.link.what.direction.done": "end the line “{name}”: its tasks ({n}) leave the queue. Nothing is deleted, it can be taken up again.",
   "ui.link.what.direction.resume": "take the line “{name}” up again: its tasks ({n}) come back to the queue and the research proposes what is missing.",
   "ui.link.direction.none": "Line {id} is not in this research. Nothing was done.",
+  "ui.link.direction.done": "The line “{name}” ({id}) is ended: no agent works on it until it is taken up again in the overview of lines. Nothing was started.",
   "ui.link.direction.cannot": "The line “{name}” is {state} already. Nothing was done.",
   "ui.link.direction.why": "Why? (a few words, kept with the line; Enter: no reason)",
   "ui.link.what.chat.research": "a conversation with the agent ({agent}) about the line “{name}”, only its tasks.",

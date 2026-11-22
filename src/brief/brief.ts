@@ -730,7 +730,8 @@ function bookRoute(tree: Tree, b: RecordSet, ready: Ready): BookRoute | undefine
   if (!c) return undefined;
   const part = c.manifest.can.includes("part");
   const browser = routeOf(tree.env, c).via === "browser";
-  const media = tree.list<Media>("media").filter((m) => m.fetched?.connector === c.name && m.recordset);
+  // images taken back (a slip into the wrong book) tell nothing of the book
+  const media = tree.list<Media>("media").filter((m) => m.fetched?.connector === c.name && m.recordset && !m.retracted);
   const own = media.find((m) => m.recordset === b.id)?.fetched?.book;
   if (own) return { connector: c.name, book: own, part, browser };
   const parts = (url: string | undefined) => (url && URL.canParse(url) ? { host: new URL(url).host, path: new URL(url).pathname.split("/").filter(Boolean).map((x) => decodeURIComponent(x)) } : undefined);

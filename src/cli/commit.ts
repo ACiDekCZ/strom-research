@@ -2,7 +2,7 @@
 // every change is committed by strom, behind the check + guard gate.
 
 import { hasErrors } from "../core/check.ts";
-import { guard } from "../core/guard.ts";
+import { giveNotesBack, guard } from "../core/guard.ts";
 import { snapshot, verifyFast } from "../core/integrity.ts";
 import { isArchive } from "../core/mode.ts";
 import type { Context } from "./context.ts";
@@ -34,7 +34,11 @@ export function autoCommit(ctx: Context, def: CommandDef): NotCommitted | undefi
   const blocked = tree.withTreeLock((): NotCommitted | undefined => {
     // Incremental gate: records were validated when written; here only what
     // changed since the last commit is checked, so the cost stays flat.
-    const snap = snapshot(tree);
+    let snap = snapshot(tree);
+    // a note of the material a send of the app took off with no reason (1.35.0): given back, logged — its commit
+    // and every one after it went through again, nothing of anybody's work lost (found: a research stuck for an hour)
+    const gave = giveNotesBack(tree, snap) > 0;
+    if (gave) snap = snapshot(tree);
     const fast = verifyFast(tree, snap);
     const findings = [...fast.findings, ...guard(tree, snap)];
     if (hasErrors(findings)) {
@@ -48,11 +52,11 @@ export function autoCommit(ctx: Context, def: CommandDef): NotCommitted | undefi
         problems: errors.map((f) => ({ ...(f.id ? { id: f.id } : {}), ...(f.file ? { file: f.file } : {}), message: f.message })),
       };
     }
-    const message = commitMessage(ops.map((o) => o.summary), `strom ${def.path.join(" ")}`);
+    const message = commitMessage((gave ? tree.uncommitted() : ops).map((o) => o.summary), `strom ${def.path.join(" ")}`);
     // Only the files this command wrote, plus the free-form folders the agent
     // may edit — `git add` then never has to scan the whole data/ tree.
     const written = new Set<string>(["data/_counters.json"]);
-    for (const op of ops) for (const f of op.files) written.add(f.path);
+    for (const op of gave ? tree.uncommitted() : ops) for (const f of op.files) written.add(f.path);
     for (const f of tree.opsFilesTouched()) written.add(f);
     // what an interrupted write left in git's index (core/integrity.ts leftoverOf): its paths with the commit's own, so
     // the commit takes the folder as it is there — never a record or log of nobody's into the history

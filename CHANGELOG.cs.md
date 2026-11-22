@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.36.0
 
-*Připravuje se: bety do 1.36.0-beta.8. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.36.0-beta.9. Oddíl bude úplný s vydáním.*
 
 - **Zkouška hromadného ověření hned:** úkoly zkoušky hromadného ověření (`strom verify bulk --try`) stojí na začátku
   fronty – vezme je příští sezení – a aplikace Strom je dá zpracovat hned, každý úkol jedno sezení, odkazem, který úkoly
@@ -120,6 +120,13 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   Když prohledané snímky knihy nepokrývají roky kolem data známého jen z věku (narozen asi 1761 podle věku při úmrtí),
   agent se dozví, které roky chybí a kde kniha pokračuje, dřív než se na „nenalezeno“ spolehne – kolik let na každou
   stranu, určuje nastavení výzkumu `search.ageMargin` (výchozí 5).
+  Rozhovor o linii z aplikace Strom se u ukončené linie odmítne jednou větou – nic se neptá ani nespouští. Snímek jiné
+  knihy se už nestáhne do knihy omylem: `strom fetch` odmítne knihu, jejíž snímky přišly z jiné knihy konektoru, nebo
+  knihu z portálu jiného konektoru, a řekne, která kniha to je; odvolaný snímek knihu k ničemu neváže.
+  Odeslání z aplikace Strom už nesebere poznámku k souboru materiálu, který aplikace ve svém stromu nikdy neměla:
+  takové odeslání zastavilo každý další zápis výzkumu (přijetí třídění v aplikaci hlásilo jen „exit 1“); otevření
+  aplikace Strom nebo další zápis poznámku vrátí a zapíše, co čekalo. Zápis z aplikace, který kontrola výzkumu odmítne, nic nezanechá a aplikace se
+  dozví proč.
 
 ## 1.35.0
 

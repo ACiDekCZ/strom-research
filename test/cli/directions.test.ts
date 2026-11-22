@@ -120,6 +120,11 @@ test("the Strom app: each direction with how it goes (its tasks, why paused and 
   assert.match((await link("direction?id=G0002&do=resume", ["a", ""])).out, /▶ „Kdo byla Anna\?“ zase běží/);
   assert.equal((await w.ok(["research", "show", "G0002", "--json"])).json.research.state, "active");
   assert.match((await link("chat?research=G0002", ["n"])).out, /Aplikace Strom žádá: rozhovor s agentem \(.*\) o linii „Kdo byla Anna\?“, jen její úkoly\./);
+  // an ended line: the conversation about it refused in one sentence, nothing asked, nothing started
+  await w.ok(["research", "done", "G0002"]);
+  const ended = await link("chat?research=G0002", [""]);
+  assert.match(ended.out, /Linie „Kdo byla Anna\?“ \(G0002\) je ukončená: agent na ní nepracuje, dokud se v přehledu linií znovu nespustí\. Nic se nespustilo\./u);
+  assert.doesNotMatch(ended.out, /Aplikace Strom žádá/u);
   w.cleanup();
 });
 
