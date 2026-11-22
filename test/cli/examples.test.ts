@@ -14,9 +14,12 @@ import { parseBatch } from "../../src/commands/batch.ts";
 import { guideText } from "../../src/commands/guide.ts";
 import { STROM_APP_URL } from "../../src/core/stromapp.ts";
 import { Tree } from "../../src/core/tree.ts";
-import type { Task } from "../../src/core/model.ts";
+import type { Conflict, Input, RecordSet, Task } from "../../src/core/model.ts";
+import { create } from "../../src/core/records.ts";
+import { inboxFolderFor } from "../../src/core/media.ts";
 import { keepSourceReading } from "../../src/core/sourceread.ts";
 import { queueRun } from "../../src/core/sort.ts";
+import { enterWorker } from "../../src/core/workers.ts";
 
 import { encodeImage } from "../../src/image/index.ts";
 import { makePdf } from "../image-samples.ts";
@@ -27,17 +30,19 @@ const NOT_RUN = new Set(["setup", "init", "run", "read", "document read", "docum
 
 async function seeded(): Promise<World> {
   const w = new World();
+  // the agents the examples name (strom chat --agent codex) here, as on every computer the tests run on
+  w.agentsHere("codex");
   await w.withTree();
   await w.ok(["research", "new", "Předci Jana Nováka", "--new-person", "Jan /Novák/", "--sex", "M", "--born", "ABT 1905", "--born-place", "Týnec nad Labem"]);
   await w.ok(["event", "edit", "E0001", "--with", "witness:Marie Dvořáková"]); // entered in the wrong role (event edit --without)
   await w.ok(["person", "add", "Josef /Novák/", "--sex", "M", "--born", "ABT 1870"]);
   await w.ok(["person", "add", "Marie /Svobodová/", "--sex", "F", "--born", "ABT 1875"]);
-  await w.ok(["person", "add", "Antonín /Víšek/", "--sex", "M"]);
+  await w.ok(["person", "add", "Antonín /Brdíšek/", "--sex", "M"]);
   await w.ok(["person", "add", "Marie /Nováková/", "--sex", "F"]);
   await w.ok(["family", "add", "--partner", "P0004", "--partner", "P0005"]);
   await w.ok(["event", "add", "F0001", "MARR", "--date", "1910"]); // E0004
   await w.ok(["family", "add", "--partner", "P0004"]); // the same couple recorded twice (family merge)
-  await w.ok(["person", "add", "Josef /Víšek/", "--sex", "M"]); // P0006
+  await w.ok(["person", "add", "Josef /Brdíšek/", "--sex", "M"]); // P0006
   await w.ok(["family", "child", "F0002", "P0006"]);
   await w.ok(["repo", "add", "SOA Praha"]);
   await w.ok(["recordset", "add", "Týnec 17", "--repo", "R0001"]);
@@ -77,6 +82,10 @@ async function seeded(): Promise<World> {
   for (const f of ["s0001.jpg", "s0002.jpg", "s0003.jpg"]) fs.copyFileSync(path.join(scans, f), path.join(downloads, f));
   await w.ok(["media", "add", downloads, "--recordset", "B0001"]);
   await w.ok(["recordset", "calibrate", "B0001", "--point", "1=110", "--point", "3=114"]);
+  // another scan saved as image 3 of B0001, set aside beside it (strom media aside)
+  const book = path.join(w.home, "shared", "inbox", inboxFolderFor(Tree.open(w.cwd, w.env).get<RecordSet>("B0001")!));
+  fs.mkdirSync(book, { recursive: true });
+  fs.copyFileSync(path.join(scans, "base444.jpg"), path.join(book, "3.jpg.other-than-M0003"));
   fs.mkdirSync(path.join(w.home, "shared", "inbox", "register-17"), { recursive: true });
   fs.copyFileSync(path.join(scans, "base420.jpg"), path.join(w.home, "shared", "inbox", "register-17", "s0004.jpg"));
   fs.copyFileSync(path.join(scans, "s0002.jpg"), path.join(w.env.HOME!, "Downloads", "40-left.jpg")); // a half page saved on its own
@@ -115,7 +124,7 @@ async function seeded(): Promise<World> {
   await w.ok(["task", "add", "Opis křtu z matriky", "--level", "request", "--where", "matrika", "--why", "křest", "--done-when", "opis"]); // T0005
   await w.ok(["task", "wait", "T0005", "--on", "Odpověď matriky na žádost o opis.", "--kind", "letter"]);
   fs.writeFileSync(path.join(w.env.HOME!, "Downloads", "reply.pdf"), "%PDF-1.4\n%%EOF\n");
-  // a hypothesis about whose son Josef Víšek was, one variant saying what it would connect (hypothesis link --remove)
+  // a hypothesis about whose son Josef Brdíšek was, one variant saying what it would connect (hypothesis link --remove)
   await w.ok(["hypothesis", "add", "Čí syn byl Josef?", "--about", "P0006", "--variant", "A: sourozenec Antonína", "--variant", "B: syn Josefa a Marie"]); // H0001
   await w.ok(["hypothesis", "link", "H0001", "A", "--siblings", "P0004", "P0006"]);
   // the agent's proposal the person decides (hypothesis decide --proposed|--keep-open), a second one to propose
@@ -153,11 +162,11 @@ async function seeded(): Promise<World> {
   // a family tree of another program imported (I0004), its married name (_MARNM) to take in again (input names)
   const ged = ["0 HEAD", "1 SOUR MYHERITAGE", "0 @I1@ INDI", "1 NAME Ludmila /Kopecká/", "2 _MARNM Horká", "1 SEX F", "0 TRLR", ""].join("\n");
   fs.writeFileSync(path.join(w.env.HOME!, "Downloads", "rodokmen.ged"), ged);
-  await w.ok(["intake", path.join(w.env.HOME!, "Downloads", "rodokmen.ged")]);
+  await w.ok(["intake", path.join(w.env.HOME!, "Downloads", "rodokmen.ged"), "--sort"]);
   // a document the user gave as a PDF of two scanned pages (I0005), read page by page (media view I0005:2)
   const scan = (grey: number) => ({ bytes: encodeImage({ width: 30, height: 40, channels: 3, data: new Uint8Array(30 * 40 * 3).fill(grey) }, "jpeg"), width: 30, height: 40 });
   fs.writeFileSync(path.join(w.env.HOME!, "Downloads", "dopis.pdf"), makePdf([{ jpeg: scan(60) }, { jpeg: scan(200) }]));
-  await w.ok(["intake", path.join(w.env.HOME!, "Downloads", "dopis.pdf")]);
+  await w.ok(["intake", path.join(w.env.HOME!, "Downloads", "dopis.pdf"), "--sort"]);
   // a reading of a document done (strom document show, cancel): its state as strom document read leaves it
   const reads = path.join(w.cwd, ".strom", "reads");
   fs.mkdirSync(reads, { recursive: true });
@@ -171,7 +180,7 @@ async function seeded(): Promise<World> {
   // a second record of Horní Lhota close by (place merge)
   const dup = (await w.ok(["place", "add", "Nová Lhota", "--lat", "49.611", "--lon", "15.231", "--json"])).json.place.id;
   assert.equal(dup, "L0003", "the place merge example's ID");
-  // a second line, the ancestors of Marie Nováková (G0002): Josef Víšek, the son of her husband Antonín, is a branch off the lines (strom offline, B-P0006)
+  // a second line, the ancestors of Marie Nováková (G0002): Josef Brdíšek, the son of her husband Antonín, is a branch off the lines (strom offline, B-P0006)
   await w.ok(["research", "new", "Předci Marie Novákové", "--person", "P0005"]);
   fs.writeFileSync(path.join(reads, "D20260101120000-ab12.json"), JSON.stringify({ id: "D20260101120000-ab12", state: "done", version: 1, readers: 1, lang: "cs", pages: [{ n: 1, file: "I0005", name: "dopis.pdf", page: 1 }], groups: [[1]], reports: [], at, since: at }));
   // a godmother's note the Strom app 3.29.0 sent shorter than the research's: a task asks the person (strom sync note) — before any fact cites its original, so no sync queues one to verify
@@ -187,6 +196,8 @@ async function seeded(): Promise<World> {
   // Jan's birth cited from the original of his baptism on the image M0003 (strom verify facts|bulk|done)
   const baptism = (await w.ok(["source", "add", "Křest Jana", "--kind", "baptism", "--information", "primary", "--media", "M0003", "--json"])).json.source.id;
   await w.ok(["cite", "E0001", baptism]);
+  // his name read from the same original (strom verify done P0001.N --proven --image M0003)
+  await w.ok(["cite", "P0001", baptism]);
   // Jan's birth cited by the baptism register too (strom event main)
   await w.ok(["cite", "E0001", "S0001", "--locator", "fol. 12"]);
   // two waits for images written in words, as an older strom took them (strom task audit): T0009 to fix, T0010 fixed
@@ -200,6 +211,18 @@ async function seeded(): Promise<World> {
   });
   inWords.commit("T0009, T0010 wait in words");
   await w.ok(["task", "audit", "T0010", "--fix"]);
+  // a source the person deleted (strom source restore) and a decided conflict standing on it, marked (strom conflict keep)
+  const copy = (await w.ok(["source", "add", "Opis křtů", "--kind", "baptism", "--json"])).json.source.id;
+  const marked = Tree.open(w.cwd, w.env);
+  const decided = marked.withTreeLock(() => {
+    const c = create<Conflict>(marked, "conflict", { title: "Úmrtí Marie", fact: "DEAT", subject: ["P0003"], claims: [{ source: copy, value: "1931" }, { value: "1932" }], state: "resolved", resolution: "Platí 1931.", decidedBy: "user", notes: [] } as never, (id) => `${id} added`);
+    marked.commit(`${c.id} added`);
+    return c.id;
+  });
+  await w.ok(["source", "retract", copy], { dialog: true });
+  assert.deepEqual([copy, decided], ["S0007", "X0001"], "the IDs of the examples of source restore, conflict keep");
+  // the family tree imported (I0004) and the source made of it: the example of input delete --retract-sources
+  assert.equal(Tree.open(w.cwd, w.env).get<Input>("I0004")?.source, "S0004", "the source of the family tree imported");
   return w;
 }
 
@@ -225,7 +248,9 @@ test("every example in the help runs", opts, async () => {
       // a report with the data of people: where the problem happened (the default), yes to the data, yes to make it
       // paid readings of a sort: the person's Enter says no — nothing sorted
       const answers = def.path.join(" ") === "source reading" ? { answers: ["0", ""] } : withData ? { answers: ["", "y", "y"] } : def.path.join(" ") === "material sort" ? { answers: [""] } : {};
-      const r = await w.run([...argv, ...(def.writes ? ["--dry-run"] : [])], person ? { tty: true, ...answers } : {});
+      // a run at work to be told to stop (strom run stop): present as strom run is, only for its examples
+      const leaveRun = def.path.join(" ") === "run stop" ? enterWorker(w.cwd, "run-12345-abc", "Claude Code on its own") : undefined;
+      const r = await w.run([...argv, ...(def.writes ? ["--dry-run"] : [])], person ? { tty: true, ...answers } : {}).finally(() => leaveRun?.());
       if (r.code !== 0 && !(def.path.at(-1) === "revert" && /nothing to put back/.test(r.err + r.out))) failures.push(`${example}\n    → ${(r.err || r.out).trim().split("\n").slice(0, 2).join(" | ")}`);
     }
   }

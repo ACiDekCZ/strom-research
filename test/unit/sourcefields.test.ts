@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { composedPage, imageNumbers, locatorOverlap, recognizeLocation, sourceCallNumber, sourceImage } from "../../src/core/sourcefields.ts";
+import { composedPage, imageNumbers, locatorOverlap, recognizeLocation, sourceCallNumber, sourceImage, treePointer } from "../../src/core/sourcefields.ts";
 import { splitOf } from "../../src/core/sourcesplit.ts";
 import type { Media, Source } from "../../src/core/model.ts";
 import fs from "node:fs";
@@ -125,4 +125,9 @@ test("the cases shared with the Strom app (test/fixtures/source-locations.json):
     const split = splitOf({ id: "S0001", type: "source", title: "t", locator: c.locator } as Source, () => undefined);
     assert.deepEqual(split ?? null, c.folio || c.image ? { ...(c.rest ? { locator: c.rest } : {}), ...(c.folio ? { folio: c.folio } : {}), ...(c.image ? { image: c.image } : {}) } : null, c.locator);
   }
+});
+
+test("a family tree's citation: a pointer an import or a sync wrote (no PAGE in the Strom file) — never a line of the tree a person reads, in any script", () => {
+  for (const p of ["I1 BIRT", "I12 _MARNM", "@I3@ DEAT", "F2 MARR", "p_1731234567_ab12c MARR", "I500001 OCCU", "BIRT DATE PLAC", "BAPM godparent", "OCCU value", "RESI", "family", "child", "title"]) assert.equal(treePointer(p), true, p);
+  for (const l of ["fol. 55 (obr. 54 vpravo dole) – fol. 56 (obr. 55 vlevo)", "rodina z Lhoty", "list 3, větev Лхотак", "list 3, větev Лхотак".normalize("NFD"), "RODINA", "obr. 54", "S. 15 BIRT Lhota", "Baum, Seite 4", "č. 12 MARR", "familie", ""]) assert.equal(treePointer(l), false, l);
 });

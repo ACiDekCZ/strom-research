@@ -26,11 +26,14 @@ const EVENTS = [
   { type: "turn.failed", error: { message: SAID } },
 ];
 
-/** A stand-in Codex that refuses its model, first on PATH (never the real one of this computer). */
-function refusingCodex(dir: string): Record<string, string> {
+/**
+ * A stand-in Codex that refuses its model, first on PATH (never the real one of this computer); the world's PATH after
+ * it, so the research's own agent (the world's stand-in Claude Code) is here and the research never waits for it.
+ */
+function refusingCodex(dir: string, base: string): Record<string, string> {
   const stream = path.join(dir, "codex.jsonl");
   fs.writeFileSync(stream, EVENTS.map((e) => JSON.stringify(e)).join("\n") + "\n");
-  const env = agentStandIn(dir, "codex");
+  const env = agentStandIn(dir, "codex", base);
   return { PATH: env.PATH!, FAKE_STREAM: stream, FAKE_NODE: process.execPath, CODEX_HOME: path.join(dir, "codex home") };
 }
 
@@ -41,7 +44,7 @@ test("what Codex says of a model its CLI does not have is a model refused", () =
 test("a reader of Codex whose model its CLI does not have: the reading fails with that reason, said in the research's language", opts, async () => {
   const w = await world();
   try {
-    Object.assign(w.env, refusingCodex(w.dir));
+    Object.assign(w.env, refusingCodex(w.dir, w.env.PATH!));
     const scan = path.join(w.dir, "sken ř.jpg");
     fs.writeFileSync(scan, encodeImage({ width: 1708, height: 1331, channels: 3, data: new Uint8Array(1708 * 1331 * 3).fill(190) }, "jpeg"));
     const r = await w.run(["document", "read", scan, "--agent", "codex", "--model", "gpt-lhota-2", "--json"]);
@@ -77,7 +80,7 @@ test("a reader of Codex whose model its CLI does not have: the reading fails wit
 test("a reading asked in another language (the Strom app's, --into): its failure said in that language; one strom has no texts in: the research's", opts, async () => {
   const w = await world();
   try {
-    Object.assign(w.env, refusingCodex(w.dir));
+    Object.assign(w.env, refusingCodex(w.dir, w.env.PATH!));
     const scan = path.join(w.dir, "sken ř.jpg");
     fs.writeFileSync(scan, encodeImage({ width: 1708, height: 1331, channels: 3, data: new Uint8Array(1708 * 1331 * 3).fill(190) }, "jpeg"));
     const de = await w.run(["document", "read", scan, "--agent", "codex", "--model", "gpt-lhota-2", "--into", "de", "--json"]);
@@ -98,7 +101,7 @@ test("strom run with Codex whose model its CLI does not have: stopped with the a
   const w = await world();
   try {
     await w.ok(["task", "add", "Křest Jana", "--level", "link", "--where", "B1", "--why", "rodiče", "--done-when", "zápis", "--about", "P1"]);
-    Object.assign(w.env, refusingCodex(w.dir));
+    Object.assign(w.env, refusingCodex(w.dir, w.env.PATH!));
     const r = await w.run(["run", "--agent", "codex", "--model", "gpt-lhota-2", "--json"]);
     assert.equal(r.code, 1, r.out);
     assert.equal(r.json.stop, "model");

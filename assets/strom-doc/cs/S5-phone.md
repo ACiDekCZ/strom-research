@@ -89,6 +89,11 @@ Fotky dokumentů z telefonu (vyfocené na stránce nebo vybrané z galerie) se p
 jako jedna dávka. K dávce jde připsat poznámku a osobu. **Předat výzkumu** dávku uzavře a výzkum z ní udělá
 úkoly k roztřídění, stejně jako u **Přidat materiály** ([S4](S4-research-from-the-app.md)).
 
+- **Od výzkumu 1.36.0:** úkoly k roztřídění vzniknou jen se zapnutým nastavením výzkumu **Soubory poslané do výzkumu
+  projde agent sám** ([R11.6](R11-material-from-the-user.md#R11.6)); jinak fotky čekají v Materiálech
+  neroztříděné a roztřídit je jde v aplikaci na počítači (**Roztřídit agentem…**,
+  [A3.5.8](A3-evidence-in-the-app.md#A3.5.8)).
+
 - **Hranice:** fotky se ukládají beze změny, v plném rozlišení a mimo historii stromu. Soubor, který výzkum už má,
   se znovu neposílá („už ve výzkumu je, neposílá se“). Jedna fotka smí mít nejvýš 500 MB. Kde počítač neumí převést
   formát HEIC, přijme stránka jen JPEG. Dávka, kterou nikdo nepředá, se předá sama hodinu po poslední fotce.

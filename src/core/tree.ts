@@ -37,10 +37,10 @@ export const SEAL_FOREIGN = "seal.foreign";
 
 // between releases the candidate being made (a bridge run from the sources says what it is: the Strom app goes by it);
 // at a release the release's own (package.json)
-export const VERSION = "1.35.0";
+export const VERSION = "1.36.0";
 
 /** What a new research is settled with from the start: nothing an older strom counted otherwise to set right in it. */
-export const NEW_TREE_SETTLED: readonly string[] = ["readers-1", "proven-originals-1", "origins-1", "verify-originals-1", "origins-tree-1"];
+export const NEW_TREE_SETTLED: readonly string[] = ["readers-1", "proven-originals-1", "origins-1", "verify-originals-1", "origins-tree-1", "name-status-1"];
 
 export interface Op {
   at: string;
@@ -203,6 +203,9 @@ export interface Savepoint {
   single?: Map<string, AnyRecord | null>;
 }
 
+/** The last operation's time of this process (Tree.stamp). */
+let lastStamp = 0;
+
 export class Tree {
   readonly root: string;
   readonly config: TreeConfig;
@@ -240,6 +243,11 @@ export class Tree {
   readonly env: Env;
   /** Bumped on every write; lets derived indexes know they are stale. */
   version = 0;
+  /**
+   * Bumped whenever this process forgets what it read (the lock taken, a rollback, a savepoint put back): what is derived
+   * from the files (core/shaindex.ts) is checked against them again.
+   */
+  epoch = 0;
   private keyCache: Buffer | null | undefined;
 
   private constructor(root: string, config: TreeConfig, env: Env) {
@@ -288,6 +296,15 @@ export class Tree {
   }
 
   private lockDepth = 0;
+  /** The files this command changed so far (relative, with /): what it wrote, what it put back. */
+  touchedFiles(): string[] {
+    return [...this.undo.keys()].map((f) => this.relative(f));
+  }
+
+  /** Whether this process holds the tree's lock now. */
+  get holdsLock(): boolean {
+    return this.lockDepth > 0;
+  }
   private counters: Record<string, number> | undefined;
 
   /**
@@ -350,6 +367,7 @@ export class Tree {
     this.single.clear();
     this.lastSigs.clear();
     this.version++;
+    this.epoch++;
   }
 
   private flushCounters(): void {
@@ -415,6 +433,7 @@ export class Tree {
     this.told = Math.min(this.told, sp.written);
     this.committedTo = Math.min(this.committedTo, sp.written);
     this.version++;
+    this.epoch++;
   }
 
   /** Undo every change this command made — a failed command leaves nothing behind. */
@@ -460,6 +479,7 @@ export class Tree {
     this.told = 0;
     this.committedTo = 0;
     this.version++;
+    this.epoch++;
     if (failed) throw failed;
     return restored;
   }
@@ -537,6 +557,13 @@ export class Tree {
       this.cache.set(type, map);
     }
     return [...map.values()] as T[];
+  }
+
+  /** The records of a type this process holds one by one (read or written before the whole type was loaded). */
+  heldRecords<T extends AnyRecord>(type: RecordType): T[] {
+    const out: T[] = [];
+    for (const rec of this.single.values()) if (rec && rec.type === type) out.push(rec as T);
+    return out;
   }
 
   /** Whether this process holds every record of a type in memory already. */
@@ -666,12 +693,14 @@ export class Tree {
     return this.keyCache ?? undefined;
   }
 
-  private lastStamp = 0;
-
-  /** Strictly increasing timestamps: operations are ordered by time across logs. */
+  /**
+   * Strictly increasing timestamps: operations are ordered by time across logs — across every Tree of this process too
+   * (two opened on one research write two logs; the same millisecond in both left the order to their names' random part,
+   * the older operation's file taken as the last word: "changed outside strom", seen on Linux).
+   */
   private stamp(): string {
-    this.lastStamp = Math.max(Date.now(), this.lastStamp + 1);
-    return new Date(this.lastStamp).toISOString();
+    lastStamp = Math.max(Date.now(), lastStamp + 1);
+    return new Date(lastStamp).toISOString();
   }
 
   /** Operation logs appended to by this process (tree-relative). */

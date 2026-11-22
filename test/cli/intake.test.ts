@@ -90,7 +90,7 @@ test("intake a folder: every file an input, one task for the folder; hidden file
   await w.withTree();
   await w.ok(["research", "new", "Předci", "--new-person", "Jan /Novák/"]);
   const d = materials(w);
-  const r = (await w.ok(["intake", d, "--text", "Děda byl údajně v legiích", "--json"])).json;
+  const r = (await w.ok(["intake", d, "--text", "Děda byl údajně v legiích", "--sort", "--json"])).json;
   assert.deepEqual(r.inputs.map((i: any) => [i.kind, i.name]), [
     ["document", "rodný list.jpg"],
     ["tree", "strom.json"],
@@ -172,7 +172,7 @@ test("--no-import registers a tree without importing it", opts, async () => {
   await w.withTree();
   const f = path.join(w.dir, "teta.ged");
   fs.writeFileSync(f, GED);
-  await w.ok(["intake", f, "--no-import", "--lang", "en"]);
+  await w.ok(["intake", f, "--no-import", "--sort", "--lang", "en"]);
   assert.equal((await w.ok(["person", "list", "--json"])).json.total, 0);
   const t = (await w.ok(["task", "show", "T1", "--json"])).json.task;
   assert.equal(t.what, "Read the family tree I0001 (teta.ged), not imported", "no word of an import that did not happen");
@@ -192,7 +192,7 @@ test("a folder full of images is a book of scans: intake refuses it and says whe
   assert.equal(r.code, 2);
   assert.match(r.err, /21 images in .* look like the scans of a book/);
   assert.match(r.err, /strom media add .* --recordset B…/);
-  const forced = (await w.ok(["intake", d, "--documents", "--json"])).json;
+  const forced = (await w.ok(["intake", d, "--documents", "--sort", "--json"])).json;
   assert.equal(forced.inputs.length, 21);
   assert.equal((await w.ok(["task", "list", "--json"])).json.total, 1, "one task for the folder");
   w.cleanup();
@@ -205,7 +205,7 @@ test("intake --research: the intake tasks go to the research named, not only to 
   await w.ok(["research", "new", "Linie Dvořáků", "--new-person", "Marie /Dvořáková/", "--sex", "F"]); // G2
   const f = path.join(w.dir, "zápisky.txt");
   fs.writeFileSync(f, "Děda Václav byl mlynář v Týnci.\n");
-  await w.ok(["intake", f, "--research", "G2"]);
+  await w.ok(["intake", f, "--research", "G2", "--sort"]);
   await w.ok(["intake", "--text", "Babička Anna se narodila v Kolíně"]);
   const tasks = (await w.ok(["task", "list", "--json", "--full"])).json.tasks.filter((t: any) => t.level === "intake");
   assert.deepEqual(tasks.map((t: any) => t.research ?? null), ["G0002", null], "two researches are active: without --research none is guessed");
@@ -288,7 +288,7 @@ test("intake while the research happens: what came said in the research's langua
     try {
       const file = path.join(w.dir, "rodokmen.ged".normalize("NFD"));
       fs.writeFileSync(file, GED);
-      const r = await w.ok(["intake", file, "--text", "Děda Josef byl mlynář"], { env: { STROM_WORKER: "agent-1" } });
+      const r = await w.ok(["intake", file, "--text", "Děda Josef byl mlynář", "--sort"], { env: { STROM_WORKER: "agent-1" } });
       assert.match(r.out, said, r.out);
       assert.doesNotMatch(r.out, none, r.out);
       // the same file again: nothing new, said so

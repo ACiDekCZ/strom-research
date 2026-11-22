@@ -25,6 +25,7 @@ import zlib from "node:zlib";
 import type { Session } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { liveWorkers } from "./workers.ts";
+import { RUN_ENDS_KEPT } from "./runstate.ts";
 import { receivedAll, resent, SYNC_INBOX } from "./sync.ts";
 import { refreshRollup } from "./readstats.ts";
 import { selfTune } from "./tune.ts";
@@ -248,6 +249,10 @@ export function tidyPlan(tree: Tree, at = Date.now()): TidyPlan {
     if (running(e)) continue;
     if ((s && goneSessions.has(s)) || at - e.mtime > LIMITS.logs.days * DAY) items.push({ kind: "logs", path: e.rel, bytes: e.bytes, do: "remove", why: "a closed session's refused commands, with its log" });
   }
+  // the ends of runs (core/runstate.ts recordRunEnd): the newest RUN_ENDS_KEPT always, the others once old
+  const ends = entries(root, "runs").filter((x) => x.rel.endsWith(".end.json")).sort((a, b) => b.mtime - a.mtime);
+  for (const e of ends.slice(RUN_ENDS_KEPT))
+    if (at - e.mtime > LIMITS.logs.days * DAY) items.push({ kind: "logs", path: e.rel, bytes: e.bytes, do: "remove", why: `a run's end older than ${LIMITS.logs.days} days (the newest ${RUN_ENDS_KEPT} kept)` });
   // the briefs: with their session's log, or as old
   for (const e of entries(root, "briefs").filter((x) => x.rel.endsWith(".md"))) {
     const s = /^(N\d+)\.md$/.exec(path.basename(e.rel))?.[1];

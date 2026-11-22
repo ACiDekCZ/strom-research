@@ -3,7 +3,8 @@
 // whole inbox: images the person saves there by hand are taken as they come (strom media add --inbox --waiting, a strom
 // of the bridge's own writing as the person), and a task they complete comes back to the queue without a command.
 //
-// A file is taken once it has settled (not written for SETTLE_MS): a large scan being copied is never taken half. What
+// A folder is taken once it has settled (no file written for SETTLE_MS, no browser's download running in it, B0408): a
+// large scan being copied, a batch half downloaded, is never taken half. What
 // cannot be taken (named so its numbers are not known) is tried again only once the folder changes — never again and
 // again. The folders are looked at again every STROM_INBOX_POLL_MS (30 s): a task set waiting meanwhile, a watch a
 // system lost (a network drive, a folder made again), a change the system did not report.
@@ -12,7 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Env } from "./paths.ts";
 import { Tree } from "./tree.ts";
-import { bookFolders, folderFiles, inboxWaits, SETTLE_MS, unsettled } from "./inboxwait.ts";
+import { bookFolders, folderBusy, folderFiles, inboxWaits, SETTLE_MS } from "./inboxwait.ts";
 
 export interface InboxWatch {
   /** The folders watched now (for the log and tests). */
@@ -110,8 +111,8 @@ export function watchInbox(o: InboxWatchOptions): InboxWatch {
         tried.delete(dir);
         continue;
       }
-      // still being written: looked at once it has settled
-      if (unsettled(files, Date.now()).length) {
+      // still being written (a file, a browser's download of the batch): looked at once it has all settled
+      if (folderBusy(dir, files, Date.now())) {
         wait = settleMs;
         continue;
       }

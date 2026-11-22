@@ -117,10 +117,15 @@ on the right.
   line of the rule (**Based on** / **Created from**), the summary ([A11.3.1](#A11.3.1)) and **People in the list · N**
   with the sort ([A11.4](#A11.4)). In a fixed list × at a person (**Remove from the list**) and **Add person…**
   ([A11.5](#A11.5)). Beside a person, depending on the sort, is the generation, the date added or the birthplace.
-- **⋯ of a list** (at a row in the overview and in the detail): **Open in Table**, **Rename**, **Duplicate**,
+- **⋯ of a list** (at a row in the overview and in the detail): **Open in Table**, **On the map** (from app
+  3.31.0), **Rename**, **Duplicate**,
   **Tick off done** (fixed, [A11.8](#A11.8)) or **Freeze** (automatic, [A11.2.2](#A11.2.2)), **Export ›**
   ([A11.9](#A11.9)), **Delete**.
   - **Open in Table** closes the dialog and opens the Table in the list's scope ([A6.7.19](A6-views.md#A6.7.19)).
+  - **On the map** (also a button next to **Open in Table** in the detail) closes the dialog, sets the list as the
+    window's selection ([A6.6](A6-views.md#A6.6)) and opens the Map with the scope **Selection**
+    ([A6.5.7](A6-views.md#A6.5.7)). In another window the main window carries it out; without it **On the map** is
+    unavailable ("The main window is not open.").
   - **Duplicate** makes a copy of the same kind with the same rule, order, people removed by hand and people ticked
     off, named “{name} (2)”.
   - **Delete** does not ask: the notice “List “{name}” deleted.” with **Undo**.
@@ -134,7 +139,7 @@ on the right.
   the overview and the list take turns on the whole screen (‹ **Back to the lists**), **⋯** is a bottom panel.
 - **Since:** app 3.30.0
 
-<!-- zdroj: app:src/ui/person-lists-ui.ts (OVERLAY_ID person-lists-modal, SEARCH_FROM 9, LIST_DETAIL_ROWS 200, NARROW_QUERY, přejmenování klik/✎/F2, klávesy ↑↓ Enter Delete) · src/ui/person-list-hooks.ts listMenu (freezeAndChecklistRows, exportRows) · src/data.ts duplicatePersonList (structuredClone, suggestPersonListName), deletePersonList (Vrátit), storePersonList audit (personList.save, :2224 přejmenování, :2254 personList.delete, :2330 zmrazení) · index.html #actions-lists-row · src/ui/bottom-sheet.ts řádek Seznamy osob v listu Více · strings.ts menu.lists, lists.title, search, byName, byChange, changed, left, people, remove, addPerson, openTable, menu.*, large, back, toast.deleted, undo.*, audit.* · app:4acf7a09, 3dc8e709 · ZADANI_DEV §2, §16 (okna 079: WindowEditSink) -->
+<!-- zdroj: app:src/ui/person-lists-ui.ts (OVERLAY_ID person-lists-modal, SEARCH_FROM 9, LIST_DETAIL_ROWS 200, NARROW_QUERY, přejmenování klik/✎/F2, klávesy ↑↓ Enter Delete) · src/ui/person-list-hooks.ts listMenu (freezeAndChecklistRows, exportRows) · src/data.ts duplicatePersonList (structuredClone, suggestPersonListName), deletePersonList (Vrátit), storePersonList audit (personList.save, :2224 přejmenování, :2254 personList.delete, :2330 zmrazení) · index.html #actions-lists-row · src/ui/bottom-sheet.ts řádek Seznamy osob v listu Více · strings.ts menu.lists, lists.title, search, byName, byChange, changed, left, people, remove, addPerson, openTable, menu.*, large, back, toast.deleted, undo.*, audit.* · app:4acf7a09, 3dc8e709 · ZADANI_DEV §2, §16 (okna 079: WindowEditSink) · 3.31.0 Na mapě: src/ui/person-lists-ui.ts (tlačítko pl-onmap v detailu, ⋯ řádek map za open), src/ui/person-list-hooks.ts showOnMap, src/windows/window-show-on-map.ts, strings.ts lists.onMap, onMapTitle, table.onMapNoMain (app:2a578474, 39020cf1, ZADANI_DEV_vyber-osob §6) -->
 
 <a id="A11.3.1"></a>
 ### A11.3.1 The summary of a list
@@ -210,7 +215,7 @@ Some views can be saved as a list: only where a choice of people makes sense.
 | Table › People | the Table's **⋯** or the menu **View** → **Save as list of people…** | fixed: the people in the order of the Table's rows |
 | Table › Unions | the Table's **⋯** → **Save as list of people…** | fixed: both partners of each union, each person once |
 | search results | **Results to a list ›** ([A11.5](#A11.5)) | fixed only |
-| family line | the family line picker, the last row **Save the {family line} family line as a list…** | automatic |
+| the window's selection | **Selection ▾**, the footer **Save the selection as a list…** (family line, ancestors, descendants, research line; [A6.6.1](A6-views.md#A6.6.1)); up to app 3.30.0 only a family line: **Save the {family line} family line as a list…** | automatic |
 | research line | **⋯** of the line → **Save as list…** | automatic |
 
 - From the Table the people after the filter and sort are saved; rows shown for now are not. A pinned row outside the
@@ -221,7 +226,7 @@ Some views can be saved as a list: only where a choice of people makes sense.
 - **Limits:** Events, Sources and the Family, Descendants, Fan, Timeline and Map views are not saved as a list.
 - **Since:** app 3.30.0
 
-<!-- zdroj: app:src/ui/person-list-new-ui.ts (SAVE_ID person-list-save; zdroje table/unions/search/rod/line, pinOut, keepFilter) · src/ui/table-view/table-ui.ts saveTableAsList, saveTableRule (lists.saveRule), canSaveAsList · src/ui/rod-view.ts (rodView.saveList) · src/ui/research-directions-ui.ts:1127 directionSaveListItem · src/person-lists.ts rulePersonIds tableFilter (unions: p1, p2) · strings.ts lists.saveAs, save.*, saveRule, rodView.saveList, research.dirSaveList · app:e09dcacb, 68363dbe, 211323e8 · ZADANI_DEV §6 · spec 084 K1.4, K6.3 a -->
+<!-- zdroj: app:src/ui/person-list-new-ui.ts (SAVE_ID person-list-save; zdroje table/unions/search/rod/line, pinOut, keepFilter) · src/ui/table-view/table-ui.ts saveTableAsList, saveTableRule (lists.saveRule), canSaveAsList · src/ui/rod-view.ts (rodView.saveList) · src/ui/research-directions-ui.ts:1127 directionSaveListItem · src/person-lists.ts rulePersonIds tableFilter (unions: p1, p2) · strings.ts lists.saveAs, save.*, saveRule, rodView.saveList, research.dirSaveList · app:e09dcacb, 68363dbe, 211323e8 · ZADANI_DEV §6 · spec 084 K1.4, K6.3 a · 3.31.0: src/ui/selection-picker-ui.ts saveListOptions (rod, line, selection = předci/potomci), person-list-new-ui.ts dynamic pro rod/line/selection, strings.ts selection.saveList (app:61873988, ZADANI_DEV_vyber-osob §2) -->
 
 <a id="A11.7"></a>
 ## A11.7 When a person came: Added in the last 30 days

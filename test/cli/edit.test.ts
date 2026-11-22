@@ -16,27 +16,27 @@ async function world(): Promise<World> {
   await w.ok(["repo", "add", "MZA Brno", "--country", "CZ"]); // R1
   await w.ok(["recordset", "add", "Sloup 782", "--repo", "R1", "--kinds", "baptism", "--places", "Sloup", "--years", "1847-1868"]); // B1
   await w.ok(["place", "add", "Vavřinec", "--kind", "village"]); // L1
-  await w.ok(["source", "add", "Křest Františka 1862", "--kind", "baptism", "--recordset", "B1", "--locator", "pag. 228", "--transcript", "Franz, Sohn des Anton Višek"]); // S1
+  await w.ok(["source", "add", "Křest Františka 1862", "--kind", "baptism", "--recordset", "B1", "--locator", "pag. 228", "--transcript", "Franz, Sohn des Anton Brdišek"]); // S1
   return w;
 }
 
 test("source edit: fill in freely, change evidence only with a reason", opts, async () => {
   const w = await world();
-  fs.writeFileSync(path.join(w.cwd, "preklad.txt"), "František, syn Antonína Víška\n");
+  fs.writeFileSync(path.join(w.cwd, "preklad.txt"), "František, syn Antonína Brdíška\n");
   const r = await w.ok(["source", "edit", "S1", "--translation", "@preklad.txt", "--language", "de", "--information", "primary", "--note", "přečteno v plném rozlišení"]);
   assert.match(r.out, /S0001 translation, language, information, note/);
-  assert.equal((await w.run(["source", "edit", "S1", "--transcript", "Franz, Sohn des Anton Víšek"])).code, 2, "the transcript is evidence");
+  assert.equal((await w.run(["source", "edit", "S1", "--transcript", "Franz, Sohn des Anton Brdíšek"])).code, 2, "the transcript is evidence");
   assert.match((await w.run(["source", "edit", "S1", "--locator", "pag. 229"])).err, /u S0001 se mění --locator — chybí --reason/);
-  await w.ok(["source", "edit", "S1", "--transcript", "Franz, Sohn des Anton Víšek", "--reason", "re-read: Víšek with an accent"]);
+  await w.ok(["source", "edit", "S1", "--transcript", "Franz, Sohn des Anton Brdíšek", "--reason", "re-read: Brdíšek with an accent"]);
   await w.ok(["source", "edit", "S1", "--information", "primary"]); // the same value is no change
   const s = (await w.ok(["source", "show", "S1", "--json"])).json.source;
-  assert.equal(s.transcript, "Franz, Sohn des Anton Víšek");
-  assert.equal(s.translation, "František, syn Antonína Víška\n");
+  assert.equal(s.transcript, "Franz, Sohn des Anton Brdíšek");
+  assert.equal(s.translation, "František, syn Antonína Brdíška\n");
   assert.deepEqual([s.language, s.information, s.locator, s.notes.length], ["de", "primary", "pag. 228", 1]);
   assert.equal((await w.run(["source", "edit", "S1"])).code, 2, "nothing to change");
   assert.equal((await w.run(["source", "edit", "S1", "--form", "copy"])).code, 2, "invalid form");
   const log = (fs.readdirSync(path.join(w.cwd, "data", "ops"), { recursive: true }) as string[]).filter((f) => f.endsWith(".jsonl")).map((f) => fs.readFileSync(path.join(w.cwd, "data", "ops", f), "utf8")).join("");
-  assert.match(log, /"op":"source.edit".*"reason":"re-read: Víšek with an accent"/);
+  assert.match(log, /"op":"source.edit".*"reason":"re-read: Brdíšek with an accent"/);
   assert.match((await w.ok(["check"])).out, /^ok/);
   w.cleanup();
 });
@@ -61,7 +61,7 @@ test("repo, record set and place edits: what they cover, their terms, other name
 
 test("a second record adds to a fact: ages, house, witnesses free; changing what was known needs a reason", opts, async () => {
   const w = await world();
-  await w.ok(["research", "new", "Předci", "--new-person", "Antonín /Víšek/", "--sex", "M"]); // P1
+  await w.ok(["research", "new", "Předci", "--new-person", "Antonín /Brdíšek/", "--sex", "M"]); // P1
   await w.ok(["person", "add", "Markéta", "--sex", "F"]); // P2
   await w.ok(["family", "add", "--partner", "P1", "--partner", "P2", "--married", "28 MAY 1839", "--married-place", "Petrovice"]); // F1, E1 lead
   await w.ok(["source", "add", "Oddavky 1839", "--kind", "marriage", "--information", "primary"]); // S2
@@ -164,15 +164,15 @@ test("search edit: a source found attached by mistake is taken off, never leavin
 test("search edit: fill in freely, change where it looked or what came out only with a reason", opts, async () => {
   const w = await world();
   await w.ok(["recordset", "add", "Sloup 783", "--kinds", "baptism"]); // B2
-  await w.ok(["search", "add", "Křty Víšek 1860–1865", "--recordset", "B1", "--years", "1860-1865", "--method", "page-by-page", "--result", "negative"]); // Q1
-  assert.match((await w.ok(["search", "edit", "Q1", "--pages", "95-120", "--surname", "Víšek", "--note", "snímky 101–104 nečitelné"])).out, /Q0001 surnames, pages, note/, "filling in what was not recorded");
+  await w.ok(["search", "add", "Křty Brdíšek 1860–1865", "--recordset", "B1", "--years", "1860-1865", "--method", "page-by-page", "--result", "negative"]); // Q1
+  assert.match((await w.ok(["search", "edit", "Q1", "--pages", "95-120", "--surname", "Brdíšek", "--note", "snímky 101–104 nečitelné"])).out, /Q0001 surnames, pages, note/, "filling in what was not recorded");
   assert.match((await w.run(["search", "edit", "Q1", "--recordset", "B2"])).err, /changing recordsets of Q0001 needs --reason/);
   assert.match((await w.run(["search", "edit", "Q1", "--result", "found"])).err, /changing result of Q0001 needs --reason/);
   assert.match((await w.run(["search", "edit", "Q1", "--result", "found", "--reason", "přehlédnuto"])).err, /result found needs --found/);
   await w.ok(["search", "edit", "Q1", "--recordset", "B2", "--years", "1861-1865", "--reason", "rejstřík patří k druhému svazku"]);
   const q = (await w.ok(["search", "show", "Q1", "--json"])).json.search;
   assert.deepEqual(q.recordsets, ["B0002"]);
-  assert.deepEqual(q.scope, { years: "1861-1865", surnames: ["Víšek"], pages: "95-120" });
+  assert.deepEqual(q.scope, { years: "1861-1865", surnames: ["Brdíšek"], pages: "95-120" });
   assert.equal(q.notes[0].text, "snímky 101–104 nečitelné");
   assert.match((await w.ok(["searched", "B2"])).out, /Q0001/, "the search now counts for the right book");
   assert.equal((await w.run(["search", "edit", "Q1"])).code, 2, "nothing to change");

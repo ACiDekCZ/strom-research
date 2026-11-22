@@ -93,7 +93,7 @@ register({
     { name: "place", type: "string", value: "<name>", description: "the place, by the start of its words (any of its names)" },
     { name: "house", type: "string", value: "<number>", description: "the house number (12 is also č. 12, Nr. 12)" },
     { name: "years", type: "string", value: "<from-to>", description: "the fact's date within these years: 1750-1850, or one year: 1790" },
-    { name: "surname", type: "string", value: "<surname>", description: "people of this surname (its other forms too: Lhotakova, the groups made one family)" },
+    { name: "surname", type: "string", value: "<surname>", description: "people of this surname (its other forms too: Lhotakova, the groups made one family)", mistaken: ["name"] },
     { name: "source", type: "string", value: "<S…|words>", description: "facts citing this source (its ID, or words of its title)" },
     { name: "status", type: "string", multiple: true, value: "<status>", description: `only facts this sure: ${ASKED_STATUSES.join(", ")} (repeatable); disproven only so` },
     { name: "story", type: "string", multiple: true, value: "<word>", description: "the stories holding this word, a row per story (repeatable: any of them)" },

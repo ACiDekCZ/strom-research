@@ -70,6 +70,34 @@ Linie mají jedno pořadí a v něm na ně přichází práce: první linie má 
 
 <!-- zdroj: research:src/core/order.ts workOrder, orderMode · src/core/queue.ts:237-240 lineBonus, :396 priority lineRank · src/commands/research.ts:215 research edit, :303 research order, :326 research move -->
 
+<a id="R2.1.5"></a>
+### R2.1.5 Převod úkolů do užší linie
+
+Linie je uvnitř širší linie, když její osoba patří do té širší (předkové dědečka uvnitř předků vnuka). Otevřené úkoly
+širší linie, které se týkají jen lidí užší linie, jde do užší linie převést. Převod je rozhodnutí člověka a jde vrátit.
+
+- **Hlídá kód:**
+  - převádí se jen úkoly, které širší linii jmenují jako svou, jsou otevřené nebo čekají na člověka a všichni jejich
+    lidé patří do užší linie. Úkol bez vlastní linie se už počítá k nejužší linii ([R2.1.3](#R2.1.3));
+  - nikdy úkol, na kterém se pracuje (rozdělaný nebo držený otevřeným sezením, [R7.9](R7-when-the-agent-works.md#R7.9)),
+    odložený, hotový, úkol bez lidí ani úkol s někým mimo užší linii;
+  - z pozastavené širší linie se nepřevádí nic;
+  - převod je jedna operace historie, která si pamatuje, odkud který úkol přišel. Vrácení vezme poslední převod
+    linie a každý úkol, který linii pořád má, vrátí do linie, odkud přišel.
+- **Hranice:**
+  - při zakládání linie uvnitř širší: `--move-tasks` úkoly převede, `--keep-tasks` je nechá; bez volby se člověk
+    u terminálu zeptá (navrženo ano). Agent, `--yes` nebo běh bez terminálu úkoly nechá a řekne, kolik by se jich
+    převedlo a že je převede `strom research gather G…`;
+  - agent převod spustí, jen když o něj člověk požádá;
+  - pro běh linie ([R7.10](R7-when-the-agent-works.md#R7.10)) to znamená, že převedené úkoly bere její běh, ne běh
+    širší linie.
+- **Ovládání:** terminál: `strom research new … --move-tasks|--keep-tasks`, `strom research gather G…` (`--dry-run`
+  ukáže, co by se změnilo), `strom research gather G… --undo`. Aplikace: formulář **Nová linie**, **Vrátit převod**
+  ([S4.3.1](S4-research-from-the-app.md#S4.3.1)).
+- **Platí od:** výzkum 1.36.0
+
+<!-- zdroj: research:src/core/gather.ts widerLines (bez pozastavených a vzatých zpět), gatherable (MOVABLE open, waiting; ne doing, držené sezením, odložené, hotové, bez lidí, s někým mimo), gatherPreview, gather, lastGather, ungather; operace research.gather / research.ungather · src/commands/research.ts research new --move-tasks|--keep-tasks (dotaz u terminálu, jinak movable {count, from}), research gather [--undo] · src/core/live.ts directions/preview, POST directions moveTasks, gather/undo (409 gather.none) · help research gather, research new · dirigent:spec/126 U11 -->
+
 <a id="R2.2"></a>
 ## R2.2 Fronta určuje, který úkol přijde na řadu
 
@@ -96,8 +124,15 @@ Otevřené úkoly všech běžících linií tvoří jednu frontu. Agent vždy b
   V aplikaci: pole hledání ve **Frontě** ([S4.2.1](S4-research-from-the-app.md#S4.2.1)).
 - **Od výzkumu 1.35.0:** s `queue.sameBook yes` jde mezi klíči 7 a 8 napřed další úkol knihy, ve které pracovalo
   poslední sezení ([R2.2.4](#R2.2.4)).
+- **Od výzkumu 1.36.0:** úkoly zkoušky hromadného ověření (`strom verify bulk --try N`) dostanou místo jako úkol
+  **hned** ([R2.3.1](#R2.3.1)) a vezme je příští sezení; dvě zkoušky po sobě jdou v pořadí zadání, starší první
+  ([S7.5.1](S7-reliability-and-verification.md#S7.5.1)). `strom task list --kind <druh>` ukáže jen úkoly jednoho
+  druhu práce: `verify` (ověřování), `records` (matriky), `material` (materiál), `places` (místa), `enrich` (zdroje
+  mimo matriky), `request` (dotazy), `story` (vyprávění), `history` (dějiny), `census` (sčítání lidu,
+  [R9.12](R9-archives.md#R9.12)), `other` (ostatní); neznámý druh skončí chybou se seznamem druhů. V aplikaci řada
+  **Druh úkolu** ve **Frontě** ([S4.2.4](S4-research-from-the-app.md#S4.2.4)).
 
-<!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 · 1.33.0: research:c50f80f5 task list --all (= --state all), strom help task list -->
+<!-- zdroj: 1.36.0: research:7116bb60 src/core/taskkind.ts (TASK_KINDS, taskKind; census: research:c7b117cd), src/commands/task.ts list --kind, src/core/verify.ts verifyBulk try (priority 3, queueAt next) · CHANGELOG.cs.md 1.36.0 · research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 · 1.33.0: research:c50f80f5 task list --all (= --state all), strom help task list -->
 
 <a id="R2.2.1"></a>
 ### R2.2.1 Strategie fronty

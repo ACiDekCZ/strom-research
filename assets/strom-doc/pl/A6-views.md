@@ -4,10 +4,12 @@
 Jak aplikacja Strom wybiera, które osoby pokaże, i jak pokazują je poszczególne widoki. Opisuje aplikację
 3.21.2; zmiany z nowszej wersji mają przy sobie jej numer.
 
-Widok to inne odczytanie **tego samego wyboru osób**. Wybór określa osoba w centrum (ta, którą się kliknie)
-i głębokość **Przodkowie** oraz **Potomkowie**. Rodzina, Potomkowie, Oś czasu i Mapa pokazują to samo otoczenie
-osoby w centrum. Wachlarz liczy przodków i potomków sam według liczby pokoleń ([A6.4](#A6.4)). Tabela pokazuje
+Widok to inne odczytanie **tego samego otoczenia osoby w centrum**. Otoczenie określa osoba w centrum (ta, którą się
+kliknie) i głębokość **Przodkowie** oraz **Potomkowie**. Rodzina, Potomkowie, Oś czasu i Mapa pokazują to samo
+otoczenie osoby w centrum. Wachlarz liczy przodków i potomków sam według liczby pokoleń ([A6.4](#A6.4)). Tabela pokazuje
 całe drzewo ([A6.7](#A6.7)), od aplikacji 3.30.0 także tylko jedną listę osób ([A6.7.19](#A6.7.19)).
+Od aplikacji 3.31.0 okno ma ponadto **Wybór**: jedną nazwaną grupę osób (ród, przodkowie lub potomkowie osoby, linia
+badania, lista osób), którą Rodzina, Potomkowie i Wachlarz wyróżniają, a Mapa pokazuje samą ([A6.6](#A6.6)).
 Na komputerze każdy widok można otworzyć także w osobnym oknie ([A6.8](#A6.8)).
 
 Widoki: **Rodzina**, **Potomkowie**, **Oś czasu**, **Wachlarz**, **Mapa**, **Tabela**.
@@ -19,7 +21,7 @@ Widoki: **Rodzina**, **Potomkowie**, **Oś czasu**, **Wachlarz**, **Mapa**, **Ta
 
 Widok Rodzina pokazuje osobę w centrum w jej rodzinie, nie całe drzewo.
 
-- Do wyboru należą:
+- Do otoczenia należą:
   1. osoba w centrum i wszyscy jej partnerzy;
   2. jej potomkowie do głębokości **Potomkowie**, z partnerami;
   3. bezpośredni przodkowie przez oboje rodziców do głębokości **Przodkowie**;
@@ -27,7 +29,7 @@ Widok Rodzina pokazuje osobę w centrum w jej rodzinie, nie całe drzewo.
      Potomkowie;
   5. ciotki i wujowie (rodzeństwo rodziców) z partnerami;
   6. kuzyni i kuzynki, czyli dzieci ciotek i wujów zapisane w ich związku, z potomkami do głębokości Potomkowie.
-- **Granice:** przodków partnera osoby w centrum nie dodaje się do wyboru nigdy. Kto nie należy do otoczenia,
+- **Granice:** przodków partnera osoby w centrum nie dodaje się do otoczenia nigdy. Kto nie należy do otoczenia,
   zostaje w drzewie, tylko widok go nie pokazuje; pokaże go nowa osoba w centrum.
 - **Głębokość:** po wyborze nowej osoby w centrum Przodkowie i Potomkowie są ustawione na największą głębokość, jaką
   drzewo ma przy tej osobie. Menu daje od 1 do tej największej głębokości. Dzieci partnera z innego związku dodają
@@ -285,9 +287,12 @@ Oś czasu pokazuje osoby widoku jako paski życia na osi lat.
 - Pasek osoby żyjącej sięga do dziś. Zmarła osoba bez daty zgonu ma pasek do ostatniego znanego zdarzenia i otwarty
   koniec.
 - Rok ślubu bierze się z daty początku związku. Oś jest zaokrąglona do dziesięcioleci.
-- Pod osią lat biegnie wiersz historii osoby w centrum (wydarzenia epoki i miejsc jej życia, symbole rodzajów). Bez
-  badania lub bez takich wydarzeń wiersza nie ma.
-- **Obowiązuje od:** oś czasu aplikacja 1.5.0; wiersz historii aplikacja 3.19.0
+- Pod osią lat biegnie wiersz historii ([A6.3.1](#A6.3.1)). Bez badania lub bez wydarzeń historii wiersza nie ma.
+- Wspólne wydarzenie dwóch lub więcej wierszy ([A10.2](A10-shared-events.md#A10.2)) jest jednym znacznikiem przez
+  wiersze jego osób, z etykietą; najechanie na etykietę podaje osoby. Gdy nad pierwszym wierszem leży wiersz historii,
+  etykieta znacznika z pierwszego wiersza nie stoi w nim, lecz niżej obok znacznika.
+- **Obowiązuje od:** oś czasu aplikacja 1.5.0; wiersz historii aplikacja 3.19.0, przez całą oś aplikacja 3.31.0;
+  znacznik wspólnego wydarzenia aplikacja 3.28.0
 - **Od aplikacji 3.30.0:** przy włączonym **Oznaczeniu linii** ([A6.1.5](#A6.1.5)) przed imieniem osoby stoi znak
   linii w wybranym kształcie (osoba w obu liniach dwa znaki, przy rodzicach tej samej płci 1 i 2); najechanie na znak
   podaje linię słowami. Pasek życia ma nadal kolor płci i nie jest podbarwiany. Plakat osi czasu rysuje znak tak samo.
@@ -295,6 +300,94 @@ Oś czasu pokazuje osoby widoku jako paski życia na osi lat.
 
 <!-- zdroj: app:src/timeline.ts computeTimelineModel, :59 TimelineHistory · strings.ts timeline.omitted · CHANGELOG.cs.md 3.19.0 -->
 <!-- zdroj: app:cecd72a4 src/renderer.ts timelineBranchSigns (znak legendy před jménem, title linie slovy, dvě značky R4, číslice R5; plakát SVG) · CHANGELOG.cs.md 3.30.0 „Značení linií“ · dirigent:spec/112-znaceni-linii -->
+<!-- zdroj: app:55ac8a08 src/timeline-chart.ts sharedMarkSvg (jedna značka přes řádky, popisek jednou, jména v title) · app:f8531340 placeSharedLabels · app:cc6f3104 placeSharedLabels topTaken (s řádkem dějin popisek značky z prvního řádku níž, ne v řádku dějin) · dirigent:spec/085 §2e -->
+
+<a id="A6.3.1"></a>
+### A6.3.1 Wiersz historii przez całą oś
+
+Wiersz historii pokazuje historię całego okresu i wszystkich osób na osi: każde wydarzenie kraju lub regionu, gdzie
+w jego roku żyła co najmniej jedna osoba z wierszem.
+
+- **Które wydarzenia:** wydarzenia o zasięgu kraj lub region (**Historia regionu**). Wydarzenie się bierze, gdy
+  osoba w roku wydarzenia żyła w miejscu, do którego badanie przypisało wydarzenie. Przy okresie wystarczy jeden jego
+  rok i tylko w latach życia osoby. Gdzie osoba w którym roku żyła, określa się tak samo jak przy historii w karcie
+  osoby.
+- Każde wydarzenie jest w wierszu raz, nawet gdy dotyczy więcej osób. Osoba bez wiersza (bez roku urodzenia,
+  zastępcza) się nie liczy.
+- **Ukrycie:** wydarzenie ukryte w całym drzewie lub dla całego regionu nie ma go nigdzie. Wydarzenie ukryte przy
+  jednym miejscu pokaże inne miejsce osoby, które go nie ukrywa.
+- **Wygląd:** tło wiersza biegnie przez całą oś. Życie osoby w centrum to cienka linia na dole wiersza. Okresy mają
+  paski na dwóch torach.
+- **Grupy:** bliskie wydarzenia tworzą grupę (na komputerze 16 px, na telefonie 22 px). Grupa ma symbol rodzaju,
+  który jest w niej najczęstszy (przy remisie wcześniejszy), w kolorze pochodzenia. Więcej wydarzeń pokazuje
+  plakietkę z liczbą. Dwie grupy, których znaki by się stykały, łączą się.
+- **Kraj lub region** podaje się w etykiecie i w szczegółach tylko wtedy, gdy wydarzenia wiersza pochodzą z co
+  najmniej dwóch krajów lub regionów.
+- **Szczegóły grupy:** najechanie pokazuje wiersz na wydarzenie (rok, rodzaj, kraj lub region, tekst).
+  - Komputer: kliknięcie otwiera okienko przy grupie. W nim każde wydarzenie z latami, symbolem, tekstem, „rodzaj ·
+    kraj lub region” i „Dotyczy:” z najwyżej dwoma imionami i „i N innych”; osoba w centrum jest pierwsza. Imię
+    otwiera kartę osoby na wierszu wydarzenia. Esc, kliknięcie obok lub przewinięcie zamyka okienko.
+  - Telefon i ekran dotykowy: dolny arkusz „Historia 1880–1891” z wydarzeniami i pod **Otwórz w karcie osoby**
+    wiersz dla każdej osoby, której grupa dotyczy (najwyżej cztery i „i N innych ›”). Osoba otwiera kartę na
+    pierwszym wydarzeniu grupy, które jej dotyczy.
+- **Kiedy wiersz jest:** drzewo ma badanie z historią, w Ustawieniach jest włączone **Historia na osi czasu życia**,
+  a na osi czasu karty osoby chip **Historia**. Pochodzenia wyłączone w Ustawieniach (**Historia regionu**,
+  **Historia miejsca**, **Ze źródeł badania**) się nie rysują.
+- **Granice:** wiersz historii jest tylko na ekranie. Druk i plakat osi czasu go nie rysują.
+- **Obsługa:** aplikacja: widok **Oś czasu**, wiersz **Historia ▾** ([A6.3.2](#A6.3.2))
+- **Obowiązuje od:** aplikacja 3.31.0 (do tego czasu wiersz historii tylko osoby w centrum)
+
+<!-- zdroj: app:e843ab70 src/history.ts computeTimelineHistory (místa života personResidence, livedYear v letech života, období jeden rok, jednou na osobu, skrytí treeHidden/regionHidden/hidingFor, scope region → řádek, place/local → čáry; kinds z Nastavení) · src/timeline.ts timelineHistoryRow (jen řádky, které se kreslí; region jen při ≥ 2), timelineClusterKind, timelinePeriodTracks · app:a7391d4f src/timeline-chart.ts historyRowSvg (podklad přes celou osu, tl-hist-life, jen obrazovka) · app:79312e31 clusterTimelineHistory clearance, historyClusterClearance · app:1d2f8b55 src/ui/timeline-history-ui.ts showTimelineHistoryPopover, timelineConcernPersons (max 2, ústřední první), showTimelineHistorySheet, timelineClusterPersons (4 a „a N další ›“) · src/ui/history-ui.ts historyTimelineSource (vrstva, výzkum, čip Dějiny karty) · strings.ts history.timelineRowLabel, timelineClusterAria, timelineEventLine, timelineYearsTitle, timelineConcerns, timelinePeopleMore, openInCard, settingLabel, kindRegion, kindPlace, kindLocal · dirigent:spec/121 K1.1–K1.4, Rozhodnutí 20. 11. · prace/1120-app-121-casova-osa -->
+
+<a id="A6.3.2"></a>
+### A6.3.2 Opcje historii: rodzaje i kraj
+
+Etykieta wiersza **Historia ▾** otwiera opcje historii osi czasu. Opcje obowiązują dla drzewa i pamięta je
+urządzenie.
+
+- **Rodzaje wydarzeń:** **Wszystko** i dziewięć rodzajów (wojna, epidemia, spis ludności, państwo i granice,
+  emigracja, prawo, gospodarka, klęska, inne), każdy z symbolem i liczbą wydarzeń na osi. Liczba sumuje wiersz
+  historii i historię lokalną na liniach życia; wydarzenie na kilku liniach to jedno. Rodzaj bez wydarzenia da się
+  wybrać, filtr zostaje dla innych osi.
+- **Kraj lub region:** tylko przy co najmniej dwóch krajach lub regionach w wierszu. **Wszystkie** i kraje oraz
+  regiony według liczby wydarzeń, jeden wybór. Dotyczy tylko wiersza historii.
+- **Na liniach życia:** opcja **Historia lokalna na liniach życia** ([A6.3.3](#A6.3.3)).
+- **Filtr w etykiecie:** „Historia · 3 rodzaje” (wybrane rodzaje, które oś ma), „Historia · kraj lub region”, przy
+  obu „Historia · 2 filtry”. Etykieta z filtrem jest podbarwiona.
+- **Nic nie zostaje:** wiersz napisze „Brak wydarzeń dla wybranych rodzajów” (na telefonie „Brak wydarzeń”) i
+  **Wyczyść filtr**. **Wyczyść filtr** usuwa rodzaje i kraj naraz; historia lokalna na liniach życia zostaje.
+- **Granice:** opcje nie są danymi drzewa: nie idą do eksportu, GEDCOM ani kopii zapasowej. Kraju, którego badanie
+  już nie zna, się nie używa. Kolejne okno ([A6.8](#A6.8)) przejmie zmianę.
+- **Obsługa:** aplikacja: **Historia ▾** → **Rodzaje wydarzeń**, **Kraj lub region**, **Na liniach życia**,
+  **Wyczyść filtr**. Na komputerze okienko pod etykietą, na telefonie i ekranie dotykowym dolny arkusz.
+- **Obowiązuje od:** aplikacja 3.31.0
+
+<!-- zdroj: app:3e3e4949 src/ui/timeline-history-ui.ts showTimelineHistoryOptions, drawTimelineHistoryOptions (oblast jen hist.regions ≥ 2 nebo uložená; místní off/none), clearTimelineHistoryFilter · src/timeline.ts filterTimelineHistory (oblast jen řádek), timelineHistoryRowState, toggleTimelineKind, clearTimelineFilter (local zůstane), timelineFilterKindCount · app:601f52d4 timelineHistoryFacets (počty jednou podle id, řádek + místní), .tl-hist-btn.is-filtered · src/timeline-chart.ts historyFilterText · src/settings.ts getTimelineHistory/setTimelineHistory (lifelineByTree.timeline, jen zařízení), TimelineHistoryOptions · src/history.ts timelineHistoryRegion (neznámá oblast → všechny) · strings.ts history.timelineOptKinds, timelineOptRegion, timelineOptAllRegions, timelineOptLines, timelineFilterKinds, timelineFilterBoth, timelineClearFilter, timelineEmptyFilter, timelineEmptyFilterShort, kinds.* · dirigent:spec/121 K3.1 -->
+
+<a id="A6.3.3"></a>
+### A6.3.3 Historia lokalna na liniach życia
+
+Opcja **Historia lokalna na liniach życia** rysuje historię miejsca i znaleziska ze źródeł badania wprost na pasku
+życia osoby, w roku wydarzenia.
+
+- **Które wydarzenia:** **Historia miejsca** i **Ze źródeł badania** ([R4.7](R4-places.md#R4.7)) w miejscowości,
+  w której osoba w roku wydarzenia żyła. Przy okresie od pierwszego roku, w którym tam żyła; pod paskiem biegnie
+  wtedy pasek do końca okresu (najdalej do końca paska życia).
+- **Wygląd:** symbol rodzaju w ramce w kolorze pochodzenia. Symbol bliżej niż 10 px od kropki wydarzenia lub od
+  znacznika wspólnego wydarzenia odsuwa się o 11 px w bok. Bliskie symbole grupują się jak w wierszu historii,
+  z plakietką liczby. Poniżej 1,5 px na rok (długa oś na telefonie) linia ma jeden symbol ze wszystkimi wydarzeniami.
+- **Szczegóły:** najechanie pokazuje wiersz na wydarzenie z miejscem, a przy znalezisku źródło. Kliknięcie na
+  komputerze otwiera kartę osoby na wierszu wydarzenia. Na telefonie i ekranie dotykowym dolny arkusz z wydarzeniami
+  i **Otwórz w karcie osoby ›**.
+- **Domyślnie:** wyłączone. Opcja obowiązuje dla drzewa i jest zapamiętana ([A6.3.2](#A6.3.2)). Filtr rodzajów
+  dotyczy także jej.
+- **Granice:** gdy w Ustawieniach są wyłączone **Historia miejsca** i **Ze źródeł badania**, opcji nie da się
+  włączyć. Bez historii lokalnej na osi opcja napisze „Na osi nie ma historii lokalnej.” Symbole są tylko na ekranie;
+  druk i plakat ich nie rysują. Klawiatura do nich nie dochodzi (Tab).
+- **Obsługa:** aplikacja: **Historia ▾** → **Historia lokalna na liniach życia**
+- **Obowiązuje od:** aplikacja 3.31.0
+
+<!-- zdroj: app:967b6b97 src/history.ts computeTimelineHistory (place/local → čáry, rok příchodu moved, year2, source) · src/timeline.ts layoutTimelineLocal, timelineLocalX (LOCAL_CLEAR_PX 10, LOCAL_STEP_PX 11), LOCAL_DENSE_PX_PER_YEAR 1.5, timelineLocalOptionState (off/none), timelineHistoryRow (filtr druhů i na čáry) · src/timeline-chart.ts localSvg (jen screen, tl-loc-box, tl-loc-period, title se zdrojem LOCAL_SOURCE_MAX 60, role img mimo Tab) · src/ui/timeline-history-ui.ts openTimelineHistory, showTimelineLocalSheet · src/settings.ts TimelineHistoryOptions.local (výchozí false) · strings.ts history.timelineOptLocal, timelineOptLocalHint, timelineOptLocalOff, timelineOptLocalNone, timelineLocalAria, timelineLocalSource, openInCard · dirigent:spec/121 K2.1–K2.3 -->
 
 <a id="A6.4"></a>
 ## A6.4 Wachlarz
@@ -364,7 +457,9 @@ Dwustronny) ochrowe.
 - **Wyróżnienie rodu:** kliknięcie wiersza legendy lub **Wyróżnij ród {ród}** w menu wycinka wyróżnia ród drzewa
   ([A6.6](#A6.6)), tak jak w widoku Rodzina. Wycinki rodu mają przerywany obrys, pozostałe są przygaszone.
   Wyróżnienie zostaje po zmianie centrum. Usuwa je drugie kliknięcie, **Usuń wyróżnienie rodu**, × przy etykiecie
-  lub Esc. Przy dopasowaniu wachlarz omija pas z etykietą wyróżnienia; powiększony widok zostaje, jak jest.
+  lub Esc. Przy dopasowaniu wachlarz omija pas z etykietą wyróżnienia; powiększony widok zostaje, jak jest. Od
+  aplikacji 3.31.0 wyróżniony ród jest wyborem okna ([A6.6](#A6.6)): obowiązuje też w Rodzinie i w Potomkach,
+  a wyczyszczenie wyróżnienia czyści wybór okna.
 - **Telefon:** dotknięcie wiersza w arkuszu legendy wyróżnia ród (albo usuwa wyróżnienie) i zamyka arkusz. Chip
   kolorów pokazuje wtedy zamiast kropek próbkę i nazwę rodu. **Tablet:** wiersze legendy mają wielkość elementu
   sterującego.
@@ -377,14 +472,78 @@ Dwustronny) ochrowe.
 - **Obowiązuje od:** aplikacja 3.30.0 (kolory **Rody** od aplikacji 3.20.0; do 3.29.0 kolorowo tylko dziesięć
   największych rodów, pozostałe szaro)
 
-<!-- zdroj: app:src/fan-rod-assign.ts (strany P/M/D: rod středu P, jen potomci D, jinak nejnižší prstenec, shoda P; pořadí počet výsečí › velikost › id; FAN_ROD_MAX_STRONG 10, FAN_ROD_LEGEND_MAIN 20, tier S/T; opakování odstínů ne na sousedních výsečích ani o jednu dál, výpůjčka jiné strany) · src/fan-colors.ts paleta P/M/D světlá, tmavá, tisk, fanRodLegend, fanRodOtherSwatch (K1.7), legendOther, legendNoRod · src/ui/fan-view.ts legenda (FAN_STORAGE_KEYS.legendOtherOpen, náhled jen při (hover: hover)), setRodSelection(…, 'legend'), forgetRodColors · strings.ts fan.legendFatherSide, legendMotherSide, legendDescendants, legendOther, legendNoRod, legendCentre, colorsChipRod, menuHighlightRod, menuUnhighlightRod, posterHighlighted · app:1d9dad0f, 7231dd13 (legenda po stranách), 77282e4e (telefon, tablet), b31c74a9 (štítky se netisknou), defe20a6, 7821ea72 (vějíř mimo štítek), 1ad91795 (paleta P/M/D), a265a3cc (paměť barev při návratu, další okna) · dirigent:spec/114-vejir-barvy-rodu · test/vysledek-1119-app-vejir-rody, vysledek-1119-app-vejir-barvy-vse · CHANGELOG.cs.md 3.30.0 -->
+<!-- zdroj: app:src/fan-rod-assign.ts (strany P/M/D: rod středu P, jen potomci D, jinak nejnižší prstenec, shoda P; pořadí počet výsečí › velikost › id; FAN_ROD_MAX_STRONG 10, FAN_ROD_LEGEND_MAIN 20, tier S/T; opakování odstínů ne na sousedních výsečích ani o jednu dál, výpůjčka jiné strany) · src/fan-colors.ts paleta P/M/D světlá, tmavá, tisk, fanRodLegend, fanRodOtherSwatch (K1.7), legendOther, legendNoRod · src/ui/fan-view.ts legenda (FAN_STORAGE_KEYS.legendOtherOpen, náhled jen při (hover: hover)), setRodSelection(…, 'legend'), forgetRodColors · strings.ts fan.legendFatherSide, legendMotherSide, legendDescendants, legendOther, legendNoRod, legendCentre, colorsChipRod, menuHighlightRod, menuUnhighlightRod, posterHighlighted · app:1d9dad0f, 7231dd13 (legenda po stranách), 77282e4e (telefon, tablet), b31c74a9 (štítky se netisknou), defe20a6, 7821ea72 (vějíř mimo štítek), 1ad91795 (paleta P/M/D), a265a3cc (paměť barev při návratu, další okna) · dirigent:spec/114-vejir-barvy-rodu · test/vysledek-1119-app-vejir-rody, vysledek-1119-app-vejir-barvy-vse · CHANGELOG.cs.md 3.30.0 · 3.31.0: src/ui/rod-view.ts selectRodFromFan → setRodSelection / clearRodSelection = clearSelection (app:51ad8fd6) -->
+
+<a id="A6.4.2"></a>
+### A6.4.2 Wygląd wachlarza
+
+Przycisk **Wygląd** na pasku wachlarza (na wąskim pasku tylko ikona) otwiera panel **Wygląd wachlarza**. Zmienia to,
+jak wachlarz wygląda, nie drzewo: działa także w drzewie tylko do odczytu, przy śledzeniu badania i w zapisanej
+stronie.
+
+- **Styl:**
+  - **Kolorowy** (na ekran): domyślny, rysunek jak dotąd;
+  - **Pastelowy** (mniej tuszu);
+  - **Dawny** (na prezent): sepia i pergamin, czcionka Strom Serif;
+  - **Czarno-biały** (drukarka czarno-biała): odcienie szarości i wzory (linie, kratka, kropki, kółka, krzyżyki,
+    kreski), żaden ukośny. Ukośne kreskowanie zostaje tylko powtórzonej osobie (implex).
+
+  Każdy styl ma postać dla jasnego i ciemnego wyglądu oraz dla druku.
+- **Kolory rodów** (tylko dla kolorów **Rody**, inaczej „Tylko dla kolorów według rodów.”):
+  - **Wszystkie rody**: kolory jak w [A6.4.1](#A6.4.1);
+  - **Główne rody**: „10 największych w wachlarzu w kolorze, pozostałe szare.” Ród osoby w centrum jest zawsze wśród
+    głównych (zastępuje dziesiąty). Legenda ma szary wiersz **Pozostałe rody (N)**, podtytuł plakatu „kolory głównych
+    rodów”. Kolory głównych rodów i pamięć kolorów się nie zmieniają.
+- **Tekst w polach:** **Imię i lata** (domyślnie) · **Imię, daty i miejsca** (urodzenie i zgon z datą i miejscem,
+  z miejsca tylko część przed pierwszym przecinkiem, na przykład „* 22.11.1888 Kessenau”; tylko tam, gdzie się
+  zmieści) · **Tylko imiona i nazwiska** (nieco większym pismem). „Gdy tekst się nie mieści, jest skracany.”
+- **Portrety** „W środku, u rodziców i dziadków” (domyślnie wyłączone): okrągły portret w centrum i w pierwszych dwóch
+  pierścieniach. Chroniona osoba żyjąca portretu nie ma. Tekst ma pierwszeństwo: portret, na który nie zostałoby
+  miejsca, się nie rysuje. W trakcie wczytywania panel mówi „Wczytywanie portretów (k / n)”; „Nikt w wachlarzu nie ma
+  jeszcze portretu.”
+- **Trzy poziomy wyglądu:**
+  - **domyślny** wygląd jest w **Ustawienia → Wachlarz** (styl, kolory rodów, tekst, portrety) i trzyma go
+    urządzenie: „Każde uruchomienie zaczyna się od tego wyglądu; w panelu Wygląd można go zmienić tylko na bieżącą
+    pracę.” Wachlarz, który pokazuje domyślny wygląd, od razu przejmuje zmianę w Ustawieniach;
+  - **bieżący** wygląd z panelu obowiązuje do zamknięcia aplikacji; odświeżenie strony go zachowuje;
+  - **wygląd wydruku** (plakat, obraz, druk) nie jest zapamiętywany ([A6.4.3](#A6.4.3)).
+
+  Niższy poziom nigdy nie nadpisuje wyższego, tylko **Zapisz jako domyślny**.
+- **Stopka panelu:** gdy wygląd różni się od domyślnego, „Różni się od domyślnego wyglądu.” z **Zapisz jako
+  domyślny** („Zapisano jako domyślny wygląd wachlarza.”) i **Przywróć domyślny**; przycisk **Wygląd** ma wtedy
+  kropkę. Inaczej „Domyślny wygląd · można zmienić w Ustawieniach”; odnośnik otwiera Ustawienia przy grupie
+  **Wachlarz**.
+- Kolejne okno ([A6.8](#A6.8)) zaczyna od bieżącego wyglądu okna głównego i swoje zmiany trzyma tylko u siebie.
+- **Telefon:** **Kolory** i **Wygląd** są kartami jednego arkusza od dołu; arkusz otwiera się na ostatnio używanej.
+- **Granice:** wachlarz na stronie osoby się nie zmienia (tylko kolory płci).
+- **Obsługa:** pasek wachlarza → **Wygląd**; **Ustawienia → Wachlarz**.
+- **Obowiązuje od:** aplikacja 3.31.0
+
+<!-- zdroj: app:53ad42f1 src/fan-look.ts (hlavička: tři úrovně, ne úprava stromu, další okno; FAN_LOOK_DEFAULT color/all/years/portraits false), storage-keys.ts FAN_STORAGE_KEYS, FAN_LOOK_SESSION_KEY · 2236bbd4 src/fan-rod-assign.ts (rodScope main: 10 největších, rod středu vždy), src/fan-colors.ts FAN_STYLES, FAN_PATTERNS (vl, hl, grid, dot, dot2, ring, plus, dash), palety světlá/tmavá/tisk · c2dc2520 src/fan-labels.ts (content years/places/names, místo před čárkou), src/fan-chart.ts portréty prstence 1–2, chránění žijící, text má přednost · 2e9d8ad0 Nastavení → Vějíř (index.html settings-group-fan, setFanDefaultLook; vějíř s výchozím vzhledem změnu převezme) · e07ed419 (stránka osoby) · strings.ts fan.look*, style*, scope*, content*, portraits*, lookDiffers, lookIsDefault, lookSaveDefault, lookResetDefault, lookSavedToast, defaultsDesc, textNote, legendOtherGrey, posterColorsMain · SPEC.md 1120-app-vejir-vzhled · spec 118 K1.1–K2.6 · CHANGELOG.cs.md 3.31.0 -->
+
+<a id="A6.4.3"></a>
+### A6.4.3 Wygląd plakatu
+
+Okno **Eksport jako plakat** (menu **Eksport plakatu**: SVG, PNG, Druk / PDF) ma przy wachlarzu grupę **Wygląd
+plakatu** z tymi samymi opcjami co panel **Wygląd** ([A6.4.2](#A6.4.2)) i z **Podgląd**.
+
+- Opcje są wstępnie wypełnione wyglądem z ekranu. „Dotyczy tylko tego wydruku; ekran i wygląd domyślny się nie
+  zmieniają.” Zmieniona opcja ma „zmienione tylko dla wydruku”; **Jak na ekranie** przywraca wygląd ekranu.
+- Rody w innym stylu lub kolorystyce zachowują kolory z ekranu.
+- Na telefonie grupa jest zwinięta do jednego wiersza.
+- **Granice:** wygląd wydruku nie jest zapamiętywany; następny eksport zaczyna znowu od wyglądu ekranu.
+- **Obsługa:** **Eksport plakatu** → **Wygląd plakatu**.
+- **Obowiązuje od:** aplikacja 3.31.0
+
+<!-- zdroj: app:2e9d8ad0 src/ui/export-image-ui.ts (PosterLook předvyplněný z obrazovky, náhled toutéž funkcí plakátu, Jako na obrazovce, sloty rodů z obrazovky, telefon jeden řádek), src/fan-look.ts (vzhled výstupu se nepamatuje) · e2e/fan-look-output.spec.ts · strings.ts poster.menu, title, lookTitle, lookPreview, lookOnlyHere, lookAsScreen, lookChanged · SPEC.md 1120-app-vejir-vzhled · spec 118 -->
 
 <a id="A6.5"></a>
 ## A6.5 Mapa
 
 Mapa pokazuje miejsca zdarzeń osób.
 
-- **Zakres:** **Ten widok** (domyślnie, osoby widoku) · **Całe drzewo**.
+- **Zakres:** **Ten widok** (domyślnie, osoby widoku) · **Całe drzewo**. Od aplikacji 3.31.0 jest między nimi
+  **Wybór**, osoby wyboru okna ([A6.5.7](#A6.5.7)), a okno główne zapamiętuje wybrany zakres dla każdego drzewa.
 - **Rodzaje:** **Urodzenia** · **Zgony** · **Śluby** · **Inne wydarzenia**. Domyślnie włączone są wszystkie; wybór
   zapamiętuje się na urządzeniu.
   - Chrzest liczy się do urodzenia, pochówek i kremacja do zgonu.
@@ -396,7 +555,7 @@ Mapa pokazuje miejsca zdarzeń osób.
 - **Migracja w czasie** pokazuje miejsca według lat i drogę przodków do jednej osoby ([A6.5.3](#A6.5.3)).
 - **Obowiązuje od:** mapa aplikacja 1.10.0; rodzaje zdarzeń i punkty miejscowości aplikacja 3.21.0
 
-<!-- zdroj: app:src/places.ts collectPlaces, groupTownPoints · src/ui/map-ui.ts (localStorage strom.map.kinds) · strings.ts map.scopeView, map.scopeTree, map.kinds · CHANGELOG.cs.md 3.21.0 -->
+<!-- zdroj: app:src/places.ts collectPlaces, groupTownPoints · src/ui/map-ui.ts (localStorage strom.map.kinds) · strings.ts map.scopeView, map.scopeTree, map.kinds · CHANGELOG.cs.md 3.21.0 · 3.31.0: app:src/settings.ts mapScopeByTree, getMapScopeForTree, setMapScopeForTree · src/ui/map-scope-ui.ts (jen hlavní okno) · spec 098 -->
 
 <a id="A6.5.1"></a>
 ### A6.5.1 Skąd mapa bierze położenie miejsca
@@ -621,25 +780,202 @@ Z wybraną osobą **Odtwórz** przechodzi całą oś czasu w 24 sekundy, od najs
 
 <!-- zdroj: app:src/map-lines.ts pathPlaySchedule (PATH_PLAY_MS 24000, PATH_EVENT_WEIGHT 5, krok rok, součet 24 000), pathAddedIn (nejbližší generace, pak rel, cíl poslední), pathLastAdded · src/ui/map-path-ui.ts playMapPath (konec u cíle), panMapToPathEnd (framed, jednou), renderMapTimeMarks (čtvrtiny podle firstYear, cíl), renderMapTimeCaption (cíl, jinak items[0]; aria-live, aria-valuetext; bez cesty skryto) · src/ui/map-ui.ts toggleMapTimePlay (na konci od začátku), setMapTimeYear (pozastaví), značky → setMapTimeYear · strings.ts map.timeMarkTitle, pathGoalEnd · app cce82a89, 34e82d43 (app:81f2adf0) · ZADANI_UIX_mapa-rody-v-case D5 (ponechat) · spec 054 K2.2 · CHANGELOG.cs.md 3.28.0 -->
 
+<a id="A6.5.7"></a>
+### A6.5.7 Mapa z zakresem Wybór
+
+Z zakresem **Wybór** mapa pracuje tylko z osobami wyboru okna ([A6.6](#A6.6)).
+
+- **Co liczy się z wyboru:** punkty miejsc, liczby na pasku, miejsca do odszukania w badaniu ([A6.5.2](#A6.5.2)),
+  **Migracja w czasie** razem z zakresem lat ([A6.5.3](#A6.5.3)) i droga przodków ([A6.5.4](#A6.5.4)).
+- **Część Wybór** w przełączniku zakresu nosi nazwę wyboru i liczbę osób („Ród Horák · 14”); okno bez wyboru ma tylko
+  **Wybór ▾**. Kliknięcie części, która nie jest wybrana, od razu przełącza zakres. Kliknięcie wybranej części albo
+  części bez wyboru otwiera menu wyboru ([A6.6](#A6.6)). Wybór ustawiony na mapie jest wyborem okna: Rodzina go potem
+  wyróżnia.
+- **Miejsce z osobami spoza wyboru:** panel miejsca pokazuje tylko osoby wyboru, a pod nimi „i {n} osób poza wyborem ·”
+  z **Całe drzewo** (przełącza zakres). Ślub, z którego w wyborze jest tylko jedno z partnerów, pokazuje się na mapie;
+  w panelu jest tylko ten partner.
+- **Wyszukiwanie osoby na mapie:** osoba spoza wyboru ma w wyniku etykietę „poza wyborem” i odnośnik **Pokaż w całym
+  drzewie** (przełącza zakres na **Całe drzewo**).
+- **Droga do osoby:** wybór osoby drogi oferuje tylko osoby wyboru. Gdy cel drogi jest poza wyborem, chip drogi jest
+  przygaszony z „· poza wyborem”, droga się nie rysuje, a pasek mówi „Osoba ścieżki jest poza wyborem – ścieżka nie
+  jest pokazana.”
+- **Pusty wybór:** na środku mapy „Wybór jest pusty.”; wybór, z którego nikt nie ma miejsca: „Nikt z wyboru nie ma
+  jeszcze miejsca.” z odnośnikiem do osób bez miejsca ([A6.5.8](#A6.5.8)). Pasek stanu się wtedy nie pokazuje.
+- **Wyczyszczenie lub zniknięcie wyboru** przywraca zakres **Ten widok**. Zakres **Wybór** zapamiętany dla drzewa
+  obowiązuje tylko wtedy, gdy okno po otwarciu drzewa ma wybór.
+- **Okno Miejsca** otwarte z mapy ma ten sam przełącznik zakresu (część **Wybór** tylko wtedy, gdy okno ma wybór)
+  i zmienia zakres mapy oraz listę miejsc. Otwarte skądinąd pokazuje miejsca całego drzewa.
+- **Telefon:** zamiast przełącznika jest przycisk **Zakres: {nazwa} ▾** obok rodzajów zdarzeń. Otwiera arkusz
+  **Zakres**: sekcja **Zakres mapy** (trzy zakresy z liczbami osób), **Zmień wybór** (najwyżej 5 wyborów: rody,
+  przodkowie osoby w centrum, listy) i **Wszystkie wybory…** (całe menu wyboru). Telefon w poziomie ma przełącznik jak
+  komputer.
+- **Obsługa:** aplikacja: mapa → przełącznik zakresu **Ten widok** · **Wybór** · **Całe drzewo** (telefon **Zakres:
+  … ▾**); **Na mapie** przy liście osób ([A11.3](A11-lists-of-people.md#A11.3)) i w **⋯** Tabeli ([A6.7.19](#A6.7.19)).
+- **Obowiązuje od:** aplikacja 3.31.0
+
+<!-- zdroj: app:src/map-scope.ts mapScopePersonIds · src/ui/map-ui.ts mapScopePersons (body, počty, mapMissingPlaces, mapTimeHarvest, map-lines) · src/ui/map-scope-ui.ts (díl Výběr: nezvolený → rozsah hned, zvolený nebo bez výběru → nabídka; vyprázdnění selEmpty / selNoPlaces; mimo výběr popupOutside, popupWhole, outside, showInTree; zrušený / zaniklý výběr → 'view'; zapamatovaný 'sel' jen s výběrem; list Rozsah s selectionQuickRows(5)) · src/ui/selection-picker-ui.ts selectionQuickRows (2 rody, předci, seznamy, další rody) · src/places.ts collectPlaces (fact.persons.filter(kept): sňatek jen s osobou výběru) · src/ui/map-path-ui.ts (osoby cesty z výběru, pathOutside) · src/ui/places-manager-ui.ts (rozsah okna Místa jen z mapy) · strings.ts map.scopeSel, scopeSelNamed, scopeAria, scopeGroup, scopeBtn, scopeSheet, scopeSheetSec, scopeViewHint, scopeChange, scopeAll, selEmpty, selNoPlaces, selUnplacedLink, outside, showInTree, popupOutside, popupWhole, popupSelCount, pathOutside · app:90c09692, 95752f6d, 74d3a34e · ZADANI_DEV_vyber-osob §3, §4, §10 · spec 098 (spec 120 K1.1–K1.3) · dirigent:test/vysledek-1121-app-098-vyber-p1.md -->
+
+<a id="A6.5.8"></a>
+### A6.5.8 Osoby z wyboru bez miejsca
+
+W zakresie **Wybór** pasek stanu mapy ma drugi wiersz „{n} osób z wyboru nie ma miejsca ›”, gdy co najmniej jedna
+osoba wyboru nie ma miejsca w żadnym rodzaju mapy (urodzenie, zgon, ślub lub rozwód, inne wydarzenia osoby i pary).
+Miejsce bez współrzędnych liczy się jako miejsce.
+
+- Kliknięcie otwiera **Tabelę** z osobami wyboru i z włączonym chipem **Bez miejsca** ([A6.7.6](#A6.7.6)): przy liście
+  w zakresie tej listy, przy innym wyborze w zakresie „Wybór: {nazwa}” ([A6.7.19](#A6.7.19)). Chip można wyłączyć jak
+  inne filtry.
+- **Granice:** wiersz się nie pokazuje, gdy miejsce mają wszyscy, podczas wyszukiwania współrzędnych oraz przy błędzie
+  lub bez internetu.
+- **Obsługa:** aplikacja: mapa → pasek stanu → „… nie ma miejsca ›”; przy pustej mapie odnośnik „{n} osób bez
+  miejsca ›”.
+- **Obowiązuje od:** aplikacja 3.31.0
+
+<!-- zdroj: app:src/places.ts personHasMapPlace (narození, úmrtí, události osoby, svazek start/end/události; místo bez souřadnic se počítá) · src/ui/map-ui.ts renderMapStatus (map-status-unplaced, ne při geocodingu, chybě, offline) · src/ui/map-scope-ui.ts (Tabulka v rozsahu výběru s filter noPlace) · src/ui/table-view/table-ui.ts openTableForSelection · src/ui/table-view/table-filter.ts CHIP_ORDER noPlace · strings.ts map.selUnplaced, selUnplacedLink, table.chip.noPlace, chipNoPlaceTitle · app:2a578474, 39020cf1 · ZADANI_DEV_vyber-osob §5 · spec 120 K1.4 -->
+
 <a id="A6.6"></a>
-## A6.6 Ród w widoku
+## A6.6 Wybór osób
 
-Widok może wyróżnić jeden ród ([A4](A4-surnames-and-families.md)): jego członków w pełni, żony i mężów, którzy
-weszli do rodu przez małżeństwo, słabiej, pozostałych przygaszonych. Działa w widokach Rodzina, Potomkowie
-i Wachlarz.
+Wybór to jedna nazwana grupa osób, którą ma okno. Obowiązuje we wszystkich widokach okna: Rodzina, Potomkowie
+i Wachlarz go wyróżniają, Mapa może pokazać go samego ([A6.5.7](#A6.5.7)), a Tabela może mieć go jako zakres
+([A6.7.19](#A6.7.19)). Do danych drzewa wybór się nie zapisuje; listy osób ([A11](A11-lists-of-people.md)) zostają
+bez zmian.
 
-- Wybór zapamiętuje się dla każdego drzewa na urządzeniu. Ród, którego w drzewie już nie ma, anuluje się po cichu.
-- Gdy w widoku nie jest narysowany żaden członek rodu:
-  - Rodzina i Wachlarz przesuwają osobę w centrum na najbliższego członka rodu (przez rodziców, dzieci i partnerów;
-    przy remisie na starszego), a gdy osoba nie jest z nim połączona, na założyciela rodu;
-  - Potomkowie przesuwają osobę w centrum zawsze na założyciela;
-  - pasek proponuje **↩ Wróć**.
-- **Granice:** przywrócenie wyboru z pamięci nie przesuwa osoby w centrum.
-- **Obsługa:** **Rody** na pasku; w menu osoby **Tylko ród …** (ród z urodzenia osoby jest pierwszy); koniec przez
-  × przy etykiecie lub **Pokaż całe drzewo**.
-- **Obowiązuje od:** aplikacja 3.21.0
+| Wybór | Kogo obejmuje | Nazwa na etykiecie i w menu |
+|---|---|---|
+| ród | rzeczywistych członków rodu ([A4](A4-surnames-and-families.md)) | Ród {ród} |
+| przodkowie osoby | przodków osoby jak reguła **Przodkowie osoby** ([A11.2](A11-lists-of-people.md#A11.2)): wszystkie pokolenia albo 1 do 10 | Przodkowie: {osoba} |
+| potomkowie osoby | potomków osoby jak reguła **Potomkowie osoby**, wszystkie pokolenia albo 1 do 10 | Potomkowie: {osoba} |
+| linia badania | osoby linii badania jak reguła **Linia badania** | Linia: {linia} |
+| lista osób | osoby listy | Lista: {lista} |
 
-<!-- zdroj: app:src/ui/rod-view.ts · src/rod-focus.ts (BFS přes rodiče, děti, partnery) · strings.ts rodView.only, rodView.whole, rodView.moved · spec 039 · CHANGELOG.cs.md 3.21.0 -->
+- Okno ma najwyżej jeden wybór. Osoby wyboru liczą się na nowo po każdej zmianie drzewa (lista automatyczna i reguła
+  przodków, potomków i linii). Osoby zastępcze i osoby, których w drzewie już nie ma, do wyboru nie należą.
+- **Wyróżnienie** w Rodzinie, Potomkach i Wachlarzu: osoby wyboru w pełni, pozostałe przygaszone. Przy rodzie żony
+  i mężowie, którzy weszli do rodu przez małżeństwo, pokazują się słabiej; do wyboru nie należą.
+- **Etykieta wyboru** nad drzewem: „{nazwa} · {n} osób ▾” (otwiera menu wyboru, [A6.6.1](#A6.6.1)), **Ukryj pozostałe**
+  ([A6.6.2](#A6.6.2)), **Następna osoba ›** (ustawia w fokusie kolejną osobę wyboru) i × **Wyczyść wybór** (także Esc).
+  Pusty wybór ma etykietę z liczbą 0, a **Następna osoba ›** nie działa. Na Osi czasu i na Mapie etykieta się nie
+  pokazuje.
+- **Inne wyróżnienie** (dowody, kontrola, zmiany na żywo) na czas przykrywa wybór, a etykieta należy do niego. Po jego
+  końcu wybór wraca; **Ukryj pozostałe** w czasie przykrycia nie obowiązuje. Wybranie wyboru kończy inne wyróżnienie.
+- **Z wyboru nic nie jest narysowane** (po wybraniu wyboru, nie po przywróceniu z pamięci):
+  - Rodzina i Wachlarz przesuwają osobę w centrum na osobę wyboru najmniej kroków od niej (przez rodziców, dzieci
+    i partnerów; przy remisie na wcześniej urodzoną). Gdy wybór nie jest z nią połączony, osobą w centrum staje się
+    założyciel rodu albo osoba, której to przodkowie lub potomkowie; przy linii i liście najwcześniej urodzona osoba
+    wyboru;
+  - Potomkowie przesuwają osobę w centrum zawsze na założyciela rodu, osobę przodków lub potomków, w przeciwnym razie
+    na najwcześniej urodzoną;
+  - powiadomienie „Fokus: {osoba}, wybór {nazwa}” ma **↩ Wróć**.
+  - Na Osi czasu, na Mapie i w Tabeli osoba w centrum się nie przesuwa.
+- **Obsługa:** aplikacja: **Wybór ▾** na pasku Rodziny, Potomków i Wachlarza; w menu osoby **Wybierz ›**; etykieta
+  wyboru; na telefonie **Więcej → Wybór** ([A6.6.1](#A6.6.1)).
+- **Obowiązuje od:** aplikacja 3.21.0 (tylko ród: **Rody** na pasku, w menu osoby **Tylko ród …**); 3.31.0: wybór
+  osób (ród, przodkowie, potomkowie, linia badania, lista), menu **Wybór ▾**, **Ukryj pozostałe**
+
+<!-- zdroj: app:src/view-selection.ts (SelectionRef rod / ancestors / descendants / line / list; selectionPersonIds: realRodMembers, rulePersonIds, listPersonIds; cache na lineage index = změnu dat; selectionLabel předpony) · src/ui/view-selection-ui.ts (jeden výběr okna, selectionGroup: rod faint realRodSpouses, zakrytí jinou skupinou a návrat selectionUncovered, setSelection ukončí jinou skupinu, ne přesun při 'restore') · src/ui/evidence-ui.ts (kind 'selection': štítek ▾ otevře nabídku, Skrýt ostatní, Další osoba, × a Esc = clearSelection; prázdný výběr 0 a Další nedostupné) · src/ui/rod-view.ts moveFocusToSelection (ne timeline, map, table) · src/rod-focus.ts selectionFocusTarget (nejméně kroků, shoda dříve narozený; root = zakladatel / osoba předků a potomků; jinak nejdříve narozený; Potomci vždy root) · strings.ts selection.pill, hideOthers, clear, moved, prefix · app:51ad8fd6, cb97070c, 61873988, 39e84ca0, e5da4a61 · ZADANI_DEV_vyber-osob §0, §1, §8, §9, §12 · spec 098 Rozhodnutí 1–5 (Milan 21. 11. „jak doporucujes“) · dřív: src/ui/rod-view.ts, spec 039, CHANGELOG.cs.md 3.21.0 -->
+
+<a id="A6.6.1"></a>
+### A6.6.1 Menu Wybór ▾
+
+Jedno menu wybiera wybór okna wszędzie: na pasku drzewa, na etykiecie wyboru, w części **Wybór** przełącznika zakresu
+mapy i na telefonie w arkuszu **Więcej**.
+
+- **Zawartość** od góry do dołu:
+  1. pole **Szukaj rodu, osoby, listy…**;
+  2. przy wyborze przodków lub potomków blok **Wybór okna**: nazwa i liczba, „Osoba: {osoba}” ze **Zmień…**
+     i **Pokoleń** (− i +: wszystkie albo 1 do 10);
+  3. **Brak wyboru** (całe drzewo, liczba osób drzewa);
+  4. sekcja **Rody** jak dawna lista **Rody** ([A4.4](A4-surnames-and-families.md#A4.4)): rody z paskiem okresu
+     i liczbą oraz **Inne rodziny**; tylko gdy drzewo ma ród, który nie jest mały;
+  5. sekcja **Przodkowie i potomkowie**: „Przodkowie: {osoba w centrum}” i „Potomkowie: {osoba w centrum}” z liczbami,
+     w nagłówku **Inna osoba…**;
+  6. sekcja **Linie badań**, tylko w drzewie z liniami;
+  7. sekcja **Listy osób**: listy według nazwy z ikoną rodzaju, rodzajem (przy automatycznej z regułą, przy roboczej
+     „zostało a z b”) i liczbą; bez list „Drzewo nie ma jeszcze list.”;
+  8. **Zapisz wybór jako listę…** (wybór, który nie jest listą; nie w drzewie tylko do odczytu) otwiera nową listę
+     z regułą wyboru ([A11.6](A11-lists-of-people.md#A11.6)); **Listy osób…** otwiera zarządzanie listami.
+- **Wyszukiwanie** przechodzi przez rody (także formy nazwiska), linie, listy i osoby, bez względu na znaki
+  diakrytyczne. Znalezione osoby (najwyżej 5, z latami i miejscem) są w sekcji **Osoby** z wierszami „Przodkowie: …”
+  i „Potomkowie: …”.
+- **Menu osoby:** **Wybierz ›** oferuje rody osoby (ród z urodzenia pierwszy, potem rody, do których weszła przez
+  małżeństwo, z co najmniej dwoma rzeczywistymi członkami), **Przodków** i **Potomków** z liczbami (bez nich, gdy
+  osoba nie ma przodków lub potomków). Gdy osoba należy do wyboru okna, jest pod tym **Wyczyść wybór**.
+- **Telefon:** pasek drzewa przycisku nie ma; w Rodzinie, Potomkach i Wachlarzu jest w arkuszu **Więcej** wiersz
+  **Wybór** z nazwą wyboru (bez wyboru **Brak wyboru**), na Osi czasu, Mapie i w Tabeli nie. Menu to arkusz z polem
+  wyszukiwania na górze. Telefon w poziomie ma wiersz **Wybór** na końcu wiersza **Widok**. Tablet ma **Wybór ▾** po
+  prawej na górnym pasku.
+- **Obsługa:** aplikacja: **Wybór ▾** na pasku Rodziny, Potomków i Wachlarza; nazwa ▾ na etykiecie wyboru; menu
+  osoby **Wybierz ›**; telefon **Więcej → Wybór**.
+- **Obowiązuje od:** aplikacja 3.31.0
+
+<!-- zdroj: app:src/ui/selection-picker-ui.ts (lišta Rodiny, Potomků, Vějíře, ne timeline/map/table; tablet vpravo; každý strom s osobami; MAX_GENERATIONS 10 pak všechny; FOUND_LIMIT 5; rody jen když rodPickerOffered – ne jen malé rody; pole hledání vždy (rod-picker.ts:382); canSave ref ≠ list && !listsReadOnly; saveListOptions; Seznamy osob…) · src/rod-picker.ts selectionPickerHtml (pořadí oddílů, patička) · src/ui/rod-picker-ui.ts wireRodPicker (hledání přes oddíly, bez diakritiky) · src/ui/context-menu.ts (Vybrat ›: rodný rod první, rody sňatkem s ≥ 2 skutečnými členy, Předky / Potomky s počty, Zrušit výběr když osoba patří do výběru) · src/ui/bottom-sheet.ts (řádek Výběr v Rodině, Potomcích, Vějíři; na šířku valueInPair na konci řádku Pohled) · strings.ts selection.* · app:61873988, 07fd4946, a273ef05, 1eb97c1f, 8cfb01da · ZADANI_DEV_vyber-osob §2, §10 -->
+
+<a id="A6.6.2"></a>
+### A6.6.2 Ukryj pozostałe
+
+**Ukryj pozostałe** na etykiecie wyboru zostawia w Rodzinie i w Potomkach tylko osoby wyboru: pozostałe karty znikają,
+a drzewo rozkłada się na nowo tylko z nich, w granicach osoby w centrum i głębokości **Przodkowie** i **Potomkowie**
+([A6.1](#A6.1)). Wybór **Przodkowie: {osoba}** pokazuje więc czysty rodowód osoby.
+
+- Osoba w centrum rysuje się zawsze ([A6.6.3](#A6.6.3)). Widok nigdy nie rysuje więcej kart niż bez filtru.
+- Przy rodzie żony i mężowie, którzy weszli do rodu przez małżeństwo, zostają przy swoim członku rodu.
+- Linie są tylko między osobami, które są narysowane obie. Rodzina, z której narysowany jest tylko jeden rodzic, wisi
+  pod nim. Osoby wyboru bez połączenia z pozostałymi stoją w rzędzie swojego pokolenia jako osobne grupy, w kolejności,
+  jaką miałyby w pełnym widoku.
+- Zakładki ukrytych krewnych na kartach i **Dzieci i rodzeństwo** ([A6.1.3](#A6.1.3)) liczą tylko osoby wyboru.
+- Karta najbliżej środka ekranu zostaje po przełożeniu na miejscu (w przeciwnym razie osoba w centrum); powiększenie się
+  nie zmienia.
+- Opcja zapamiętuje się z wyborem ([A6.6.4](#A6.6.4)) i wyłącza się z wyczyszczeniem wyboru.
+- **Wachlarz** oferuje opcję tylko przy wyborze **Przodkowie: {osoba}**. Wycinki pozostałych osób zostają na swoich
+  miejscach jako puste przerywane obrysy (bez imienia, lat, wypełnienia i **+**) i nie da się ich otworzyć ani wybrać
+  klawiaturą; wycinki wyboru i środek zostają tam, gdzie były.
+- **Granice:** przy każdym innym wyborze Wachlarz tej opcji nie ma (wybór tylko wyróżnia); **Ukryj pozostałe**
+  włączone w Rodzinie nic tam nie zmienia i zostaje włączone. Wyniki (obraz, druk, eksport) rysują cały widok.
+- **Obsługa:** aplikacja: etykieta wyboru → **Ukryj pozostałe** (pole wyboru); na telefonie etykieta jest w jednym
+  wierszu, a **Ukryj pozostałe** to tylko pole wyboru bez tekstu.
+- **Obowiązuje od:** aplikacja 3.31.0
+
+<!-- zdroj: app:src/layout/pipeline/person-filter.ts (filtr při sběru osob: jen osoby celého pohledu a jejich generace a pořadí, ústřední vždy; restrictSelection: čáry jen mezi nakreslenými, rodina s jedním rodičem pod ním; nespojené osoby ve vlastních skupinách vedle sebe v pořadí celého pohledu) · src/layout/pipeline/index.ts drawnOrder · src/renderer.ts setPersonFilter (Rodina a Potomci; záložky a bulk-family jen osoby výběru tabInView; karta nejblíž středu zůstane, jinak ústřední; přiblížení beze změny; výstupy kreslí celý pohled) · src/ui/evidence-ui.ts (rod: faint partneři do filtru; ve vějíři jen předci: setPersonFilter fan = ref.kind ancestors, syncEvidencePillHide evidence-pill--no-hide) · src/fan-chart.ts buildFanSvg keepOnly (offSector: prázdný čárkovaný obrys, bez +, pointer-events none, aria-hidden; střed vždy) · src/ui/fan-view.ts svgExtras keepOnly (jen obrazovka; výstup fan-chart.ts:1249 bez keepOnly), klávesnice přeskočí · app:493f330c · src/ui/view-selection-ui.ts setHideOthers (pamatuje s výběrem, bez výběru vypnuto) · strings.ts selection.hideOthers, hideOthersTitle · app:39e84ca0, e5da4a61 · ZADANI_DEV_vyber-osob §8 · dirigent:prace/1121-app-098-vyber-p1 (telefon: štítek v jednom řádku, Skrýt ostatní čtvereček 44 px), test/vysledek-1121-app-098-vyber-p1.md -->
+
+<a id="A6.6.3"></a>
+### A6.6.3 Osoba w centrum poza wyborem
+
+Osoba w centrum, która do wyboru nie należy, zostaje w Rodzinie i w Potomkach w pełni widoczna, także z **Ukryj
+pozostałe**. Na górnej krawędzi karty ma etykietę „poza wyborem”; czytnik ekranu odczytuje „{imię} – poza wyborem”.
+
+- W Wachlarzu środek nie jest przygaszony; etykiety nie ma.
+- Śledzenie agenta badania ([S4.1.7](S4-research-from-the-app.md#S4.1.7)) zmienia tylko osobę w centrum, wybór zostaje
+  i nie opóźnia przeskoków za agentem. Przeskok na osobę spoza wyboru pokazuje się z etykietą „poza wyborem”.
+- **Obsługa:** kliknięcie karty osoby spoza wyboru.
+- **Obowiązuje od:** aplikacja 3.31.0
+
+<!-- zdroj: app:src/renderer.ts setEvidenceHighlight (ústřední osoba nikdy dim; mimo výběr card-tag „mimo výběr“, aria; ve vějíři jen střed bez dim) · src/layout/pipeline/person-filter.ts (ústřední vždy) · src/ui/live-follow-ui.ts (skok agenta mění zaměření, výběr nechá a skoky nezdržuje) · strings.ts selection.outside, outsideAria · app:39e84ca0, e5da4a61 · ZADANI_DEV_vyber-osob §7 (sledování), §9 -->
+
+<a id="A6.6.4"></a>
+### A6.6.4 Wybór w oknach i w pamięci
+
+Wybór należy do okna i obowiązuje w nim we wszystkich widokach. Dla drzewa zapamiętuje się wybór okna głównego.
+
+| Co | Okno główne | Kolejne okno ([A6.8](#A6.8)) |
+|---|---|---|
+| wybór i **Ukryj pozostałe** | zapamiętuje się dla każdego drzewa na urządzeniu; po otwarciu drzewa wraca, a osoba w centrum się nie rusza | przy otwarciu przejmuje wybór okna, z którego powstało; potem ma własny i trzyma go do zamknięcia (także po F5) |
+| zakres mapy ([A6.5](#A6.5)) | zapamiętuje się dla każdego drzewa | przejmuje go przy otwarciu, potem własny |
+
+- Zmiana wyboru w jednym oknie pozostałych okien nie zmienia. Wyjątkiem jest **Na mapie** z Tabeli kolejnego okna:
+  wykonuje je okno główne ([A6.7.19](#A6.7.19)).
+- **Wybór, który zniknął** (usunięta lista, ród, który przestał istnieć, usunięta linia badania, usunięta osoba
+  przodków lub potomków): wybór się czyści, **Ukryj pozostałe** się wyłącza, a zakres mapy **Wybór** wraca na **Ten
+  widok**. Gdy wybór był widoczny (wyróżnienie w Rodzinie, Potomkach lub Wachlarzu, Mapa z zakresem **Wybór**),
+  powiadomienie mówi dlaczego: „Wybór wyczyszczony: lista „{lista}” została usunięta.”, „Wybór wyczyszczony: ród {ród}
+  przestał istnieć.”, „Wybór wyczyszczony: linia badań została usunięta.”, „Wybór wyczyszczony: osoba {osoba} została
+  usunięta.”
+- Zablokowane drzewo lub drzewo, które jeszcze się wczytuje, zapamiętanego wyboru nie odrzuca; stosuje się on po
+  odblokowaniu lub wczytaniu.
+- Dawny wybór rodu (do aplikacji 3.30.0) przejmuje się jako wybór rodu.
+- **Obowiązuje od:** aplikacja 3.31.0
+
+<!-- zdroj: app:src/settings.ts selectionByTree (migrace rodByTree → { ref rod, hideOthers false }), mapScopeByTree · src/ui/view-selection-ui.ts (hlavní okno zapisuje, další okno jen stav okna; adoptWindowSelection; obnova bez přesunu; selectionDataChanged: zaniklý výběr zrušen, hideOthers vypnuto, toast jen když byl vidět; zapomenout jen u skutečně načtených dat; pending u zamčeného stromu) · src/windows/view-window-state.ts (selection, mapScope v přenášeném stavu; F5) · src/windows/window-show-on-map.ts · src/ui/map-scope-ui.ts (zrušený / zaniklý → 'view') · strings.ts selection.goneList, goneRod, goneLine, gonePerson · app:9f1fe7c4, 27e6a511, 287d10d5, f5e531e9 · ZADANI_DEV_vyber-osob §7, §12 -->
 
 <a id="A6.7"></a>
 ## A6.7 Tabela
@@ -670,7 +1006,8 @@ Widok Tabela opiera się na tabeli Ondřeja Chrpy.
   związku ten partner, który już jest osobą w centrum, w przeciwnym razie **Partner 1**; przy wydarzeniu osoba
   w centrum, gdy jest wśród jego osób, w przeciwnym razie pierwsza osoba; wiersz źródła osoby w centrum nie zmienia.
 - **Granice:**
-  - wyróżnienie rodu ([A6.6](#A6.6)) w tabeli się nie stosuje; ród można wybrać chipem **Ród** ([A6.7.6](#A6.7.6));
+  - wyróżnienie rodu ([A6.6](#A6.6)) w tabeli się nie stosuje; ród można wybrać chipem **Ród** ([A6.7.6](#A6.7.6)), od
+    aplikacji 3.31.0 także wybór okna jako zakres ([A6.7.19](#A6.7.19));
   - kolumny, chipy i widoki badania są tylko w drzewie z badania ([A6.7.14](#A6.7.14));
   - drzewo tylko do odczytu (śledzone drzewo, drzewo zapisane nowszą wersją aplikacji, zablokowane drzewo) tabela
     tylko pokazuje: „Tylko do odczytu: edycji i „To nie błąd” tu nie ma.” Przeglądanie, filtr, sortowanie i eksport
@@ -870,6 +1207,8 @@ Filtr wybiera wiersze, wyszukiwanie zawęża je dalej, sortowanie ustala kolejno
   **Bez źródła**, **Z ustaleniami** (błąd lub do sprawdzenia; trop nie), **Nietypowe**, **Niepotwierdzone z badania**
   (tylko drzewo z badania). Chipy ustaleń czekają na kontrolę („Gdy sprawdzanie się skończy”). Co się nie zmieści,
   jest w **Więcej (n)**.
+  - **Od aplikacji 3.31.0:** za **Bez daty urodzenia** jest chip **Bez miejsca**: osoby bez miejsca urodzenia, ślubu,
+    zgonu ani innego wydarzenia, czyli bez miejsca, które pokazałaby mapa ([A6.5.8](#A6.5.8)).
 - **Filtr w kolumnie** (**Filtr…** w nagłówku) według rodzaju kolumny:
   - wartości z listy (płeć, stan związku, poziom ustalenia, ród …);
   - zakres **od**–**do** (przy dacie **Rok**, przy wieku, liczbie i procentach liczba);
@@ -1518,7 +1857,19 @@ listy; filtr, wyszukiwanie i chipy obowiązują wtedy w jego obrębie.
   **Zakres** się ukrywa, a całe drzewo jest tylko znakiem. Na telefonie **⋯ → Zakres ›**. Z listy: **Otwórz w tabeli**
   ([A11.3](A11-lists-of-people.md#A11.3)).
 - **Obowiązuje od:** aplikacja 3.30.0
+- **Od aplikacji 3.31.0:**
+  - **Wybór okna** ([A6.6](#A6.6)), który nie jest listą (ród, przodkowie, potomkowie, linia badania), jest w **Zakres ▾**
+    jako sekcja **Wybór okna** z wierszem „Wybór: {nazwa} · {liczba}”; pasek tabeli pokazuje wtedy „Wybór: {nazwa}”.
+    Wiersze są jak w zakresie listy, tylko bez własnej kolejności: bez kolumn **#** i **Gotowe**. Osoba spoza wyboru:
+    „Nie ma w wyborze: {imię}.”;
+  - zakres wyboru podąża za wyborem okna: inny wybór go zastępuje, wybór listy przełącza na zakres tej listy,
+    wyczyszczony lub znikły wybór przywraca **Całe drzewo**. Zakres wyboru należy do okna, z widokiem Tabeli się nie
+    zapisuje;
+  - w zakresie listy lub wyboru ostatnim wierszem **⋯** Tabeli jest **Na mapie**: wybór okna ustawia się na tę listę
+    lub wybór i otwiera się Mapa z zakresem **Wybór** ([A6.5.7](#A6.5.7)). W kolejnym oknie ([A6.8](#A6.8)) wykonuje
+    to okno główne; bez okna głównego wiersz jest niedostępny („Okno główne nie jest otwarte.”).
 
+<!-- zdroj 3.31.0: app:src/ui/table-view/table-scope.ts (kind 'selection', klíč sel:…, jen pos, bez # a Hotovo) · table-ui.ts (oddíl scopeSelGroup jen pro výběr, který není seznam; rozsah sleduje výběr okna; openTableForSelection; ⋯ Na mapě jen v rozsahu seznamu nebo výběru, poslední řádek) · table-views.ts (rozsah výběru se s pohledem neukládá) · table-bar.ts (název výběru a ikona druhu) · table-notice.ts notInSelection · src/windows/window-show-on-map.ts (další okno → hlavní okno) · strings.ts table.scopeSelGroup, scopeSel, notInSelection, onMap, onMapNoMain · app:2a578474, 39020cf1 · ZADANI_DEV_vyber-osob §5, §6 · spec 098 -->
 <!-- zdroj: app:src/ui/table-view/table-scope.ts tableScopeOf, scopeRows (Osoby v pořadí, svazek s partnerem, událost s osobou, prameny nikdy), scopeCounts, outsideScope, applyScopeCells · table-ui.ts setTableScope (Osoby, Svazky, Události najednou; LIST_SORT # ↑; zpět bez num), dropGoneScopes + scopeGone, tableScopeRows (Spravovat seznamy… ne v isReadOnly), showTableScopeMenu, tableScopeSheetRows, toggleTableDone, tableRowRemoveIds, hiddenJump.outsideList (:2204), leadColumnsOf (# a Hotovo), export :3125 scopeRows · table-notice.ts:60 (scopeGone, notInList, Celý strom) · table-views.ts:258, :272 view.scope · table-bar.ts tv-scope-btn · strings.ts table.scope, scopeWhole, scopeManage, scopeSources, scopeGone, notInList, outsideList, sortList, col.num, col.done, chip.left, chip.done, lists.toast.removed · app:211323e8, 33fa6cd4 (# a Hotovo v exportu), 9681a1f4 (N1 jeden řádek lišty) · ZADANI_DEV §9, §13d · spec 084 K3.* -->
 
 <a id="A6.7.20"></a>
@@ -1567,7 +1918,8 @@ i dostają od niego drzewo.
 - **Co okno ma:** zamiast paska aplikacji nagłówek: nazwę drzewa, przełącznik widoków (poniżej 960 px jako „{widok} ▾”),
   **Śledź wybór** ([A6.8.1](#A6.8.1)), **Cofnij**, **Ponów** i ⧉ **Otwórz kolejne okno**. Przełącznika drzew, menu
   **Badanie**, Ustawień ani małego panelu badania okno nie ma. Od aplikacji 3.30.0 zamiast **Śledź wybór** jest
-  przełącznik **Wybór** ([A6.8.4](#A6.8.4)).
+  przełącznik **Wybór** ([A6.8.4](#A6.8.4)), od aplikacji 3.31.0 nazywa się **Wybrana osoba** ([A6.8.1](#A6.8.1)).
+  Wybór osób ([A6.6](#A6.6)) okno ma własny.
 - **Zmiany:** w oknie można edytować osobę (menu osoby, **Edytuj**) i komórkę Tabeli. Zapisuje je okno główne, można
   je cofnąć jako jego kroki i od razu pokazują się we wszystkich oknach. **Cofnij** i **Ponów** w nagłówku okna cofają
   i ponawiają kroki okna głównego. Gdy drzewo w międzyczasie zmieniło się w innym oknie, zmiana nie zostaje
@@ -1598,7 +1950,7 @@ i dostają od niego drzewo.
 <!-- zdroj: app:4b1373a7 src/windows/window-open.ts isDesktopSystem, windowsOffered (role main, ne isViewMode, > MOBILE_MAX 640, ne isPhoneBar), openInNewWindow · src/windows/window-controls.ts openWindow (BLOCKED_TOAST_MS 10 s, win.retry; MANY_WINDOWS 5, manyWindows), INDICATOR_TEXT_MIN_WIDTH 1280, renderMenu (6 pohledů, thisView, overview jen UI.canOpenResearchOverview), wireTabs (ctrl/meta click, auxclick button 1, contextmenu, Shift+F10 / ContextMenu) · src/windows/view-window-state.ts (přenos stavu, F5 satelitu) · src/windows/sat-header.ts · src/windows/satellite.ts readOnly (live, locked) · src/windows/sat-states.ts (live strip readOnlyLive, goToMain; CONFLICT_TOAST_MS) · src/windows/window-drafts.ts (draftKept) · src/windows/window-research-menu.ts (researchInMain) · src/windows/window-title.ts · index.html html.window-satellite .toolbar skryto · strings.ts win.* · CHANGELOG.cs.md 3.28.0 · spec 079 K1.1–K1.4, K1.7 · prace/1112-app-okna-zaklad, 1112-app-okna-pohledy -->
 
 <a id="A6.8.1"></a>
-### A6.8.1 Śledź wybór
+### A6.8.1 Wybrana osoba
 
 Wybrana osoba jest wspólna dla okien. Co wybór w innym oknie zrobi w tym oknie, określa przełącznik **Śledź wybór**
 w nagłówku okna.
@@ -1625,8 +1977,11 @@ w nagłówku okna.
   ([S4.1.7](S4-research-from-the-app.md#S4.1.7)).
 - **Od aplikacji 3.30.0:** przełącznik nazywa się **Wybór ▾**, a te tryby są w jego grupie **To okno** · wybór
   z innych okien. Druga grupa **Okno główne** mówi, co wybór w tym oknie zrobi w oknie głównym ([A6.8.4](#A6.8.4)).
+- **Od aplikacji 3.31.0:** przełącznik nazywa się **Wybrana osoba ▾**, a grupy **To okno** · osoba wybrana w innym
+  oknie i **Okno główne** · osoba wybrana w tym oknie. Przy **wyłączone** stoi „Okno ma własną wybraną osobę i niczego
+  nie wysyła.” Słowo **Wybór** oznacza w aplikacji tylko wybór osób ([A6.6](#A6.6)).
 
-<!-- zdroj: app:4b1373a7 src/windows/follow-mode.ts RECENTERING (family, descendants, fan), defaultFollowMode, followModesFor, effectiveFollowMode, followChoiceToStore (sessionStorage pro okno) · src/windows/window-selection.ts (origin, bez smyčky) · src/windows/sat-header.ts · strings.ts win.followSelectionState, followModeSwitch, followModeMark, followModeOff, followModeSwitchNote, followModeMarkNote, followSelectionOff · spec 079 K1.3, K2.1 · prace/1112-app-okna-sledovat (7bb1b8b2) -->
+<!-- zdroj: app:4b1373a7 src/windows/follow-mode.ts RECENTERING (family, descendants, fan), defaultFollowMode, followModesFor, effectiveFollowMode, followChoiceToStore (sessionStorage pro okno) · src/windows/window-selection.ts (origin, bez smyčky) · src/windows/sat-header.ts · strings.ts win.followSelectionState, followModeSwitch, followModeMark, followModeOff, followModeSwitchNote, followModeMarkNote, followSelectionOff · spec 079 K1.3, K2.1 · prace/1112-app-okna-sledovat (7bb1b8b2) · 3.31.0: strings.ts satFollow.menu, label, groupThisSub, groupMainSub, recvOffNote, sendDisabled, agentNote (app:51ad8fd6, ZADANI_DEV_vyber-osob §1.1) -->
 
 <a id="A6.8.2"></a>
 ### A6.8.2 Gdy brakuje okna głównego
@@ -1677,7 +2032,8 @@ Kolejne okna łączą się z nim.”
 ### A6.8.4 Co wybór w kolejnym oknie zrobi w oknie głównym
 
 Osoba wybrana w Tabeli, na Osi czasu albo na Mapie kolejnego okna zostaje w oknie głównym zaznaczona albo staje się
-jego centrum. Określa to grupa **Okno główne** w przełączniku **Wybór** w nagłówku kolejnego okna.
+jego centrum. Określa to grupa **Okno główne** w przełączniku **Wybór** (od aplikacji 3.31.0 **Wybrana osoba**)
+w nagłówku kolejnego okna.
 
 | Wybór | Co się dzieje w oknie głównym |
 |---|---|
@@ -1700,9 +2056,9 @@ jego centrum. Określa to grupa **Okno główne** w przełączniku **Wybór** w 
   głównego mówi „{imię} – brak w tym widoku.” z **Przejdź do** (osoba staje się centrum) i ×.
 - **Granice:**
   - okno główne, które śledzi agenta badania, osobę tylko zaznacza; centrum zostaje przy agencie
-    ([S4.1.7](S4-research-from-the-app.md#S4.1.7)). Raz na serię mówi „Śledzenie agenta – wybór z innego okna jest
-    tylko zaznaczany.”; kolejne okno ma przy wyborze „(agent)”, a w menu „Okno główne śledzi agenta – wybór jest tam
-    tylko zaznaczany.” Po wstrzymaniu lub końcu śledzenia nic się wstecz nie przełącza: **ustaw w centrum** obowiązuje
+    ([S4.1.7](S4-research-from-the-app.md#S4.1.7)). Raz na serię mówi „Śledzenie agenta – osoba wybrana w innym
+    oknie jest tylko zaznaczana.”; kolejne okno ma przy wyborze „(agent)”, a w menu „Okno główne śledzi agenta – wybrana
+    osoba jest tam tylko zaznaczana.” Po wstrzymaniu lub końcu śledzenia nic się wstecz nie przełącza: **ustaw w centrum** obowiązuje
     od następnego wyboru;
   - osoba, której tymczasem nie ma w drzewie: centrum zostaje, „Wybranej osoby nie ma już w drzewie.” Powiadomienie
     bez × znika po 6 s;
@@ -1711,13 +2067,13 @@ jego centrum. Określa to grupa **Okno główne** w przełączniku **Wybór** w 
     osoba jest w tym oknie ukryta.” znika po 6 s. Rodzina, Potomkowie i Wachlarz nikogo nie ukrywają;
   - osoba, która już jest centrum: nic się nie dzieje;
   - przy **wyłączone** w grupie **To okno** i gdy okno główne nie jest otwarte, grupa **Okno główne** jest wyszarzona
-    z uwagą „Niedostępne – udostępnianie wyboru jest w tym oknie wyłączone.” albo „Okno główne nie jest otwarte.”;
+    z uwagą „Niedostępne – udostępnianie wybranej osoby jest w tym oknie wyłączone.” albo „Okno główne nie jest otwarte.”;
     wybór zostaje zapisany;
   - wybór dotyczy jednego okna i jego Tabeli, Osi czasu i Mapy, przetrwa odświeżenie okna (F5); każde kolejne okno ma
     własny. Dopóki się nie wybierze, decyduje widok: Tabela ustawia w centrum, Oś czasu i Mapa zaznaczają. Wybrane
     **tylko zaznaczaj** obowiązuje także w Tabeli i przetrwa odświeżenie okna.
-- **Obsługa:** aplikacja: w nagłówku kolejnego okna **Wybór ▾** → **Okno główne** · wybór w tym oknie: **tylko
-  zaznaczaj**, **ustaw w centrum**. Zamknięty przełącznik pokazuje, co jest wybrane (w wąskim oknie skrótowo
+- **Obsługa:** aplikacja: w nagłówku kolejnego okna **Wybrana osoba ▾** → **Okno główne** · osoba wybrana w tym
+  oknie: **tylko zaznaczaj**, **ustaw w centrum**. Zamknięty przełącznik pokazuje, co jest wybrane (w wąskim oknie skrótowo
   ikonami); całe brzmienie ma w dymku.
 - **Obowiązuje od:** aplikacja 3.30.0
 

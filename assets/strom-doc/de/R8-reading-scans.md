@@ -24,7 +24,8 @@ Der Ablauf in Kürze:
 6. **Sicherheit:** der Grad der Sicherheit hängt davon ab, wer den Eintrag wie gelesen hat; eine schwierige Stelle
    braucht eine zweite, blinde Lesung ([R8.7](#R8.7)).
 
-Wer was liest, kurz und am Beispiel eines Eintrags, sagt [R8.9](#R8.9).
+Wer was liest, kurz und am Beispiel eines Eintrags, sagt [R8.9](#R8.9). Warum Ausschnitte vergrößert werden, wozu
+ein schärferer Ausschnitt dient und warum zwei Leser lesen, erklärt [R8.10](#R8.10).
 
 > **Hinweis: das Lesen durch ein Modell ist nicht hundertprozentig.** Alte Schrift liest ein KI-Modell, und die
 > Genauigkeit des Lesens hängt vom Modell ab. Die Methodik will für alte Schrift das stärkste Modell, nie ein
@@ -42,6 +43,8 @@ Wer was liest, kurz und am Beispiel eines Eintrags, sagt [R8.9](#R8.9).
 > ([A3.1.1](A3-evidence-in-the-app.md#A3.1.1), wie die Forschung damit rechnet: [R3.5.1](R3-verification-and-citation.md#R3.5.1)).
 > Eine falsche Angabe lässt sich in der App korrigieren; die Änderung einer Angabe, die ein Eintrag belegt, wird zu
 > einem Widerspruch ([S2](S2-edits-from-the-app.md)).
+> Eine Abschrift der Forschung, die ein Mensch am Eintrag geprüft hat, lässt sich mit **Abschrift bestätigen**
+> bestätigen ([A3.1.3](A3-evidence-in-the-app.md#A3.1.3)).
 > Das Lesen durch ein Modell ist nur ein Vorschlag: Eine Abschrift, die ein Mensch geschrieben oder bestätigt hat,
 > ändert niemand außer einem Menschen, auch keine neue Lesung ([R3.4.1](R3-verification-and-citation.md#R3.4.1)).
 
@@ -761,3 +764,54 @@ Eine Angabe aus dem Stammbaum eines anderen Programms dürfte der Agent nach dem
 dem Stammbaum bliebe bei der Angabe zum Zurücksetzen ([S6.3](S6-tree-from-another-program.md#S6.3)).
 
 <!-- zdroj: research:v1.30.0 src/core/sourceread.ts placesOf (fresh, ordered: jistá věcná změna první, s ní ostatní neposouzená místa), decideReading, review · assets/lang/cs.json read.source.why, read.source.unsure.why · src/commands/read.ts --blind --crop · assets/method/verify.md · app:1c9b2392 strings.ts read.check „Co ověřit“, gMajor, gUnsure, gMinor, tAgent, tQueue, origin.proposeUser, origin.conflictOpen · spec 059 ukoly U6 (nové 8. 11.: oddíl se čtenáři a příkladem, jen text) -->
+
+<a id="R8.10"></a>
+## R8.10 Wie ein Modell einen Scan sieht: Vergrößerung, schärferer Ausschnitt und zwei Leser
+
+Eine Erklärung, warum die Forschung ihren Lesern Scans so zeigt, wie sie sie zeigt. Sie stützt sich auf die
+Dokumentation der Modellhersteller, auf Studien zum Lesen von Handschriften mit KI-Modellen und auf eine Messung an
+einer Stichprobe von Einträgen einer Forschung des Projekts. Die Größenangaben prüft der Code; die Ergebnisse der
+Messung sind nur ein Anhaltspunkt.
+
+- **Wie ein Modell ein Bild sieht:** ein Modell nimmt ein Bild nicht Pixel für Pixel, sondern in Quadraten (Claude
+  28 px, GPT 32 px). Ein kleines Bild vergrößert es nicht selbst, ein großes verkleinert es selbst
+  ([R8.3.2](#R8.3.2)). Ist ein Buchstabe auf einem kleinen Ausschnitt kleiner als ein Quadrat, sieht das Modell ihn
+  nur zum Teil und liest schlechter; das Problem ist die Größe der Schrift, nicht dass es den Eintrag nicht fände.
+- **Warum ein Ausschnitt vergrößert wird (prüft der Code):** ein Ausschnitt oder eine Hälfte, kleiner als eine
+  Ansicht, die der Leser gut liest, wird vergrößert: für Claude auf 800 px an der längeren Seite, für einen Leser
+  mit einem GPT-Modell (Codex, OpenCode mit einem Modell von OpenAI) bis auf 2000 px; immer höchstens 3× und nie über
+  das hinaus, was das Modell ganz nimmt. Die Vergrößerung verteilt die Schrift nur auf mehr Quadrate: neue Details
+  fügt sie nicht hinzu. Die Ansicht sagt dem Leser darum, aus wie vielen Pixeln des Scans sie vergrößert ist und dass
+  sie nicht mehr Detail hat; was der Leser nicht sicher liest, schreibt er als `[?]`, und es geht nicht in die
+  Angaben.
+- **Ein schärferer Ausschnitt aus dem Archiv (prüft der Code):** echtes Detail bringt nur ein Scan in höherer
+  Auflösung. Kam aus dem Archiv ein schärferer Teil des Bildes, der die ganze Stelle zeigt (außerhalb bleibt höchstens
+  ein Rand), wird aus ihm gelesen. Bei einer Stelle, die auf ihrem Scan klein ist, wird ein schärferer Ausschnitt aus
+  dem Archiv angeboten, nie von selbst geladen; sonst rät die Ansicht dem Agenten, einen Menschen um einen schärferen
+  Scan zu bitten ([R8.2](#R8.2), [R8.5](#R8.5)).
+- **Zwei blinde Leser:** Studien zeigen, dass ein Modell seine eigene Lesung nicht selbst korrigiert, eine Lesung
+  durch ein anderes Modell aber Fehler aufdeckt. Darum bieten **Erneut lesen…** und das Lesen eines Dokuments zwei
+  Leser an, die nichts voneinander wissen; für jeden lassen sich Agent und Modell wählen ([R8.8.1](#R8.8.1)). Die
+  Stellen, an denen sie sich unterscheiden, sind bernsteinfarben und unsicher ([R8.8](#R8.8), [R8.8.2](#R8.8.2)).
+  Die Übereinstimmung zweier Leser schließt einen Fehler nicht aus: beide können sich gleich irren.
+- **Opus und GPT an der Stichprobe des Projekts** (November 2026):
+  - GPT las einen kleinen Ausschnitt in Originalgröße schlecht, bei einem Eintrag bestimmte es sogar die Art des
+    Eintrags falsch (Taufe statt Heirat); auf etwa 2000 px vergrößert bestimmte es die Art richtig und las deutlich
+    mehr Wörter. Darum wird der Ausschnitt für GPT stärker vergrößert;
+  - Opus las denselben Ausschnitt schon bei 800 px gut; eine größere Ansicht oder ein schärferer Teil brachten ihm
+    nichts Messbares. Bei dichter Handschrift las es mehr Wörter als GPT, bei gut lesbarer Schrift lasen beide
+    ähnlich;
+  - das stärkste Signal für GPT gab ein schärferer Teil des Bildes; Hälften statt der ganzen Seite und verstärkter
+    Kontrast brachten keine Wörter, darum hat die Forschung sie nicht als Standard eingeführt;
+  - **Vorbehalte:** es waren wenige Einträge einer Forschung und wenige Läufe (bei GPT oft einer). Wiederholte Läufe
+    derselben Lesung unterschieden sich um 1–3 Wörter. Maßstab waren Abschriften, die zum Teil ebenfalls eine KI
+    erstellt hat. Die Ergebnisse zeigen eine Richtung, keine Genauigkeit, und können bei anderer Schrift, Sprache
+    oder einem anderen Modell anders ausfallen.
+- **Prüfung durch einen Menschen:** weder zwei Leser noch die Vergrößerung geben Sicherheit. Eine wichtige Angabe
+  soll idealerweise ein Mensch am Ausschnitt des Eintrags prüfen: die eigene Abschrift als **Abschrift geprüft**
+  markieren ([A3.1.1](A3-evidence-in-the-app.md#A3.1.1)), die Abschrift der Forschung mit **Abschrift bestätigen**
+  bestätigen ([A3.1.3](A3-evidence-in-the-app.md#A3.1.3)).
+- **Gilt seit:** Forschung 1.0.0 (Vergrößerung eines Ausschnitts auf 800 px); Lesen aus einem schärferen Teil
+  1.19.0; Vergrößerung für GPT und ein schärferer Teil mit Rand 1.29.0; **Abschrift bestätigen** App 3.25.0
+
+<!-- zdroj: research:v1.35.0 src/agents/images.ts VIEW_MIN 800, imageMin (GPT min(2000, imageMax)), gptReader, IMAGE_MAX/IMAGE_MAX_LARGE · src/core/views.ts makeView enlarge min(3, …), viewSize, describeView, ENLARGED_HINT, SHARPER_SCAN · src/core/media.ts SHARPER · src/commands/document.ts sharperOf, sharperCover · CHANGELOG.cs.md 1.29.0 · dirigent:analyza/2026-11-07-cteni-obrazku/reserse.md (dlaždice 28/32 px, modely malé obrázky nezvětšují, interpolace nepřidává informaci, Zhang 2025, Humphries 2024/2025 a Crosilla 2025: sebeoprava nepomáhá, oprava jiným modelem ano) · experiment.md (Opus 800 vs 2000 v šumu, GPT ostřejší část nejsilnější signál, poloviny horší, kontrast nezaveden, n malé, rozptyl 1–3 slova) · test/vysledek-1106-simulace-cteni.md (GPT 1× druh zápisu chybně, 2× správně) · spec 059 ukoly U6 (jen text, bez obrázků) -->

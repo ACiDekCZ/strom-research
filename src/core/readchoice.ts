@@ -190,5 +190,8 @@ export function whoForApp(who: ReaderWho[] | undefined, full: boolean): (ReaderW
     ...(r.ran === false ? { ran: false as const } : {}),
     ...(r.state ? { state: r.state } : {}),
     ...(r.secs !== undefined ? { secs: r.secs } : {}),
+    // a reading service read (the transcript alone) and the credits of its account it cost: an older app leaves them
+    ...(r.kind ? { kind: r.kind } : {}),
+    ...(r.credits !== undefined ? { credits: r.credits } : {}),
   }));
 }

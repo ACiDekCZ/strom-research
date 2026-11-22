@@ -406,6 +406,11 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       say(m ? phrase(lang, m[2] === " again (" ? "log.name.primary.clear" : "log.name.primary", { name: m[1]!.replace(/\//g, " ").replace(/\s+/g, " ").trim(), who: who(first) }) : changed(o));
       continue;
     }
+    if (o.op === "name.now") {
+      const m = /^\S+ name after the marriage now (.+?)(?: \(was |$)/.exec(o.summary);
+      say(m ? phrase(lang, "log.name.now", { name: m[1]!.replace(/\//g, " ").replace(/\s+/g, " ").trim(), who: who(first) }) : changed(o));
+      continue;
+    }
     if (o.op === "note.remove") {
       const m = /^\S+ note "(.*)" removed:/.exec(o.summary);
       say(m ? phrase(lang, "log.note.remove", { note: m[1]!, name: name(first) }) : changed(o));
@@ -600,6 +605,23 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     // a file that came for a task: only that it came, never words as the person's
     if (o.op === "task.file") {
       say(phrase(lang, "log.task.file", { name: name(first), inputs: o.targets.slice(1).join(", ") }));
+      continue;
+    }
+    // a source the person deleted (spec 117 R9), and put back: its title and ID, the citations and stories it took
+    const deleted = o.op === "source.retract" ? /^(S\d+(?:, S\d+)*) deleted by the user[^:]*: (\d+) citation\(s\), (\d+) story\(ies\)/u.exec(o.summary) : undefined;
+    if (deleted) {
+      const ids = deleted[1]!.split(", ");
+      say(phrase(lang, "log.source.deleted", { name: ids.map((id) => name(id)).join(", "), id: ids.join(", "), cites: Number(deleted[2]), stories: Number(deleted[3]) }));
+      continue;
+    }
+    const restored = o.op === "source.restore" ? /^(S\d+(?:, S\d+)*) restored by the user: (\d+) citation\(s\) back/u.exec(o.summary) : undefined;
+    if (restored) {
+      const ids = restored[1]!.split(", ");
+      say(phrase(lang, "log.source.restored", { name: ids.map((id) => name(id)).join(", "), id: ids.join(", "), cites: Number(restored[2]) }));
+      continue;
+    }
+    if (o.op === "conflict.keep") {
+      say(phrase(lang, "log.conflict.keep", { name: name(first) }));
       continue;
     }
     // a conflict decided: the decision and why, first — the fact it took back or wrote is its effect (found in an

@@ -291,6 +291,30 @@ export interface HeadInfo {
   message: string;
 }
 
+/**
+ * What git status said of a tree's paths under its lock (core/integrity.ts snapshot, as a writing command begins): the
+ * index of the files' hashes (core/shaindex.ts) reads it again in the same hold instead of asking git once more — only
+ * strom writes under the lock, and what this process wrote since it knows itself. Forgotten as the lock is taken
+ * (resetCache) and at a commit.
+ */
+const statusHeld = new Map<string, { pathspec: string[]; items: string[] }>();
+
+/** What git status said under the lock (porcelain v1, -z, every untracked file) of these folders, if it covered them. */
+export function heldStatus(dir: string, folders: string[]): string[] | undefined {
+  const h = statusHeld.get(dir);
+  if (!h) return undefined;
+  const under = (p: string, of: string) => p === of || p.startsWith(`${of}/`);
+  if (!folders.every((f) => h.pathspec.some((s) => under(f, s)))) return undefined;
+  const out: string[] = [];
+  for (let i = 0; i < h.items.length; i++) {
+    const item = h.items[i]!;
+    const pair = item[0] === "R" || item[0] === "C" ? h.items[i + 1] : undefined;
+    if (pair !== undefined) i++;
+    if (folders.some((f) => under(item.slice(3), f) || (pair !== undefined && under(pair, f)))) out.push(item, ...(pair !== undefined ? [pair] : []));
+  }
+  return out;
+}
+
 // HEAD only changes when strom commits, so it is read once per command.
 const headCache = new Map<string, HeadInfo | null>();
 
@@ -299,9 +323,12 @@ const headCache = new Map<string, HeadInfo | null>();
  * (`command`) a git found stays found — looking costs processes, and only installing one changes it.
  */
 export function resetCache(dir?: string, at: "command" | "all" = "all"): void {
-  if (dir) headCache.delete(dir);
-  else {
+  if (dir) {
+    headCache.delete(dir);
+    statusHeld.delete(dir);
+  } else {
     headCache.clear();
+    statusHeld.clear();
     for (const [key, found] of programs) if (at === "all" || !found) programs.delete(key);
   }
 }
@@ -326,6 +353,57 @@ export function hasHead(dir: string): boolean {
 
 export function head(dir: string): string | undefined {
   return headInfo(dir)?.hash;
+}
+
+const COMMIT_HASH = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
+
+/**
+ * HEAD's commit as it is now, never cached — read from git's own files where it can be (.git/HEAD, the ref it names,
+ * packed-refs; a worktree's .git file and its common folder followed), else by git rev-parse (a reftable, anything
+ * unusual). Undefined: no commit yet. For what checks again and again whether the history moved (core/shaindex.ts,
+ * core/readtree.ts): no process each time.
+ */
+export function headCommit(dir: string): string | undefined {
+  try {
+    const dot = path.join(dir, ".git");
+    let gitDir = dot;
+    if (fs.statSync(dot).isFile()) {
+      const m = /^gitdir:\s*(.+?)\s*$/m.exec(fs.readFileSync(dot, "utf8"));
+      if (!m) throw new Error("no gitdir");
+      gitDir = path.resolve(dir, m[1]!);
+    }
+    let common = gitDir;
+    try {
+      common = path.resolve(gitDir, fs.readFileSync(path.join(gitDir, "commondir"), "utf8").trim());
+    } catch {
+      // no worktree: the folder is its own
+    }
+    const head = fs.readFileSync(path.join(gitDir, "HEAD"), "utf8").trim();
+    if (COMMIT_HASH.test(head)) return head;
+    const ref = /^ref:\s*(\S+)$/.exec(head)?.[1];
+    if (!ref || ref.split("/").includes("..")) throw new Error("no ref");
+    for (const base of [gitDir, common]) {
+      try {
+        const v = fs.readFileSync(path.join(base, ...ref.split("/")), "utf8").trim();
+        if (COMMIT_HASH.test(v)) return v;
+      } catch {
+        // not a loose ref here
+      }
+    }
+    try {
+      for (const line of fs.readFileSync(path.join(common, "packed-refs"), "utf8").split("\n")) {
+        const [hash, name] = line.trim().split(" ");
+        if (name === ref && hash && COMMIT_HASH.test(hash)) return hash;
+      }
+    } catch {
+      // no packed refs
+    }
+  } catch {
+    // asked of git itself below
+  }
+  const r = runGit(dir, ["rev-parse", "--verify", "-q", "HEAD"]);
+  const v = r.stdout.trim();
+  return r.status === 0 && COMMIT_HASH.test(v) ? v : undefined;
 }
 
 export function tracked(dir: string, p: string): boolean {
@@ -394,6 +472,7 @@ export function commitAll(
   const hash = r.stdout.trim();
   git(dir, ["update-ref", "HEAD", hash, ...(parent ? [parent.hash] : [])]);
   headCache.set(dir, { hash, tree, message: full });
+  statusHeld.delete(dir);
   tidy(dir);
   return hash;
 }
@@ -459,11 +538,13 @@ export interface Change {
 }
 
 /** Uncommitted changes with their status codes. */
-export function changes(dir: string, pathspec: string[] = []): Change[] {
+export function changes(dir: string, pathspec: string[] = [], held = false): Change[] {
   const list: Change[] = [];
   const seen = new Set<string>();
-  for (const part of pathspec.length ? pathParts(pathspec) : [[]]) {
+  const parts = pathspec.length ? pathParts(pathspec) : [[]];
+  for (const part of parts) {
     const items = git(dir, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", ...part]).split("\0").filter(Boolean);
+    if (held && parts.length === 1) statusHeld.set(dir, { pathspec: part, items });
     for (let i = 0; i < items.length; i++) {
       const item = items[i]!;
       const code = item.slice(0, 2);

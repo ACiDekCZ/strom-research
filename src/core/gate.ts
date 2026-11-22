@@ -318,6 +318,11 @@ export interface GateRecord {
   costUsd: number;
   /** What the run did: began the session, waited, stopped, or began it although the gate would not (the user's yes). */
   then?: "go" | "wait" | "stop" | "anyway";
+  /**
+   * A run the person started, asked again for its cap alone: its verdict (a wait, a stop) is the pace of a run that goes
+   * on by itself, not counted here — only its hard stop is. Its verdict as it said, then "go" — not a gate passed over.
+   */
+  pace?: true;
 }
 
 /** What a gate answered, as a record of the run (its time: when it was asked). */

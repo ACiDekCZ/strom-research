@@ -1,0 +1,92 @@
+# The whole suite on GitHub's runners: the typecheck and every test file, split into eight shards that run side by side.
+# Nothing is published, tagged or deployed here and no secret is needed: the repository is only read.
+#
+# - A push to main, beta or a working branch ci/** runs it; so does the night (GitHub runs a schedule only from the
+#   default branch, main).
+# - The Node of the package's workflow (npm-beta.yml).
+# - Tests that need macOS skip themselves elsewhere and say why (test/JEN-MAC.md lists them); a Mac still runs them.
+name: test
+
+on:
+  push:
+    branches: [main, beta, "ci/**"]
+  schedule:
+    - cron: "40 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # strom makes its own commits with an identity of its own; a test's own git commands get this one
+  GIT_AUTHOR_NAME: Strom Test
+  GIT_AUTHOR_EMAIL: test@localhost
+  GIT_COMMITTER_NAME: Strom Test
+  GIT_COMMITTER_EMAIL: test@localhost
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+
+  test:
+    runs-on: ubuntu-24.04
+    # a shard takes 2–5 minutes; one that hangs is stopped here, not after GitHub's six hours
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - name: git for the tests' own commands
+        run: |
+          git config --global user.name "$GIT_AUTHOR_NAME"
+          git config --global user.email "$GIT_AUTHOR_EMAIL"
+          git config --global init.defaultBranch main
+      # npm test's command (package.json) with the shard: the files are split by name, the same on every runner
+      - name: Tests, shard ${{ matrix.shard }} of 8
+        env:
+          NODE_COMPILE_CACHE: ${{ runner.temp }}/node-compile-cache
+        run: |
+          node scripts/dev-node.ts
+          node --test --test-shard=${{ matrix.shard }}/8 --import ./test/setup.ts --test-global-setup=./test/global-setup.ts --test-timeout=240000 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tap --test-reporter-destination="$RUNNER_TEMP/tap.txt" "test/**/*.test.ts"
+      # what this system skipped, and why (test/JEN-MAC.md lists those a Mac runs)
+      - name: Skipped here, the shard's sums
+        if: always()
+        run: |
+          grep -E "^ *(not )?ok .*# SKIP" "$RUNNER_TEMP/tap.txt" | sed -E "s/^ *//" || echo "none"
+          # the shard's sums on the run's page: tests, passed, failed, skipped, its time
+          {
+            echo "### Shard ${{ matrix.shard }} of 8"
+            grep -E "^# (tests|pass|fail|cancelled|skipped|duration_ms) " "$RUNNER_TEMP/tap.txt" | sed -E "s/^# /- /"
+          } >> "$GITHUB_STEP_SUMMARY" || true
+      - name: The shard's results (TAP)
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: tap-${{ matrix.shard }}
+          path: ${{ runner.temp }}/tap.txt
+          retention-days: 7
+          if-no-files-found: ignore

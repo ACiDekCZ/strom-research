@@ -200,6 +200,8 @@ test("the menu's settings: who decides the hypotheses — the agent only on the 
 test("the setup asks who decides the hypotheses only a person at a terminal: no terminal or an agent — not asked, nothing written (the AI decides)", opts, async () => {
   const w = await world();
   try {
+    // two agents here, as on every computer the tests run on: the setup asks which one (its step among the answers below)
+    w.agentsHere("codex");
     const config = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
     // without a terminal: nothing asked, nothing written
     const quiet = await w.ok(["setup", "--yes"]);
@@ -217,8 +219,8 @@ test("the setup asks who decides the hypotheses only a person at a terminal: no 
     assert.equal(await decide(w), "agent");
     // the person chosen: written as chosen, offered first the next time
     // language, folder, research, agent, model, effort, stories · the person · the rest kept
-    await w.ok(["setup"], { tty: true, answers: ["", "", "", "", "", "", "", "1", "", "", "", "", "", ""] });
-    assert.equal(config()["hypotheses.decide"], "person");
+    const chosen = await w.ok(["setup"], { tty: true, answers: ["", "", "", "", "", "", "", "1", "", "", "", "", "", ""] });
+    assert.equal(config()["hypotheses.decide"], "person", chosen.out);
     const again = await w.ok(["setup"], { tty: true, answers: Array(12).fill("") });
     assert.match(again.out, /Rozhoduje AI \(doporučeno\)\n {3}0 {2}[^\n]+\nVybrat \[1\]/u, again.out);
     assert.equal(await decide(w), "person");

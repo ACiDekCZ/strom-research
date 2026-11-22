@@ -6,7 +6,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { acquireLock, liveHolder } from "./lock.ts";
+import { acquireLock, liveHolder, type LockInfo } from "./lock.ts";
+import { clearRunFiles } from "./runstate.ts";
 
 export interface Worker {
   id: string;
@@ -17,11 +18,20 @@ export interface Worker {
   version?: string;
   /** A run waiting for its gate: when it asks again, and what the gate said. */
   paused?: Paused;
+  /** A run of one line (strom run --research, spec 126): its line. */
+  research?: string;
+  /** A run's agent (claude, codex, …). */
+  agent?: string;
 }
 
 export interface Paused {
   until: string;
   reason?: string;
+  /** Waiting for a restricted archive another session uses (spec 127 K2.3): its site, and since when the run waits. */
+  archive?: string;
+  since?: string;
+  /** What it waits for, as a word (the Strom app's runs[].paused.reason): the plan's limit, an archive. */
+  kind?: "limit" | "archive";
 }
 
 function dir(root: string): string {
@@ -43,7 +53,7 @@ export function markPaused(root: string, id: string, paused: Paused | undefined)
 function pausedOf(root: string, id: string): Paused | undefined {
   try {
     const p = JSON.parse(fs.readFileSync(pauseFile(root, id), "utf8")) as Paused;
-    return typeof p.until === "string" ? { until: p.until, ...(typeof p.reason === "string" ? { reason: p.reason } : {}) } : undefined;
+    return typeof p.until === "string" ? { until: p.until, ...(typeof p.reason === "string" ? { reason: p.reason } : {}), ...(typeof p.archive === "string" ? { archive: p.archive } : {}), ...(typeof p.since === "string" ? { since: p.since } : {}), ...(p.kind === "limit" || p.kind === "archive" ? { kind: p.kind } : {}) } : undefined;
   } catch {
     return undefined;
   }
@@ -54,9 +64,12 @@ export function isWorkerId(id: string | undefined): id is string {
   return !!id && /^[\w.-]{1,80}$/.test(id);
 }
 
-/** Be present in the tree until the returned function is called (or the process ends); `version`: the strom it works with. */
-export function enterWorker(root: string, id: string, label: string, version?: string): () => void {
-  return acquireLock(path.join(dir(root), `${id}.json`), { owner: label, waitMs: 0, staleMs: 7 * 24 * 3600_000, machine: true, ...(version ? { version } : {}) });
+/**
+ * Be present in the tree until the returned function is called (or the process ends); `version`: the strom it works
+ * with; a run's `research` (its line) and `agent`, shown between its sessions too.
+ */
+export function enterWorker(root: string, id: string, label: string, version?: string, run: { research?: string; agent?: string } = {}): () => void {
+  return acquireLock(path.join(dir(root), `${id}.json`), { owner: label, waitMs: 0, staleMs: 7 * 24 * 3600_000, machine: true, ...(version ? { version } : {}), ...(run.research ? { research: run.research } : {}), ...(run.agent ? { agent: run.agent } : {}) });
 }
 
 /** The workers present now; files of workers that are gone are cleared away. */
@@ -74,10 +87,12 @@ export function liveWorkers(root: string): Worker[] {
     const info = liveHolder(file, 7 * 24 * 3600_000);
     if (info) {
       const paused = pausedOf(root, id);
-      out.push({ id, label: info.owner, since: info.at, ...(info.version ? { version: info.version } : {}), ...(paused ? { paused } : {}) });
+      out.push({ id, label: info.owner, since: info.at, ...(info.version ? { version: info.version } : {}), ...(paused ? { paused } : {}), ...(typeof info.research === "string" ? { research: info.research } : {}), ...(typeof info.agent === "string" ? { agent: info.agent } : {}) });
     } else {
       fs.rmSync(file, { force: true });
       fs.rmSync(pauseFile(root, id), { force: true });
+      // a run's step and the stop asked of it (core/runstate.ts)
+      clearRunFiles(root, id);
     }
   }
   return out;
@@ -113,7 +128,12 @@ export function otherVersionsAtWork(root: string, version: string): string[] {
 }
 
 export function isLiveWorker(root: string, id: string): boolean {
-  return !!liveHolder(path.join(dir(root), `${id}.json`), 7 * 24 * 3600_000);
+  return !!workerHolder(root, id);
+}
+
+/** The process a live worker is (its lock: pid, host, computer), undefined when it is gone. */
+export function workerHolder(root: string, id: string): LockInfo | undefined {
+  return liveHolder(path.join(dir(root), `${id}.json`), 7 * 24 * 3600_000);
 }
 
 /**

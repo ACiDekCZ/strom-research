@@ -64,7 +64,10 @@ HARD RULES
 3. Nothing is deleted. Wrong facts are retracted with --reason, so is a wrong
    name or note (strom name retract, strom note retract|edit) — yours to do.
    Deleting a file of the family's material for good (strom input delete) is
-   the user's alone: never run it, nor offer to run it for them.
+   the user's alone: never run it, nor offer to run it for them. Deleting a
+   source (strom source retract) and putting it back (strom source restore)
+   are the user's alone too: never run them; you may propose deleting one to
+   the user with what strom source retract <S…> --dry-run counts.
 4. A namesake is not your person: check year, place, house and parents —
    different parents mean two people, not a clerk's error.
 5. Negative results are results: record every search, also when nothing
@@ -128,11 +131,17 @@ GETTING STARTED (once)
   strom init "<family name>"
   strom research new "<name>" --new-person "Josef /Novák/" --born "ABT 1885" --born-place "Kamenice nad Lipou"
   strom intake --text "<what the user told you, in their words>"
-  strom intake <file or folder>        documents, photos, a GEDCOM or Strom tree
+  strom intake <file or folder> --sort documents, photos, a GEDCOM or Strom tree the user gives you to go through
+                                       (--sort: their intake tasks; without it they wait in the material)
   strom document read <photo or PDF>   one document of the user's read at once: its transcript, translation,
                                        terms and people — tell the user; nothing of it enters the tree by itself
   strom material sort I… [--text "…"]   only when the user asks: files of the family's material sorted by
                                        readers (paid readings; the user says yes, never you) — a proposal, nothing written
+  A file sent to the research (a batch or a single file from the Strom app, a phone, material the user added in
+  strom's menu) becomes a task for you only where the user turned intake.auto on (strom config — their switch,
+  never yours) or asked for it (the app's Sort by agent…, strom input batch done <mark> --sort); else it waits in
+  the material (strom input list --state new): never sort, read or transcribe it unasked. Asked to go through
+  files that wait: strom task add "<what>" --level intake --where I… (one task for the files asked).
 
 THE WORK, STEP BY STEP (every agent — also one strom did not start: a
 conversation opened anywhere, a bot on its own server)
@@ -140,6 +149,11 @@ conversation opened anywhere, a bot on its own server)
   strom session start                  the next task of the queue (or: strom session start T0003, the one
                                        the user chose): its brief — the task, what is known, the method
   … work on that task only; record every finding at once …
+  … run a strom command at least once every 20 minutes (the task's hold lapses after task.hold without one: another
+  agent may then take the task over, and strom refuses what you write to it after that: exit 3, session.taken —
+  stop writing to that session, start again with strom session start) …
+  … a task another agent holds (task.held) or one whose archive another session uses now (archive.held, an archive
+  that restricts automated access: one session at a time on it): take the next free one — strom task next …
   strom session close --done "<result>" --next "…"   the task done and the session closed in one call
                                        (a complete negative search is a result) — it proposes the next tasks
   not finished: strom session close --continue --summary "…" --next "…"; put aside: strom task park T… --reason "…"
@@ -178,10 +192,13 @@ conversation opened anywhere, a bot on its own server)
   a branch added to a line or not researched: strom offline set B-… --line G…|--mode never. The user wants a direction to wait or to end: strom research pause|done G…
   (its tasks leave the queue, nothing is deleted; strom research resume G… brings them back). The order
   of work of the directions is the user's too: strom research order G… G… / move G… --up|--down|--first;
-  a name, question or limit changed: strom research edit G….
+  a name, question or limit changed: strom research edit G…. A new line inside a wider one (its person in
+  that line): the wider line's open tasks about the new line's people only move there with strom research
+  gather G… when the user wants it (strom research new says how many; --undo gives them back).
   In a conversation the next task is best begun in a fresh context (Claude Code: /clear) — suggest
   it to the user; many tasks waiting: the agent working on its own (strom run, the user starts it
-  from strom's menu), every task in a fresh session. A strom command that says ⏳ finish (the user asked, or
+  from strom's menu), every task in a fresh session; each line can have one run of its own
+  (strom run --research G…), at most run.parallel runs at once — the person's to start and to raise. A strom command that says ⏳ finish (the user asked, or
   the agent's usage limit is near): start nothing new — no reader, nothing delegated —, record, close the session
 
 RECORDING

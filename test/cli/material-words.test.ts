@@ -18,6 +18,7 @@ async function world(lang: string): Promise<{ w: World; a: string; b: string }> 
   const w = new World();
   await w.withTree();
   await w.ok(["lang", lang]);
+  await w.ok(["config", "set", "intake.auto", "on", "--for-tree"], { tty: true }); // the person's switch: files get their tasks
   await w.ok(["person", "add", "Žofie /Dvořáková/".normalize("NFD"), "--sex", "F"]); // P1
   const dir = path.join(w.cwd, "inputs-in", "Krabice");
   fs.mkdirSync(dir, { recursive: true });

@@ -113,11 +113,19 @@ export function parseBatch(text: string): BatchLine[] {
   return out;
 }
 
-/** Several lines wrong: each with what to do, in one error — all or nothing, nothing written. */
+/** A line not checked: it uses a label of a line that failed (nothing of its own known wrong). */
+const notChecked = (e: StromError) => !!(e.details && typeof e.details === "object" && (e.details as { notChecked?: unknown }).notChecked);
+
+/**
+ * Several lines wrong: each with what to do, in one error — all or nothing, nothing written. The lines that wait for
+ * one that failed are counted apart: they are not wrong themselves, only not checked.
+ */
 function manyWrong(errors: StromError[], total: number): StromError {
   const other = errors.find((e) => !(e instanceof UsageError));
+  const waiting = errors.filter(notChecked).length;
+  const failed = errors.length - waiting;
   const message = [
-    `${errors.length} of ${total} lines failed — the batch wrote nothing:`,
+    `${failed} of ${total} lines failed${waiting ? `, ${waiting} more not checked (they depend on a line that failed)` : ""} — the batch wrote nothing:`,
     ...errors.flatMap((e) => [`  ${e.message}`, ...(e.hint ? e.hint.split("\n").map((h) => `    → ${h}`) : []), ...(e.usage ? e.usage.split("\n").map((u) => `    ${u}`) : [])]),
   ].join("\n");
   const opts = {
@@ -210,7 +218,7 @@ register({
         const failed = failedLabels.get(unknown.normalize("NFC"));
         errors.push(
           failed !== undefined
-            ? lineError(l, new UsageError(`skipped: it uses @${unknown}, which line ${failed} should have created`))
+            ? lineError(l, new UsageError(`not checked: depends on line ${failed} (@${unknown})`, { details: { notChecked: true, dependsOn: failed, label: unknown } }))
             : lineError(l, new UsageError(`@${unknown} is not defined`, { hint: `end the line that creates it with #${unknown}` })),
         );
         if (l.label) failedLabels.set(l.label, l.n);

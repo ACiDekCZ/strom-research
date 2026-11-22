@@ -27,7 +27,7 @@ const ORIGINAL_ID_TAGS = ["_XREF", "_UID", "UID", "RIN", "EXID", "_FSFTID", "AFN
 
 /** Allowed child tags by parent context ("INDI", "INDI.BIRT", …). CONC/CONT are allowed under anything with text. */
 const CHILDREN: Record<string, string[]> = {
-  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_ASOF", "_STROM_MODE", "_STROM_LINES", "_STROM_IMPORT", "_STROM_DIRECTIONS", "_STROM_DIRECTION", "_STROM_BRANCH"],
+  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_ASOF", "_STROM_MODE", "_STROM_MARRIED_LAST", "_STROM_LINES", "_STROM_IMPORT", "_STROM_DIRECTIONS", "_STROM_DIRECTION", "_STROM_BRANCH"],
   // the research's lines and the branches off them (the Strom profile, APP_SHOWS_RESEARCH_TABLE)
   "HEAD._STROM_DIRECTION": ["NAME", "TYPE", "_FOCUS", "STAT"],
   "HEAD._STROM_BRANCH": ["_VIA", "_NEAREST", "_DIRECTION", "_MODE"],
@@ -47,7 +47,7 @@ const CHILDREN: Record<string, string[]> = {
   "INDI._STROM_IMPORT": ORIGINAL_ID_TAGS,
   "INDI._STROM_XID": ORIGINAL_ID_TAGS,
   "INDI._STROM_SEX_ORIGIN": ["_STROM_WAS"],
-  "INDI._STROM_CONFLICT": ["TYPE", "TITL", "STAT", "_STROM_KIND", "_STROM_TAKE", "VAL", "DECI"],
+  "INDI._STROM_CONFLICT": ["TYPE", "TITL", "STAT", "_STROM_KIND", "_STROM_TAKE", "_STROM_REVIEW", "VAL", "DECI"],
   // who decided a hypothesis, why and when (APP_SHOWS_HYPOTHESIS_DECIDER: 2 _BY agent, 2 DECI, 2 _AT)
   // and for an app that decides one by a pick (APP_DECIDES_HYPOTHESES): 2 _PICK, 2 _PREV, 2 _REOPEN, 2 _PROP, 2 _LEFT
   "INDI._STROM_HYPO": ["TITL", "STAT", "_CHOSEN", "NOTE", "_VAR", "_BY", "DECI", "_AT", "_PICK", "_PREV", "_REOPEN", "_PROP", "_LEFT"],
@@ -65,8 +65,9 @@ const CHILDREN: Record<string, string[]> = {
   // one join of a hypothesis at the edge: the variants that name the person, the family off the tree it belongs to
   "_STROM_EDGE._JOIN": ["_VAR", "_ISLAND", "_HELD"],
   // a value of a conflict the app decides by side: its side, a sex as M, F or U
-  _STROM_VALUE: ["SOUR", "_STROM_SIDE", "_STROM_RAW"],
-  "INDI.NAME": ["TYPE", "GIVN", "SURN", "NPFX", "NSFX", "NICK", "SPFX", "SOUR", "NOTE", "_STROM_PRIMARY", "_STROM_ORIGIN", "_STROM_WAS"],
+  // a value's or a decision's source the person deleted (spec 117): in place of its SOUR
+  _STROM_VALUE: ["SOUR", "_STROM_SIDE", "_STROM_RAW", "_STROM_RETRACTED"],
+  "INDI.NAME": ["TYPE", "GIVN", "SURN", "NPFX", "NSFX", "NICK", "SPFX", "SOUR", "NOTE", "_STROM_PRIMARY", "_STROM_ORIGIN", "_STROM_WAS", "_STROM_STATUS", "_STROM_EID", "_STROM_CONFIRMED", "_STROM_VERIFY", "_STROM_CHECKED"],
   // a family tree's value changed since: its import, the part, the key to put it back
   _STROM_WAS: ["_STROM_IMPORT", "_PART", "_REF"],
   // a fact waiting for its verification against the original: its task's place in the queue; the last verification
@@ -95,6 +96,8 @@ const CHILDREN: Record<string, string[]> = {
   "SOUR._STROM_READ": ["_CONF", "_TXT"],
   "SOUR._STROM_IMG_OMITTED": ["_STROM_CLIP"],
   "SOUR.REPO": ["CALN", "NOTE"],
+  // an image number only the registered scans give (the app cuts no other number out of the location)
+  "SOUR._STROM_IMAGE": ["_STROM_DERIVED"],
   REPO: ["NAME", "ADDR", "NOTE", "REFN", "RIN", "CHAN"],
   SUBM: ["NAME", "ADDR", "LANG", "NOTE", "RIN", "CHAN"],
   NOTE: ["SOUR", "REFN", "RIN", "CHAN"],
@@ -127,6 +130,8 @@ const TEXT_TAGS = new Set(["_STROM_FOLIO", "_STROM_IMAGE", "_STROM_LOCATOR", "_O
 const EXTENSIONS = new Set([
   "_STORY", "_WITN", "_FREL", "_MREL", "_STROM_KIND", "_URL", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_CLIP",
   "_STROM_ASOF", "_SCHEME", "_STROM_CONFLICT", "_STROM_TAKE", "_STROM_SIDE", "_STROM_RAW", "_STROM_HYPO", "_STROM_SEARCHED", "_AT", "_BY",
+  // a conflict to be looked at again, the deleted source of a value or decision (spec 117)
+  "_STROM_REVIEW", "_STROM_RETRACTED",
   // where the tree ends (_STROM_EDGE) and the families nothing links to it (_STROM_ISLAND), with their parts
   "_STROM_EDGE", "_STROM_ISLAND", "_SCOPE", "_RESEARCH", "_GEN", "_END", "_NEXT", "_EST", "_BASIS", "_RECORDS", "_BOOK", "_ACCESS", "_WEAK",
   "_COVERED", "_NORECORDS", "_TASK", "_LEVEL", "_POS", "_HELD", "_UNTIL", "_TRIED", "_HYPO", "_JOIN", "_ISLAND", "_TEST", "_CONFLICT",
@@ -140,7 +145,7 @@ const EXTENSIONS = new Set([
   // a source's excerpts the file leaves out, and why
   "_STROM_IMG_OMITTED",
   // the name a person is shown by; a couple's state; parents who are no couple; an archive
-  "_STROM_PRIMARY", "_STAT", "_STROM_NO_COUPLE", "_STROM_MODE",
+  "_STROM_PRIMARY", "_STAT", "_STROM_NO_COUPLE", "_STROM_MODE", "_STROM_MARRIED_LAST",
   // who read a source, the user's verification, the reading it is an entry of; how sure a fact is
   "_STROM_READ", "_STROM_VERIFIED", "_STROM_READING", "_STROM_ENTRY", "_STROM_STATUS",
   // the wording of a source's transcript, and the day the user confirmed it (under _STROM_READ)
@@ -148,7 +153,7 @@ const EXTENSIONS = new Set([
   // a source the research can read again from its original here
   "_STROM_ORIG",
   // a source's location field by field: its folio, image, the rest
-  "_STROM_FOLIO", "_STROM_IMAGE", "_STROM_LOCATOR",
+  "_STROM_FOLIO", "_STROM_IMAGE", "_STROM_LOCATOR", "_STROM_DERIVED",
   // an excerpt's original by its content, and how its picture lies
   "_STROM_SHA", "_STROM_ORIENT",
   // an excerpt by reference in the bridge's file (FILE strom-image:<sha256>): its kind, pixels and size

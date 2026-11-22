@@ -34,7 +34,7 @@ test("strom run beside another: each run has a name of its own, takes another ta
   assert.match(held.worker, /^run-\d+-/);
   w.env.AGENT_MODE = "echo";
   const beside = await w.ok(["run", "--agent", "script", "--json"]);
-  assert.match(beside.err, /⚠ V tomto rodokmenu už pracuje jiný běh \(od \d{1,2}:\d{2}\): tento si vezme jiné úkoly – náklady se sčítají\./);
+  assert.match(beside.err, /⚠ V tomto rodokmenu už pracuje jiný běh \(od \d{1,2}:\d{2}\): tento si vezme jiné úkoly – čerpání předplatného se sčítá\./);
   const second = beside.json;
   assert.notEqual(second.sessions[0].task, held.task, "another task");
   assert.equal(readJsonFile(path.join(w.cwd, "data", "sessions", "N0001.json")).state, "open", "the first run's session is left alone");
@@ -170,9 +170,9 @@ test("strom run: one refused command that starts with strom does not stop a loop
 test("live run findings: a citation without a fact cites the name; a search task without a recorded search is flagged", opts, async () => {
   const w = await world();
   await w.ok(["source", "add", "Vyprávění", "--kind", "family-memory", "--form", "authored"]);
-  const named = await w.ok(["person", "add", "Jakub /Víšek/", "--cite", "S1"]);
-  assert.match(named.out, /\+P\d{4} Jakub \/Víšek\/ ← S0001/);
-  assert.equal((await w.run(["person", "add", "Jan /Víšek/", "--cite", "S1", "--status", "proven"])).code, 2, "a status needs a fact");
+  const named = await w.ok(["person", "add", "Jakub /Brdíšek/", "--cite", "S1"]);
+  assert.match(named.out, /\+P\d{4} Jakub \/Brdíšek\/ ← S0001/);
+  assert.equal((await w.run(["person", "add", "Jan /Brdíšek/", "--cite", "S1", "--status", "proven"])).code, 2, "a status needs a fact");
   await w.ok(["task", "add", "Kde jsou matriky", "--level", "locate", "--where", "Vavřinec", "--why", "a", "--done-when", "b"]);
   assert.match((await w.ok(["task", "done", "T1", "--result", "MZA, Sloup 782"])).out, /no search is recorded for T0001 — record what you looked at/);
   w.cleanup();
@@ -258,7 +258,7 @@ test("the menu, working alone: the next tasks listed, the time limit said; the q
   const other = enterWorker(w.cwd, "run-elsewhere", "Claude Code on its own");
   const warned = await w.ok([], { tty: true, answers: ["2", "", "0"] });
   other();
-  assert.match(warned.out, /⚠ Agent už tu pracuje sám \(běhy: 1\)\. Další vedle něj si vezme jiné úkoly – náklady se sčítají\.\nSpustit další vedle něj\? \(a\/n\) \[n\]/);
+  assert.match(warned.out, /⚠ Agent už tu pracuje sám \(běhy: 1\)\. Další vedle něj si vezme jiné úkoly – čerpání předplatného se sčítá\.\nSpustit další vedle něj\? \(a\/n\) \[n\]/);
   assert.doesNotMatch(warned.out, /Na řadě jsou tyto úkoly/, "no further questions");
   assert.ok(!fs.existsSync(path.join(w.cwd, "data", "sessions", "N0003.json")));
   w.cleanup();

@@ -46,8 +46,8 @@ function write(h: string, cwd: string, lines: string[], file = `${UUID}.jsonl`):
 test("Claude Code's slug of a folder: every character but an ASCII letter or digit a dash", () => {
   assert.equal(projectSlug("/Users/x/Projects/my-tree"), "-Users-x-Projects-my-tree");
   assert.equal(projectSlug("C:\\Users\\x\\Strom\\Tree"), "C--Users-x-Strom-Tree");
-  assert.equal(projectSlug("/home/x/Víškovi"), "-home-x-V--kovi");
-  assert.equal(projectSlug("/home/x/Víškovi".normalize("NFD")), "-home-x-Vi-s-kovi");
+  assert.equal(projectSlug("/home/x/Brdíškovi"), "-home-x-Brd--kovi");
+  assert.equal(projectSlug("/home/x/Brdíškovi".normalize("NFD")), "-home-x-Brdi-s-kovi");
 });
 
 test("a clear of the context and a file read again after it: M3; usage per request, not per line; tools counted", () => {

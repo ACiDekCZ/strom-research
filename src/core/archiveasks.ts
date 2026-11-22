@@ -15,6 +15,7 @@ import { claimOf, pendingQuestions, questionHosts, termsFor, type Claim, type Pe
 import { bareHost, listConnectors, routesOf, type Connector } from "./connector.ts";
 import { ui } from "../cli/ui.ts";
 import { humanDate, humanDay } from "../cli/human.ts";
+import { floorLine, floorNotes, listWords } from "./floor.ts";
 
 const ORDER: Record<PendingQuestion["kind"], number> = { permission: 0, takeover: 1, milder: 2 };
 
@@ -172,7 +173,8 @@ export function levelWords(lang: string, l: Claim, robots = false, from?: readon
  */
 export function archiveWaitingItems(tree: Tree, shared: string | undefined, claude: () => boolean): Record<string, unknown>[] {
   const qs = archiveQuestions(tree).filter((q) => q.kind !== "milder");
-  if (!qs.length) return [];
+  const floors = floorItems(tree, shared, qs);
+  if (!qs.length) return floors;
   const lang = tree.lang;
   const connectors = listConnectors(shared, tree.env);
   let isClaude: boolean | undefined;
@@ -217,5 +219,35 @@ export function archiveWaitingItems(tree: Tree, shared: string | undefined, clau
       ];
     }
     return [];
-  });
+  }).concat(floors);
+}
+
+/**
+ * The floors strom keeps stricter than strom's list of the archive's terms, computed each time (core/floor.ts — nothing
+ * written, an older strom shows nothing of them): a question for the person as an archive's item the Strom app shows
+ * (kind permission with its host: "Answer" opens archive&host= in the person's terminal, where it is decided), one per
+ * host none of whose questions waits already. Never in an archive.
+ */
+export function floorItems(tree: Tree, shared: string | undefined, qs: PendingQuestion[] = archiveQuestions(tree)): Record<string, unknown>[] {
+  if (actsAsArchive(tree)) return [];
+  const lang = tree.lang;
+  const asked = new Set(qs.filter((q) => q.kind === "permission").flatMap((q) => questionHosts(q)));
+  let notes: ReturnType<typeof floorNotes>;
+  try {
+    notes = floorNotes(tree.env, { tree, ...(shared ? { shared } : {}) }).filter((n) => n.ask && !asked.has(n.host));
+  } catch {
+    return [];
+  }
+  return notes.map((n) => ({
+    kind: "permission",
+    id: `floor:${n.host}`,
+    what: ui(lang, "ui.archive.floor.item", { title: n.title, host: n.host, level: levelWords(lang, n.floor, false, ["floor"]), list: listWords(lang, n) }),
+    on: floorLine(lang, n),
+    at: n.at ?? "",
+    ...(n.at ? { since: n.at } : {}),
+    host: n.host,
+    title: n.title,
+    tasks: tasksWaitingOn(tree, n.host).map((t) => t.id),
+    floor: { level: n.floor, list: n.list, ...(n.connector ? { connector: n.connector } : {}) },
+  }));
 }

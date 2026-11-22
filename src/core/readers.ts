@@ -8,7 +8,7 @@
 // as before — an older strom's research reads as it did until the fix has run on it (with its backup and its undo).
 
 import { createHash } from "node:crypto";
-import type { Event, Source, TreeConfig, UserReading } from "./model.ts";
+import type { Event, Name, Source, TreeConfig, UserReading } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import type { Env } from "./paths.ts";
 import { isAgent } from "./which.ts";
@@ -37,6 +37,15 @@ export function transcriptMark(text: string): string {
 export function factMark(e: Pick<Event, "kind" | "label" | "date" | "place" | "house" | "cause" | "value" | "age" | "ages">): string {
   const ages = Object.entries(e.ages ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   return transcriptMark(JSON.stringify([e.kind, e.label ?? "", e.date ?? "", e.place ?? "", e.house ?? "", e.cause ?? "", e.value ?? "", e.age ?? "", ages]));
+}
+
+/**
+ * The mark of what the name of a person's identity says, as the Strom file shows it (`3 _TXT` under `2 _STROM_EID
+ * P….N`, spec 066 P5): its given name and surname (NFC; never its titles, kind, sources or status). Opaque to the Strom
+ * app, as factMark — a confirmation of a name seen in an older file is refused.
+ */
+export function nameMark(n: Pick<Name, "given" | "surname">): string {
+  return transcriptMark(JSON.stringify(["NAME", n.given, n.surname]));
 }
 
 /** The mark of a source's transcript, none without one. */

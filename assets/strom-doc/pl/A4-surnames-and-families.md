@@ -82,7 +82,7 @@ w rodzie …” i ewentualnie „· ród z urodzenia …”.
   - Na stronach i w eksporcie z ochroną osób żyjących wiersz przy osobie żyjącej pokazuje się tylko przy opcji
     **Pełne dane** lub **Zostaw tylko nazwisko**.
 - **Obsługa:** menu **Akcje rodu** przy wierszu: **Pokaż ród w drzewie**, **Edytuj ród…**, **Załóż ród od tej
-  osoby…**, **Księga rodu…**. Wybór rodu w widoku drzewa opisuje A6.
+  osoby…**, **Księga rodu…**. Ród jako wybór osób w widoku drzewa opisuje [A6.6](A6-views.md#A6.6).
 - **Obowiązuje od:** aplikacja 3.19.0
 
 <!-- zdroj: app:src/lineage.ts:793 marriedInto · :857 personRodRow · src/lineage-row.ts:40 personRodRowValue · :70 rodRowShown · strings.ts lineage.row.* -->
@@ -98,7 +98,8 @@ Ród z najwyżej 4 rzeczywistymi członkami jest mały. Osób wżenionych nie wl
     w liście rodów wcale; osoba jest widoczna przy rodzie, do którego weszła przez małżeństwo.
   - Dwie różne zasady: duży ród odróżnia się od rodów o tej samej nazwie tylko względem innych dużych, mały względem
     wszystkich ([A4.4](#A4.4)).
-- **Obsługa:** **Przegląd drzewa → Rody → Inne rodziny**. Na pasku narzędzi **Rody → Inne rodziny** (A6).
+- **Obsługa:** **Przegląd drzewa → Rody → Inne rodziny**. Na pasku narzędzi **Wybór ▾ → Rody → Inne rodziny**
+  ([A6.6.1](A6-views.md#A6.6.1); do aplikacji 3.30.0 **Rody → Inne rodziny**).
 - **Obowiązuje od:** aplikacja 3.19.0
 
 <!-- zdroj: app:src/lineage.ts:72 SMALL_ROD_MAX_MEMBERS · :710 isMarriedInOnly · :722 otherFamilyRods · strings.ts treeOverview.rods, familyPages.otherFams -->
@@ -128,9 +129,10 @@ ma tę samą nazwę co inne rody, dostaje w nawiasie rozróżnienie.
   - Od 20 dużych rodów przegląd ma wyszukiwanie i pokazuje pierwsze 20 rodów, resztę po rozwinięciu. Szuka się
     w nazwie, formach nazwiska, miejscowościach i imionach członków.
   - Oś czasu rodów jest zaokrąglona do 50 lat.
-- **Obsługa:** **Przegląd drzewa → Rody**, pole „Szukaj rodu, miejscowości lub osoby…”. Lista **Rody** na pasku
-  narzędzi ma tę samą kolejność i nazwy, z **Całe drzewo** i **Inne rodziny** (A6).
-- **Obowiązuje od:** aplikacja 3.19.0 (lista **Rody** na pasku narzędzi 3.21.0)
+- **Obsługa:** **Przegląd drzewa → Rody**, pole „Szukaj rodu, miejscowości lub osoby…”. Sekcja **Rody** menu
+  **Wybór ▾** na pasku narzędzi ma tę samą kolejność i nazwy, z **Inne rodziny** ([A6.6.1](A6-views.md#A6.6.1)).
+- **Obowiązuje od:** aplikacja 3.19.0 (lista **Rody** na pasku narzędzi 3.21.0, od 3.31.0 sekcja **Rody** menu
+  **Wybór ▾**)
 
 <!-- zdroj: app:src/lineage.ts:393 computeLineages (řazení) · :567 summarise · :672 founderYearOf · :938 rodLabel · src/rods-overview.ts:23 rodSize · :33 sortRods · :46 AXIS_STEP · :79 rodMatches · :98 ROD_SEARCH_FROM · :114 founderPlace · src/ui/tree-overview.ts:160 RODS_SORT_KEY -->
 
@@ -199,6 +201,66 @@ według [A4.5](#A4.5). **Użyj** ją wpisuje, **Ukryj propozycję** ją ukrywa i
 - **Obowiązuje od:** aplikacja 3.13.0 (używane nazwisko 3.18.0)
 
 <!-- zdroj: app:src/married-suggestion.ts:46 suggestionHusband · :65 wifeSurnameOf · :83 suggestMarriedSurname · src/person-name.ts:46 surnameDisplay · :79 shownNameParts · src/ui/person-modal.ts:1483 refreshMarriedSurname · strings.ts person.*, settings.surnameDisplay, name.* -->
+
+<a id="A4.6.1"></a>
+### A4.6.1 Kilka małżeństw: nazwisko z ostatniego małżeństwa
+
+Osoba z kilkoma nazwiskami po ślubie ma jako **Nazwisko po ślubie** to z ostatniego małżeństwa, nie ostatnie zapisane.
+Pozostałe nazwiska po ślubie są w **Inne formy imienia i nazwiska**.
+
+Marie Horáková ma dwa małżeństwa: w 1880 roku (mąż Jan Vlk) i w 1900 roku (mąż Josef Jaworski). Badanie zapisało
+najpierw „Marie Jaworska”, potem „Marie Vlková”. **Nazwisko po ślubie** to Jaworska, „Marie Vlková” jest w **Inne
+formy imienia i nazwiska**.
+
+- **Granice:**
+  - Małżeństwo to związek, który jest lub był małżeństwem (także rozwiedzionym); związek bez ślubu (**Partnerzy**,
+    **W separacji**) się nie liczy.
+  - Wygrywa nazwisko, które należy do partnera z małżeństwa z najpóźniejszą datą ślubu. Małżeństwa bez daty
+    przychodzą na kolej dopiero po nich, od ostatniego w kolejności małżeństw ([A6.4](A6-views.md#A6.4)).
+  - Nazwisko należy do partnera także w formie żeńskiej (Vlk → Vlková, Jaworski → Jaworska), bez względu na wielkość
+    liter i znaki diakrytyczne, także w drzewie, w którym zasady form ([A4.5](#A4.5)) nie dają formy żeńskiej.
+  - Nazwisko, które nie należy do żadnego partnera, przychodzi na kolej dopiero po nich; gdy nie należy żadne,
+    obowiązuje ostatnie zapisane.
+  - Niewybrane nazwiska po ślubie zostają w **Inne formy imienia i nazwiska**, z własnymi imionami. Nic się nie
+    usuwa.
+  - Obowiązuje przy wczytaniu drzewa z badania i pliku GEDCOM innego programu (`NAME` z `TYPE married` i `_MARNM`).
+    Badanie porządkuje nazwiska po ślubie w swoim pliku dla aplikacji według tej samej zasady, obecne na końcu,
+    a aplikacja przyjmuje jego kolejność bez zmian. Przy starszym badaniu i pliku innego programu zasadę wylicza
+    sama aplikacja. Starsza aplikacja bierze ostatnie zapisane nazwisko, więc od badania też dostaje obecne.
+- **Dlaczego:** nazwiska po ślubie przybywają w kolejności, w jakiej badanie je znajduje: nowsze nazwisko na przykład
+  z aktu zgonu przed starszym z aktu ślubu. Ostatnie zapisane nie musi więc być tym z ostatniego małżeństwa.
+- **Obsługa:** inne nazwisko po ślubie wybiera się ręcznie ([A4.6.2](#A4.6.2)).
+- **Obowiązuje od:** aplikacja 3.31.0, badanie 1.36.0 (wcześniej obowiązywało ostatnie zapisane nazwisko po ślubie)
+
+<!-- zdroj: app:bb706ed0 src/married-suggestion.ts marriagePartnersLatestFirst (married|divorced; s datem od nejpozdějšího, pak bez data od posledního v marriagesInOrder), surnameOfSpouse (surnameKey, wifeSurnameOf, feminineForm, masculineFormIn), lastMarriageSurnameIndex (bez shody Infinity, shoda → poslední v pořadí souboru) · src/ged-parser.ts readMarriedSurname (TYPE married, _MARNM), chooseLastMarriageName (nevybrané do nameVariants s křestními), MARRIED_LAST_TAG (se značkou bez přepočtu) · test src/__tests__/married-surname-last-marriage.test.ts · research:5476514e src/core/married.ts marriagesOf (union partners|separated mimo), marriedInOrder, namesInOrder · src/gedcom/export.ts (Strom soubor: jména po sňatku na konci, aktuální poslední; HEAD _STROM_MARRIED_LAST) · spec 010 K4.1, K4.3, K4.4 · dirigent:prace/1120-app-010-posledni-snatek, 1120-vyzkum-010-posledni-snatek -->
+
+<a id="A4.6.2"></a>
+### A4.6.2 Ręczna zmiana nazwiska po ślubie
+
+Zmiana **Nazwisko po ślubie** na inne nazwisko (w edytorze osoby albo w tabeli) to wybór użytkownika: wcześniejsze
+nazwisko po ślubie zostaje w **Inne formy imienia i nazwiska**, a wybrane z nich znika.
+
+- **Granice:**
+  - Poprawka pisowni (to samo nazwisko, różnią się tylko znaki diakrytyczne albo wielkość liter) ani wyczyszczenie
+    pola niczego do innych form nie dodaje.
+  - Wcześniejsze nazwisko zachowuje własne imiona, jeśli je miało.
+  - Badanie przyjmuje wybór jako obecne nazwisko po ślubie i trzyma go wbrew zasadzie [A4.6.1](#A4.6.1), także po
+    nowych wpisach i nowym małżeństwie, dopóki w aplikacji nie wybierze się innego. Pozostałe nazwiska po ślubie
+    zostają w badaniu.
+  - Nazwisko po ślubie, którego badanie jeszcze nie ma, badanie dodaje i od razu przyjmuje jako obecne.
+  - Wyborem jest tylko zmiana względem wersji, którą aplikacja dostała od badania. Aplikacja, która nowszej wersji
+    jeszcze nie wczytała, niczego nie wybiera.
+  - Imię i nazwisko, pod którym osoba pokazuje się w badaniu (`strom name primary`,
+    [R10.5](R10-people-and-hypotheses.md#R10.5)), ma pierwszeństwo przed wyborem z aplikacji.
+  - Wybór nazwiska, które badanie w międzyczasie usunęło albo wycofało
+    ([R10.5.1](R10-people-and-hypotheses.md#R10.5.1)), nie zostaje przyjęty.
+  - Przy badaniu starszym niż 1.36.0 wybór przy następnym wczytaniu drzewa wraca do zasady [A4.6.1](#A4.6.1).
+- **Dlaczego:** obecne nazwisko nie musi być tym z ostatniego małżeństwa, na przykład nazwisko zachowane po rozwodzie.
+- **Obsługa:** wybór ustawia tylko aplikacja (pole **Nazwisko po ślubie**); terminal nie ma do tego polecenia. Przy
+  przyjęciu `strom sync` pokazuje wiersz „obecne nazwisko po ślubie – …”, `strom sync undo I…` cofa wybór.
+- **Obowiązuje od:** aplikacja 3.31.0, badanie 1.36.0
+
+<!-- zdroj: app:bb706ed0 src/data.ts updatePerson (marriedBefore/marriedNow, surnameKey: oprava pravopisu nic nepřidá, vymazání nic nepřidá, dřívější s marriedFirstName do nameVariants, zvolené z nameVariants pryč) · src/ui/table-view/table-ui.ts updatePerson · research:5476514e src/core/sync.ts name.now (porovnání se základem _STROM_HEAD, off: odebrané od základu nebo retractedNames, shown/primaryName přednost), apply name.now (addName kind married, marriedNow), undo name.now · src/core/married.ts marriedInOrder (primary > marriedNow > pravidlo) · assets/lang/cs.json ui.sync.name.now, ui.sync.do.name.now · strings.ts person.marriedSurname, nameVariants „Další tvary jména“ · spec 010 K4.2, K4.4 · ZADANI_VYZKUM_prijmeni-posledni-snatek.md „Odpověď výzkumu“ (odchylky) · Name.marriedNow a HEAD _STROM_MARRIED_LAST se nepopisují (vnitřní) -->
 
 <a id="A4.7"></a>
 ## A4.7 Formy nazwiska drzewa i propozycje z badania

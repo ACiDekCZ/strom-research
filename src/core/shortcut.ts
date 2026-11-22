@@ -108,14 +108,16 @@ export const HANDOVER_GAP_MS = 15_000;
 
 /**
  * `terminal`: the one the person chose (core/terminal.ts; macOS) — opened by its bundle ID; not installed: the system's,
- * the window saying so first in `lang` ("fallback").
+ * the window saying so first in `lang` ("fallback"). `title`: the window's (a run of a line: Strom · tree · line (G…)).
+ * `key`: windows of one kind (a run of a line: its line) — "recent" only for a window of the same key a moment ago, so
+ * runs of two lines open their windows one after the other.
  */
 export function openInNewTerminal(
   argv: string[],
   cwd: string,
   env: Env,
   platform: NodeJS.Platform = process.platform,
-  opts: { terminal?: string; lang?: string } = {},
+  opts: { terminal?: string; lang?: string; title?: string; key?: string } = {},
 ): boolean | "recent" | "fallback" {
   if (env.STROM_NO_OPEN === "1") return false;
   const { command, args } = lastingLauncher();
@@ -125,14 +127,18 @@ export function openInNewTerminal(
   const dir = path.join(cwd, ".strom", "open");
   fs.mkdirSync(dir, { recursive: true });
   const now = Date.now();
-  const scripts = fs.readdirSync(dir).map((f) => ({ file: path.join(dir, f), at: fs.statSync(path.join(dir, f)).mtimeMs }));
-  if (scripts.some((x) => now - x.at < HANDOVER_GAP_MS)) return "recent";
+  const scripts = fs.readdirSync(dir).map((f) => ({ name: f, file: path.join(dir, f), at: fs.statSync(path.join(dir, f)).mtimeMs }));
+  const key = opts.key && /^[\p{L}\p{N}._-]{1,40}$/u.test(opts.key) ? opts.key : undefined;
+  const same = (f: string) => (key ? f.startsWith(`strom-${key}-`) : true);
+  if (scripts.some((x) => same(x.name) && now - x.at < HANDOVER_GAP_MS)) return "recent";
   for (const x of scripts) if (now - x.at > 24 * 3600_000) fs.rmSync(x.file, { force: true });
-  const stamp = now.toString(36);
+  const stamp = `${key ? `${key}-` : ""}${now.toString(36)}`;
+  // the title without what a shell or a terminal reads as its own (quotes, controls, escapes)
+  const title = opts.title?.replace(/[\p{Cc}\p{Cf}"'`$\\%^&|<>!]/gu, "").slice(0, 120);
   if (platform === "win32") {
     const q = (a: string) => `"${a.replace(/"/g, '""')}"`;
     const file = path.join(dir, `strom-${stamp}.cmd`);
-    const lines = ["@echo off", "chcp 65001 >nul", ...marks.map((k) => `set "${k}="`), ...own.map(([k, v]) => `set "${k}=${v}"`), 'set "STROM_HANDOVER=1"', `cd /d ${q(cwd)}`, [command, ...args, ...argv].map(q).join(" "), "if errorlevel 1 pause", ""];
+    const lines = ["@echo off", "chcp 65001 >nul", ...(title ? [`title ${title}`] : []), ...marks.map((k) => `set "${k}="`), ...own.map(([k, v]) => `set "${k}=${v}"`), 'set "STROM_HANDOVER=1"', `cd /d ${q(cwd)}`, [command, ...args, ...argv].map(q).join(" "), "if errorlevel 1 pause", ""];
     fs.writeFileSync(file, lines.join("\r\n"));
     const r = spawn(env.ComSpec ?? "cmd.exe", ["/d", "/c", "start", '""', file], { detached: true, stdio: "ignore", windowsHide: true });
     r.on("error", () => undefined);
@@ -141,7 +147,7 @@ export function openInNewTerminal(
   }
   const q = (a: string) => `'${a.replace(/'/g, `'\\''`)}'`;
   const file = path.join(dir, `strom-${stamp}.command`);
-  const body = ["#!/bin/sh", 'rm -f -- "$0"', ...(marks.length ? [`unset ${marks.join(" ")}`] : []), ...own.map(([k, v]) => `export ${k}=${q(v)}`), "export STROM_HANDOVER=1", `cd ${q(cwd)}`, `exec ${[command, ...args, ...argv].map(q).join(" ")}`, ""];
+  const body = ["#!/bin/sh", 'rm -f -- "$0"', ...(title ? [`printf '\\033]0;%s\\007' ${q(title)}`] : []), ...(marks.length ? [`unset ${marks.join(" ")}`] : []), ...own.map(([k, v]) => `export ${k}=${q(v)}`), "export STROM_HANDOVER=1", `cd ${q(cwd)}`, `exec ${[command, ...args, ...argv].map(q).join(" ")}`, ""];
   fs.writeFileSync(file, body.join("\n"), { mode: 0o755 });
   fs.chmodSync(file, 0o755);
   // macOS, a terminal chosen: opened by its bundle ID (LaunchServices, as a double-click: no permission asked); not

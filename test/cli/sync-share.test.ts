@@ -116,9 +116,10 @@ test("sync GED: the app's mark is added to each copy the research has, given bac
     assert.deepEqual(fact(w, "P0001", "CENS").share, { id: "SH7K2QX" });
     assert.deepEqual(fact(w, "P0003", "CENS").share, { id: "SH7K2QX", role: "služka" }, "stored NFC");
     assert.ok(fact(w, "P0003", "CENS").share!.role!.normalize("NFC") === fact(w, "P0003", "CENS").share!.role);
-    // given back in the Strom GEDCOM under the same fact, as the app wrote it (NFC)
+    // given back in the Strom GEDCOM under the same fact, as the app wrote it (NFC) — the note of one event of all
+    // without the status word of one copy (spec 106, the app's question 9: a shared note says nothing of one copy)
     const back = appFile(w);
-    for (const id of ["P0001", "P0002", "P0003"]) assert.equal(block(back, id, "CENS"), block(t, id, "CENS").normalize("NFC"), id);
+    for (const id of ["P0001", "P0002", "P0003"]) assert.equal(block(back, id, "CENS"), block(t, id, "CENS").normalize("NFC").replace(/^2 NOTE Vodítko — nedoloženo záznamem\.\n/mu, ""), id);
     assert.doesNotMatch(exportGedcom(open(w), { for: "standard" }).text, /_STROM_SHARE/u, "never the standard file");
     // an unedited tree round-trips with no change: the marks are no part of what a fact is
     assert.deepEqual(shown(planSync(open(w), readGedcom(back), "conflict")), []);

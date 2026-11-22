@@ -5,7 +5,7 @@ import { DirectionExists, UsageError } from "./errors.ts";
 import { workOrder } from "./order.ts";
 import { normalizeDate, reversedRange } from "./gdate.ts";
 import { normalizeAge } from "./age.ts";
-import { checkStatus, defaultStatus } from "./evidence.ts";
+import { checkStatus, citableSource, defaultStatus } from "./evidence.ts";
 import { clearRemoved, refuseRemoved } from "./citeorder.ts";
 import {
   eventKind,
@@ -44,6 +44,7 @@ import { checkParticipant, trailingNote } from "./participants.ts";
 import { now, typeOfId, type Tree } from "./tree.ts";
 import { settleProposals } from "./proposalsettle.ts";
 import { joinIds, mergedAway } from "./originalids.ts";
+import { nameStatusAfter, refuseConfirmedName, withNameStatus } from "./namestatus.ts";
 
 /** Kinds that only make sense on a couple (a reader drops them on a person). */
 const FAMILY_ONLY = new Set(["MARR", "MARB", "MARC", "MARL", "MARS", "DIV", "DIVF", "ANUL", "ENGA"]);
@@ -202,7 +203,7 @@ export function parseParticipant(tree: Tree, spec: string, o: { check?: boolean 
 }
 
 function checkCitation(tree: Tree, c: Citation): void {
-  if (tree.get(c.source)?.type !== "source") throw new UsageError(`no source ${c.source}`, { hint: 'strom source add "<title>" …', code: "record.none", params: { kind: "source", id: c.source } });
+  citableSource(tree, c.source);
 }
 
 /** A list of citations with one more; the same place of the same source twice is refused. */
@@ -222,8 +223,7 @@ export function makeEvent(tree: Tree, input: EventInput, forFamily = false): Eve
       hint: `strom event add <F…> ${kind} — or strom family add --partner … --married <date>; if the spouse is unknown use EVEN --label "Marriage"`,
     });
   const citations = input.citations ?? [];
-  for (const c of citations)
-    if (tree.get(c.source)?.type !== "source") throw new UsageError(`no source ${c.source}`, { hint: 'strom source add "<title>" …', code: "record.none", params: { kind: "source", id: c.source } });
+  for (const c of citations) citableSource(tree, c.source);
   const status = parseStatus(input.status, defaultStatus(tree, citations));
   checkStatus(tree, status, citations);
   if (forFamily && input.age?.trim())
@@ -266,7 +266,10 @@ export interface PersonInput {
   note?: string | undefined;
   /** Record the birth/death facts cite (the record the person comes from). */
   citation?: Citation | undefined;
+  /** The status of the birth/death facts given here. */
   status?: string | undefined;
+  /** The status of the name (spec 066 P5): the record cited names the person — with the facts too (--name-status). */
+  nameStatus?: Status | undefined;
   /** The titles of the name: before it ("Ing.") and after it ("ml."). */
   prefix?: string | undefined;
   suffix?: string | undefined;
@@ -319,10 +322,13 @@ export function addPerson(tree: Tree, input: PersonInput): Person {
   const sex = parseSex(input.sex);
   // Without a birth or death to carry it, the record is evidence of the person's name.
   const facts = input.born || input.bornPlace || input.died || input.diedPlace;
-  if (input.citation && !facts) {
+  // …and with them, where the status of the name is asked for (--name-status): the record names the person too
+  if (input.citation && (!facts || input.nameStatus)) {
     checkCitation(tree, input.citation);
     name.citations = [input.citation];
-  }
+    const status = nameStatusAfter(tree, name, name.citations, input.citation, input.nameStatus);
+    if (status) name.status = status;
+  } else if (input.nameStatus) throw new UsageError("a status of a name needs the record that names the person", { hint: "--cite S… --name-status " + input.nameStatus });
   // Validate dates before allocating IDs.
   parseDate(input.born, "birth date");
   parseDate(input.died, "death date");
@@ -689,8 +695,7 @@ export function notRetracted(tree: Tree, eventId: string, what: "cite" | "edit")
  */
 export function citeEvent(tree: Tree, eventId: string, citation: Citation, status?: string, reason?: string): Event {
   notRetracted(tree, eventId, "cite");
-  const src = tree.get(citation.source);
-  if (!src || src.type !== "source") throw new UsageError(`no source ${citation.source}`, { hint: 'strom source add "<title>" …', code: "record.none", params: { kind: "source", id: citation.source } });
+  citableSource(tree, citation.source);
   const newStatus = status === undefined ? undefined : parseStatus(status, "lead");
   const why = reason?.trim();
   const { main: _main, ...plain } = citation;
@@ -759,8 +764,11 @@ export function chooseMainCitation(tree: Tree, eventId: string, source: string |
   return { event, ...(was ? { was } : {}), changed: true };
 }
 
-/** Cite a person (the name they are shown by) or a family itself. */
-export function citeRecord(tree: Tree, id: string, citation: Citation): Person | Family {
+/**
+ * Cite a person (the name of their identity) or a family itself. A person's name takes the status asked for (`status`,
+ * checked as a fact's), else probable where it had none and the record names them (core/namestatus.ts).
+ */
+export function citeRecord(tree: Tree, id: string, citation: Citation, status?: Status): Person | Family {
   checkCitation(tree, citation);
   return tree.withTreeLock(() => {
     const rec = tree.get<Person | Family>(id);
@@ -769,9 +777,15 @@ export function citeRecord(tree: Tree, id: string, citation: Citation): Person |
     if (rec?.retracted && (rec.type === "person" || rec.type === "family")) throw new UsageError(`${id} is retracted: ${rec.retracted.reason}`, { code: "record.retracted" });
     if (rec?.type === "person") {
       const primary = primaryName(rec);
-      const names = rec.names.map((n) => (n === primary ? { ...n, citations: withCitation(n.citations, citation, `${id} ${gedcomName(n)}`) } : n));
+      refuseConfirmedName(tree, rec, primary, status, citation.source);
+      const cited = (n: Name): Name => {
+        const citations = withCitation(n.citations, citation, `${id} ${gedcomName(n)}`);
+        return withNameStatus({ ...n, citations }, nameStatusAfter(tree, n, citations, citation, status));
+      };
+      const names = rec.names.map((n) => (n === primary ? cited(n) : n));
+      const after = primaryName({ ...rec, names });
       const updated: Person = { ...rec, names, updated: now() };
-      tree.put(updated, { op: "person.cite", targets: [id], summary: `${id} ${gedcomName(primary)} ← ${citation.source}` });
+      tree.put(updated, { op: "person.cite", targets: [id], summary: `${id} ${gedcomName(primary)} ← ${citation.source}${after.status !== primary.status ? ` [${after.status ?? "no status"}]` : ""}` });
       return updated;
     }
     if (rec?.type === "family") {
@@ -800,6 +814,8 @@ export interface NameInput {
   origin?: Name["origin"] | undefined;
   /** Never a name of the user's completed in its place (an agent's: core/origin.ts) — the full one goes beside it. */
   keepUsers?: boolean | undefined;
+  /** How sure the name is (spec 066 P5): with the citation, checked as a fact's (core/namestatus.ts). */
+  status?: Status | undefined;
 }
 
 /**
@@ -817,9 +833,11 @@ export function addName(tree: Tree, id: string, input: NameInput): { person: Per
   }
   if (input.first && name.kind && name.kind !== "birth") throw new UsageError(`a person's identity is a birth name, not a ${name.kind} one`);
   if (input.citation) checkCitation(tree, input.citation);
+  if (input.status && !input.citation) throw new UsageError("a status of a name needs the record that names the person", { hint: `strom name add ${id} "${gedcomName(name)}" --cite S… --status ${input.status}` });
   return tree.withTreeLock(() => {
     const p = requirePerson(tree, id);
     const i = p.names.findIndex((n) => sameName(n, name));
+    if (i >= 0) refuseConfirmedName(tree, p, p.names[i]!, input.status, input.citation?.source ?? "S…");
     let names: Name[];
     let added: Name;
     let completes = false;
@@ -833,12 +851,14 @@ export function addName(tree: Tree, id: string, input: NameInput): { person: Per
       if (!input.citation && !marks && !input.first && !rekind && !titles)
         throw new UsageError(input.primary ? `${id} is shown by ${gedcomName(cur)} already` : `${id} already has the name ${gedcomName(name)}`, { hint: `cite it: strom name add ${id} "${gedcomName(name)}" --cite S…` });
       added = { ...retitled, ...(rekind ? { kind: name.kind } : {}), ...(input.primary ? { primary: true as const } : {}), ...(input.citation ? { citations: withCitation(cur.citations, input.citation, `${id} ${gedcomName(name)}`) } : {}) };
+      if (input.citation) added = withNameStatus(added, nameStatusAfter(tree, cur, added.citations!, input.citation, input.status));
       names = p.names.map((n, j) => (j === i ? added : n));
       if (input.first) names = [added, ...names.filter((n) => n !== added)];
     } else {
       const titled = withTitles(name, input.prefix || undefined, input.suffix || undefined);
       added = input.citation ? { ...titled, citations: [input.citation] } : titled;
       if (input.origin) added = { ...added, origin: input.origin };
+      if (input.citation) added = withNameStatus(added, nameStatusAfter(tree, added, added.citations!, input.citation, input.status));
       const primary = primaryName(p);
       const plain = !name.kind || name.kind === "birth";
       // "Markéta" of the family memory is "Markéta /Růžičková/" of the register: one name, now complete.
@@ -1265,7 +1285,13 @@ export function setStory(tree: Tree, id: string, input: StoryInput): Person | Fa
   const facts = [...new Set((input.facts ?? []).map((f) => f.trim().toUpperCase()))];
   for (const f of facts) findEventOwner(tree, f);
   const sources = [...new Set((input.sources ?? []).map((s) => s.trim().toUpperCase()))];
-  for (const s of sources) if (tree.get<Source>(s)?.type !== "source") throw new UsageError(`no source ${s}`, { hint: "the background of place and time is recorded first: strom source add … --kind book|newspaper|web", code: "story.no-source", params: { kind: "source", id: s } });
+  for (const s of sources) {
+    if (tree.get<Source>(s)?.type !== "source") throw new UsageError(`no source ${s}`, { hint: "the background of place and time is recorded first: strom source add … --kind book|newspaper|web", code: "story.no-source", params: { kind: "source", id: s } });
+    citableSource(tree, s);
+  }
+  // a source the person deleted is named by no new story (spec 117 R3): its ID in the text is refused as a citation is
+  for (const s of sourcesNamed(tree, [input.title, text, input.note].filter(Boolean).join("\n")))
+    if (tree.get<Source>(s)?.retracted?.reason === "deleted") citableSource(tree, s);
   return tree.withTreeLock(() => {
     const rec = tree.get<Person | Family>(id);
     if (!rec || (rec.type !== "person" && rec.type !== "family")) throw new UsageError(`no person or family ${id}`, { code: "record.none", params: { kind: "person or family", id: id } });

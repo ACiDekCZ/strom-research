@@ -65,6 +65,17 @@ function windowOf(ctx: Context): { terminal?: string; lang: string } {
   return { ...(terminal ? { terminal } : {}), lang: ctx.uiLang() };
 }
 
+/**
+ * A run of one line from the link work (spec 126): its window named after the line ("Strom · <tree> · <line> (G…)"),
+ * and the guard against a second window within a moment only for the same line.
+ */
+function lineWindow(ctx: Context, link: TakenLink, root: string): { title?: string; key?: string } {
+  if (link.action !== "work" || !link.research) return {};
+  const tree = Tree.open(root, ctx.env);
+  const line = tree.get<Research>(link.research);
+  return { title: ["Strom", tree.config.name, line?.type === "research" ? `${line.name} (${line.id})` : link.research].join(" · "), key: link.research };
+}
+
 /** The chosen terminal not here: the window opened in the system's (said in it). */
 function fellBack(opened: boolean | "recent" | "fallback"): { terminal?: "fallback" } {
   return opened === "fallback" ? { terminal: "fallback" } : {};
@@ -255,8 +266,8 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       // left to the agent: it costs — said and asked first, then the conversation about it
       const say = aboutConflict(root, ctx, link.id);
       if (!say) return said("ui.link.conflict.none", { id: link.id });
-      const { asks } = await import("../cli/menu-links.ts");
-      if (!(await asks(ctx, treeLang, root, ui(treeLang, "ui.link.what.conflict.agent", { agent, title: tree.get<Conflict>(link.id)!.title }), ui(treeLang, "ui.link.cost")))) return end(false);
+      const { asksToStart } = await import("../cli/menu-links.ts");
+      if (!(await asksToStart(ctx, treeLang, root, ui(treeLang, "ui.link.what.conflict.agent", { agent, title: tree.get<Conflict>(link.id)!.title }), ui(treeLang, "ui.link.cost")))) return end(false);
       // the user's own edit: the agent may decide it only once the user left it so — written first, by the person
       if (isEditConflict(tree.get<Conflict>(link.id)!) && (await run(["conflict", "leave", link.id], true)) !== 0) return end(false);
       return { text: "", data: { done: (await run(["chat", `--say=${say}`])) === 0, action: link.action, tree: root } };
@@ -296,7 +307,9 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       return end(await directionDo(ctx, run, treeLang, root, link.id, link.do));
     }
     case "finish": {
-      const { finishSession } = await import("../cli/menu-links.ts");
+      const { finishSession, finishRun } = await import("../cli/menu-links.ts");
+      // a run (spec 126): its session's agent writes down what it found, the run ends; one waiting ends at once
+      if ("run" in link) return end(await finishRun(ctx, run, treeLang, root, link.run));
       return end(await finishSession(ctx, run, treeLang, root, link.session));
     }
     case "archive": {
@@ -323,7 +336,7 @@ async function inTerminal(ctx: Context, link: TreeLink) {
     case "work": {
       // the agent working on the queue alone: what starts shown here, started in this terminal only on the person's yes
       const { workRun } = await import("../cli/menu-links.ts");
-      return end(await workRun(ctx, run, treeLang, root, link.do, link.n === undefined ? undefined : Number(link.n)));
+      return end(await workRun(ctx, run, treeLang, root, link.do, link.n === undefined ? undefined : Number(link.n), link.task?.split(","), link.research ? { research: link.research, ...(link.agent ? { agent: link.agent } : {}) } : undefined));
     }
     case "fixes": {
       // strom's fixes: shown here; set right or put back only on the person's word, asked by strom fixes itself
@@ -349,19 +362,21 @@ async function inTerminal(ctx: Context, link: TreeLink) {
   const named = "person" in link ? link.person : undefined;
   const person = named ? personOf(root, ctx, named) : undefined;
   if (named && !person) return said("ui.link.noperson", { person: named });
-  const { asks } = await import("../cli/menu-links.ts");
+  const { asks, asksToStart } = await import("../cli/menu-links.ts");
   switch (link.action) {
     case "chat": {
       // one direction: its tasks only (the research's own name and ID in the first message)
       const direction = link.research ? tree.get<Research>(link.research) : undefined;
       if (link.research && direction?.type !== "research") return said("ui.link.direction.none", { id: link.research });
+      // an ended line: no agent works on it (its tasks are out of the queue) — refused before anything is asked or started
+      if (direction?.type === "research" && direction.state === "done") return said("ui.link.direction.done", { name: direction.name, id: direction.id });
       // the agent costs: said and asked first, then the conversation as strom chat starts it
       const what = direction
         ? ui(treeLang, "ui.link.what.chat.research", { agent, name: direction.name })
         : person
           ? ui(treeLang, "ui.link.what.chat.person", { agent, person: who(person) })
           : ui(treeLang, "ui.link.what.chat", { agent });
-      if (!(await asks(ctx, treeLang, root, what, ui(treeLang, "ui.link.cost")))) return { text: "", data: { done: false, action: link.action, tree: root } };
+      if (!(await asksToStart(ctx, treeLang, root, what, ui(treeLang, "ui.link.cost")))) return { text: "", data: { done: false, action: link.action, tree: root } };
       const first = direction ? aboutDirection(treeLang, direction) : person ? aboutPerson(treeLang, person) : undefined;
       return { text: "", data: { done: (await run(["chat", ...(first ? [`--say=${first}`] : [])])) === 0, action: link.action, tree: root } };
     }
@@ -429,6 +444,7 @@ async function withoutTerminal(ctx: Context, link: TreeLink, root: string) {
   } else if (link.action === "chat" && link.research) {
     const direction = tree.get<Research>(link.research);
     if (direction?.type !== "research") return say(ctx, "ui.link.direction.none", { id: link.research }, { tree: link.tree });
+    if (direction.state === "done") return say(ctx, "ui.link.direction.done", { name: direction.name, id: direction.id }, { tree: link.tree });
     first = aboutDirection(tree.lang, direction);
   } else if (link.action === "chat" && link.person) {
     const person = personOf(root, ctx, link.person);
@@ -541,7 +557,7 @@ async function openLink(ctx: Context, link: TakenLink, handed: { on: boolean }):
     if (refused) return say(ctx, refused.key, refused.values, { action: link.action, tree: copies[0]!.root, refused: refused.state });
     const quiet = await withoutTerminal(ctx, link, copies[0]!.root);
     if (quiet) return quiet;
-    const opened = openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], copies[0]!.root, ctx.env, process.platform, windowOf(ctx));
+    const opened = openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], copies[0]!.root, ctx.env, process.platform, { ...windowOf(ctx), ...lineWindow(ctx, link, copies[0]!.root) });
     handed.on = opened !== false;
     if (opened === false)
       return link.action === "send"
@@ -605,6 +621,9 @@ register(
       "taken up again (strom research pause|done|resume).\n" +
       "strom-research://chat?tree=<id>&research=G0002 — a conversation about one direction, its tasks only.\n" +
       "strom-research://finish?tree=<id>&session=N0012 — the session at work asked to finish (strom session finish).\n" +
+      "strom-research://finish?tree=<id>&run=run-… — a run asked to finish and end (strom run stop <run> --finish): its session's\n" +
+      "  agent writes down what it found and closes it, no next session; a run that waits (its gate, the plan's limit, an\n" +
+      "  archive) ends at once. Asked in the terminal first.\n" +
       "strom-research://archive?tree=<id>&host=www.example.org — the question about an archive's images (slowly, through the\n" +
       "browser, by hand), answered in the terminal as in the menu's What waits; the answer is never in the link.\n" +
       "strom-research://places?tree=<id>&do=run[&place=L0012] — the places of the facts identified by the agent: the queue\n" +
@@ -615,6 +634,12 @@ register(
       "  default 5; strom run --tasks n) or for as long as there is work (strom run --loop, only under a gate — none set: n\n" +
       "  tasks or the gate offered instead); the first tasks, the session's time and the gate shown, started in the terminal\n" +
       "  only on the person's yes (no by default; the bridge never starts it). Refused where nobody researches.\n" +
+      "  &do=tasks&task=T0003,T0007 (not with n): these tasks alone, one session each in this order (strom run --task) —\n" +
+      "  those no longer open or held by another left out, none left: nothing started.\n" +
+      "  &research=G0001[&agent=codex] (not with task): a run of that line alone (strom run --research G0001 [--agent …]), in a\n" +
+      "  window named after the line; its queue shown is the line's. Refused in one sentence: run.parallel reached, the line\n" +
+      "  has a run already, a run of an older strom at work, the agent not here. Without agent: the agent of the line's last\n" +
+      "  run, else the research's.\n" +
       "strom-research://fixes?tree=<id>[&id=street-places][&do=undo] — strom's fixes of the research (strom fixes), one of them\n" +
       "  shown, or what it set right to be put back: set right or put back only on the person's word in the terminal.\n" +
       "strom-research://back?tree=<id>[&change=<hash>] — the research back in time (strom history back): the change named by\n" +
@@ -624,7 +649,9 @@ register(
       "strom-research://new?app=<the app's mark> — a tree of the app becomes a new research: named, made, the app hands the\n" +
       "tree to its bridge (?adopt=, GET/POST /adopt), taken in as leads, sent back to the app. Family trees here already:\n" +
       "opening one of them in the app (strom app) is offered first; with no terminal the result lists them (trees).\n" +
-      "What writes tasks or starts the agent is said and asked in the terminal first. Any page can open such a link:\n" +
+      "What writes tasks or starts the agent is said and asked in the terminal first; with run.confirm no (the person's,\n" +
+      "this computer's) what only starts the agent on the subscription or AI credit starts at once, one line says so — a\n" +
+      "price in money, a consent, a deletion, a request sent, the gate and an agent's own command still ask. Any page can open such a link:\n" +
       "each part is checked (only IDs and fixed values, never text), an unknown research, person, task or excerpt is\n" +
       "only said. No link: the menu.\n" +
       "&handoff=<uuid> (any link of a research): the app's id of it — written when the link was taken (the terminal it\n" +

@@ -162,12 +162,21 @@ test("bridge: GET /queue pages through the whole queue — of a branch, a line, 
     const none = await get(`${url}/queue?branch=B-P0004&research=G0002`);
     assert.deepEqual([none.status, none.body.total], [200, 0]);
 
+    // spec 065 K7.4: the kind of the work — each task's, counted for the chips, a filter with the others
+    assert.ok(s.features.includes("queue.kind"));
+    assert.deepEqual(counts.kind, { records: 233 }, "every task here looks for a record; the waiting ones counted, as each line's");
+    assert.ok(whole.items.every((x) => (x as Item & { taskKind?: string }).taskKind === "records"));
+    const records = await get(`${url}/queue?kind=records&branch=B-P0004`);
+    assert.deepEqual([records.status, records.body.total], [200, 6]);
+    const verify = await get(`${url}/queue?kind=Verify`);
+    assert.deepEqual([verify.status, verify.body.total, verify.body.items], [200, 0, []], "any case; none of a kind: nothing");
+
     // one branch: the place of each of its tasks
     const b = await get(`${url}/offline/B-P0004`);
     assert.deepEqual(b.body.tasks.map((x: Item) => [x.id, x.pos]), branch.items.map((x) => [x.id, x.pos]));
 
     // the query as the app may get it wrong: said, nothing else
-    for (const q of ["count=0", "count=101", "from=-1", "from=x", "state=done", "branch=P4", "research=Žofie", "page=2"]) {
+    for (const q of ["kind=download", "kind=", "kind=ověřit", "count=0", "count=101", "from=-1", "from=x", "state=done", "branch=P4", "research=Žofie", "page=2"]) {
       const r = await get(`${url}/queue?${q}`);
       assert.deepEqual([r.status, r.body.code], [400, "queue.query"], q);
     }
@@ -179,7 +188,7 @@ test("bridge: GET /queue pages through the whole queue — of a branch, a line, 
     const a = await get(`${again}/queue`);
     assert.deepEqual([a.status, a.body.items, a.body.total], [200, [], 0]);
     const sa = (await get(`${again}/status?app=3.22.0`)).body;
-    assert.deepEqual([sa.queue, sa.queueCounts], [[], { research: {}, branch: {}, next: 0, parked: 0 }]);
+    assert.deepEqual([sa.queue, sa.queueCounts], [[], { research: {}, branch: {}, kind: {}, next: 0, parked: 0 }]);
   } finally {
     await w.run(["live", "stop"]);
     w.cleanup();

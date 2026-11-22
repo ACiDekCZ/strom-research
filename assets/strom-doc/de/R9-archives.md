@@ -22,6 +22,7 @@ Der Ablauf in Kürze:
    und kehrt von selbst zurück, sobald alle in der Forschung sind ([R9.6](#R9.6)).
 5. **Entscheidung:** die Tabelle und der Ablauf einer Aufgabe stehen in [R9.8](#R9.8), die Schritte des Menschen in
    [R9.9](#R9.9) und Beispiele in [R9.10](#R9.10).
+6. **Volkszählungen:** eine wahlweise Quelle, die nur der Mensch einschaltet; ab Forschung 1.36.0 ([R9.12](#R9.12)).
 
 > **Hinweis: wo genau der Browser des Agenten gilt.** Den Browser des Agenten überwacht strom bei **Claude Code**
 > mit der Erweiterung **Claude in Chrome**, im eingebauten Browser der App Claude
@@ -694,3 +695,243 @@ Stufen und Grenzen stammen aus der Liste der Archive der Forschung 1.27.0, DigiA
 - **Gilt seit:** Forschung 1.35.0
 
 <!-- zdroj: research:465c54ea assets/archives.json blha-recherche.brandenburg.de (restricted, browserOnly, terms robots.txt, quoteFrom reply, replied 2026-11-18, robots Disallow / zrušeno odpovědí pro jednotlivé snímky, nejvýš 2 požadavky, imagesFrom blha-digi.brandenburg.de, scope: nikdy prohledávání databáze ani celá kniha, adresa prohlížeče snímek nejmenuje, citace „BLHA, Rep. 5KB Nr. <n>“; bez wholeBook), blha-digi.brandenburg.de (restricted, IIIF, po jednom), blha.brandenburg.de (unknown, pace 10 s) · src/core/net.ts HUMAN_PACE 10 s · src/commands/archives.ts paceFor · src/core/terms.ts allows (browserOnly + restricted) · src/core/books.ts downloadOf (bez údaje range) · CHANGELOG.cs.md 1.35.0 (BLHA podle odpovědi z 18. 11. 2026) · commit d013df1c -->
+
+<a id="R9.12"></a>
+## R9.12 Volkszählungen als Quelle
+
+Eine Volkszählung verzeichnet einen Haushalt in einem Jahr: wer im Haus wohnte, welche Beziehung er zum
+Haushaltsvorstand hatte, Alter oder Geburtsjahr, oft Geburtsort, Heimatgemeinde und Beruf. Die Forschung nutzt
+Volkszählungen nur, wenn der Mensch sie für die Forschung einschaltet.
+
+- **Prüft der Code:**
+  - die Wahl `census` (**Volkszählungen in dieser Forschung**) ist in der Grundeinstellung aus. Eine nicht gesetzte
+    Wahl bedeutet aus, auch bei früher angelegten Forschungen;
+  - die Wahl gilt für alle Forschungen auf diesem Computer, oder mit `--for-tree` nur für eine. Der Wert der Forschung
+    hat in beide Richtungen Vorrang (ein und aus). Das Menü im Terminal und die Strom-App schreiben den Wert der
+    Forschung. Weder eine Umgebungsvariable noch ein Schalter eines Befehls ändert die Wahl;
+  - einschalten darf sie nur der Mensch: im Menü, in seinem Terminal oder mit dem Schalter in der Strom-App
+    ([S4.4.10](S4-research-from-the-app.md#S4.4.10)). Startet der Agent im Gespräch das Einschalten, fragt ein
+    Systemfenster den Menschen. Ohne Fenster (selbstständige Arbeit des Agenten) lehnt strom das Einschalten ab und
+    sagt dem Agenten, er solle Volkszählungen vorschlagen ([R9.12.1](#R9.12.1)). Ausschalten darf jeder, ohne Frage;
+  - eingeschaltet: Aufgaben der Volkszählungen lassen sich anlegen (`strom task add … --census <jahr>[:<haus>]`), und
+    der Agent bekommt bei ihnen die Seite der Methodik über Volkszählungen und die Liste der Volkszählungen, die strom
+    kennt ([R9.12.2](#R9.12.2));
+  - ausgeschaltet: eine Aufgabe der Volkszählungen lässt sich nicht anlegen (die Ablehnung sagt, wie Volkszählungen
+    vorzuschlagen sind), die Seite `strom guide census` gibt strom nicht heraus, und die Aufgaben der Volkszählungen
+    sind zurückgestellt ([R9.12.4](#R9.12.4)). Eingetragene Ereignisse aus Volkszählungen bleiben;
+  - das Strom-Archiv hat die Wahl im Menü nicht. Die Brücke lehnt sie im Strom-Archiv und in einer Forschung, die auf
+    einen Agenten wartet, ab.
+- **Warum:** die Kirchenbücher halten einzelne Ereignisse fest. Eine Volkszählung zeigt den ganzen Haushalt in einem
+  Jahr, wohin die Familie zog und woher jemand kam, was die Kirchenbücher oft nicht sagen. Die meisten Archive zeigen
+  Volkszählungen nur an, die Bögen liefert daher meist der Mensch als Bildschirmfoto.
+- **Bedienung:** Terminal: Menü **Einstellungen** → **Sprache, Agent, Modell, was der Agent allein darf,
+  Geschichten… (die Einrichtung)** → **Volkszählungen in dieser Forschung: …**. Zuerst ein Satz, was Volkszählungen
+  bringen, dann die Frage **Volkszählungen in dieser Forschung einschalten?** oder **Volkszählungen in dieser
+  Forschung ausschalten? Die zugehörigen Aufgaben werden zurückgestellt und kommen beim Einschalten zurück.** (Enter =
+  nichts ändert sich). Befehl `strom config set census on|off [--for-tree]`, den geltenden Wert zeigt
+  `strom config where`. App: [S4.4.10](S4-research-from-the-app.md#S4.4.10).
+- **Gilt seit:** Forschung 1.36.0, App 3.31.0
+
+<!-- zdroj: research:c7b117cd src/core/config.ts SETTINGS census (env "", tree: true, off|on), censusSwitch (strom.json oběma směry, jinak config uživatele; nenastaveno = off) · src/commands/setup.ts censusDecision (requireHuman: terminál člověka; agent → okno systému, bez okna NeedsConsentError s návodem census propose; STROM_FOR_APP bez okna; vypnutí bez dotazu), effective census off · src/commands/tasks.ts censusOrigin (--census <rok>[:<dům>], census.off s návodem) · src/commands/meta.ts guide census (census.off) · src/brief/brief.ts (podmínka census / census-off) · src/core/live.ts POST /census (409 census.archive) · research:5a73905e src/cli/menu-settings.ts censusLabel, censusStep (ui.settings.census.about, .on, .off; --for-tree; jen mimo archiv) · cs.json ui.settings.census* · assets/method/census.md (úvod) · test/cli/census.test.ts · CHANGELOG.cs.md 1.36.0 „Sčítání lidu“ · dirigent:spec/106-vyzkum-scitani-lidu Proč, K1.1–K1.4, rozhodnutí 19. 11. a 20. 11. M2 -->
+
+<a id="R9.12.1"></a>
+### R9.12.1 Vorschlag, Volkszählungen einzuschalten
+
+Bei ausgeschalteten Volkszählungen darf der Agent sie dem Menschen vorschlagen, einmal je Forschung.
+
+- **Prüft der Code:**
+  - `strom census propose --why "…" [--person P…]` legt einen Eintrag in Was wartet an ([R6.2](R6-awaiting-action.md#R6.2))
+    in der Sprache der Forschung: „Volkszählungen könnten der Forschung helfen: … Einschalten lassen sie sich in den
+    Einstellungen dieser Forschung.“ (mit einer Person „Volkszählungen könnten bei … helfen: …“). Er wartet auf die
+    Entscheidung: Volkszählungen einschalten oder nicht;
+  - einen zweiten Vorschlag lehnt strom ab, wie auch immer der erste geendet hat (erledigt, abgebrochen, abgelehnt).
+    Bei eingeschalteten Volkszählungen lehnt es jeden Vorschlag ab;
+  - `--why` ist ein oder zwei Sätze in der Sprache der Forschung, höchstens 600 Zeichen, und darf den Menschen nicht
+    ansprechen;
+  - das Einschalten der Volkszählungen schließt den Vorschlag („Volkszählungen eingeschaltet“). Bei eingeschalteten
+    Volkszählungen erscheint ein offener Vorschlag nirgends;
+  - die Zusammenfassung der Sitzung, in der der Vorschlag entstand, nennt ihn mit dem Satz „Vorgeschlagen,
+    Volkszählungen einzuschalten (T…).“;
+  - der Vorschlag ist eine Aufgabe der Art **Sonstiges**, keine Aufgabe der Volkszählungen.
+- **Nur Methodik:** ein Vorschlag nur an einer blinden Stelle, wo Volkszählungen helfen würden: Herkunft der Person
+  unbekannt, eine Lücke zwischen Ereignissen aus den Kirchenbüchern. Nach dem Vorschlag arbeitet der Agent ohne
+  Volkszählungen weiter und fragt nicht noch einmal.
+- **Bedienung:** App: **Wartet auf Bearbeitung**. Terminal: Menü Was wartet, Einschalten in [R9.12](#R9.12).
+- **Gilt seit:** Forschung 1.36.0
+
+<!-- zdroj: research:5a73905e src/commands/census.ts census propose (census.on, census.proposed, census.addresses, --why max 600, state waiting, wait kind other, origin census:propose) · src/core/census.ts censusProposal, censusHidden · src/commands/setup.ts closeCensusProposal (census.propose.done) · src/commands/session.ts censusSummary (census.propose.session) · src/core/taskkind.ts (census:propose → other) · assets/method/core.md „Census records are off“ · cs.json census.propose.* · dirigent:spec/106 rozhodnutí 20. 11. M1 -->
+
+<a id="R9.12.2"></a>
+### R9.12.2 Wann und wo der Agent Volkszählungen sucht
+
+Eine Aufgabe der Volkszählungen ist ein Haushalt in einem Jahr und einem Haus. Wo Volkszählungen zu suchen sind, sagt
+dem Agenten die mit der Forschung gelieferte Liste der Archive.
+
+- **Prüft der Code:**
+  - das Briefing einer Aufgabe der Volkszählungen (nur bei eingeschalteten Volkszählungen) zählt die Volkszählungen aus
+    der Liste der Archive auf: Jahre, Gebiet, Namensregister, wie der Haushalt gesucht wird, und der Weg für strom. Die
+    Stufe und die Bedingungen des Archivs gelten wie bei jedem Eintrag ([R9.1](#R9.1)), und der Weg ist nie milder
+    als die Stufe des Archivs;
+  - Volkszählungen in der Liste der Archive (Forschung 1.36.0):
+
+| Archiv | Jahre | Gebiet | Suche | Weg |
+|---|---|---|---|---|
+| Moravský zemský archiv (Acta Publica) | 1857, 1869, 1880, 1890, 1900, 1910, 1921 | Südmähren und Vysočina | Gemeinde, Straße; ohne Namensregister | von Hand: den Bogen speichert der Mensch ([R9.10.1](#R9.10.1)) |
+| SOA Třeboň (DigiArchiv) | wie MZA | Südböhmen | Gemeinde | von Hand |
+| Východočeské archivy (ARON) | wie MZA | Ostböhmen | Gemeinde; ohne Namensregister | der Agent selbst |
+| FamilySearch | wie MZA | ausgewählte Orte | Gemeinde | nur Link und Aufgabe für den Menschen |
+| Archiv hlavního města Prahy | 1869, 1880, 1890 | Praha | – | von Hand |
+| MyHeritage | 1900, 1910, 1921 | Tschechien | Name (Namensregister) | von Hand |
+| Archiv města Brna | 1850, 1857, 1870, 1880, 1890, 1900, 1921 | Brno | Name, Haus (Namensregister) | langsam, ein Eintrag nach dem anderen |
+| Archiv města Ostravy | nicht angegeben | Ostrava | – | langsam, ein Eintrag nach dem anderen |
+
+- **Nur Methodik:**
+  - **wann:** Herkunft der Person unbekannt (Taufe dort, wo sie lebte, nicht gefunden), eine Lücke zwischen
+    Ereignissen aus den Kirchenbüchern (Umzug, anderswo gestorbene Kinder, zweite Heirat), oder ein Haus, bekannt aus
+    Taufe, Heirat oder Begräbnis in einem Jahr nahe dem Jahr der Volkszählung;
+  - nur Menschen, zu denen der Stammbaum führt (nichts außerhalb des Stammbaums), nie lebende. Eine Aufgabe je
+    Haushalt, Jahr und Haus, nie je Person;
+  - **wo:** die Volkszählung der Gemeinde und des Jahres im Katalog des Archivs mit einer Suche, nie durch
+    Durchgehen von Nummern. Darin das Haus nach der Nummer; wo es ein Namensregister gibt, nach dem Namen suchen und
+    die Hausnummer prüfen. Nie Hausnummern durchgehen und nie Menschen suchen, die der Stammbaum nicht braucht;
+  - ein Archiv, das Volkszählungen nur anzeigt: die Aufgabe wartet auf den Menschen, mit der Adresse der Volkszählung
+    der Gemeinde und dem, was zu speichern ist („Gemeinde, Jahr, Hausnummer: der ganze Bogen, beide Seiten“), oder
+    auf Bilder eines Buchs ([R9.6](#R9.6)). Ein Bogen, der größer als ein Bildschirm ist, kommt in Teilen;
+  - nicht gefunden (Volkszählung der Gemeinde verloren, Haus fehlt, Familie anderswo): eine negative Suche mit dem,
+    was genau durchgesehen wurde, und der Agent kehrt nicht dazu zurück.
+- **Bedienung:** Terminal: `strom task add … --census <jahr>:<haus>`, `strom task wait T… --kind web --url <adresse>
+  --on "…"` oder `--images B…:<nummern>`, `strom search add … --result negative`.
+- **Gilt seit:** Forschung 1.36.0
+
+<!-- zdroj: research:5a73905e assets/archives.json census (years, area, nameIndex, search, how, says, checked 2026-11-04 až 2026-11-20: mza.cz by-hand, digi.ceskearchivy.cz by-hand, aron.vychodoceskearchivy.cz agent, familysearch.org link, digi.ahmp.cz by-hand, myheritage.com by-hand, digiarchiv.brno.cz slow, badatelna.ostrava.cz slow bez let), censusDays · src/core/census.ts censusHoldings · src/brief/brief.ts (oddíl census jen pro úkol sčítání při zapnutí) · src/core/assets.ts methodFor (census.md) · test/unit/known-terms.test.ts (how nikdy mírnější než úroveň) · assets/method/census.md „When“, „Where“ · dirigent:spec/106 K2.1–K2.4 -->
+
+<a id="R9.12.3"></a>
+### R9.12.3 Ein Haushalt: ein gemeinsames Ereignis
+
+`strom census add` trägt einen Bogen (ein Haus, einen Haushalt) auf einmal ein. In der Strom-App ist der Haushalt ein
+gemeinsames Ereignis **Volkszählung** ([A10.1](A10-shared-events.md#A10.1)).
+
+- **Prüft der Code:**
+  - jedes Mitglied des Haushalts, das eine Person des Stammbaums ist, bekommt ein Ereignis der Volkszählung mit seiner
+    Beziehung zum Haushaltsvorstand und seinem Alter laut Bogen. Datum, Ort, Haus, Notiz und Zitation des Bogens sind
+    in allen Kopien gleich. Ein einziges Mitglied aus dem Stammbaum bekommt eine gewöhnliche Volkszählung der Person,
+    und seine Beziehung steht in der Notiz;
+  - Menschen aus dem Bogen, die nicht im Stammbaum sind (Gesinde, Inwohner, Mieter), stehen nur in der Notiz des
+    Haushalts; eine Person entsteht aus ihnen nicht. Sonst wird nichts eingetragen: Geburtsjahr und Geburtsort aus dem
+    Bogen sind keine Geburt;
+  - **Datum:** das Jahr allein bedeutet den Stichtag der Volkszählung dieses Jahres, wenn strom ihn kennt: in
+    Tschechien 31. 10. 1857, 31. 12. 1869, 1880, 1890, 1900 und 1910 und 15. 2. 1921. Sonst bleibt das Jahr. Ein
+    vollständiges Datum hat Vorrang;
+  - **Ort** ist die Gemeinde oder ein Eintrag eines Ortes, nie Straße oder Hausnummer. Das Haus wird geschrieben, wie
+    der Bogen es angibt („14“, „Dlouhá 12“);
+  - **Beziehung:** feste Wörter (Haushaltsvorstand, Ehefrau, Ehemann, Sohn, Tochter, Vater, Mutter, Schwiegervater,
+    Schwiegermutter, Schwiegersohn, Schwiegertochter, Enkel, Enkelin, Bruder, Schwester, Stiefsohn, Stieftochter,
+    Ziehsohn, Verwandter, Diener, Dienstmagd, Knecht, Magd, Mieter, Inwohner, Ausgedinger, Lehrling, Geselle) werden
+    auf Tschechisch, Englisch, Deutsch und Polnisch erkannt und mit dem Wort der Sprache der Forschung eingetragen.
+    Eine andere Beziehung bleibt, wie sie geschrieben ist;
+  - die Beziehung, wie Formulare und Lesungen des Bogens sie schreiben: „přednosta [domácnosti]“, „hlava rodiny“,
+    „Haushaltungsvorstand“, „głowa rodziny“ und „head of the household“ sind Haushaltsvorstand. Ein Zusatz, der nur
+    sagt, zu wem die Beziehung besteht („manželka přednosty“, „son of the head“, „Tochter des
+    Haushaltungsvorstandes“, „v domácnosti“), wird abgeschnitten. Aus einer Aufzählung mit Komma gilt
+    Haushaltsvorstand, wenn er darin ist; sonst bleibt sie ganz;
+  - **abgelehnt werden:** ein Mitglied, das keine Person des Stammbaums ist (oder zusammengeführt oder zurückgezogen),
+    eine zweimal angegebene Person, ein Mitglied ohne Beziehung, eine Person, die wahrscheinlich lebt, zwei
+    Haushaltsvorstände und ein schon eingetragener Haushalt (gleiches Jahr, gleiche Gemeinde und gleiches Haus);
+  - **Hinweis:** im selben Haus und Jahr sind weitere Personen des Stammbaums (ein anderer Haushalt des Hauses, oder
+    derselbe zweimal eingetragen); eine Volkszählung desselben Jahres anderswo (Umzug, oder zwei Personen für eine
+    gehalten);
+  - die Kopien bleiben ein Ereignis: eine gemeinsame Angabe, die in einer Kopie korrigiert wird (`strom event edit`,
+    `strom cite`, `strom note edit|retract|restore`, `strom event main`), und ein in einer Kopie angenommener
+    Korrekturvorschlag gelten für alle. Alter, Beziehung, Prüfung und Bestätigung durch den Menschen hat jede Kopie
+    für sich; der Forschungsstand geht nur ausdrücklich auf alle Kopien (`--status`). In die gemeinsame Notiz kommt
+    nichts, was zu einer Kopie gehört;
+  - einen Haushalt eintragen lässt sich auch bei ausgeschalteten Volkszählungen: der Befehl trägt den gelieferten
+    Bogen ein, er sucht nichts.
+- **Nur Methodik:**
+  - den Bogen wie einen Eintrag im Kirchenbuch lesen, den ganzen Haushalt und auch den Haushaltsvorstand; einmal
+    eintragen. Jedes Jahr ist ein eigener Haushalt, nie wird zusammengeführt;
+  - **Hinweis, kein Beleg:** Geburtsjahr oder Geburtsort, Heimatgemeinde und Beruf aus einer Volkszählung ersetzen
+    nie Geburt oder Taufe. Sie führen ins Kirchenbuch: eine Aufgabe, die Pfarrei des Geburtsorts zu finden. Wo
+    Volkszählung und Kirchenbuch auseinandergehen, entsteht eine Notiz oder eine Hypothese; eine Angabe aus dem
+    Kirchenbuch wird wegen der Volkszählung nicht geändert;
+  - **umnummerierte Häuser:** das Haus auch an Nachbarn und Namen erkennen, nicht nur an der Nummer; eine
+    Unsicherheit in der Notiz sagen.
+- **Bedienung:** Terminal: `strom census add --source S… --date <jahr|tag> --place <gemeinde|L…> --house <nr.>`
+  `--member P…:<beziehung>:<alter> … [--others "…"] [--note "…"] [--locator "…"] [--transcript "…"]`. App: der
+  Haushalt bei jeder Person und auf der **Zeitleiste** ([A10.2](A10-shared-events.md#A10.2),
+  [A6.3](A6-views.md#A6.3)). Beispiel (erfunden): `strom census add --source S0004 --date 1890 --place L0007 --house 14`
+  `--member P0002:"Haushaltungsvorstand":41 --member P0003:"Ehefrau des Haushaltungsvorstandes":36 --others "Knecht, 19 Jahre"`
+  trägt für Jan Horák Haushaltsvorstand (41) und für Marie Horáková Ehefrau (36) ein, beides zum 31. 12. 1890.
+- **Gilt seit:** Forschung 1.36.0, App 3.31.0
+
+<!-- zdroj: research:8dba2e52 src/commands/household.ts census add (--source, --date, --place, --house, --member, --others, --note, --locator, --transcript/--quote, --information, --status, --country; sameHouse, elsewhere) · src/core/household.ts addHousehold (census.member.none, record.none, merged/retracted, census.member.twice, census.living, relace chybí, census.head.twice, domácnost už zapsaná; jeden člen bez share id, vztah do poznámky; others jen v poznámce), parseMember, alignCopies · src/gedcom/export.ts (2 NOTE bez řádků kopie) · src/commands/people.ts alignCopies u note edit/retract/restore, cite, event edit, event main · research:ece404b9 src/core/origin.ts (přijatý návrh na všechny kopie), censusDay jedna tabulka · research:5a73905e assets/archives.json censusDays CZ · research:d2bef48e src/core/household.ts householdRoleOf, src/core/phrases.ts HOUSEHOLD_ROLES, HOUSEHOLD_ROLES_ALSO, HOUSEHOLD_OF_HEAD · test/cli/census-household.test.ts, census-reader.test.ts · assets/method/census.md „Reading and recording“ · CHANGELOG.cs.md 1.36.0 · dirigent:spec/106 K3.1–K3.3 · dirigent:prace/1120-vyzkum-106-scitani Výsledek (census add i při vypnutí, stav jen výslovně) -->
+
+<a id="R9.12.4"></a>
+### R9.12.4 Volkszählungen aus: zurückgestellte Aufgaben
+
+Das Ausschalten der Volkszählungen stellt ihre Aufgaben zurück, es löscht sie nicht. Nach dem Einschalten kommen sie
+von selbst zurück.
+
+- **Prüft der Code:**
+  - bei ausgeschalteten Volkszählungen sind offene oder wartende Aufgaben der Volkszählungen (auch auf Bilder)
+    außerhalb der Warteschlange, ihrer Zahlen, von Was wartet und vom Zustand für die App. Nichts wird eingetragen
+    oder gelöscht: das Zurückstellen wird aus der Wahl berechnet;
+  - eine Aufgabe, an der eine Sitzung gerade arbeitet, wird nicht zurückgestellt: die Sitzung beendet sie. Bleibt sie
+    unvollendet, ist sie wieder offen und von da an zurückgestellt. Der Agent erfährt das beim Schließen der Sitzung;
+  - eine Aufgabe, die der Mensch auf später verschoben hat, bleibt verschoben wie bisher. Erledigte und abgebrochene
+    Aufgaben ändern sich nicht;
+  - `strom task list` sagt, wie viele Aufgaben der Volkszählungen zurückgestellt sind; `strom task list --kind census`
+    zeigt sie mit der Marke „held: census off“. Bei einer zurückgestellten Aufgabe, die nach Nummer gestartet wurde
+    (`strom session start T…`), erfährt der Agent, dass die Aufgabe zurückgestellt ist und er die Sitzung schließen
+    und eine andere Aufgabe nehmen soll;
+  - das Menü der Einstellungen zeigt bei der Wahl z. B. „aus, 3 Volkszählungsaufgaben zurückgestellt“ und nach dem
+    Ausschalten den Satz „Zurückgestellt: 3 Volkszählungsaufgaben. Beim Einschalten kommen diese zurück.“
+- **Bedienung:** Terminal: die Wahl in [R9.12](#R9.12), `strom task list --kind census`. App: der Schalter
+  [S4.4.10](S4-research-from-the-app.md#S4.4.10) mit dem Satz über die zurückgestellten Aufgaben.
+- **Gilt seit:** Forschung 1.36.0
+
+<!-- zdroj: research:c7b117cd src/core/census.ts censusHeld (open, parked do uplynulého dne, waiting; nikdy doing ani parked člověkem), censusHidden, censusHeldCount · src/core/queue.ts rankTasks censusHide · src/core/waiting.ts (Co čeká) · src/core/live.ts censusStatus (/status.census {on, held}) · src/commands/tasks.ts task list (censusHeldNow, „held: census off“, --kind census) · src/commands/session.ts censusLine, censusCloseLine · research:5a73905e src/cli/menu-settings.ts censusLabel (ui.settings.census.held), censusStep (ui.settings.census.back) · test/cli/census.test.ts (M3) · dirigent:spec/106 K1.3, rozhodnutí 20. 11. M3 -->
+
+<a id="R9.13"></a>
+## R9.13 Ein eingeschränktes Archiv: eine Sitzung zur Zeit
+
+Ein Archiv, das automatisierten Zugriff einschränkt, wird jeweils nur von einer Sitzung aller Forschungen mit dem
+gemeinsamen Ordner auf dem Computer genutzt. So sperrt das Archiv den Zugriff nicht, und einer, der arbeitet, kommt im vollen
+erlaubten Tempo voran, statt dass sich mehrere das Tempo teilen.
+
+- **Eingeschränktes Archiv:** die Bedingungen des Archivs verlangen menschliches Tempo oder nur den Browser, ein Mensch
+  hat die Erlaubnis „langsam“ oder „über den Browser“ gegeben ([R9.2](#R9.2)), oder der Downloader des Archivs hat ein
+  Stundenlimit. Eine Ablehnung durch das Archiv (401, 403, 429) macht kein eingeschränktes Archiv: das Archiv wird wie
+  bisher eine Weile in Ruhe gelassen. Erkannt wird das Archiv an der Domain der Website.
+- **Prüft der Code:**
+  - eine Aufgabe, deren Bücher nur in einem eingeschränkten Archiv liegen, nimmt mit der Belegung der Aufgabe auch das
+    Archiv. Die Sitzung hält das Archiv; ein Agent, der sich erst ins Archiv verirrt, belegt es mit der ersten Anfrage;
+  - das Halten des Archivs endet mit der Sitzung, mit dem Verfall der Sitzung
+    ([R7.9](R7-when-the-agent-works.md#R7.9)) oder nach `archive.hold` (Standard 30 Min.) ohne Anfrage an das Archiv,
+    auch wenn die Sitzung weiterläuft. Wer nur heruntergeladene Scans liest, gibt das Archiv so frei;
+  - eine Aufgabe in einem Archiv, das eine andere Sitzung hält, wird vorerst ausgelassen, und es wird andere Arbeit
+    genommen („ausgelassen: das Archiv … schränkt automatisierten Zugriff ein und wird gerade von einer anderen Sitzung
+    genutzt“). Eine Anfrage des Agenten an ein solches Archiv wird abgelehnt;
+  - die Arbeit allein, der nur solche Aufgaben geblieben sind, wartet höchstens `archive.wait` (Standard 30 Min.). An
+    das Archiv wird während des Wartens nichts gesendet. Dann endet der Lauf mit dem Grund „nichts weiter zu tun – die
+    übrigen Aufgaben brauchen das Archiv …, das während der ganzen Wartezeit eine andere Sitzung nutzte“;
+  - `strom session start T…` bei einer Aufgabe eines belegten Archivs wird mit einem Satz abgelehnt: „Das Archiv …
+    nutzt gerade eine andere Forschung (seit 9:10, zuletzt 9:40); frei spätestens um 10:10.“ In derselben Forschung
+    steht statt „eine andere Forschung“ die Nummer der Sitzung;
+  - wer auf das Archiv wartet, steht in einer Warteschlange; nach dem Freiwerden hat Vorrang, wer am längsten wartet.
+    Eine Sitzung, die das Archiv freigegeben hat, belegt es nicht gleich wieder, wenn jemand darauf wartet.
+- **Massendownload:** auf dem Computer läuft jeweils nur ein Massendownload von Bildern aus einem eingeschränkten
+  Archiv (`strom fetch`). Ein weiterer reiht sich in die Warteschlange ein („queued behind …“) und wartet von selbst
+  höchstens `archive.wait`; dann endet er mit der Zeit, wann es erneut zu versuchen ist. Der Download hält auch das
+  Archiv, deshalb überspringen ihn die Agenten anderer Forschungen. Nicht eingeschränkte Archive ändern sich nicht: ihr
+  Tempo überwacht weiter nur der Anfragenbegrenzer.
+- **Grenzen:** das Halten sagt nicht, wie schnell heruntergeladen wird, nur wer; das Tempo des Archivs ändert sich
+  nicht. Ein älteres strom neben diesem hält keine Archive und hält sich nur an das Tempo.
+- **In der App:** wer ein Archiv nutzt und auf welches Archiv die Arbeit wartet, zeigt die Forschungsübersicht
+  ([S4.1](S4-research-from-the-app.md#S4.1), [S4.2](S4-research-from-the-app.md#S4.2)).
+- **Bedienung:** Terminal: `strom config set archive.hold <Minuten>`, `strom config set archive.wait <Minuten>` (z. B.
+  `45m`, `2h`; 5 Min. bis 24 Std., gilt für diesen Computer); das Menü zeigt „Die selbstständige Arbeit wartet auf das
+  Archiv … (höchstens bis …).“
+- **Gilt seit:** Forschung 1.36.0
+
+<!-- zdroj: research:10894288, 9408c7ea, 41dcd8eb src/core/archiveholds.ts (hlavička; restrictedLevel: browserOnly, permission slow|browser, allows(…).human; ne forbidden/refused; cappedConnector policy.pace.perHour; siteOf webDomain; siteLife: proces, sezení, archive.hold; PRIORITY_MS 2 min; joinQueue, releaseSite; BULK) · src/commands/connectors.ts:1443-1448 (help fetch), :3085-3190 holdArchive (fetch obrázků čeká ve frontě ≤ archive.wait, ostatní exit 7 data.held) · src/commands/session.ts:985-997, :1355-1389 (stop archive) · src/core/errors.ts:142 archive.held(.own) · src/core/config.ts:336-337 archive.hold, archive.wait · cs.json ui.run.skip.archive, ui.run.archive.wait, ui.run.stop.archive, ui.error.archive.held(.own), ui.menu.working.archive · CHANGELOG.cs.md 1.36.0 · dirigent:spec/127 K2.1–K2.5, K5.1, rozhodnutí 21. 11. (1)–(3), navrh-rezervace.md kap. 5 -->

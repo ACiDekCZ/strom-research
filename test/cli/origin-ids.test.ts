@@ -33,6 +33,7 @@ const one = (w: World, given: string, surname?: string) => {
   assert.equal(all.length, 1, `${given} ${surname ?? ""}: ${all.map((p) => p.id).join(", ")}`);
   return all[0]!;
 };
+const record = (text: string, id: string) => text.match(new RegExp(`^0 @${id}@ SOUR\\r?\\n(?:[1-9].*\\r?\\n)*`, "mu"))?.[0] ?? "";
 const ged = (lines: string[]) => [...lines, "0 TRLR", ""].join("\n");
 const gitHead = (w: World) => execFileSync("git", ["rev-parse", "HEAD"], { cwd: w.cwd, encoding: "utf8" }).trim();
 const write = (w: World, name: string, text: string) => {
@@ -458,6 +459,50 @@ test("a sync: a person the app has without the research's ID, of a strong ID of 
     const twin = ["0 @I8@ INDI", "1 _STROM_IMPORT I1", `2 _UID ${HYNEK_UID}`, "1 NAME Hynek /Lhoták/", "1 SEX M"];
     await w.ok(["sync", send([...HYNEK, ...twin, ...ZDISLAVA, ...RADOSLAV, ...FAM]), "--apply"], FROM_APP);
     assert.equal(named(w, "Hynek").length, 2);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("a family tree with no place of its own: each citation's PAGE its own line of the tree (the app makes a page of each), a pointer an import made none; given back the same no edit of the user, nothing twice; a line changed in the app the user's edit", opts, async () => {
+  const w = await intaken();
+  try {
+    const lhotak = one(w, "Jan", "Lhoták");
+    await w.ok(["source", "add", "Rodokmen z pozůstalosti", "--kind", "family-tree", "--form", "authored"]);
+    const tree0 = open(w);
+    const own = tree0.list<Source>("source").find((s) => s.title === "Rodokmen z pozůstalosti")!;
+    const imported = tree0.list<Source>("source").find((s) => s.kind === "family-tree" && s.id !== own.id)!;
+    const LINE1 = "fol. 55 (obr. 54 vpravo dole) – fol. 56 (obr. 55 vlevo)";
+    const LINE2 = "list 3, větev Лхотак"; // another script, and NFD below
+    await w.ok(["event", "add", lhotak.id, "DEAT", "--date", "1901", "--cite", own.id, "--locator", LINE1]);
+    await w.ok(["event", "add", lhotak.id, "BURI", "--date", "1901", "--cite", own.id, "--locator", LINE2.normalize("NFD")]);
+    await w.ok(["event", "add", lhotak.id, "RESI", "--place", "Lhota", "--cite", own.id]);
+    const out = path.join(w.dir, "app.ged");
+    await w.ok(["export", "gedcom", "--for", "strom", "--out", out]);
+    const text = fs.readFileSync(out, "utf8");
+    const cites = (id: string) => [...text.matchAll(new RegExp(`^(\\d) SOUR @${id}@\\n((?:(?!\\1 )[2-9] .*\\n)*)`, "gmu"))].map((m) => m[2]!);
+    const mine = cites(own.id);
+    assert.equal(mine.length, 3, text);
+    assert.ok(mine.some((c) => c.includes(`PAGE ${LINE1}\n`) && c.includes(`TEXT ${LINE1}\n`)), "its own line as PAGE, in DATA TEXT as before");
+    assert.ok(mine.some((c) => c.includes(`PAGE ${LINE2}\n`)), "the line in NFC");
+    assert.ok(mine.some((c) => !/PAGE/u.test(c)), "a citation with no line: no PAGE");
+    assert.ok(cites(imported.id).length > 0 && cites(imported.id).every((c) => !/PAGE/u.test(c)), "an import's pointers (I1 BIRT) no PAGE");
+    assert.doesNotMatch(record(text, own.id), /^1 PAGE/mu, "no PAGE of the tree's own");
+    // given back as it was: nothing the user changed, nothing written twice
+    const head = gitHead(w);
+    const back = (t: string, name: string) => write(w, name, t.includes("_STROM_HEAD") ? t : t.replace(/^0 HEAD$/mu, `0 HEAD\n1 _STROM_HEAD ${head}`));
+    const plan = (await w.ok(["sync", back(text, "back.ged"), "--json"], FROM_APP)).json as { changes?: { kind: string }[] };
+    assert.deepEqual((plan.changes ?? []).filter((c) => c.kind.startsWith("source.") || c.kind.startsWith("fact.") || c.kind.startsWith("event.")), [], JSON.stringify(plan.changes));
+    const citations = () => open(w).get<Person>(lhotak.id)!.events.flatMap((e) => e.citations).length;
+    const n = citations();
+    await w.ok(["sync", back(text, "back2.ged"), "--apply"], FROM_APP);
+    assert.equal(citations(), n, "no citation twice");
+    // the first citation's line changed in the app: the user's edit, as of any source (one the research read: their
+    // reading beside it)
+    const first = text.indexOf(`PAGE ${LINE1}`) < text.indexOf(`PAGE ${LINE2}`) ? LINE1 : LINE2;
+    const changed = text.replace(`PAGE ${first}`, "PAGE fol. 57");
+    const edit = (await w.ok(["sync", back(changed, "edit.ged"), "--json"], FROM_APP)).json as { changes?: { kind: string; sourceId?: string; fields?: string[] }[] };
+    assert.ok((edit.changes ?? []).some((c) => /^source\.(changed|reading)$/u.test(c.kind) && c.sourceId === own.id && c.fields?.includes("page")), JSON.stringify(edit.changes));
   } finally {
     w.cleanup();
   }

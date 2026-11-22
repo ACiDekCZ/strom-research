@@ -5,7 +5,7 @@
 
 import { MONTHS } from "../core/gdate.ts";
 import { ui, type UIKey } from "./ui.ts";
-import { displayName } from "../core/people.ts";
+import { currentName, displayName } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { houseHasWord } from "../core/house.ts";
 import type { Tree } from "../core/tree.ts";
@@ -83,10 +83,14 @@ export function humanDate(date: string | undefined, lang: string): string {
   return simple(d, lang, false);
 }
 
+/** What "this year" is measured by: a test sets a fixed day (its CLI runs in the same process), strom the clock. */
+export const humanClock: { now?: () => number } = {};
+
 /** A day of the research (an ISO time): "25. 9.", with the year when it is not this one. */
 export function humanDay(iso: string, lang: string): string {
   const d = new Date(iso);
-  return format(lang, d, d.getUTCFullYear() === new Date().getUTCFullYear() ? "daymonth" : "day");
+  const year = new Date((humanClock.now ?? Date.now)()).getUTCFullYear();
+  return format(lang, d, d.getUTCFullYear() === year ? "daymonth" : "day");
 }
 
 /** A moment of the research (an ISO time) on this computer's clock: "3. 10. 23:01" — which of a day's sends it was. */
@@ -174,6 +178,62 @@ function namesOne(word: string, names: string[]): boolean {
   });
 }
 
+/** The words of a person's given name, folded; none given: the words of their whole name. */
+function givenWords(p: Person): string[] {
+  const given = foldText(currentName(p).given).split(/[^\p{L}\p{M}\p{N}]+/u).filter((w) => w.length >= 2);
+  return given.length ? given : nameWords(p);
+}
+
+/** Can each partner be told by a word of their own (no word naming two of them)? */
+function eachByOwnWord(words: string[], partners: string[][], used: Set<number> = new Set()): boolean {
+  if (!partners.length) return true;
+  const [names, ...rest] = partners;
+  return words.some((w, i) => !used.has(i) && namesOne(w, names!) && eachByOwnWord(words, rest, new Set([...used, i])));
+}
+
+/**
+ * Whether the text before a person's ID ends with their name (the two words before it, declined too); before a family's,
+ * with the given names of all its partners, each by a word of its own (two words each and a word between them: "Jan +
+ * Anna F0001", "Jana Lhotáka a Anny Lhotové F0001") — a surname two partners share never names both.
+ */
+function namedBefore(tree: Tree, id: string, before: string): boolean {
+  const r = tree.get<Person | Family>(id);
+  const people = r?.type === "person" ? [r] : r?.type === "family" ? r.partners.map((x) => tree.get<Person>(x)).filter((x): x is Person => x?.type === "person") : [];
+  if (!people.length) return false;
+  // the words before the ID (letters only, none of them an ID)
+  const words = foldText(before.slice(-60 * people.length)).split(/[^\p{L}\p{M}\p{N}]+/u).filter(Boolean).slice(-3 * people.length + 1).filter((w) => !/^[pfsbn]\d{4,}$/u.test(w));
+  if (people.length === 1) return words.slice(-2).some((w) => namesOne(w, nameWords(people[0]!)));
+  return eachByOwnWord(words, people.map(givenWords));
+}
+
+/** A person or a family of the research by name with its ID: "Jan Lhoták (P0001)", "Jan Lhoták + Anna Lhotová (F0001)". */
+export function whoSaid(tree: Tree, id: string): string {
+  const r = tree.get<Person | Family>(id);
+  if (r?.type === "person") return `${displayName(r)} (${id})`;
+  if (r?.type === "family") {
+    const names = r.partners.map((p) => tree.get<Person>(p)).filter((p): p is Person => p?.type === "person").map(displayName);
+    return names.length ? `${names.join(" + ")} (${id})` : id;
+  }
+  return id;
+}
+
+/**
+ * What an agent wrote of a hypothesis (its question, a variant's claim), for the person: the people and families it
+ * names by ID by their names with the ID, as the tree's changes beside it say them ("syn P0118" → "syn Jan Lhoták
+ * (P0118)"). A person's ID right after their name keeps the name as written ("Jana Lhotáka P0118", "… [P0118]" →
+ * "Jana Lhotáka (P0118)"); an ID the research has not stays as it is.
+ */
+export function humanClaim(tree: Tree, text: string): string {
+  return text.replace(/([[(])?(?<![\p{L}\p{M}\p{N}])([PF]\d{4,})(?![\p{L}\p{M}\p{N}])([\])])?/gu, (all: string, open: string | undefined, id: string, close: string | undefined, at: number) => {
+    const r = tree.get<Person | Family>(id);
+    if (r?.type !== "person" && r?.type !== "family") return all;
+    // one bracket alone is the text's own: kept around what is said
+    const paired = !!open && !!close && (open === "[") === (close === "]");
+    const [lead, tail] = paired ? ["", ""] : [open ?? "", close ?? ""];
+    return `${lead}${namedBefore(tree, id, text.slice(0, at)) ? `(${id})` : whoSaid(tree, id)}${tail}`;
+  });
+}
+
 /**
  * What the agent wrote into a task, for the user: the records it names by ID by their names ("S0001" → its title).
  * `asWritten`: a person's ID right after their name in the text stays the bare ID in brackets ("Václava Nováka P0001" →
@@ -181,14 +241,7 @@ function namesOne(word: string, names: string[]): boolean {
  * after their name, as strom writes it ("Karel Němec [P0001]"), stays as it is either way.
  */
 export function humanTask(tree: Tree, text: string, lang: string, o: { asWritten?: boolean } = {}): string {
-  const named = (id: string, before: string): boolean => {
-    const p = tree.get<Person>(id);
-    if (p?.type !== "person") return false;
-    // the two words before the ID (letters only, none of them an ID)
-    const words = foldText(before.slice(-60)).split(/[^\p{L}\p{M}\p{N}]+/u).filter(Boolean).slice(-2).filter((w) => !/^[pfsbn]\d{4,}$/u.test(w));
-    const names = nameWords(p);
-    return words.some((w) => namesOne(w, names));
-  };
+  const named = (id: string, before: string): boolean => namedBefore(tree, id, before);
   const name = (id: string): string => {
     const r = tree.get<Person | Family | Source | RecordSet | Session>(id);
     if (!r) return id;
@@ -198,12 +251,13 @@ export function humanTask(tree: Tree, text: string, lang: string, o: { asWritten
     return r.title;
   };
   // A list of IDs as a list of names, each once (two sessions of one day read as one).
-  const names = (ids: string, at: number): string =>
-    o.asWritten && !ids.includes(",") && named(ids, text.slice(0, at)) ? `[${ids}]` : [...new Set(ids.split(", ").map(name))].join(", ");
+  // already in brackets ("… [F0001]"): the bare ID inside them, never "[[F0001]]"
+  const names = (ids: string, at: number, bracketed = false): string =>
+    o.asWritten && !ids.includes(",") && named(ids, text.slice(0, at)) ? (bracketed ? ids : `[${ids}]`) : [...new Set(ids.split(", ").map(name))].join(", ");
   return text.replace(/(\[)?\b([PFSBN]\d{4,}\b(?:, [PFSBN]\d{4,}\b)*)(\])?/g, (all: string, open: string | undefined, ids: string, close: string | undefined, at: number) => {
     // a person's ID in brackets as strom writes it ("Karel Němec [P0001]"): kept after their name, else their name in its place
     if (open && close && !ids.includes(",") && tree.get<Person>(ids)?.type === "person") return named(ids, text.slice(0, at)) ? all : name(ids);
-    return `${open ?? ""}${names(ids, at + (open ? 1 : 0))}${close ?? ""}`;
+    return `${open ?? ""}${names(ids, at + (open ? 1 : 0), !!open && !!close)}${close ?? ""}`;
   });
 }
 

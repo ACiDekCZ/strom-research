@@ -134,7 +134,7 @@ export function agentBrowserAdvice(env: Env, agent: string | undefined, a: Brows
   if (s.state === "agent-without-browser")
     return `strom does not keep your browser or computer use (no hook of strom's before a page) and does not recommend them: not of your own accord for ${a.title ?? a.host} — the person saves the images by hand${wait}. ${ON_REQUEST} ${tellClaude}`;
   if (s.state === "no-extension")
-    return `the Claude in Chrome extension is in no browser here — the person saves the images by hand${wait}. Tell the user once: with the extension (${s.url}) and the permission "through the browser" the agent would save them itself.`;
+    return `the Claude in Chrome extension is in no browser here — the person saves the images by hand${wait}. Tell the user once: with the extension (${s.url})${a.permitted ? "" : ' and the permission "through the browser"'} the agent would save them itself.`;
   if (!a.permitted)
     return `your browser goes there only with the person's permission "through the browser" (strom allow archive ${a.host} --way browser — the person's, never yours); until then the person saves the images by hand${wait}.`;
   const yours = agent === "claude" ? "Claude in Chrome" : `its address written out in your code, tab.goto("<the page>") — strom's hook sees only an address it can read`;

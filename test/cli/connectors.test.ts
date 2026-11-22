@@ -18,6 +18,7 @@ import type { AddressInfo } from "node:net";
 import { World, hasGit, fakeConnector, pluginDir, readJsonFile } from "../helpers.ts";
 import { testHooks, DEFAULT_PACE } from "../../src/core/net.ts";
 import { fenceKeepsNetOff, sandboxedRun } from "../../src/core/connector.ts";
+import { ui } from "../../src/cli/ui.ts";
 import { encodeJpeg } from "../../src/image/jpeg-encode.ts";
 import { decodeJpeg } from "../../src/image/jpeg-decode.ts";
 import { blank } from "../../src/image/image.ts";
@@ -510,7 +511,8 @@ test("the fence keeps a connector off the network from Node 25 on; doctor says s
   const doc = await w.run(["doctor", "--json"]);
   const fence = (doc.json?.checks ?? []).find((c: { name: string }) => c.name === "fence");
   if (fenceKeepsNetOff(process.version)) assert.equal(fence, undefined, "a Node that fences the network: nothing to say");
-  else assert.match(fence?.detail ?? "", /only Node 25 or newer also keeps them off the network/);
+  // an older Node (Node 24 of a CI runner; never the Node 26 of a Mac): said for the person, in the research's language
+  else assert.equal(fence?.detail, ui("cs", "ui.doc.fence.net", { node: process.version }));
   w.cleanup();
   await a.close();
 });

@@ -39,11 +39,12 @@ import { orderCitations, quayAt, sourceEvents, type OrderOf } from "../core/cite
 import { VERSION, type Tree } from "../core/tree.ts";
 import { dataUrl, turned, type Excerpt, type ExcerptOmitted } from "../core/excerpt.ts";
 import { excerptPage, sourcePage } from "../core/scanlink.ts";
-import { composedPage, sourceCallNumber, sourceImage } from "../core/sourcefields.ts";
+import { composedPage, sourceCallNumber, sourceImage, treePointer } from "../core/sourcefields.ts";
 import { IMAGE_MIME, IMAGE_REF } from "../core/liveimages.ts";
 import type { TreeMediaItem, TreeMediaPlaces } from "../core/treemedia.ts";
 import { numbersOnly } from "../core/streets.ts";
 import { factRef, nameRef, sexRef } from "../core/origin.ts";
+import { marriagesOf, namesInOrder } from "../core/married.ts";
 import { proposalKind } from "../core/proposals.ts";
 import { otherNames, recordIndex } from "../core/placeid.ts";
 import { branchJoined, kinship, mainPerson } from "../core/kin.ts";
@@ -52,12 +53,14 @@ import * as git from "../core/git.ts";
 import { treeEdges, type Edge, type Island } from "../core/edge.ts";
 import type { TableMarks, TableWait } from "../core/tablemarks.ts";
 import { readersOf } from "../core/review.ts";
-import { confirmedOn, factMark, markOf } from "../core/readers.ts";
+import { confirmedOn, factMark, markOf, nameMark } from "../core/readers.ts";
+import { nameEid } from "../core/namestatus.ts";
 import { sexRaw, sideText, sidesOf } from "../core/conflicts.ts";
 import { settledClaim } from "../core/labels.ts";
 import { humanTask } from "../cli/human.ts";
 import { parseYears } from "../core/years.ts";
-import { storySources } from "../core/storykeep.ts";
+import { sourcesNamed, storySources } from "../core/storykeep.ts";
+import { deletedSource } from "../core/sourceretract.ts";
 
 export const GED_PROFILES = ["standard", "strom"] as const;
 export type GedProfile = (typeof GED_PROFILES)[number];
@@ -153,6 +156,14 @@ export interface ExportOptions {
   noCouple?: boolean;
   /** The Strom profile, an app that shows it (APP_SHOWS_FACT_STATUS): how sure each fact is as 2 _STROM_STATUS, not as a note. */
   factStatus?: boolean;
+  /**
+   * The Strom profile, for an app that reads how sure a name is (APP_READS_NAME_STATUS, spec 066 P5): under each NAME
+   * with a status and a citation `2 _STROM_STATUS` (with factStatus); under the name of the person's identity, with
+   * verify, `2 _STROM_EID P….N` (`3 _TXT`: core/readers.ts nameMark), `2 _STROM_CONFIRMED <day>`, `2 _STROM_VERIFY`
+   * (verify's entry under the name's id, core/namestatus.ts nameEid) and `2 _STROM_CHECKED` — after its SOUR and
+   * _STROM_ORIGIN, as a fact's.
+   */
+  nameStatus?: boolean;
   /** For a Strom app that knows an archive (APP_KNOWS_ARCHIVE): 1 _STROM_MODE archive in the header. */
   archive?: boolean;
   /**
@@ -442,12 +453,15 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   };
   const citedSources = new Set<string>();
   // Strom profile: one PAGE per source (Strom keeps the first) — the source's place in the book, else the first cited;
-  // an imported family tree none of its own (a person's line in it is no reference of the whole tree: each citation
-  // says it in DATA TEXT — found by the joint check of spec 066, "PAGE I1 BIRT" on every fact of the tree)
+  // a family tree with no place of its own each citation its own line of it (the app makes a page of the tree of each),
+  // never a pointer an import or a sync made ("I1 BIRT" — found by the joint check of spec 066 as the PAGE of every
+  // fact of the tree; each citation says it in DATA TEXT)
   const stromPages = new Map<string, string | undefined>();
   const stromPage = (s: Source, c: Citation): string | undefined => {
     if (!stromPages.has(s.id)) stromPages.set(s.id, composedPage(s, lang) ?? (s.kind === "family-tree" ? undefined : c.locator));
-    return stromPages.get(s.id);
+    const own = stromPages.get(s.id);
+    if (own !== undefined || s.kind !== "family-tree") return own;
+    return c.locator?.trim() && !treePointer(c.locator) ? c.locator : undefined;
   };
 
   // Places with coordinates, looked up by folded name.
@@ -460,6 +474,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   const origins = !!opts.origins && opts.for === "strom";
   // The verification of facts against their originals (spec 065), for an app that shows it.
   const verify = opts.for === "strom" ? opts.verify : undefined;
+  // how sure a name is, its confirmation (spec 066 P5): for an app that reads them (APP_READS_NAME_STATUS) alone
+  const nameMarks = opts.for === "strom" && !!opts.nameStatus;
   const importsNamed = new Map<string, Source>();
   const importKey = (id: string | undefined): string | undefined => {
     const s = id ? tree.get<Source>(id) : undefined;
@@ -554,6 +570,9 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     if (opts.research) w.line(1, "_STROM_ASOF", asOfNow());
     // an archive (no agent; the app's data written as they come): for an app that knows it (APP_KNOWS_ARCHIVE)
     if (opts.archive && tree.config.mode === "archive") w.line(1, "_STROM_MODE", "archive");
+    // the last name after a marriage of each person is the one now (spec 010 K4.1, K4.2): an app that reads it takes
+    // the order as it is (the user's choice too), one that does not puts it right by the latest marriage itself
+    w.line(1, "_STROM_MARRIED_LAST", "Y");
     // the file says the bounds of a lineage the person set, all of them (none: none), for an app that keeps them
     if (opts.lines) w.line(1, "_STROM_LINES", "Y");
     // the research's lines and the branches off them, for an app that shows the research in its table
@@ -604,8 +623,12 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   // ── people ──
   const famc = new Map<string, { fam: string; relation: string }[]>();
   const fams = new Map<string, string[]>();
+  const partnerIn = new Map<string, Family[]>();
   for (const f of families) {
-    for (const p of f.partners) fams.set(p, [...(fams.get(p) ?? []), f.id]);
+    for (const p of f.partners) {
+      fams.set(p, [...(fams.get(p) ?? []), f.id]);
+      partnerIn.set(p, [...(partnerIn.get(p) ?? []), f]);
+    }
     for (const c of f.children) famc.set(c.person, [...(famc.get(c.person) ?? []), { fam: f.id, relation: c.relation }]);
   }
 
@@ -615,16 +638,15 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     const primary = primaryName(p);
     const nameQuotes: string[] = [];
     // the name the person is shown by now (Name.primary): first for any program (GEDCOM 7: the preferred name first);
-    // the Strom file keeps the name of their identity first (the app's birth surname) and says the mark — a married
-    // name marked last of them (the app keeps one name after a marriage: the last), so even an app that reads no mark
-    // shows it
+    // the Strom file keeps the name of their identity first (the app's birth surname) and says the mark — the names
+    // after a marriage last, the one now the very last (spec 010 K4.1, K4.2: the one shown, the user's choice, else
+    // the latest marriage's; the app keeps one name after a marriage: the last), so even an app that reads no mark
+    // shows it (HEAD _STROM_MARRIED_LAST)
     const current = currentName(p);
     const rest = p.names.filter((n) => n !== primary && n !== current);
     const order =
-      current === primary ? [primary, ...rest]
-      : strict ? [current, primary, ...rest]
-      : current.kind === "married" ? [primary, ...rest, current]
-      : [primary, ...p.names.filter((n) => n !== primary)];
+      strict ? (current === primary ? [primary, ...rest] : [current, primary, ...rest])
+      : namesInOrder(p, marriagesOf(p.id, partnerIn.get(p.id) ?? [], (id) => personById.get(id)));
     for (const n of order) {
       // a name with a title says it in the line (any program shows it) and spells its parts out below: NPFX, GIVN, SURN,
       // NSFX — for any program (GEDCOM 5.5.1's own tags), for the Strom app from its 3.10 (titles; an older one reads
@@ -652,6 +674,14 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         // one for each part changed, the part's value alone (a given name, a surname)
         for (const k of n.was?.parts ?? []) wasLine(2, n.was![k] ?? "", n.was!.source, NAME_PART_TAGS[k], nameRef(p, p.names.indexOf(n)));
       }
+      // how sure the name is (spec 066 P5): a status a record gives it — none without one
+      if (nameMarks && opts.factStatus && n.status && n.citations?.length) w.line(2, "_STROM_STATUS", n.status);
+      // the name of their identity: its id and mark, the person's confirmation, how it waits, the last verification
+      if (n === primary && nameMarks && verify) {
+        w.line(2, "_STROM_EID", nameEid(p));
+        w.line(3, "_TXT", nameMark(n));
+        verifyLines(n, verify.get(nameEid(p)));
+      } else if (n === primary && opts.ids && n.confirmed && /^\d{4}-\d{2}-\d{2}/.test(n.confirmed.at)) w.line(2, "_STROM_CONFIRMED", n.confirmed.at.slice(0, 10));
     }
     w.line(1, "SEX", p.sex);
     // where the sex came from (spec 066): of a known sex, or one an import gave
@@ -807,9 +837,12 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     // the fields themselves, for a Strom app that reads them (an older one counts them as tags it left out): the image
     // also where only the registered scans give it
     if (!strict && opts.sourceFields) {
-      const image = sourceImage(s, (id) => tree.get<Media>(id))?.value;
+      const image = sourceImage(s, (id) => tree.get<Media>(id));
       if (s.folio?.trim()) w.text(1, "_STROM_FOLIO", s.folio.trim());
-      if (image) w.text(1, "_STROM_IMAGE", image);
+      if (image) w.text(1, "_STROM_IMAGE", image.value);
+      // one only its registered scans give, so marked: the app adds it to the location and cuts no other number of an
+      // image out of it (that of an index the location names is no image of the entry); an older app passes the line
+      if (image?.derived) w.line(2, "_STROM_DERIVED", "Y");
       if (s.locator?.trim()) w.text(1, "_STROM_LOCATOR", s.locator);
     }
     // The words of the record are the source's TEXT (in both files: Strom reads it there).
@@ -983,8 +1016,11 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     w.line(level + 1, "_REF", ref);
   }
 
-  /** A fact's verification against its originals (spec 065, APP_SHOWS_VERIFY): the user's confirmation, how it waits, the last result. */
-  function verifyLines(e: Event, waits: { state: string; pos?: number } | undefined): void {
+  /**
+   * A fact's verification against its originals (spec 065, APP_SHOWS_VERIFY) — or the name of a person's identity's
+   * (spec 066 P5, APP_READS_NAME_STATUS): the user's confirmation, how it waits, the last result.
+   */
+  function verifyLines(e: Pick<Event, "confirmed" | "verified"> & { status?: Event["status"] | undefined }, waits: { state: string; pos?: number } | undefined): void {
     if (e.confirmed && /^\d{4}-\d{2}-\d{2}/.test(e.confirmed.at)) w.line(2, "_STROM_CONFIRMED", e.confirmed.at.slice(0, 10));
     if (waits) {
       w.line(2, "_STROM_VERIFY", waits.state);
@@ -1094,11 +1130,15 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         ageNotes.push(`${displayName(personById.get(id!)!)} ${humanAge(age ?? raw, lang)}`);
       }
     if (opts.for === "strom") shareLines(e, on);
+    // one event the app shares among people (spec 085): its note is the one of every copy, so nothing of one copy goes
+    // into it — the status of this copy and its age stay out (spec 106, the app's question 9); its AGE and its
+    // _STROM_STATUS say them
+    const shared = on === "INDI" && opts.for === "strom" && !!e.share;
     const cites = ordered(e.citations, { kind: e.kind, date: e.date });
     for (const c of cites) citation(2, c, e.kind);
     for (const pt of e.participants ?? []) participant(pt, on, noteParts, assos);
     if (opts.factStatus && opts.for === "strom") w.line(2, "_STROM_STATUS", e.status);
-    else if (e.status === "lead" || e.status === "possible") noteParts.unshift(L(e.status));
+    else if (!shared && (e.status === "lead" || e.status === "possible")) noteParts.unshift(L(e.status));
     if (origins) {
       w.line(2, "_STROM_ORIGIN", originSaid(e.origin, FACT_PART_TAGS));
       // one for each part changed, never joined (a place has commas of its own): its value as the fact's line has it
@@ -1109,7 +1149,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     else if (opts.ids && e.confirmed && /^\d{4}-\d{2}-\d{2}/.test(e.confirmed.at)) w.line(2, "_STROM_CONFIRMED", e.confirmed.at.slice(0, 10));
     if (!VALUE_TAGS.has(tag) && e.value && tag !== "EVEN") noteParts.push(e.value);
     // The ages for a Strom older than STROM_READS_TAGS (or with no AGE form), the words of the record always.
-    if ((repeat || ageUntagged) && ageNotes.length) noteParts.push(`${L("age")}: ${ageNotes.join(", ")}`);
+    if (!shared && (repeat || ageUntagged) && ageNotes.length) noteParts.push(`${L("age")}: ${ageNotes.join(", ")}`);
     if (!strict) for (const c of cites) if (c.quote) noteParts.push(`${L("quote")}: „${c.quote}“`);
     if (e.note) noteParts.push(e.note);
     for (const m of media?.events.get(e.id) ?? []) appObje(2, m, "event");
@@ -1137,6 +1177,10 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       // an agent's proposal to change the user's value or an import's (spec 066): whose value it would change — whose it
       // is now (the person may have changed an imported value since), as conflict list/show say it
       if (origins && c.proposal) w.line(2, "_STROM_KIND", proposalKind(tree, c)!);
+      // a source it stands on the person deleted (spec 117 K1.7): to be looked at again, its state kept — sent to every
+      // app (an older one skips the tag); under each value and the decision, the deleted source in place of its SOUR
+      if (c.review) w.line(2, "_STROM_REVIEW", c.review.why);
+      const deleted = (id: string | undefined): id is string => !!id && deletedSource(tree.get<Source>(id));
       // a conflict of the user's edit the app decides by side (open: it may now), each value with its side
       const sides = opts.conflictSides && opts.for === "strom" ? sidesOf(c) : undefined;
       if (sides && c.state === "open") w.line(2, "_STROM_TAKE", "Y");
@@ -1151,12 +1195,18 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
           citedSources.add(source);
           w.line(3, "SOUR", x(source));
         }
+        else if (deleted(source)) w.line(3, "_STROM_RETRACTED", source);
         if (side) {
           w.line(3, "_STROM_SIDE", side);
           if (c.fact === "SEX") w.line(3, "_STROM_RAW", sexRaw(claim.value));
         }
       }
-      if (c.state === "resolved" && c.resolution) w.text(2, "DECI", c.resolution);
+      if (c.state === "resolved" && c.resolution) {
+        w.text(2, "DECI", c.resolution);
+        // the deleted sources the decision named or took the cited value of (the user's edit, an agent's proposal)
+        const cites = [...(c.taken === "user" ? (c.edit?.cites ?? []) : []), ...(c.taken === "research" ? (c.proposal?.cites ?? []) : [])].map((x) => x.source);
+        for (const id of new Set([...sourcesNamed(tree, `${c.resolution}\n${c.reasoning ?? ""}`), ...cites])) if (deleted(id)) w.line(3, "_STROM_RETRACTED", id);
+      }
     }
     for (const { h } of research.hypotheses.filter((x) => x.people.includes(p.id))) {
       w.line(1, "_STROM_HYPO", h.id);
@@ -1452,7 +1502,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     if (page) w.text(level + 1, "PAGE", page);
     w.line(level + 1, "QUAY", quayAt(src, c, factKind));
     if (c.main && opts.mainCitations && !strict) w.line(level + 1, "_STROM_MAIN", "Y");
-    const where = !strict && c.locator && c.locator !== page ? c.locator : undefined;
+    // a family tree's line in DATA TEXT also beside its PAGE (as the file gave it before)
+    const where = !strict && c.locator && (c.locator !== page || src.kind === "family-tree") ? c.locator : undefined;
     const quote = [where, c.quote].filter(Boolean).join(" — ") || undefined;
     const date = entries ? src.date : undefined;
     if (date || quote) {

@@ -18,6 +18,10 @@ export interface LockInfo {
   version?: string;
   /** The computer that holds it (machineId; a worker's lock): its pid decides here even when the computer's name changed. */
   machine?: string;
+  /** A run's worker (spec 126): the line it works on (G…), none for a run of the whole queue. */
+  research?: string;
+  /** A run's worker (spec 126): the agent it runs (claude, codex, …). */
+  agent?: string;
 }
 
 /** This computer's identity as the system keeps it (undefined: not asked yet, null: none to be had). */
@@ -72,7 +76,7 @@ function sleepSync(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-function processAlive(pid: number): boolean {
+export function processAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
@@ -197,6 +201,9 @@ export interface LockOptions {
   version?: string;
   /** This computer's identity written into the lock (LockInfo.machine): its pid decides here whatever the computer's name. */
   machine?: boolean;
+  /** Written into the lock as they are (LockInfo.research, LockInfo.agent: a run's worker). */
+  research?: string;
+  agent?: string;
 }
 
 /**
@@ -289,7 +296,7 @@ export function acquireLock(file: string, opts: LockOptions): () => void {
   const deadline = Date.now() + waitMs;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const machine = opts.machine ? machineId() : undefined;
-  const info: LockInfo = { pid: process.pid, host: os.hostname(), at: new Date().toISOString(), owner: opts.owner, ...(opts.version ? { version: opts.version } : {}), ...(machine ? { machine } : {}) };
+  const info: LockInfo = { pid: process.pid, host: os.hostname(), at: new Date().toISOString(), owner: opts.owner, ...(opts.version ? { version: opts.version } : {}), ...(machine ? { machine } : {}), ...(opts.research ? { research: opts.research } : {}), ...(opts.agent ? { agent: opts.agent } : {}) };
 
   // The lock appears whole or not at all: written aside, then linked in under its name
   // (a link fails if the name exists). A lock created empty and filled a moment later

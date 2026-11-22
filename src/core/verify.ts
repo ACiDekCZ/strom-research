@@ -13,8 +13,12 @@
 // - By hand (verifyAsk: strom verify facts P…|E…, the Strom app): any fact not confirmed by the person, anywhere, before all
 //   else in the queue; a fact with no original read is looked for (verify:search).
 // - In bulk (verifyBulk: strom verify bulk, the app): a line, a lineage, the tree — the person's start alone; a family
-//   tree's leads too (K6.7: no original read), their record looked for (a bulk search, dearer).
+//   tree's leads too (K6.7: no original read), their record looked for (a bulk search, dearer). A try on the first n
+//   people (--try) first in the queue, as the person's "verify" (K7.1); the rest after the lines' work.
 // - The person's confirmation against the scan (verifyConfirm: strom verify confirm, the app's bridge): a mark of its own.
+// - The name of a person's identity (spec 066 P5, its id P0012.N) is verified as a fact is (one view of both: Checked,
+//   core/verifyfacts.ts): a task reading a birth or baptism whose original the name cites too takes the name along
+//   (nameAlong); the person asks for the name alone only where it cites a record of no birth or baptism.
 //
 // What it keeps is in VERIFY_FILE (sealed, travels with the research): the runs of the fix, what was queued with which
 // citations, the facts the person lowered, and the fix's own count for the app.
@@ -40,7 +44,8 @@ import { lineMarks } from "./lineages.ts";
 import { lacksImages, ownTurn, runOrder, waitsForDecision } from "./queue.ts";
 import { setsWithImages } from "./mediaindex.ts";
 import { permissionQuestions } from "./archivewait.ts";
-import { isVerifyTask, originalCites, searchesRecord, taskFacts, VERIFY_ASKED, VERIFY_AUTO, VERIFY_BULK, VERIFY_SEARCH, verifiesInTurn } from "./verifyfacts.ts";
+import { factChecked, isCheckedId, isNameId, isVerifyTask, nameChecked, originalCites, searchesRecord, taskItems, TRY_PRIORITY, VERIFY_ASKED, VERIFY_AUTO, VERIFY_BULK, VERIFY_SEARCH, verifiesInTurn, withChecked, type Checked } from "./verifyfacts.ts";
+import { confirmName, nameUnchanged, namesThePerson, parseNameEid } from "./namestatus.ts";
 
 export { VERIFY_ASKED, VERIFY_AUTO, VERIFY_BULK, VERIFY_SEARCH } from "./verifyfacts.ts";
 
@@ -57,6 +62,9 @@ export const VERIFY_FILE = "quality/verify.json";
 
 /** A fact's ID. */
 const FACT_ID = /^E\p{N}{4,}$/u;
+
+/** The kinds of facts whose record names the person as at their birth: the name of their identity is read with them. */
+const NAMED_AT_BIRTH: ReadonlySet<string> = new Set(["BIRT", "CHR", "BAPM"]);
 
 /** The states of a task that still holds its facts. */
 const HOLDING = new Set(["open", "doing", "parked", "waiting"]);
@@ -227,12 +235,41 @@ export const emptyFunnel = (): VerifyFunnel => ({ weak: 0, withOriginal: 0, kind
 /** The facts held by a task still to be done (any task: a review's too). */
 function heldFacts(tree: Tree): Map<string, Task> {
   const out = new Map<string, Task>();
-  for (const t of tree.list<Task>("task")) if (HOLDING.has(t.state) && !t.retracted) for (const w of t.where) if (w.startsWith("E") && !out.has(w)) out.set(w, t);
+  for (const t of tree.list<Task>("task")) if (HOLDING.has(t.state) && !t.retracted) for (const w of t.where) if (isCheckedId(w) && !out.has(w)) out.set(w, t);
   return out;
 }
 
-/** A fact as a task lists it: "E0001 BIRT 1820". */
-const factLabel = (e: Pick<Event, "id" | "kind" | "date">) => `${e.id} ${e.kind}${e.date ? ` ${e.date}` : ""}`;
+/**
+ * The name of a person's identity a task of verification reading these facts takes along (spec 066 P5, question 4): a
+ * birth or baptism of the person among them whose original the name cites too, with a citation of the research's
+ * (namesThePerson) — the agent reads the same entry and compares the name as well. Never a name the person confirmed,
+ * one proven, one verified against these originals already, nor one a task holds (`held`).
+ */
+function nameAlong(tree: Tree, owner: Person | Family, facts: readonly Pick<Event, "kind" | "citations">[], held: (id: string) => boolean): Checked | undefined {
+  if (owner.type !== "person") return undefined;
+  const births = new Set(facts.filter((f) => NAMED_AT_BIRTH.has(f.kind)).flatMap((f) => originalCites(tree, f)));
+  if (!births.size) return undefined;
+  const name = nameChecked(owner);
+  if (!name || name.confirmed || name.status === "proven" || held(name.id)) return undefined;
+  if (!name.citations.some((c) => births.has(c.source) && namesThePerson(tree, c))) return undefined;
+  if (name.verified && covers(name.verified.cites, originalCites(tree, name))) return undefined;
+  return name;
+}
+
+/** Does a batch of facts hold a birth or baptism whose original the name cites too (the task the name goes to)? */
+function takesName(tree: Tree, batch: readonly Pick<Event, "kind" | "citations">[], name: Checked): boolean {
+  const cited = new Set(name.citations.map((c) => c.source));
+  return batch.some((e) => NAMED_AT_BIRTH.has(e.kind) && originalCites(tree, e).some((s) => cited.has(s)));
+}
+
+/** The births and baptisms of a person whose original the name cites too: what a name asked for alone is read with. */
+function birthsAlong(tree: Tree, p: Person, name: Checked): Event[] {
+  const cited = new Set(name.citations.map((c) => c.source));
+  return p.events.filter((e) => !e.retracted && NAMED_AT_BIRTH.has(e.kind) && !e.confirmed && e.status !== "disproven" && originalCites(tree, e).some((s) => cited.has(s)));
+}
+
+/** A fact as a task lists it: "E0001 BIRT 1820" (a name: "P0012.N NAME"). */
+const factLabel = (e: Pick<Checked, "id" | "kind" | "date">) => `${e.id} ${e.kind}${e.date ? ` ${e.date}` : ""}`;
 
 /** Whose facts: a person's name and years, a couple's names. */
 function ownerName(tree: Tree, owner: Person | Family): string {
@@ -278,16 +315,18 @@ function whatOf(make: (list: string) => string, labels: string[]): string {
 }
 
 /** The texts of a task of verification for these facts (rewritten whole when facts join it); a search of a bulk one's not asked for one by one. */
-function texts(tree: Tree, owner: Person | Family, facts: Event[], kind: Kind, asked: boolean): Pick<Task, "what" | "why" | "doneWhen"> {
+function texts(tree: Tree, owner: Person | Family, facts: readonly Pick<Checked, "id" | "kind" | "date">[], kind: Kind, asked: boolean): Pick<Task, "what" | "why" | "doneWhen"> {
   const lang = tree.lang;
-  const v = { name: ownerName(tree, owner), id: owner.id, list: facts.map(factLabel).join(", "), count: facts.length };
+  const names = facts.filter((f) => isNameId(f.id)).map((f) => f.id);
+  const v = { name: ownerName(tree, owner), id: owner.id, list: facts.map(factLabel).join(", "), count: facts.length, names: names.join(", ") };
   const what = whatOf((list) => phrase(lang, kind === "search" ? "verify.search.what" : "verify.what", { ...v, list }), facts.map(factLabel));
-  if (kind === "search") return { what, why: phrase(lang, asked ? "verify.search.why" : "verify.bulk.search.why", v), doneWhen: phrase(lang, "verify.search.done", v) };
-  return { what, why: phrase(lang, asked ? "verify.asked.why" : "verify.why", v), doneWhen: phrase(lang, "verify.done", v) };
+  // a name among them (spec 066 P5): compared with the name in the same entry, ended as a fact is
+  if (kind === "search") return { what, why: phrase(lang, asked ? "verify.search.why" : "verify.bulk.search.why", v), doneWhen: phrase(lang, names.length ? "verify.search.done.name" : "verify.search.done", v) };
+  return { what, why: phrase(lang, asked ? "verify.asked.why" : "verify.why", v), doneWhen: phrase(lang, names.length ? "verify.done.name" : "verify.done", v) };
 }
 
 /** A new task of verification (not written: the caller writes it in its one operation); a search: its record looked for first. */
-function newTask(tree: Tree, owner: Person | Family, facts: Event[], origin: string, fields: Partial<Task>, research?: string, kind: Kind = origin === VERIFY_SEARCH ? "search" : "read"): Task {
+function newTask(tree: Tree, owner: Person | Family, facts: readonly Pick<Checked, "id" | "kind" | "date">[], origin: string, fields: Partial<Task>, research?: string, kind: Kind = origin === VERIFY_SEARCH ? "search" : "read"): Task {
   const at = now();
   return {
     id: tree.allocate("T"),
@@ -313,7 +352,7 @@ function lineOf(tree: Tree, owner: Person | Family, all: ReturnType<typeof scope
 }
 
 /** Is a fact of a task resolved: verified by it (or since it was made), confirmed by the person, proven, taken back, gone. */
-function resolved(e: Event | undefined, t: Task): boolean {
+function resolved(e: Checked | undefined, t: Task): boolean {
   if (!e || e.retracted || e.confirmed) return true;
   if (e.verified && (e.verified.task === t.id || e.verified.at >= t.created)) return true;
   // a bulk verification is of proven facts too: proven alone resolves the others (and a bulk search: its record read)
@@ -347,7 +386,7 @@ export function queueVerify(tree: Tree, opts: { items?: VerifyItem[]; op?: strin
     // the sweep's tasks whose facts are all resolved before anyone took them: dropped
     for (const t of tree.list<Task>("task")) {
       if (t.state !== "open" || t.retracted || !verifiesInTurn(t) || t.queueAt) continue;
-      const facts = new Map(taskFacts(tree, t).map((f) => [f.event.id, f.event]));
+      const facts = new Map(taskItems(tree, t).map((f) => [f.item.id, f.item]));
       if (t.where.every((id) => resolved(facts.get(id), t))) {
         records.push({ ...t, state: "dropped", result: phrase(tree.lang, "verify.dropped.resolved"), updated: at });
         out.dropped.push(t.id);
@@ -358,25 +397,34 @@ export function queueVerify(tree: Tree, opts: { items?: VerifyItem[]; op?: strin
     for (const i of items) (byOwner.get(i.owner) ?? byOwner.set(i.owner, []).get(i.owner)!).push(i);
     const open = tree.list<Task>("task").filter((t) => t.state === "open" && !t.retracted && t.origin === VERIFY_AUTO && !out.dropped.includes(t.id));
     const people = new Set<string>();
+    const names: string[] = [];
     for (const [ownerId, list] of byOwner) {
       const owner = tree.get<Person | Family>(ownerId)!;
       const events = list.map((i) => owner.events.find((e) => e.id === i.event)!).filter(Boolean);
       let rest = events;
       // an open task of the sweep for this owner takes more first, up to REVIEW_BATCH
       const mine = open.find((t) => t.subject[0] === ownerId && t.where.length < REVIEW_BATCH);
+      // the name of their identity read along with their birth or baptism (spec 066 P5): in the task that birth goes to
+      const name = nameAlong(tree, owner, events, (id) => held.has(id) || !!mine?.where.includes(id));
+      const along = (batch: Event[]): Checked[] => {
+        if (!name || names.includes(name.id) || !takesName(tree, batch, name)) return batch.map(factChecked);
+        names.push(name.id);
+        return [...batch.map(factChecked), name];
+      };
       if (mine) {
         const room = REVIEW_BATCH - mine.where.length;
         const take = rest.slice(0, room);
         rest = rest.slice(room);
-        const facts = [...taskFacts(tree, mine).map((f) => f.event), ...take];
-        records.push({ ...mine, ...texts(tree, owner, facts, "read", false), where: [...mine.where, ...take.map((e) => e.id)], updated: at });
+        const added = along(take);
+        const facts = [...taskItems(tree, mine).map((f) => f.item), ...added];
+        records.push({ ...mine, ...texts(tree, owner, facts, "read", false), where: [...mine.where, ...added.map((e) => e.id)], updated: at });
         for (const e of take) file.queued[e.id] = { task: mine.id, cites: list.find((i) => i.event === e.id)!.cites };
         out.tasks.push(mine.id);
       }
       const research = lineOf(tree, owner, all);
       for (let i = 0; i < rest.length; i += REVIEW_BATCH) {
         const batch = rest.slice(i, i + REVIEW_BATCH);
-        const t = newTask(tree, owner, batch, VERIFY_AUTO, {}, research);
+        const t = newTask(tree, owner, along(batch), VERIFY_AUTO, {}, research);
         records.push(t);
         for (const e of batch) file.queued[e.id] = { task: t.id, cites: list.find((x) => x.event === e.id)!.cites };
         out.tasks.push(t.id);
@@ -392,7 +440,7 @@ export function queueVerify(tree: Tree, opts: { items?: VerifyItem[]; op?: strin
       [fileOf(file)],
       {
         op: opts.op ?? "verify.queue",
-        targets: [...new Set([...records.map((r) => r.id), ...items.map((i) => i.event)])].sort(byId),
+        targets: [...new Set([...records.map((r) => r.id), ...items.map((i) => i.event), ...names])].sort(byId),
         summary:
           opts.summary ??
           `facts with the original cited queued to be verified against it: ${out.facts} of ${out.people} people in ${out.tasks.length} tasks${out.dropped.length ? `, ${out.dropped.length} tasks with every fact resolved dropped` : ""}`,
@@ -575,16 +623,26 @@ const estimate = (sessions: number, avg: number | undefined): Estimate => ({ ses
 
 const err = (message: string, code: string, hint?: string) => new UsageError(message, { code, ...(hint ? { hint } : {}) });
 
-/** The owner and facts a target names (person: theirs and their marriages'), or why not. */
-function targetFacts(tree: Tree, target: VerifyTarget): { owners: (Person | Family)[]; facts: { event: Event; owner: Person | Family }[]; person?: Person } {
+/** The owner and facts a target names (person: theirs and their marriages'; a name: the name of a person's identity), or why not. */
+function targetFacts(tree: Tree, target: VerifyTarget): { owners: (Person | Family)[]; facts: { item: Checked; owner: Person | Family }[]; person?: Person } {
   if ("fact" in target) {
+    const person = parseNameEid(String(target.fact));
+    if (person) {
+      // the name of a person's identity (spec 066 P5): P0012.N
+      const p = tree.get<Person>(person);
+      if (!p || p.type !== "person") throw err(`no person ${person}`, "verify.unknown", "a name's ID: P0012.N (strom person show <who>)");
+      if (p.retracted || p.mergedInto) throw err(`${person} was taken back${p.mergedInto ? ` (merged into ${p.mergedInto})` : ""}`, "verify.retracted");
+      const item = nameChecked(p);
+      if (!item) throw err(`${person} has no name`, "verify.unknown");
+      return { owners: [p], facts: [{ item, owner: p }] };
+    }
     const id = String(target.fact).trim().toUpperCase();
-    if (!/^E\p{N}{4,}$/u.test(id)) throw err(`not a fact ID: ${target.fact}`, "verify.invalid", "a fact's ID: E0001 (strom person show <who>)");
+    if (!/^E\p{N}{4,}$/u.test(id)) throw err(`not a fact ID: ${target.fact}`, "verify.invalid", "a fact's ID: E0001, a name's P0012.N (strom person show <who>)");
     for (const owner of liveOwners(tree)) {
       const e = owner.events.find((x) => x.id === id);
       if (!e) continue;
       if (e.retracted) throw err(`${id} was taken back`, "verify.retracted");
-      return { owners: [owner], facts: [{ event: e, owner }] };
+      return { owners: [owner], facts: [{ item: factChecked(e), owner }] };
     }
     throw err(`no fact ${id}`, "verify.unknown", "fact IDs are listed in strom person show <who>");
   }
@@ -596,7 +654,7 @@ function targetFacts(tree: Tree, target: VerifyTarget): { owners: (Person | Fami
   if (r.retracted || r.mergedInto) throw err(`${id} was taken back${r.mergedInto ? ` (merged into ${r.mergedInto})` : ""}`, "verify.retracted");
   const owners: (Person | Family)[] = [r];
   if (r.type === "person") owners.push(...familiesAsPartner(tree, r.id).filter((f) => !f.retracted && !f.mergedInto));
-  return { owners, facts: owners.flatMap((owner) => owner.events.filter((e) => !e.retracted).map((event) => ({ event, owner }))), ...(r.type === "person" ? { person: r } : {}) };
+  return { owners, facts: owners.flatMap((owner) => owner.events.filter((e) => !e.retracted).map((event) => ({ item: factChecked(event), owner }))), ...(r.type === "person" ? { person: r } : {}) };
 }
 
 /** The record a fact is verified by: the original cited (read), the citation looked for by (search). */
@@ -609,9 +667,50 @@ export interface VerifyRecord {
 export interface AskResult {
   task: string | null;
   tasks: string[];
-  facts: { fact: string; kind: string; how: Kind; record?: VerifyRecord }[];
+  /** with: what it is read together with (spec 066 P5: a name with its birth or baptism, and the other way round). */
+  facts: { fact: string; kind: string; how: Kind; record?: VerifyRecord; with?: string }[];
   estimate: Estimate;
 }
+
+/** What is asked, with its owner, how it is verified and what it is read together with. */
+interface Asked {
+  item: Checked;
+  owner: Person | Family;
+  with?: string;
+  /** Read along with a birth or baptism: read as it is (the name of a person's identity). */
+  along?: true;
+}
+
+/**
+ * What is read together with what is asked (spec 066 P5, question 4): the name of a person's identity with a birth or
+ * baptism of theirs whose original names them (nameAlong) — first, as the app lists it —, and a name asked for alone
+ * with that birth or baptism (birthsAlong). Never what a task holds already (`held`).
+ */
+function withAlong(tree: Tree, asked: { item: Checked; owner: Person | Family }[], held: (id: string) => boolean): Asked[] {
+  const out: Asked[] = asked.map((f) => ({ ...f }));
+  const ids = new Set(out.map((f) => f.item.id));
+  for (const f of [...out]) {
+    if (!f.item.name || f.owner.type !== "person") continue;
+    for (const e of birthsAlong(tree, f.owner, f.item)) {
+      if (ids.has(e.id) || held(e.id)) continue;
+      ids.add(e.id);
+      out.push({ item: factChecked(e), owner: f.owner, with: f.item.id });
+      f.with ??= e.id;
+    }
+  }
+  const names: Asked[] = [];
+  for (const owner of new Set(out.map((f) => f.owner))) {
+    const facts = out.filter((f) => f.owner === owner && f.item.event).map((f) => f.item.event!);
+    const name = nameAlong(tree, owner, facts, (id) => held(id) || ids.has(id));
+    if (!name) continue;
+    ids.add(name.id);
+    const birth = out.find((f) => f.owner === owner && f.item.event && takesName(tree, [f.item.event], name));
+    if (birth) birth.with ??= name.id;
+    names.push({ item: name, owner, along: true, ...(birth ? { with: birth.item.id } : {}) });
+  }
+  return [...names, ...out];
+}
+
 
 /** The record of a citation: its source's ID and title, the page (the citation's, else the source's). */
 function recordOf(tree: Tree, c: Citation | undefined): VerifyRecord | undefined {
@@ -636,8 +735,12 @@ export function verifyAsk(tree: Tree, target: VerifyTarget, opts: { dry?: boolea
   if (actsAsArchive(tree)) throw err("nobody researches here: an archive, or a research waiting for its agent", "verify.archive");
   return tree.withTreeLock(() => {
     const { facts: all } = targetFacts(tree, target);
-    const facts = all.filter(({ event }) => !event.confirmed && event.status !== "disproven");
-    if (!facts.length) throw err("nothing to verify: no fact, or the person confirmed each one", "verify.nothing");
+    const asked = all.filter(({ item }) => !item.confirmed && item.status !== "disproven");
+    if (!asked.length) throw err("nothing to verify: no fact, or the person confirmed each one", "verify.nothing");
+    const held = new Map<string, Task>();
+    for (const t of tree.list<Task>("task")) if (HOLDING.has(t.state) && !t.retracted && isVerifyTask(t)) for (const w of t.where) held.set(w, t);
+    // what is read together with it (spec 066 P5): a name with its birth or baptism, either way
+    const facts = withAlong(tree, asked, (id) => held.has(id));
     if (!opts.living) {
       const alive = [...new Set(facts.flatMap((f) => peopleOf(tree, f.owner)))].filter((p) => livingBorn(tree, p) !== undefined);
       if (alive.length)
@@ -646,38 +749,36 @@ export function verifyAsk(tree: Tree, target: VerifyTarget, opts: { dry?: boolea
           hint: "ask the user whether to verify them all the same; if yes: the same command with --living",
         });
     }
-    const how = (e: Event): Kind => (e.citations.some((c) => provesIt(tree, c)) ? "read" : "search");
+    const how = (f: Asked): Kind => (f.along || f.item.citations.some((c) => provesIt(tree, c)) ? "read" : "search");
     // the record each is verified by: the original read, else the citation it is looked for by (the first)
-    const listed = facts.map(({ event }) => {
-      const h = how(event);
-      const record = recordOf(tree, h === "read" ? event.citations.find((c) => provesIt(tree, c)) : event.citations[0]);
-      return { fact: event.id, kind: event.kind, how: h, ...(record ? { record } : {}) };
+    const listed = facts.map((f) => {
+      const h = how(f);
+      const record = recordOf(tree, h === "read" ? (f.item.citations.find((c) => provesIt(tree, c)) ?? f.item.citations[0]) : f.item.citations[0]);
+      return { fact: f.item.id, kind: f.item.kind, how: h, ...(record ? { record } : {}), ...(f.with ? { with: f.with } : {}) };
     });
-    const held = new Map<string, Task>();
-    for (const t of tree.list<Task>("task")) if (HOLDING.has(t.state) && !t.retracted && isVerifyTask(t)) for (const w of t.where) held.set(w, t);
     const at = now();
     const records = new Map<string, Task>();
     const order: string[] = [];
     // a fact a task of verification holds: that task first (once; one at work goes on; one first already stays as it
     // is — asked for again, a double click, writes nothing and keeps its place)
     const ended = tree.list<Session>("session").filter((s) => s.state !== "open" && s.task);
-    for (const { event } of facts) {
-      const t = held.get(event.id);
+    for (const { item } of facts) {
+      const t = held.get(item.id);
       if (!t || order.includes(t.id)) continue;
       order.push(t.id);
       if (t.state === "doing" || (t.state !== "parked" && ownTurn(t, ended) === "next")) continue;
       records.set(t.id, { ...t, queueAt: { do: "next", at }, ...(t.state === "parked" ? { state: "open" as const } : {}), updated: at });
     }
-    const fresh = facts.filter(({ event }) => !held.has(event.id));
+    const fresh = facts.filter(({ item }) => !held.has(item.id));
     const file = readFile(tree);
     const all2 = scopes(tree);
-    const groups = new Map<string, { owner: Person | Family; read: Event[]; search: Event[] }>();
-    for (const { event, owner } of fresh) {
-      const g = groups.get(owner.id) ?? groups.set(owner.id, { owner, read: [], search: [] }).get(owner.id)!;
-      g[how(event)].push(event);
+    const groups = new Map<string, { owner: Person | Family; read: Checked[]; search: Checked[] }>();
+    for (const f of fresh) {
+      const g = groups.get(f.owner.id) ?? groups.set(f.owner.id, { owner: f.owner, read: [], search: [] }).get(f.owner.id)!;
+      g[how(f)].push(f.item);
     }
     let sessions = 0;
-    const heldIds = new Set(facts.map(({ event }) => held.get(event.id)?.id).filter((x): x is string => !!x));
+    const heldIds = new Set(facts.map(({ item }) => held.get(item.id)?.id).filter((x): x is string => !!x));
     // the person's open task of the same kind for the owner, nobody at it yet, still first (its place kept): it takes
     // the facts asked for later, up to REVIEW_BATCH — one task a person, not one a fact asked for one by one (spec 065)
     const worked = new Set(tree.list<Session>("session").map((s) => s.task).filter((x): x is string => !!x));
@@ -687,6 +788,10 @@ export function verifyAsk(tree: Tree, target: VerifyTarget, opts: { dry?: boolea
         .map((t) => records.get(t.id) ?? t)
         .filter((t) => t.state === "open" && !t.retracted && t.origin === (kind === "search" ? VERIFY_SEARCH : VERIFY_ASKED) && t.subject[0] === owner && t.where.length < REVIEW_BATCH && t.queueAt?.do === "next" && !worked.has(t.id))
         .sort((a, b) => a.queueAt!.at.localeCompare(b.queueAt!.at) || byId(a.id, b.id))[0];
+    // what a fact cites of its originals, kept for the sweep (a name: no sweep of its own)
+    const queue = (task: string, list: Checked[]) => {
+      for (const e of list) if (e.event) file.queued[e.id] = { task, cites: originalCites(tree, e) };
+    };
     for (const g of groups.values()) {
       const research = lineOf(tree, g.owner, all2);
       for (const [kind, asked] of [["read", g.read], ["search", g.search]] as const) {
@@ -697,10 +802,10 @@ export function verifyAsk(tree: Tree, target: VerifyTarget, opts: { dry?: boolea
           list = list.slice(take.length);
           if (!heldIds.has(join.id)) sessions += kind === "search" ? 2 : 1;
           if (!opts.dry) {
-            const all = [...taskFacts(tree, join).map((f) => f.event), ...take];
+            const all = [...taskItems(tree, join).map((f) => f.item), ...take];
             records.set(join.id, { ...join, ...texts(tree, g.owner, all, kind, true), where: [...join.where, ...take.map((e) => e.id)], updated: at });
             if (!order.includes(join.id)) order.push(join.id);
-            if (kind === "read") for (const e of take) file.queued[e.id] = { task: join.id, cites: originalCites(tree, e) };
+            if (kind === "read") queue(join.id, take);
           }
         }
         for (let i = 0; i < list.length; i += REVIEW_BATCH) {
@@ -710,7 +815,7 @@ export function verifyAsk(tree: Tree, target: VerifyTarget, opts: { dry?: boolea
           const t = newTask(tree, g.owner, batch, kind === "search" ? VERIFY_SEARCH : VERIFY_ASKED, { priority: 3, queueAt: { do: "next", at } }, research);
           records.set(t.id, t);
           order.push(t.id);
-          if (kind === "read") for (const e of batch) file.queued[e.id] = { task: t.id, cites: originalCites(tree, e) };
+          if (kind === "read") queue(t.id, batch);
         }
       }
     }
@@ -720,7 +825,7 @@ export function verifyAsk(tree: Tree, target: VerifyTarget, opts: { dry?: boolea
     if (!opts.dry && records.size)
       tree.putMany([...records.values()], [fileOf(file)], {
         op: "verify.ask",
-        targets: [...records.keys(), ...facts.map((f) => f.event.id)].sort(byId),
+        targets: [...records.keys(), ...facts.map((f) => f.item.id)].sort(byId),
         summary: `the person asked to verify ${facts.length} facts against their originals: ${[...records.keys()].join(", ")} first in the queue`,
       });
     if (opts.dry) return { task: null, tasks: [], facts: listed, estimate: est };
@@ -752,6 +857,8 @@ export interface BulkResult {
   tasks: string[];
   left: number;
   estimate: Estimate;
+  /** A try (try n): its tasks first in the queue, as the person's "verify" of a person (spec 065 K7.1). */
+  first: boolean;
 }
 
 /** A lineage: its founder and who carries it on — children of its carriers, on through the sons (a mark NOCARRY or another FOUNDER ends it). */
@@ -783,7 +890,8 @@ const RANK: Record<string, number> = { lead: -1, possible: 0, probable: 1, prove
  * task, as verifyAsk counts it). No living people, none a task holds. People in `order`; `try` the first n of them,
  * `budget` as many as the estimate fits (none measured: the budget is not used). Low priority, after the lines' work:
  * one task per person (a marriage per family) for what is read, another for what is looked for (verify:bulk, level
- * link — the brief's search). verify.nothing only with nothing to read nor to look for.
+ * link — the brief's search). A try (`try`) first in the queue instead (queueAt next, priority 3: as the person's
+ * "verify" of a person; spec 065 K7.1), first: true. verify.nothing only with nothing to read nor to look for.
  */
 export function verifyBulk(tree: Tree, o: BulkOptions): BulkResult {
   if (actsAsArchive(tree)) throw err("nobody researches here: an archive, or a research waiting for its agent", "verify.archive");
@@ -813,13 +921,13 @@ export function verifyBulk(tree: Tree, o: BulkOptions): BulkResult {
     const held = heldFacts(tree);
     const model = o.model;
     // per person: their facts and their marriages' (a family once, with its first partner in the order)
-    const rows: { person: Person; facts: { event: Event; owner: Person | Family; how: Kind }[] }[] = [];
+    const rows: { person: Person; facts: { event: Checked; owner: Person | Family; how: Kind }[] }[] = [];
     const families = new Set<string>();
     for (const id of people) {
       const p = tree.get<Person>(id);
       if (!p || p.type !== "person" || p.retracted || p.mergedInto || livingBorn(tree, p) !== undefined) continue;
       const owners: (Person | Family)[] = [p, ...familiesAsPartner(tree, id).filter((f) => !f.retracted && !f.mergedInto && !families.has(f.id))];
-      const facts: { event: Event; owner: Person | Family; how: Kind }[] = [];
+      const facts: { event: Checked; owner: Person | Family; how: Kind }[] = [];
       for (const owner of owners)
         for (const e of owner.events) {
           if (e.retracted || e.confirmed || !VERIFY_KINDS.has(e.kind) || RANK[e.status] === undefined || held.has(e.id)) continue;
@@ -828,9 +936,16 @@ export function verifyBulk(tree: Tree, o: BulkOptions): BulkResult {
           const cites = originalCites(tree, e);
           if (model && e.verified?.model && sameModel(e.verified.model, model) && covers(e.verified.cites, cites)) continue;
           if (cites.length) {
-            if (e.status !== "lead") facts.push({ event: e, owner, how: "read" });
-          } else if (e.origin?.by === "import" || e.origin?.tree) facts.push({ event: e, owner, how: "search" }); // a family tree's lead (another program's, the user's own unchanged): its record looked for
+            if (e.status !== "lead") facts.push({ event: factChecked(e), owner, how: "read" });
+          } else if (e.origin?.by === "import" || e.origin?.tree) facts.push({ event: factChecked(e), owner, how: "search" }); // a family tree's lead (another program's, the user's own unchanged): its record looked for
         }
+      // the name of their identity read along with their birth or baptism (spec 066 P5): right after it, in its task
+      const read = facts.filter((f) => f.owner === p && f.how === "read").map((f) => f.event.event!);
+      const name = nameAlong(tree, p, read, (id) => held.has(id));
+      if (name) {
+        const at = facts.findIndex((f) => f.owner === p && f.how === "read" && takesName(tree, [f.event.event!], name));
+        facts.splice(at + 1, 0, { event: name, owner: p, how: "read" });
+      }
       if (!facts.length) continue;
       for (const f of facts) if (f.owner.type === "family") families.add(f.owner.id);
       rows.push({ person: p, facts });
@@ -838,7 +953,7 @@ export function verifyBulk(tree: Tree, o: BulkOptions): BulkResult {
     if (!rows.length) throw err("nothing to verify in this scope: no fact citing its original, no family tree's lead to look for", "verify.nothing");
     const focus = mainPerson(tree);
     const gens = focus ? ancestorGenerations(tree, focus) : new Map<string, number>();
-    const weakest = (r: (typeof rows)[number]) => Math.min(...r.facts.map((f) => RANK[f.event.status]!));
+    const weakest = (r: (typeof rows)[number]) => Math.min(...r.facts.map((f) => RANK[f.event.status ?? "lead"]!));
     const oldest = (r: (typeof rows)[number]) =>
       r.facts.map((f) => f.event.verified?.at ?? f.event.citations.map((c) => tree.get<Source>(c.source)?.created ?? "").sort()[0] ?? "").sort()[0] ?? "";
     rows.sort(
@@ -872,13 +987,17 @@ export function verifyBulk(tree: Tree, o: BulkOptions): BulkResult {
     const sessions = taken.reduce((n, r) => n + sessionsOf(r), 0);
     const facts = taken.reduce((n, r) => n + r.facts.length, 0);
     const search = taken.reduce((n, r) => n + r.facts.filter((f) => f.how === "search").length, 0);
-    const out: BulkResult = { people: taken.length, facts, how: { read: facts - search, search }, tasks: [], left: rows.length - taken.length, estimate: estimate(sessions, avg) };
+    // a try is the person's look at what the verification does: first in the queue, as their "verify" of a person
+    // (spec 065 K7.1) — the rest of a line, a lineage or the tree after the lines' work (K6.3)
+    const first = o.try !== undefined;
+    const out: BulkResult = { people: taken.length, facts, how: { read: facts - search, search }, tasks: [], left: rows.length - taken.length, estimate: estimate(sessions, avg), first };
     if (o.dry || !taken.length) return out;
     const file = readFile(tree);
     const all = scopes(tree);
     const records: Task[] = [];
+    const at = now();
     for (const r of taken) {
-      const per = new Map<string, { owner: Person | Family; how: Kind; events: Event[] }>();
+      const per = new Map<string, { owner: Person | Family; how: Kind; events: Checked[] }>();
       for (const f of r.facts) {
         const k = `${f.owner.id} ${f.how}`;
         (per.get(k) ?? per.set(k, { owner: f.owner, how: f.how, events: [] }).get(k)!).events.push(f.event);
@@ -886,16 +1005,16 @@ export function verifyBulk(tree: Tree, o: BulkOptions): BulkResult {
       for (const { owner, how, events } of per.values())
         for (let i = 0; i < events.length; i += REVIEW_BATCH) {
           const batch = events.slice(i, i + REVIEW_BATCH);
-          const t = newTask(tree, owner, batch, VERIFY_BULK, {}, lineOf(tree, owner, all), how);
+          const t = newTask(tree, owner, batch, VERIFY_BULK, first ? { priority: TRY_PRIORITY, queueAt: { do: "next", at } } : {}, lineOf(tree, owner, all), how);
           records.push(t);
-          if (how === "read") for (const e of batch) file.queued[e.id] = { task: t.id, cites: originalCites(tree, e) };
+          if (how === "read") for (const e of batch) if (e.event) file.queued[e.id] = { task: t.id, cites: originalCites(tree, e) };
         }
     }
     out.tasks = records.map((t) => t.id);
     tree.putMany(records, [fileOf(file)], {
       op: "verify.bulk",
       targets: [...out.tasks, ...taken.flatMap((r) => r.facts.map((f) => f.event.id))].sort(byId),
-      summary: `the person's bulk verification against the originals (${o.scope}${o.of ? ` ${o.of}` : ""}, ${order}): ${facts} facts of ${taken.length} people in ${records.length} tasks${search ? ` (${search} of a family tree looked for)` : ""}${out.left ? `, ${out.left} people left` : ""}`,
+      summary: `the person's bulk verification against the originals (${o.scope}${o.of ? ` ${o.of}` : ""}, ${order}): ${facts} facts of ${taken.length} people in ${records.length} tasks${search ? ` (${search} of a family tree looked for)` : ""}${first ? ", a try: first in the queue" : ""}${out.left ? `, ${out.left} people left` : ""}`,
     });
     return out;
   });
@@ -924,7 +1043,7 @@ export function verifyStop(tree: Tree, o: { bulk?: boolean } = {}): StopResult {
     for (const t of tree.list<Task>("task")) {
       if (t.state === "doing" || !HOLDING.has(t.state) || t.retracted || !isVerifyTask(t) || (o.bulk && t.origin !== VERIFY_BULK)) continue;
       records.push({ ...t, state: "dropped", result, updated: at });
-      for (const w of t.where) if (w.startsWith("E")) facts.add(w);
+      for (const w of t.where) if (isCheckedId(w)) facts.add(w);
     }
     if (!records.length) return { dropped: [], facts: 0 };
     const dropped = records.map((t) => t.id);
@@ -939,10 +1058,29 @@ export function verifyStop(tree: Tree, o: { bulk?: boolean } = {}): StopResult {
 
 // ——— the agent's result, the person's confirmation ———
 
+/**
+ * What an id names for a verification or a confirmation, with its owner — a fact (E…), or the name of a person's
+ * identity (P0012.N, spec 066 P5: one view of both, Checked) — taken back or merged: said.
+ */
+function itemOf(tree: Tree, ref: string, prefix: string): { item: Checked; owner: Person | Family } {
+  const person = parseNameEid(String(ref));
+  if (person) {
+    const p = tree.get<Person>(person);
+    if (!p || p.type !== "person") throw err(`no person ${person}`, `${prefix}.unknown`, "a name's ID: P0012.N (strom person show <who>)");
+    if (p.mergedInto) throw err(`${person} was merged into ${p.mergedInto}`, `${prefix}.merged`, `strom person show ${p.mergedInto}`);
+    if (p.retracted) throw err(`${person} was taken back`, `${prefix}.retracted`);
+    const item = nameChecked(p);
+    if (!item) throw err(`${person} has no name`, `${prefix}.unknown`);
+    return { item, owner: p };
+  }
+  const { event, owner } = factOf(tree, ref, prefix);
+  return { item: factChecked(event), owner };
+}
+
 /** Where a fact is, with its owner (taken back or merged: said). */
 function factOf(tree: Tree, ref: string, prefix: string): { event: Event; owner: Person | Family } {
   const id = String(ref).trim().toUpperCase();
-  if (!/^E\p{N}{4,}$/u.test(id)) throw err(`not a fact ID: ${ref}`, `${prefix}.invalid`, "a fact's ID: E0001 (strom person show <who>)");
+  if (!/^E\p{N}{4,}$/u.test(id)) throw err(`not a fact ID: ${ref}`, `${prefix}.invalid`, "a fact's ID: E0001, a name's P0012.N (strom person show <who>)");
   for (const owner of [...tree.list<Person>("person"), ...tree.list<Family>("family")]) {
     const event = owner.events.find((e) => e.id === id);
     if (!event) continue;
@@ -968,7 +1106,8 @@ export interface DoneResult {
   fact: string;
   owner: string;
   result: "proven" | "kept";
-  status: Event["status"];
+  /** None: a name with no status, kept as it is. */
+  status?: Event["status"];
   task?: string;
   /** The task it ended (every fact of it resolved). */
   ended?: string;
@@ -979,24 +1118,26 @@ export interface DoneResult {
  * The agent's result of a fact's verification against the original: proven (the image of a cited original looked at:
  * the status raised as checkStatus allows), or kept with the reason. Inside a session alone; a fact the person
  * confirmed is theirs. The value is never changed. The task whose facts are all resolved then is done. One operation.
+ * The name of a person's identity (P0012.N, spec 066 P5) as a fact: its words never changed here either.
  */
 export function verifyFactDone(tree: Tree, ref: string, o: { result: "proven" | "kept"; image?: string; reason?: string; session: Session }): DoneResult {
   return tree.withTreeLock(() => {
-    const { event, owner } = factOf(tree, ref, "verify");
-    if (event.confirmed) throw err(`${event.id} was confirmed by the person against the scan: it is theirs, not verified again`, "verify.confirmed");
-    const cites = originalCites(tree, event);
-    let status = event.status;
+    const { item, owner } = itemOf(tree, ref, "verify");
+    const what = item.name ? `the name of ${owner.id} (${item.id})` : item.id;
+    if (item.confirmed) throw err(`${what} was confirmed by the person against the scan: it is theirs, not verified again`, "verify.confirmed");
+    const cites = originalCites(tree, item);
+    let status = item.status;
     if (o.result === "proven") {
       if (!o.image) throw err("--proven needs the image of the original looked at: --image M… (or B…:n)", "verify.image");
-      if (!cites.length) throw err(`${event.id} cites no original record with primary information: it cannot be proven by a look`, "verify.original", "cite the original first (strom cite E… S… --information primary), or --kept --reason \"…\"");
+      if (!cites.length) throw err(`${what} cites no original record with primary information: it cannot be proven by a look`, "verify.original", `cite the original first (strom cite ${item.name ? owner.id : item.id} S… --information primary), or --kept --reason "…"`);
       if (!cites.some((s) => imageOf(tree, s, o.image!)))
-        throw err(`${o.image} is no image of the original ${event.id} cites (${cites.join(", ")})`, "verify.image", `the image of ${cites[0]}: strom source show ${cites[0]}`);
-      checkStatus(tree, "proven", event.citations);
+        throw err(`${o.image} is no image of the original ${item.id} cites (${cites.join(", ")})`, "verify.image", `the image of ${cites[0]}: strom source show ${cites[0]}`);
+      checkStatus(tree, "proven", item.citations);
       status = "proven";
     } else if (!o.reason?.trim()) throw err("--kept needs the reason it stays as it is: --reason \"…\"", "verify.reason");
     const task = tree
       .list<Task>("task")
-      .find((t) => HOLDING.has(t.state) && !t.retracted && isVerifyTask(t) && t.where.includes(event.id));
+      .find((t) => HOLDING.has(t.state) && !t.retracted && isVerifyTask(t) && t.where.includes(item.id));
     const at = now();
     let readers: 2 | undefined;
     if (o.result === "proven" && o.session.model) {
@@ -1014,23 +1155,23 @@ export function verifyFactDone(tree: Tree, ref: string, o: { result: "proven" | 
       cites,
       ...(readers ? { readers } : {}),
     };
-    const next = { ...structuredClone(owner), events: owner.events.map((e) => (e.id === event.id ? { ...e, status, verified } : e)), updated: at } as Person | Family;
+    const next = { ...withChecked(owner, item.id, { ...(status ? { status } : {}), verified }), updated: at } as Person | Family;
     const records: (Person | Family | Task)[] = [next];
     let ended: string | undefined;
     if (task) {
-      const facts = new Map(taskFacts(tree, task).map((f) => [f.event.id, f.event.id === event.id ? { ...f.event, status, verified } : f.event]));
-      if (task.where.every((id) => resolved(facts.get(id), task))) {
+      const items = new Map(taskItems(tree, task).map((f) => [f.item.id, f.item.id === item.id ? { ...f.item, ...(status ? { status } : {}), verified } : f.item]));
+      if (task.where.every((id) => resolved(items.get(id), task))) {
         records.push({ ...task, state: "done", result: phrase(tree.lang, "verify.task.done", { count: task.where.length }), updated: at });
         ended = task.id;
       }
     }
     tree.putMany(records, [], {
       op: "verify.done",
-      targets: [owner.id, event.id, ...(ended ? [ended] : [])],
-      summary: `${event.id} verified against the original${o.image ? ` (${o.image})` : ""}: ${o.result === "proven" ? `proven${readers ? ", two readers agree" : ""}` : `stays ${status}`}${ended ? ` · ${ended} done` : ""}`,
+      targets: [owner.id, item.id, ...(ended ? [ended] : [])],
+      summary: `${item.id} verified against the original${o.image ? ` (${o.image})` : ""}: ${o.result === "proven" ? `proven${readers ? ", two readers agree" : ""}` : `stays ${status ?? "without a status"}`}${ended ? ` · ${ended} done` : ""}`,
       ...(o.result === "kept" ? { reason: o.reason!.trim() } : {}),
     });
-    return { fact: event.id, owner: owner.id, result: o.result, status, ...(task ? { task: task.id } : {}), ...(ended ? { ended } : {}), ...(readers ? { readers } : {}) };
+    return { fact: item.id, owner: owner.id, result: o.result, ...(status ? { status } : {}), ...(task ? { task: task.id } : {}), ...(ended ? { ended } : {}), ...(readers ? { readers } : {}) };
   });
 }
 
@@ -1074,50 +1215,53 @@ export function factUnchanged(event: Event, txt: string): void {
  * fact confirmed leaves the open tasks of verification (one at work goes on); one left with none is dropped. The same
  * state again: nothing written. One operation; the caller has checked it is the person. `day`: the day the person
  * confirmed it (a send of the Strom app, YYYY-MM-DD) — a day before today kept, else now; `reason`: what the history says;
- * `txt`: the mark of the value the person saw (factUnchanged), checked under the lock before anything.
+ * `txt`: the mark of the value the person saw (factUnchanged), checked under the lock before anything. The name of a
+ * person's identity (P0012.N, spec 066 P5) as a fact: its mark nameUnchanged's, written by namestatus.ts confirmName.
  */
 export function verifyConfirm(tree: Tree, ref: string, confirm: boolean, opts: { day?: string; reason?: string; txt?: string } = {}): ConfirmResult {
   return tree.withTreeLock(() => {
-    const { event, owner } = factOf(tree, ref, "factconfirm");
-    if (opts.txt !== undefined) factUnchanged(event, opts.txt);
-    if (!!event.confirmed === confirm) return { fact: event.id, owner: owner.id, ...(event.confirmed ? { confirmed: event.confirmed.at.slice(0, 10) } : {}), same: true as const, left: [], dropped: [] };
+    const { item, owner } = itemOf(tree, ref, "factconfirm");
+    if (opts.txt !== undefined) unchanged(item, owner, opts.txt);
+    if (!!item.confirmed === confirm) return { fact: item.id, owner: owner.id, ...(item.confirmed ? { confirmed: item.confirmed.at.slice(0, 10) } : {}), same: true as const, left: [], dropped: [] };
     const at = now();
     const day = opts.day && /^\d{4}-\d{2}-\d{2}$/.test(opts.day) && opts.day < at.slice(0, 10) && !Number.isNaN(Date.parse(`${opts.day}T12:00:00.000Z`)) ? `${opts.day}T12:00:00.000Z` : at;
-    const next = {
-      ...structuredClone(owner),
-      events: owner.events.map((e) => {
-        if (e.id !== event.id) return e;
-        const { confirmed: _c, ...rest } = e;
-        return confirm ? { ...e, confirmed: { at: day, by: "user" as const } } : rest;
-      }),
-      updated: at,
-    } as Person | Family;
-    const records: (Person | Family | Task)[] = [next];
+    const tasks: Task[] = [];
     const left: string[] = [];
     const dropped: string[] = [];
     if (confirm)
       for (const t of tree.list<Task>("task")) {
-        if (t.state === "doing" || !HOLDING.has(t.state) || t.retracted || !isVerifyTask(t) || !t.where.includes(event.id)) continue;
-        const where = t.where.filter((w) => w !== event.id);
+        if (t.state === "doing" || !HOLDING.has(t.state) || t.retracted || !isVerifyTask(t) || !t.where.includes(item.id)) continue;
+        const where = t.where.filter((w) => w !== item.id);
         if (where.length) {
-          const facts = taskFacts(tree, { ...t, where }).map((f) => f.event);
+          const facts = taskItems(tree, { ...t, where }).map((f) => f.item);
           const o = tree.get<Person | Family>(t.subject[0]!);
-          records.push({ ...t, where, ...(o ? texts(tree, o, facts, t.origin === VERIFY_SEARCH ? "search" : "read", t.origin === VERIFY_ASKED) : {}), updated: at });
+          tasks.push({ ...t, where, ...(o ? texts(tree, o, facts, t.origin === VERIFY_SEARCH ? "search" : "read", t.origin === VERIFY_ASKED) : {}), updated: at });
           left.push(t.id);
         } else {
           // dropped as it was: a task names what it was about (where needs one)
-          records.push({ ...t, state: "dropped", result: phrase(tree.lang, "verify.dropped.confirmed"), updated: at });
+          tasks.push({ ...t, state: "dropped", result: phrase(tree.lang, "verify.dropped.confirmed"), updated: at });
           dropped.push(t.id);
         }
       }
-    tree.putMany(records, [], {
+    if (item.name) {
+      const r = confirmName(tree, owner.id, confirm, { ...(opts.day ? { day: opts.day } : {}), ...(opts.reason ? { reason: opts.reason } : {}), tasks });
+      return { fact: item.id, owner: owner.id, ...(r.confirmed ? { confirmed: r.confirmed } : {}), left, dropped };
+    }
+    const next = { ...withChecked(owner, item.id, { confirmed: confirm ? { at: day, by: "user" } : null }), updated: at } as Person | Family;
+    tree.putMany([next, ...tasks], [], {
       op: confirm ? "fact.confirm" : "fact.unconfirm",
-      targets: [owner.id, event.id, ...left, ...dropped],
-      summary: confirm ? `${event.id} confirmed by the person against the scan${dropped.length ? ` · ${dropped.join(", ")} dropped` : ""}` : `${event.id} the person's confirmation taken back`,
+      targets: [owner.id, item.id, ...left, ...dropped],
+      summary: confirm ? `${item.id} confirmed by the person against the scan${dropped.length ? ` · ${dropped.join(", ")} dropped` : ""}` : `${item.id} the person's confirmation taken back`,
       ...(opts.reason ? { reason: opts.reason } : {}),
     });
-    return { fact: event.id, owner: owner.id, ...(confirm ? { confirmed: day.slice(0, 10) } : {}), left, dropped };
+    return { fact: item.id, owner: owner.id, ...(confirm ? { confirmed: day.slice(0, 10) } : {}), left, dropped };
   });
+}
+
+/** The value the person saw is the value now (a fact's mark factMark, a name's nameMark): else confirm.changed. */
+function unchanged(item: Checked, owner: Person | Family, txt: string): void {
+  if (item.event) factUnchanged(item.event, txt);
+  else if (owner.type === "person") nameUnchanged(owner, txt);
 }
 
 /**
@@ -1128,7 +1272,11 @@ export function verifyConfirm(tree: Tree, ref: string, confirm: boolean, opts: {
 export function verifyConfirmAll(tree: Tree, refs: string[], confirm: boolean, txts?: string[]): ConfirmResult[] {
   if (txts && txts.length !== refs.length) throw new UsageError(`${txts.length} marks for ${refs.length} facts`, { code: "factconfirm.invalid", hint: "one mark for each fact, in their order: --txt <mark>,<mark>" });
   return tree.withTreeLock(() => {
-    if (txts) refs.forEach((ref, i) => factUnchanged(factOf(tree, ref, "factconfirm").event, txts[i]!));
+    if (txts)
+      refs.forEach((ref, i) => {
+        const { item, owner } = itemOf(tree, ref, "factconfirm");
+        unchanged(item, owner, txts[i]!);
+      });
     return refs.map((ref, i) => verifyConfirm(tree, ref, confirm, txts ? { txt: txts[i]! } : {}));
   });
 }
@@ -1185,7 +1333,7 @@ function waiting(tree: Tree): Map<string, { how: VerifyWait; task: Task }> {
   const how = waitOf(tree);
   for (const t of tasks) {
     const h = how(t);
-    for (const w of t.where) if (w.startsWith("E") && !out.has(w)) out.set(w, { how: h, task: t });
+    for (const w of t.where) if (isCheckedId(w) && !out.has(w)) out.set(w, { how: h, task: t });
   }
   return out;
 }
@@ -1216,7 +1364,7 @@ export function taskPlaces(tree: Tree, ids: string[]): TaskPlace[] {
       task: t.id,
       state,
       ...((state === "wait" || state === "asked") && at !== undefined ? { position: at } : {}),
-      facts: t.where.filter((w) => FACT_ID.test(w)),
+      facts: t.where.filter(isCheckedId),
     }));
 }
 
@@ -1259,15 +1407,18 @@ export function verifyCounts(tree: Tree): VerifyCounts {
   // the person's own, whatever it waits for
   const askedBy = askedFor(tree);
   const askedTasks = tree.list<Task>("task").filter((t) => HOLDING.has(t.state) && !t.retracted && isVerifyTask(t) && askedBy(t));
-  const asked = new Set(askedTasks.flatMap((t) => t.where.filter((w) => w.startsWith("E")))).size;
+  const asked = new Set(askedTasks.flatMap((t) => t.where.filter(isCheckedId))).size;
   let kept = 0;
   let confirmed = 0;
-  for (const owner of liveOwners(tree))
-    for (const e of owner.events) {
+  // the facts, and the name of each person's identity (spec 066 P5)
+  for (const owner of liveOwners(tree)) {
+    const name = owner.type === "person" ? nameChecked(owner) : undefined;
+    for (const e of [...owner.events, ...(name ? [name] : [])]) {
       if (e.retracted) continue;
       if (e.confirmed) confirmed++;
       else if (e.verified?.result === "kept" && e.status !== "proven") kept++;
     }
+  }
   const fix = readFile(tree).fix;
   return { waiting: state.size, asked, images, permission, kept, confirmed, ...(fix ? { fix } : {}) };
 }

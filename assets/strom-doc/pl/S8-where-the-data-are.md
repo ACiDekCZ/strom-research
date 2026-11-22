@@ -69,6 +69,9 @@ drzewa przekazuje je wszystkie; badanie zapisuje każdy plik raz, według zawart
 
 - Oryginał portretu idzie do badania jako oryginał załącznika z etykietą **Portret**, oryginał zdjęcia pary jako
   materiał obojga partnerów. Oryginał tworzy zadanie materiały; w Archiwum Strom czeka odłożony.
+  - **Od badania 1.36.0:** zadanie materiały powstaje tylko z włączonym ustawieniem **Pliki wysłane do badania agent
+    przejrzy sam**; w przeciwnym razie oryginał czeka w Materiałach nieuporządkowany
+    ([R11.6](R11-material-from-the-user.md#R11.6)).
 - Wczytanie drzewa z badania zwraca pliki według odcisku: aplikacja dostaje portrety, zdjęcia par i załączniki na ich
   miejsca. Plik usunięty w aplikacji badanie ukrywa, nie kasuje go ([A3.5.6](A3-evidence-in-the-app.md#A3.5.6)).
 - **Granice:**
@@ -100,8 +103,15 @@ z badaniem na komputerze nie świeci, gdy badanie trzyma wszystkie jego zmiany.
   liczy się jak dotąd, dopóki się go nie otworzy.
 - **Obsługa:** aplikacja: wskaźnik na pasku otwiera **Gdzie są dane**; **Zapisz do pliku**.
 - **Obowiązuje od:** aplikacja 3.0.0; 3.30.0: zdjęcia i załączniki we wskaźniku
+- **Od aplikacji 3.31.0:** gdy badanie trzyma drzewo poza portretami, zdjęciami par i załącznikami, wskaźnik mówi
+  **Zdjęcia tylko w przeglądarce**, tekst po najechaniu „Badanie przechowuje drzewo, ale nie jego portrety, zdjęcia
+  par i załączniki: są tylko w przeglądarce, jeszcze nie w pliku – przeglądarka może je usunąć”. To samo mówi
+  wiersz w **Więcej** („Więcej – zdjęcia nie są zapisane”), powiadomienie („Dobrze jest na bieżąco zapisywać drzewo
+  do pliku.”) i okno **Gdzie są dane** („Badanie przechowuje drzewo, ale portrety, zdjęcia par i załączniki dodane od
+  tamtej pory są tylko w przeglądarce.”). Obowiązuje to tylko wtedy, gdy takie są wszystkie drzewa, które wskaźnik
+  liczy. Gdy niewysłana zostanie też zmiana dłużej niż 10 minut, wskaźnik mówi znowu **Tylko w przeglądarce**.
 
-<!-- zdroj: app:e434e730, a678b253 src/browser-media.ts browserMediaFingerprint, browserMediaSafe, archiveHoldsAppMedia · src/ui/research-sync-ui.ts researchHoldsTree, RESEARCH_HOLD_MS=10 min, researchArchiveHoldsMedia · src/tree-manager.ts noteFileCopy (export bez fotek), learnMediaFingerprints · src/ui/file-copy-ui.ts unsavedOutsideResearch · strings.ts fileCopy.indicatorShort, indicatorTitle · dirigent:spec/108-kde-se-co-uklada K1b.1, K2.6 -->
+<!-- zdroj: app:e434e730, a678b253 src/browser-media.ts browserMediaFingerprint, browserMediaSafe, archiveHoldsAppMedia · src/ui/research-sync-ui.ts researchHoldsTree, RESEARCH_HOLD_MS=10 min, researchArchiveHoldsMedia · src/tree-manager.ts noteFileCopy (export bez fotek), learnMediaFingerprints · src/ui/file-copy-ui.ts unsavedOutsideResearch · strings.ts fileCopy.indicatorShort, indicatorTitle · dirigent:spec/108-kde-se-co-uklada K1b.1, K2.6 · 3.31.0: app 110f4109 src/ui/research-sync-ui.ts researchHoldsTree → photos, src/file-copy.ts unsavedKind (všechny stromy photos), strings.ts fileCopy.photosShort, photosTitle, photosMoreHint, noticePhotos, copyPhotosSince, copyPhotosNever · SPEC.md 1120-app-108-diry -->
 
 <a id="S8.5"></a>
 ## S8.5 Nie udało się wczytać zdjęć z badania
@@ -116,8 +126,13 @@ aplikacja wczyta drzewo bez nich i nie usunie niczego, co badanie ma.
   zmieniło, zapyta.
 - **Obsługa:** aplikacja: komunikat → **Spróbuj ponownie**.
 - **Obowiązuje od:** aplikacja 3.30.0, badanie 1.35.0
+- **Od aplikacji 3.31.0:** przy otwarciu przez **Śledź na żywo** zdjęcia przychodzą po drzewie
+  ([S1.4.1](S1-connecting-app-and-research.md#S1.4.1)). Zdjęcia, które nie przyszły, zgłasza tam „Niektóre zdjęcia
+  nie zostały wczytane (N).” ze **Spróbować ponownie**; samo nie powtarza się po 5 s
+  i 30 s. Do ich przyjścia zapisy drzewa nadal
+  tylko dodają.
 
-<!-- zdroj: app:6bbc2f82 src/ui/research-ui.ts noteResearchMediaMissed (zápisy jen přidávají), 61ef1bdd MEDIA_RETRY_MS=[5000, 30000], researchMediaMissed, tellResearchMediaMissed, researchRetryMedia · strings.ts sync.mediaMissed, sync.retry -->
+<!-- zdroj: app:src/ui/research-ui.ts startLiveFollow onDone (failed → noteResearchMediaMissed, bez researchMediaMissed a MEDIA_RETRY_MS), src/ui/image-load-chip.ts showFailed · spec 116 · app:6bbc2f82 src/ui/research-ui.ts noteResearchMediaMissed (zápisy jen přidávají), 61ef1bdd MEDIA_RETRY_MS=[5000, 30000], researchMediaMissed, tellResearchMediaMissed, researchRetryMedia · strings.ts sync.mediaMissed, sync.retry -->
 
 <a id="S8.6"></a>
 ## S8.6 Paczka i usunięcie drzewa: skany i rodzinne zdjęcia
@@ -129,7 +144,10 @@ można z archiwum pobrać ponownie, rodzinnych zdjęć i oryginałów nie.
 - `strom pack` wypisuje oba osobno. Ze skanów dołącza te z aktami i te, których nikt nie pobierze ponownie (albo
   wszystkie); rodzinne zdjęcia i oryginały zawsze wszystkie, także z pomniejszonymi kopiami plików drzewa. Paczka
   niesie też partie z aplikacji.
-- `strom trees remove` najpierw oferuje kopię zapasową paczką, potem pyta osobno o skany i osobno o rodzinne zdjęcia
+- Partie z aplikacji idą w paczce także z nazwą, osobami i notatką; `strom unpack` przywraca je razem z plikami
+  partii ([R11.4](R11-material-from-the-user.md#R11.4)).
+- `strom trees remove` najpierw oferuje kopię zapasową paczką ze wszystkimi skanami z archiwów, rodzinnymi zdjęciami
+  i oryginałami (przywraca ją `strom unpack`), potem pyta osobno o skany i osobno o rodzinne zdjęcia
   i oryginały, których nie używa żadne inne drzewo genealogiczne; przy rodzinnych zdjęciach domyślna odpowiedź to
   nie. Usunięcie potwierdza wpisana nazwa drzewa. Pliki idą do kosza jako jeden folder „<nazwa> – pliki”.
 - **Granice:**
@@ -140,4 +158,4 @@ można z archiwum pobrać ponownie, rodzinnych zdjęć i oryginałów nie.
 - **Obsługa:** terminal: `strom pack [--all-images]`, `strom unpack "<plik>"`, `strom trees remove`.
 - **Obowiązuje od:** badanie 1.35.0
 
-<!-- zdroj: research:31def74a src/commands/pack.ts (ui.pack.images, ui.pack.family, ui.pack.batches, pack.too-large), src/core/pack.ts (bez ZIP64), src/core/zip.ts ZIP_MAX_FILES=0xffff · src/commands/trees.ts:271-287 (záloha výchozí ano, skeny ano jen se zálohou, rodinné ne, název), ui.remove.images.folder · research:771d8af0 (zmenšené kopie v balíku) · assets/lang/cs.json ui.pack.*, ui.remove.*, ui.error.pack.too-large -->
+<!-- zdroj: research:31def74a src/commands/pack.ts (ui.pack.images, ui.pack.family, ui.pack.batches, pack.too-large), src/core/pack.ts (bez ZIP64), src/core/zip.ts ZIP_MAX_FILES=0xffff · src/commands/trees.ts:271-287 (záloha výchozí ano, skeny ano jen se zálohou, rodinné ne, název), ui.remove.images.folder · research:771d8af0 (zmenšené kopie v balíku) · assets/lang/cs.json ui.pack.*, ui.remove.*, ui.error.pack.too-large · ui.pack.batches, ui.unpack.batches (v1.35.0) · trees remove: strom pack --all-images · e6bbfb40 ui.pack.which, ui.remove.backup (1.36.0 jen texty) -->

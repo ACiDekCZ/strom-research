@@ -13,6 +13,7 @@ import {
   type Event,
   type Family,
   type Hypothesis,
+  type Name,
   type Note,
   type Person,
   type Story,
@@ -21,7 +22,7 @@ import {
 import { normalizeDate } from "./gdate.ts";
 import { isGedcomAge } from "./age.ts";
 import { SCHEMAS, checkFields, type RefUse } from "./schema.ts";
-import { ALL_PREFIXES, CHILD_RELATIONS, NAME_KINDS, ORIGINAL_IDS_LIMITS, PARTICIPANT_ROLES, SHARE_ID } from "./model.ts";
+import { ALL_PREFIXES, CHILD_RELATIONS, NAME_KINDS, NAME_STATUSES, ORIGINAL_IDS_LIMITS, PARTICIPANT_ROLES, SHARE_ID } from "./model.ts";
 
 export interface Problem {
   path: string;
@@ -152,23 +153,7 @@ export function checkEvent(e: unknown, path: string, out: Problem[], family = fa
       if (r.kind !== undefined && (!str(r.kind) || !(r.kind in EVENT_KINDS))) out.push({ path: `${path}.roleAt.kind`, message: `unknown event kind "${String(r.kind)}"` });
     }
   }
-  if (ev.confirmed !== undefined) {
-    const c = ev.confirmed as unknown;
-    if (!isObj(c) || !str(c.at) || !ISO.test(c.at) || c.by !== "user") out.push({ path: `${path}.confirmed`, message: 'must be { at: ISO timestamp, by: "user" }' });
-  }
-  if (ev.verified !== undefined) {
-    const v = ev.verified as unknown;
-    if (!isObj(v)) out.push({ path: `${path}.verified`, message: "must be an object" });
-    else {
-      if (!str(v.at) || !ISO.test(v.at)) out.push({ path: `${path}.verified.at`, message: "must be an ISO timestamp" });
-      if (!str(v.by)) out.push({ path: `${path}.verified.by`, message: "must name the session or agent" });
-      if (v.result !== "proven" && v.result !== "kept") out.push({ path: `${path}.verified.result`, message: "must be proven or kept" });
-      if (!Array.isArray(v.cites) || v.cites.some((s) => !str(s))) out.push({ path: `${path}.verified.cites`, message: "must be a list of source IDs" });
-      if (v.readers !== undefined && v.readers !== 2) out.push({ path: `${path}.verified.readers`, message: "must be 2 when given" });
-      for (const k of ["model", "reason", "task"] as const)
-        if (v[k] !== undefined && !str(v[k])) out.push({ path: `${path}.verified.${k}`, message: "must be a non-empty string" });
-    }
-  }
+  checkMarks(ev, path, out);
   if (ev.ages !== undefined) {
     if (!family) out.push({ path: `${path}.ages`, message: "ages are for family events; a person's event has age" });
     else if (!isObj(ev.ages)) out.push({ path: `${path}.ages`, message: "must be an object: person ID → age" });
@@ -237,6 +222,27 @@ function checkOriginalIds(list: unknown, out: Problem[]): void {
   });
 }
 
+/** The person's confirmation against the scan and an agent's verification of a fact or a name (spec 065, 066 P5). */
+function checkMarks(ev: { confirmed?: unknown; verified?: unknown }, path: string, out: Problem[]): void {
+  if (ev.confirmed !== undefined) {
+    const c = ev.confirmed as unknown;
+    if (!isObj(c) || !str(c.at) || !ISO.test(c.at) || c.by !== "user") out.push({ path: `${path}.confirmed`, message: 'must be { at: ISO timestamp, by: "user" }' });
+  }
+  if (ev.verified !== undefined) {
+    const v = ev.verified as unknown;
+    if (!isObj(v)) out.push({ path: `${path}.verified`, message: "must be an object" });
+    else {
+      if (!str(v.at) || !ISO.test(v.at)) out.push({ path: `${path}.verified.at`, message: "must be an ISO timestamp" });
+      if (!str(v.by)) out.push({ path: `${path}.verified.by`, message: "must name the session or agent" });
+      if (v.result !== "proven" && v.result !== "kept") out.push({ path: `${path}.verified.result`, message: "must be proven or kept" });
+      if (!Array.isArray(v.cites) || v.cites.some((s) => !str(s))) out.push({ path: `${path}.verified.cites`, message: "must be a list of source IDs" });
+      if (v.readers !== undefined && v.readers !== 2) out.push({ path: `${path}.verified.readers`, message: "must be 2 when given" });
+      for (const k of ["model", "reason", "task"] as const)
+        if (v[k] !== undefined && !str(v[k])) out.push({ path: `${path}.verified.${k}`, message: "must be a non-empty string" });
+    }
+  }
+}
+
 function checkPerson(p: Partial<Person>, out: Problem[]): void {
   if (!Array.isArray(p.names) || p.names.length === 0) out.push({ path: "names", message: "needs at least one name" });
   else
@@ -248,9 +254,13 @@ function checkPerson(p: Partial<Person>, out: Problem[]): void {
       for (const t of ["prefix", "suffix"] as const) if (n[t] !== undefined && (typeof n[t] !== "string" || !n[t].trim())) out.push({ path: `names[${i}].${t}`, message: "must be a title (a string, not empty)" });
       if (n.kind !== undefined && !NAME_KINDS.includes(n.kind)) out.push({ path: `names[${i}].kind`, message: `must be one of ${NAME_KINDS.join(", ")}` });
       if (n.primary !== undefined && n.primary !== true) out.push({ path: `names[${i}].primary`, message: "must be true, or left out" });
+      if (n.marriedNow !== undefined && n.marriedNow !== true) out.push({ path: `names[${i}].marriedNow`, message: "must be true, or left out" });
       checkCitations(n.citations, `names[${i}].citations`, out);
+      if (n.status !== undefined && !NAME_STATUSES.includes(n.status as (typeof NAME_STATUSES)[number])) out.push({ path: `names[${i}].status`, message: `must be one of ${NAME_STATUSES.join(", ")}` });
+      checkMarks(n, `names[${i}]`, out);
     });
   if (Array.isArray(p.names) && p.names.filter((n) => isObj(n) && n.primary).length > 1) out.push({ path: "names", message: "at most one name is the one the person is shown by (primary)" });
+  if (Array.isArray(p.names) && p.names.filter((n) => isObj(n) && n.marriedNow).length > 1) out.push({ path: "names", message: "at most one name after a marriage is the one now (marriedNow)" });
   if (p.retractedNames !== undefined) {
     if (!Array.isArray(p.retractedNames)) out.push({ path: "retractedNames", message: "must be an array" });
     else
@@ -396,7 +406,29 @@ export function factMarksAfter<T>(before: unknown, value: T, person: boolean): T
     changed = true;
     return (confirmed && !person ? { ...rest, confirmed } : rest) as Event;
   });
+  const names = value.type === "person" && Array.isArray(value.names) && Array.isArray(before.names) ? nameMarksAfter(before.names as Name[], value.names as Name[]) : undefined;
+  if (names) return { ...value, ...(changed ? { events } : {}), names } as T;
   return changed ? ({ ...value, events } as T) : value;
+}
+
+/**
+ * A name whose words changed (its given name or surname) loses the person's confirmation against the scan and the
+ * agent's verification (spec 066 P5), whoever changed it — an agent never changes a confirmed name, it proposes
+ * (commands/people.ts person edit). The name is the one before with the same marks (a name moved in the list keeps its
+ * own); undefined when no name lost them.
+ */
+function nameMarksAfter(before: Name[], names: Name[]): Name[] | undefined {
+  const marks = (n: Name) => JSON.stringify([n.confirmed ?? null, n.verified ?? null]);
+  let changed = false;
+  const out = names.map((n) => {
+    if (!isObj(n) || (!n.confirmed && !n.verified)) return n;
+    const b = before.find((x) => isObj(x) && marks(x) === marks(n));
+    if (!b || (b.given === n.given && b.surname === n.surname)) return n;
+    changed = true;
+    const { confirmed: _c, verified: _v, ...rest } = n;
+    return rest;
+  });
+  return changed ? out : undefined;
 }
 
 /** Every reference a record makes to another record (for dangling-reference checks). */

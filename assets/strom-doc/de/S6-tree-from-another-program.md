@@ -86,6 +86,12 @@ Marken, die Marke auf dem Kärtchen im Stammbaum und die Prüfung der Angaben an
 - **Ab App 3.26.0:** zwei volle Punkte bei **Belegt** bekommt eine Angabe, bei der sich bei der Prüfung durch die
   Forschung zwei Leser des Eintrags einig waren; das Kärtchen im Stammbaum hat eine Marke statt der früheren zwei
   Optionen.
+- **Ab App 3.31.0 mit Forschung 1.36.0:** ein Name aus dem Stammbaum bleibt nicht mehr für immer **Aus dem
+  Stammbaum**: die Forschung gibt ihm eine Stufe nach den Einträgen, die ihn belegen, und er lässt sich prüfen und
+  anhand des Scans bestätigen ([S7.10](S7-reliability-and-verification.md#S7.10),
+  [R10.5.2](R10-people-and-hypotheses.md#R10.5.2)). Ist keine Angabe der Person mehr nur aus dem Stammbaum, sagt die
+  Zeile bei der Person „Die Angaben der Person stammen aus {program} (Datei vom {datum}, geladen am {datum}); keine
+  ist mehr nur aus dem Stammbaum.“
 - **Gilt seit:** App 3.26.0, Forschung 1.30.0
 
 <!-- zdroj: app:7b0471f8 src/reliability.ts (pořadí human, proven, probable, possible, import, lead, none; tečky, ✓ a rámeček, ne barva; feature origin; bez záznamu o importu žádné Z rodokmenu; readers z _STROM_CHECKED, noSource nekrmeno) · src/ui/fact-status.ts · src/ui/person-reliability-ui.ts · src/settings.ts display.reliabilityCard (ON) · src/ui/card-signals-ui.ts (signál status, výchozí zapnuto) · index.html settings-group-card · strings.ts reliability.settingCard, cardDensity.cardStatus, settings.groupCard · app:669c08f0 src/reliability.ts userTreeOrigin (_STROM_ORIGIN tree) -->

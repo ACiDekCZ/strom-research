@@ -23,6 +23,7 @@ import { readGedcom } from "../../src/core/sync.ts";
 import { waitingFor } from "../../src/core/waiting.ts";
 import { ui } from "../../src/cli/ui.ts";
 import type { Event, Person, Source } from "../../src/core/model.ts";
+import { NAME_STATUS_SETTLED } from "../../src/core/namestatusfix.ts";
 
 const opts = { skip: !hasGit };
 
@@ -86,11 +87,11 @@ async function lhotaci(): Promise<World> {
 }
 
 test("a new research is settled from the start: the markers are the fixes' own", opts, async () => {
-  assert.deepEqual([...NEW_TREE_SETTLED], [READERS_SETTLED, PROVEN_SETTLED, ORIGINS_SETTLED, VERIFY_SETTLED, ORIGINS_TREE_SETTLED]);
+  assert.deepEqual([...NEW_TREE_SETTLED], [READERS_SETTLED, PROVEN_SETTLED, ORIGINS_SETTLED, VERIFY_SETTLED, ORIGINS_TREE_SETTLED, NAME_STATUS_SETTLED]);
   const w = await lhotaci();
   try {
     const c = JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8"));
-    assert.deepEqual(c.settled, [READERS_SETTLED, PROVEN_SETTLED, ORIGINS_SETTLED, VERIFY_SETTLED, ORIGINS_TREE_SETTLED]);
+    assert.deepEqual(c.settled, [READERS_SETTLED, PROVEN_SETTLED, ORIGINS_SETTLED, VERIFY_SETTLED, ORIGINS_TREE_SETTLED, NAME_STATUS_SETTLED]);
     const n = commits(w);
     assert.equal(settleReaders(Tree.open(w.cwd, w.env)), undefined, "nothing to settle in a new research");
     assert.equal(settleProven(Tree.open(w.cwd, w.env)), undefined);

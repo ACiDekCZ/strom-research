@@ -39,7 +39,7 @@ import { clipNote, inboxFolderFor, parseImageList, transcriptNote } from "../cor
 import { handedImages, inboxState, inboxWaitOf } from "../core/inboxwait.ts";
 import { actsAsArchive } from "../core/state.ts";
 import { conflictsToDecide } from "../core/conflicts.ts";
-import { othersAtWork } from "../core/session.ts";
+import { assertNotHeld, claimTask, othersAtWork, tookOverLine } from "../core/session.ts";
 import { isAgent } from "../core/which.ts";
 import { currentSession } from "../core/session.ts";
 import { webDomain } from "../core/metrics.ts";
@@ -53,6 +53,9 @@ import { applyAuditFix, auditOf, auditTasks, audited, bookIndex, changesSaid, fi
 import { head } from "../core/git.ts";
 import { takeWaiting } from "./media.ts";
 import { BOOKS_MIN_TASKS, bookOfTask, bookRows, booksOfTask, liveBook, minTasksOf, needsBooks, sameBookLine, tasksOfBook, type BookRow } from "../core/books.ts";
+import { parseTaskKind, TASK_KINDS, taskKind } from "../core/taskkind.ts";
+import { CENSUS_PREFIX, censusHeld, censusProposal } from "../core/census.ts";
+import { closeCoverage, coverageLine } from "../core/coverage.ts";
 
 
 function written(tree: Tree): string {
@@ -638,6 +641,23 @@ function waitSaid(tree: Tree, t: Task): string | undefined {
   return `${w.waitKind} · ${w.group.name} (${w.group.key}) · ${w.phase === "sent" ? `sent ${w.sentAt!.slice(0, 10)}` : SENDABLE.includes(w.waitKind) ? "not sent yet" : "with the user"}`;
 }
 
+/**
+ * The origin of a census task (strom task add --census <year>[:<house>], spec 106): census:<year>[:<house>] — refused
+ * while census records are off for the research (the person's switch alone; the agent proposes it once).
+ */
+function censusOrigin(ctx: Context, tree: Tree, given: unknown): string | undefined {
+  if (given === undefined) return undefined;
+  const v = String(given).normalize("NFC").trim();
+  if (!/^\d{3,4}(?::[\p{L}\p{M}\p{N}.\/-]{1,32})?$/u.test(v))
+    throw new UsageError(`--census takes <year>[:<house>], not "${v}"`, { code: "census.value", hint: "strom task add … --census 1890:14" });
+  if (!ctx.settings.census(tree.config))
+    throw new UsageError("census records are off for this research: no census task is added — turning them on is the person's decision (the menu's settings, the Strom app)", {
+      code: "census.off",
+      hint: `propose it to the user once instead: strom census propose --why "<what a census could show, in the research language>" [--person P…]${censusProposal(tree) ? ` (proposed already: ${censusProposal(tree)!.id} — do not propose again)` : ""}`,
+    });
+  return `${CENSUS_PREFIX}${v}`;
+}
+
 register(
   {
     path: ["task", "add"],
@@ -667,6 +687,7 @@ register(
       { name: "helps", type: "string", value: "<text>", description: HELPS_DESCRIPTION, max: 500 },
       { name: "note", type: "string", value: "<text>", description: "short note" },
       { name: "anyway", type: "boolean", description: "add it although an open task of the same person and level reads the same (it is really other work)" },
+      { name: "census", type: "string", value: "<year>[:<house>]", description: "a census task (one household, year, house): only while census is on; off: strom census propose" },
     ],
     examples: [
       'strom task add "Křest Jana Nováka (~1905)" --level link --where B0001 --why "potvrdí otce Josefa" --done-when "zápis nalezen, nebo ročníky 1903-1907 prohledány celé" --about P0001 --priority 4',
@@ -674,6 +695,7 @@ register(
     run(ctx: Context, { args, opts }) {
       const tree = ctx.tree();
       refuseInHistorySession(tree, currentSession(tree, ctx.env, ctx.refs), "strom task add");
+      const census = censusOrigin(ctx, tree, opts.census);
       const missing = [!opts.level && "--level", !listOpt(opts.where).length && "--where", !opts.why && "--why", !opts["done-when"] && "--done-when"].filter(Boolean);
       if (missing.length)
         throw new UsageError(`a task needs ${missing.join(", ")}`, { hint: "a task without where is a wish: name the record set (B…) or describe exactly where to look" });
@@ -724,7 +746,7 @@ register(
           subject,
           research,
           state: "open",
-          origin: tree.actor,
+          origin: census ?? tree.actor,
           ...(helpsOpt(opts.helps) ? { helps: helpsOpt(opts.helps) } : {}),
           note: [whatMore, typeof opts.note === "string" ? opts.note : undefined].filter(Boolean).join("\n") || undefined,
         },
@@ -805,12 +827,13 @@ register(
       { name: "all", type: "boolean", description: "every task, whatever its state (the same as --state all)" },
       { name: "research", type: "string", value: "<G…>", description: "only this research" },
       { name: "level", type: "string", value: "<level>", description: "only this level" },
+      { name: "kind", type: "string", value: "<kind>", description: `only this kind of work: ${TASK_KINDS.join(", ")} (verify: every verification against the originals)` },
       { name: "about", type: "string", value: "<who>", description: "only tasks about this person/record (also X…, H…)" },
       { name: "off-tree", type: "boolean", description: "the open tasks that wait out of the queue: about people nothing links to the tree yet" },
       { name: "book", type: "string", value: "<B…>", description: "the tasks that need this book (open, at work, parked, waiting — open first; with --state only those): strom task books" },
       { name: "full", type: "boolean", description: "--json: whole records instead of one row each" },
     ],
-    examples: ["strom task list", "strom task list --state waiting", "strom task list --book B0001"],
+    examples: ["strom task list", "strom task list --state waiting", "strom task list --kind verify", "strom task list --book B0001"],
     run(ctx, input) {
       const tree = ctx.tree();
       if (input.opts.all && input.opts.state !== undefined && input.opts.state !== "all")
@@ -818,6 +841,8 @@ register(
       // --all: what --state all lists
       const opts = input.opts.all ? { ...input.opts, state: "all" } : input.opts;
       const research = typeof opts.research === "string" ? resolveResearch(tree, opts.research).id : undefined;
+      const kind = opts.kind === undefined ? undefined : parseTaskKind(String(opts.kind));
+      if (opts.kind !== undefined && !kind) throw new UsageError(`no kind of work ${String(opts.kind)}: ${TASK_KINDS.join(", ")}`, { code: "task.kind", hint: "strom task list --kind verify" });
       let all: Task[];
       const why = new Map<string, string>();
       const ranks = new Map<string, Ranked>();
@@ -855,10 +880,20 @@ register(
         const id = subjects(tree, [String(opts.about)])[0]!;
         all = all.filter((t) => t.subject.includes(id));
       }
+      // census records off (spec 106): their tasks held out of the queue — listed with --kind census or a state, marked
+      const censusNow = ctx.settings.census(tree.config);
+      const censusHeldNow = censusNow ? [] : tree.list<Task>("task").filter((t) => censusHeld(t, false) && (!opts.level || t.level === opts.level) && (!research || t.research === research));
+      if (!opts.state && !opts["off-tree"] && !book && kind === "census") all = [...all, ...censusHeldNow.filter((t) => !all.includes(t))];
+      if (kind) all = all.filter((t) => taskKind(t) === kind);
+      const censusMark = (t: Task) => !censusNow && censusHeld(t, false);
+      const row = (t: Task) => {
+        const r = taskLine(t);
+        return censusMark(t) ? [...r.slice(0, -1), `${r[r.length - 1]} · held: census off`] : r;
+      };
       // a page at most LIST_PAGE_MAX rows, whatever --limit says: under ~20 kB
       const page = paginate(all, Math.min(ctx.limit, LIST_PAGE_MAX), ctx.page);
       // the queue says what waits out of it for a link to the tree
-      const held = !opts.state && !opts["off-tree"] && !opts.about && !book ? tree.list<Task>("task").filter((t) => t.state === "open" && off(t)).length : 0;
+      const held = !opts.state && !opts["off-tree"] && !opts.about && !book && !kind ? tree.list<Task>("task").filter((t) => t.state === "open" && off(t)).length : 0;
       if (book)
         return {
           text: lines(
@@ -873,8 +908,11 @@ register(
         };
       return {
         text: lines(
-          all.length ? lines(table(page.items.map(taskLine)), moreLine(page, "strom task list")) : ui(tree.lang, "ui.task.none"),
+          all.length ? lines(table(page.items.map(row)), moreLine(page, "strom task list")) : ui(tree.lang, "ui.task.none"),
           held ? `${held} more wait out of the queue: about people nothing links to the tree yet (strom task list --off-tree)` : undefined,
+          !opts.state && !opts["off-tree"] && !opts.about && !book && kind !== "census" && censusHeldNow.length
+            ? `${censusHeldNow.length} census task${censusHeldNow.length === 1 ? "" : "s"} held: census records are off for this research — back by themselves once the person turns them on (strom task list --kind census)`
+            : undefined,
           !opts.state && !opts["off-tree"] && !opts.about ? decisionLines(tree, (t) => (!opts.level || t.level === opts.level) && (!research || t.research === research)) : undefined,
           !opts.state && !opts["off-tree"] && !opts.about && !research ? neverLine(tree, ctx.settings.offLine(tree.config)) : undefined,
           !opts.state && !opts["off-tree"] && !opts.about ? asleepLines(tree, (t) => (!opts.level || t.level === opts.level) && (!research || t.research === research)) : undefined,
@@ -886,7 +924,9 @@ register(
             ...(why.has(t.id) ? { why: why.get(t.id) } : {}),
             ...(ranks.get(t.id) ? rankData(ranks.get(t.id)!) : {}),
             ...waitState(tree, t),
+            ...(censusMark(t) ? { held: "census off" } : {}),
           })),
+          ...(censusHeldNow.length ? { censusHeld: censusHeldNow.length } : {}),
         },
       };
     },
@@ -1050,22 +1090,40 @@ register(
   {
     path: ["task", "start"],
     summary: "Mark a task as being worked on",
+    description:
+      "A task another open session holds (another agent, a run) is refused with task.held: who holds it, since when,\n" +
+      "its last sign of life and free by when at the latest — take another: strom task next.",
     group: "tasks",
     tree: true,
     writes: true,
     args: [{ name: "task", description: "task ID", required: true }],
     run(ctx, { args }) {
       const tree = ctx.tree();
-      const taken = othersAtWork(tree, ctx.env).sessions.find((x) => x.task === normId(args[0]!, "task"));
-      if (taken)
-        throw new UsageError(`${taken.task} is being worked on in session ${taken.id}${taken.agent ? ` (${taken.agent})` : ""}`, { hint: "take another task: strom task next", code: "task.held" });
-      const t = stateChange(tree, args[0]!, "doing", {}, undefined, "start");
-      return { text: lines(written(tree), `details: strom task show ${t.id}`), data: { task: t } };
+      const id = normId(args[0]!, "task");
+      // one with a session of its own: the task marked in it (another's open session holding it refused, K1.5)
+      if (currentSession(tree, ctx.env, ctx.refs)) {
+        assertNotHeld(tree, ctx.env, id);
+        const t = stateChange(tree, args[0]!, "doing", {}, undefined, "start");
+        return { text: lines(written(tree), `details: strom task show ${t.id}`), data: { task: t } };
+      }
+      // none: a session opens on it, so every task being worked on has its holder (spec 127) — the sessions of others
+      // that gave no sign of life taken over first
+      const asked = requireRecord<Task>(tree, id, "task");
+      if (!["open", "doing", "parked", "waiting"].includes(asked.state)) throw new UsageError(`${asked.id} is ${asked.state}`, { hint: "take another task: strom task next" });
+      const claimed = claimTask(tree, { task: asked, next: (busy) => taskQueue(tree, { strategy: ctx.settings.strategy(tree.config) }).find((t) => !busy.has(t.id)) })!;
+      const t = claimed.task ?? asked;
+      return {
+        text: lines(written(tree), ...claimed.tookOver.map((x) => tookOverLine(x)), `session ${claimed.session.id} started on ${t.id}; its brief: strom brief`, `details: strom task show ${t.id}`),
+        data: { task: t, session: claimed.session.id, ...(claimed.tookOver.length ? { tookOver: claimed.tookOver } : {}) },
+      };
     },
   },
   {
     path: ["task", "done"],
     summary: "Close a task with its result (also a negative one)",
+    description:
+      "Only in the session that holds the task: one another open session holds is refused with task.held (who, since\n" +
+      "when, free by when at the latest).",
     group: "tasks",
     tree: true,
     writes: true,
@@ -1078,7 +1136,9 @@ register(
       const tree = ctx.tree();
       if (!opts.result) throw new UsageError("--result is required", { hint: "say what was found — or where it was searched without success" });
       const { task, said } = finishTask(tree, args[0]!, String(opts.result), csvOpt(opts.produced));
-      return { text: lines(written(tree), ...said), data: { task } };
+      // the years its people's estimated dates ask for, not all searched (spec 131): said once a session and book, never refused
+      const coverage = closeCoverage(tree, task.id, currentSession(tree, ctx.env, ctx.refs)?.id, ctx.settings.ageMargin(tree.config));
+      return { text: lines(written(tree), ...said, ...coverage.map(coverageLine)), data: { task, ...(coverage.length ? { coverage } : {}) } };
     },
   },
   {
@@ -1234,7 +1294,7 @@ register(
     options: [
       // the sheet of a brief shows the placeholder: how to write it, where the agent writes it (a live run: "Otevřete …")
       { name: "on", type: "string", value: "<for the user: impersonal, research language>", description: "what it waits for, for the user: which book, its link, which images" },
-      { name: "images", type: "string", value: "<B…:n-m>", description: "the images the user saves by hand, numbered as the portal's viewer counts them (B0001:40-69, B0001:9,12)" },
+      { name: "images", type: "string", value: "<B…:n-m>", multiple: true, description: "the images of one book the user saves by hand, numbered as the portal's viewer counts them (B0001:40-69, B0001:9,12); again, more of the same book — another book's images: a task of its own (one book per task)" },
       { name: "check", type: "string", value: "<URL>", description: "a site for the user to check (one strom may not read): only after another way was tried and the blocked way recorded (strom search add)" },
       // --images and --check say the kind themselves: --kind is for a wait of neither
       ...WAIT_OPTIONS.map((o) => (o.name === "kind" ? { ...o, description: `${o.description} — not with --images or --check: they say the kind themselves` } : o)),
@@ -1256,11 +1316,29 @@ register(
       const wait = waitOptions(tree, normId(args[0]!, "task"), opts, { images: opts.images !== undefined, check: opts.check !== undefined });
       if (opts.check !== undefined) awaitsCheck = { url: checkUrl(ctx, tree, normId(args[0]!, "task"), String(opts.check)), ask: on };
       if (opts.images !== undefined) {
-        const m = /^\s*([Bb]\d+)\s*:\s*(.+)$/.exec(String(opts.images));
-        const nums = m ? parseImageList(m[2]!) : undefined;
-        if (!m || !nums) throw new UsageError(`--images: a record set and its image numbers, e.g. B0001:40-45 or B0001:9,12 — not "${opts.images}"`);
-        b = requireRecord<RecordSet>(tree, m[1]!, "recordset");
-        awaits = { recordset: b.id, images: runs(nums), folder: inboxFolderFor(b) };
+        // --images again, or a comma before another ID ("B0001:50-52,B0002:3"): the same book's images joined, as a comma
+        // joins them in one (B0001:9,12); images of another book refused — one book per task, never the last one taken
+        const given = (Array.isArray(opts.images) ? opts.images : [opts.images]).map(String);
+        const books = new Map<string, { b: RecordSet; nums: Set<number> }>();
+        for (const one of given.flatMap((v) => v.split(/,\s*(?=[Bb]\d+\s*:)/u))) {
+          const m = /^\s*([Bb]\d+)\s*:\s*(.+)$/u.exec(one);
+          const nums = m ? parseImageList(m[2]!) : undefined;
+          if (!m || !nums) throw new UsageError(`--images: a record set and its image numbers, e.g. B0001:40-45 or B0001:9,12 — not "${one}"`);
+          const rb = requireRecord<RecordSet>(tree, m[1]!, "recordset");
+          const key = liveBook(tree, rb.id)?.id ?? rb.id;
+          const had = books.get(key);
+          if (had) for (const n of nums) had.nums.add(n);
+          else books.set(key, { b: rb, nums: new Set(nums) });
+        }
+        if (books.size > 1) {
+          const ids = [...books.keys()];
+          throw new UsageError(`--images: images of ${ids.join(", ")} — one book per task`, {
+            hint: `--images ${ids[0]}:<numbers> here; each other book a task of its own: strom task add "<what>" --where ${ids[1]} … --anyway, then strom task wait <its T…> --images ${ids[1]}:<numbers> --on "…"`,
+          });
+        }
+        const [one] = books.values();
+        b = one!.b;
+        awaits = { recordset: b.id, images: runs([...one!.nums].sort((x, y) => x - y)), folder: inboxFolderFor(b) };
       }
       if (b && wait?.book) {
         // --images names its book itself: the same one only repeats it

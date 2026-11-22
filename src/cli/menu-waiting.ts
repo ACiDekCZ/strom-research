@@ -15,25 +15,25 @@
 // The answer is kept with the task, nothing more: the agent takes it up in its next work (strom task wake --answer).
 // An archive: only what an archive has — no agent, no conversation.
 
-import { inboxState, inboxWaitOf, type InboxState } from "../core/inboxwait.ts";
+import { inboxState, inboxWaitOf, type AsideFile, type InboxState } from "../core/inboxwait.ts";
 import fs from "node:fs";
 import path from "node:path";
 import type { Context } from "./context.ts";
 import { agentReady, claudeHere, guarded, outOfAnswers, pause, translator, type Run } from "./menu-parts.ts";
 import { decideSent, startDirection } from "./menu-research.ts";
-import { decideArchive, decideMilder, decideTakeover } from "./menu-archives.ts";
+import { decideArchive, decideFloor, decideMilder, decideTakeover } from "./menu-archives.ts";
 import { askWhy, changeWarning, decisionOnTree, pickClaim, waitingDo } from "./menu-links.ts";
 import { runs, truncate } from "./format.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { Tree } from "../core/tree.ts";
-import type { Conflict, Family, Hypothesis, HypothesisVariant, Person, RecordSet, Research, Source, Task } from "../core/model.ts";
+import type { Conflict, Family, Hypothesis, HypothesisVariant, Media, Person, RecordSet, Research, Source, Task } from "../core/model.ts";
 import { transcriptMark, userReading } from "../core/readers.ts";
 import { phrase, type PhraseKey } from "../core/phrases.ts";
 import { agentDecided } from "../core/hypolinks.ts";
 import { normId } from "../core/records.ts";
 import { actsAsArchive } from "../core/state.ts";
 import { branchOf } from "../core/offline.ts";
-import { eventName, humanDay, humanTask } from "./human.ts";
+import { eventName, humanClaim, humanDay, humanTask } from "./human.ts";
 import { provenReviewSince, provenToReview } from "../core/provenfix.ts";
 import { conflictTitle, displayName, lifespan } from "../core/people.ts";
 import { claimOf, isEditConflict, sideText } from "../core/conflicts.ts";
@@ -62,7 +62,7 @@ const NO_REPLY_DAYS = 30;
 /** The sections, in the order of the app's chips. */
 const SECTIONS: readonly WaitSection[] = ["decide", "images", "letter", "family", "web", "other"];
 /** The kinds a word is said for (anything else: "other"). */
-const KINDS = ["images", "letter", "family", "web", "check", "permission", "takeover", "milder", "story", "send", "tune", "conflict", "hypothesis", "place", "branch", "proven", "transcript", "other"] as const;
+const KINDS = ["images", "letter", "family", "web", "check", "permission", "takeover", "milder", "story", "send", "tune", "aside", "conflict", "hypothesis", "place", "branch", "proven", "transcript", "other"] as const;
 
 type T = ReturnType<typeof translator>;
 
@@ -81,6 +81,8 @@ export function waitingHere(ctx: Context, tree: Tree): Waiting[] {
     hypothesesOpen: ctx.settings.hypothesesDecide(tree.config) === "person",
     // the questions about the reading of scans: an archive asks none
     ...(isArchive(tree) ? {} : { tune: ctx.settings }),
+    // the files of the inbox set aside: which one is the image
+    aside: true,
   });
 }
 
@@ -144,9 +146,9 @@ function sentWords(t: T, lang: string, iso: string): string {
   return `${t("ui.wait.sentline", { day: humanDay(iso, lang), ago: ago(t, iso) })}${daysSince(iso) > NO_REPLY_DAYS ? ` · ${t("ui.wait.noreply", { days: NO_REPLY_DAYS })}` : ""}`;
 }
 
-/** What a thing is, short: a task's words as written, its records named (a person's ID after their name only bracketed). */
+/** What a thing is, short: a task's words as written, its records named (a person's ID after their name only bracketed); a hypothesis's question its people named. */
 function short(tree: Tree, lang: string, w: Waiting): string {
-  return w.task ? humanTask(tree, w.item.what, lang, { asWritten: true }) : w.item.what;
+  return w.task ? humanTask(tree, w.item.what, lang, { asWritten: true }) : w.hypothesis ? humanClaim(tree, w.item.what) : w.item.what;
 }
 
 const sentAtOf = (w: Waiting) => String(w.item.sentAt ?? w.item.at);
@@ -549,10 +551,13 @@ async function decide(ctx: Context, run: Run, lang: string, root: string, w: Wai
   if (w.proven) return decideProven(ctx, run, lang, root);
   if (w.send) return void (await decideSent(ctx, run, lang, root, w.send));
   if (w.tune) return decideTune(ctx, run, lang, w.tune);
+  if (w.aside) return decideAside(ctx, run, lang, root, w.aside);
   if (w.task?.proposal) return void (await decideTranscript(ctx, run, lang, root, w.task.id));
   const tree = Tree.open(root, ctx.env);
   if (w.story) return void (await decideStory(ctx, run, lang, root, w.story, storyOf(tree, w.story)));
   const q = w.question;
+  // a level strom keeps stricter than strom's list of the archive's terms (computed, no question kept): kept or as the terms
+  if (!q && w.item.kind === "permission" && w.item.id.startsWith("floor:") && typeof w.item.host === "string") return void (await decideFloor(ctx, run, lang, root, w.item.host));
   if (q?.kind === "permission" && q.host) return void (await decideArchive(ctx, run, lang, root, q.host, q, q.archiveHosts));
   if (q?.kind === "takeover") return decideTakeover(ctx, run, lang, q);
   if (q?.kind === "milder" && q.connector) {
@@ -633,9 +638,9 @@ export async function decideHypothesis(ctx: Context, run: Run, lang: string, roo
     [
       "",
       ` ${h.id} · ${kindWord(t, "hypothesis")}${since ? ` · ${t("ui.wait.since", { day: humanDay(since, lang) })}` : ""}`,
-      ` ${h.question}`,
+      ` ${humanClaim(tree, h.question)}`,
       ...now,
-      ...h.variants.map((v) => `    ${v.label}) ${v.claim}`),
+      ...h.variants.map((v) => `    ${v.label}) ${humanClaim(tree, v.claim)}`),
       ...(proposed ? ["", `    ${proposed}`, ...(p!.reason ? [`    ${t("ui.wait.hypothesis.again", { reason: p!.reason })}`] : [])] : []),
     ].join("\n"),
   );
@@ -649,7 +654,7 @@ export async function decideHypothesis(ctx: Context, run: Run, lang: string, roo
   };
   // another variant, or none holds — and why: the decision's words; a decided one decided again: the reason too
   const otherwise = async (): Promise<{ argv: string[]; abandon: boolean } | undefined> => {
-    const v = await ctx.choose(t("ui.wait.hypothesis.pick"), [...h.variants.map((x) => ({ label: `${x.label}) ${truncate(x.claim, 70)}` })), { label: t("ui.wait.hypothesis.none") }], h.variants.length + 1, { back: t("ui.browse.back") });
+    const v = await ctx.choose(t("ui.wait.hypothesis.pick"), [...h.variants.map((x) => ({ label: `${x.label}) ${truncate(humanClaim(tree, x.claim), 70)}` })), { label: t("ui.wait.hypothesis.none") }], h.variants.length + 1, { back: t("ui.browse.back") });
     if (v === undefined) return undefined;
     if (v < h.variants.length && !(await goesOn(h.variants[v]!))) return undefined;
     const why = await askWhy(ctx, lang);
@@ -1087,4 +1092,43 @@ async function decideTune(ctx: Context, run: Run, lang: string, q: Question): Pr
   const choice = q.choices[pick]!.id;
   if ((await run(["media", "calibrate", "--answer", `${q.id}=${choice}`])) !== 0) return;
   if (q.kind === "views.smaller" && choice === "calibrate") await run(["media", "calibrate"]);
+}
+
+/**
+ * A file of a book's folder of the inbox set aside (B0408, B0374): the two shown to compare, then which one is the
+ * image — the one registered kept (the file into the system's trash), the file taken as the image of its number (the one
+ * there withdrawn, kept), or as another image of the book (its number typed). The same file as another image: which of
+ * the two numbers is right is the research's to sort out; the file may go.
+ */
+async function decideAside(ctx: Context, run: Run, lang: string, root: string, a: AsideFile): Promise<void> {
+  const t = translator(lang);
+  const out = (s: string) => ctx.io.stdout(`${s}\n`);
+  const tree = Tree.open(root, ctx.env);
+  const shared = ctx.settings.shared()?.value;
+  const m = tree.get<Media>(a.media);
+  const image = a.image ?? "?";
+  out(["", ` ${t(a.kind === "same" ? "ui.waiting.aside.same" : "ui.waiting.aside.other", { file: a.name, book: a.recordset, image, media: a.media })}`, `    ${a.path}`].join("\n"));
+  const compare = () => {
+    openForUser(a.path, ctx.env);
+    if (m && shared) openForUser(path.join(shared, m.file), ctx.env);
+  };
+  const choices: { label: string; act: () => Promise<unknown> | unknown }[] = [{ label: t("ui.aside.compare"), act: compare }];
+  if (a.kind === "other") {
+    choices.push({ label: t("ui.aside.keep", { image }), act: () => run(["media", "aside", a.file, "--discard"]) });
+    if (a.image !== undefined) choices.push({ label: t("ui.aside.take", { image }), act: () => run(["media", "aside", a.file, "--take"]) });
+    choices.push({
+      label: t("ui.aside.number"),
+      act: async () => {
+        const n = (await ctx.ask(t("ui.aside.number.ask"))).trim();
+        if (!/^\p{Nd}+$/u.test(n)) return;
+        return run(["media", "aside", a.file, `--image=${Number(n)}`]);
+      },
+    });
+  } else choices.push({ label: t("ui.aside.discard"), act: () => run(["media", "aside", a.file, "--discard"]) });
+  for (;;) {
+    const i = await ctx.choose("", choices, choices.length, { back: t("ui.browse.back") });
+    if (i === undefined) return;
+    await choices[i]!.act();
+    if (i > 0 || !fs.existsSync(a.path)) return;
+  }
 }

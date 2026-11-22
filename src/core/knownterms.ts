@@ -77,8 +77,49 @@ export interface KnownTerms {
    * taken. A file the person named by the number its viewer counts (57.jpg) is that image.
    */
   imageFileTimes?: number;
+  /**
+   * The archive lets the agent's browser save a range of a book's images in one call, paging through its viewer in the
+   * tab (strom media save --images; spec 132) — besides the person's permission "through the browser" only with the
+   * person's own consent for a range, given for this archive alone (strom allow archive <host> --range). `max`: at most
+   * this many images a call, never above RANGE_MAX. None: one image at a time. No archive of strom's list has it yet:
+   * opening it for one is a decision of its own.
+   */
+  browserRange?: { max?: number };
+  /**
+   * The census records the host holds (spec 106): the years online, the area, a name index, how a household is found
+   * there, the way for strom — never milder than the entry's level (test/unit/known-terms.test.ts keeps it so) —, what
+   * its terms or pages say of them (word for word), the day the census part was read. For the agent's brief of a census
+   * task (core/census.ts censusHoldings); nothing of the level comes from it.
+   */
+  census?: KnownCensus;
   /** A test's own (STROM_ARCHIVES_FILE), not strom's. */
   extra?: boolean;
+}
+
+/**
+ * The way for strom to census records at a host, mildest first: agent — the agent itself; slow — one record at a time;
+ * by-hand — the person saves the sheet (mostly a screenshot); link — only a link and a task for the person.
+ */
+export const CENSUS_WAYS = ["agent", "slow", "by-hand", "link"] as const;
+export type CensusWay = (typeof CENSUS_WAYS)[number];
+
+export interface KnownCensus {
+  years?: number[];
+  area?: string;
+  nameIndex?: boolean;
+  /** How a household is found there: place, street, house, name. */
+  search?: string[];
+  how: CensusWay;
+  says?: string;
+  checked?: string;
+}
+
+/** The mildest way to census records an entry's level allows (core/census.ts and the list's test). */
+export function censusWayFloor(k: Pick<KnownTerms, "level" | "browserOnly">): CensusWay {
+  if (k.level === "forbidden") return "link";
+  if (k.level === "manual" || k.browserOnly) return "by-hand";
+  if (k.level === "allowed") return "agent";
+  return "slow";
 }
 
 /** What a person may download of a book by hand, as an archive's terms say (KnownTerms.wholeBook). */
@@ -153,6 +194,9 @@ export function imageFileTimesOf(host: string): number | undefined {
     .sort((a, b) => b.host.split(".").length - a.host.split(".").length)[0];
   return hit?.imageFileTimes;
 }
+
+/** The most images one call of strom media save --images saves (spec 132): the rest by the same command again. */
+export const RANGE_MAX = 20;
 
 /** The slowest pause strom's list asks of a host (its Crawl-delay; 0: none) — a floor, slower only. */
 export function knownPaceMs(host: string): number {

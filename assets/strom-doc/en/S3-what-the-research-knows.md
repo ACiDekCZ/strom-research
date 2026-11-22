@@ -75,8 +75,13 @@ the person**. It carries open conflicts as a number, e.g. "2 conflicts".
 - **Controls:** app: person menu → **Research → What the research knows**.
 - **Since:** app 3.4.0
 - **From app 3.22.0:** at the top of the submenu **Research** are the directions the person is in.
+- **From app 3.31.0:** **What the research knows** is in the submenu **Research** with the number whenever the
+  research knows something about the person, even when the block of signals above the menu (conflicts, a question)
+  leads to the same dialog. Until now it was missing there in such a case. When **What the research knows** would be
+  the only item of **Research** (without a submenu, for example on a phone), it is not repeated right next to the
+  signal.
 
-<!-- zdroj: app:src/ui/person-research-ui.ts:140-150 personResearchKnows, markResearchConflicts · src/ui/context-menu.ts personSection · src/ui/card-signals-ui.ts · src/card-signals.ts:171-194 · src/ui/view-links-ui.ts:326 · src/renderer.ts:5479 · src/ui/research-edge-ui.ts:205, :364 · src/ui/conflict-panel-ui.ts:274 · src/ui/research-ui.ts:2119 researchLinkAvailable · HEAD context-menu.ts personInLineItems (spec 038 §5.1) -->
+<!-- zdroj: app:src/ui/person-research-ui.ts:140-150 personResearchKnows, markResearchConflicts · src/ui/context-menu.ts personSection · src/ui/card-signals-ui.ts · src/card-signals.ts:171-194 · src/ui/view-links-ui.ts:326 · src/renderer.ts:5479 · src/ui/research-edge-ui.ts:205, :364 · src/ui/conflict-panel-ui.ts:274 · src/ui/research-ui.ts:2119 researchLinkAvailable · HEAD context-menu.ts personInLineItems (spec 038 §5.1) · 3.31.0: app 04185a08 src/ui/context-menu.ts personResearchKnows vždy, researchRowsBesideSignals (jediná položka vedle signálu se neopakuje) · SPEC.md 1120-app-117-smazani (Přibaleno) -->
 
 <a id="S3.3"></a>
 ## S3.3 Above the person shows where the tree ends and what comes next
@@ -150,6 +155,32 @@ Deciding by a side from the app is described in [R5.6.1](R5-conflicts.md#R5.6.1)
   this is decided in the research.").
 
 <!-- zdroj: app:src/ui/person-research-ui.ts showPersonResearchDialog (Rozpory), activeResearchNoAgent · research:src/gedcom/export.ts:760-805 · HEAD person-research-ui.ts conflictFromEdit, strings.ts conflict.editOnly · HEAD research-decide.ts conflictFromEdit -->
+
+<a id="S3.4.1"></a>
+### S3.4.1 Source retracted – to review
+
+A conflict that rested on a source deleted in the research ([R3.10](R3-verification-and-citation.md#R3.10)) has the
+tag **to review** next to its status. In the column **Source** the value has "source retracted". An open conflict
+carries the sentence "The source of one of the values was retracted; the conflict awaits review."
+
+- A decided conflict with the mark is shown as a card, not as the row "decided: …", with the sentence "The decision
+  also rested on the retracted source; it awaits review." and two choices:
+  - **Decision stands:** takes the mark off through the bridge (as `strom conflict keep`); the decision stays as it
+    is;
+  - **Decide again in the research:** opens the decision in the research as **Decide in the research**
+    ([R5.6](R5-conflicts.md#R5.6)); a new decision takes the mark off too.
+- The mark is visible in **What the research knows**, on the conflict card with the sides, in the panel at a field
+  when editing a person and in the Table's bubble. The conflict does not close by itself.
+- **Limits:**
+  - **Decision stands** is only with a research that can delete sources and with the bridge running. With a
+    read-only research it says "The research is read-only; the decision cannot be confirmed here.";
+  - **Decide again in the research** only where the research can be opened ([S3.2](#S3.2)), and only at a person
+    from the research.
+- **Controls:** app: **What the research knows** → **Conflicts** → **Decision stands** / **Decide again in the
+  research**; terminal: `strom conflict keep X…`.
+- **Since:** app 3.31.0 with research 1.36.0
+
+<!-- zdroj: app:801189d6 src/ui/person-research-ui.ts conflictUnderReview, reviewTagHtml, researchConflictReviewCardHtml (keepOn = conflictKeepOffered, canDecide = researchLinkAvailable + personResearchRef), keepResearchConflict · src/source-retract.ts conflictKeepOffered, keepConflict (/conflict/keep) · src/ui/conflict-decide-ui.ts, conflict-panel-ui.ts, table-view/table-research-bubble.ts · strings.ts research.review.* · research:e6bbfb40 src/commands/analysis.ts conflict keep · spec 117 §8 -->
 
 <a id="S3.5"></a>
 ## S3.5 Hypotheses

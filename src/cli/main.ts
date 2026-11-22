@@ -2,6 +2,7 @@
 // and commit what a writing command changed. Returns the exit code.
 
 import { queueVerify, settleVerify } from "../core/verify.ts";
+import { settleNameStatus } from "../core/namestatusfix.ts";
 import fs from "node:fs";
 import { takeOverConnectors } from "../core/terms.ts";
 import { agentInAncestry, ancestryUnread, notePersonFolder } from "../core/trust.ts";
@@ -12,11 +13,11 @@ import { Cancelled, diskFull, DISK_FULL, EXIT, folderOf, isDiskFull, notFound, S
 import { ownCommand, type Env } from "../core/paths.ts";
 import { Context, type IO } from "./context.ts";
 import { commands, match, type CommandDef, type Result } from "./registry.ts";
-import { asCommand, asCommandJson, shellArg } from "./format.ts";
+import { asCommand, asCommandJson, counted, shellArg } from "./format.ts";
 import { groupHelpAs, helpAs } from "./help.ts";
 import { autoCommit } from "./commit.ts";
 import { takeOverOldSettings } from "../core/oldsettings.ts";
-import { assertIntact } from "../core/integrity.ts";
+import { assertIntact, settleNotesBack } from "../core/integrity.ts";
 import { head as gitHead, resetCache } from "../core/git.ts";
 import type { HeldError } from "../core/json.ts";
 import { newerTree, Tree, VERSION } from "../core/tree.ts";
@@ -24,7 +25,7 @@ import { settleArchive } from "../core/mode.ts";
 import { settleWaiting } from "../core/state.ts";
 import { startTiming, stepEnd, stepStart, stopTiming, timed, timingOn } from "../core/timing.ts";
 import { timingSaid } from "./timing.ts";
-import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "../core/hypolinks.ts";
+import { quiet as nobodyAtWork, raiseHypothesisLinkTasks, settleHypothesisLinks } from "../core/hypolinks.ts";
 import { settleReaders } from "../core/readerfix.ts";
 import { settleProven } from "../core/provenfix.ts";
 import { settleHeldProposals, settleOrigins } from "../core/originfix.ts";
@@ -46,7 +47,7 @@ import { otherVersionsAtWork } from "../core/workers.ts";
 import { refreshGlobal } from "../agents/global.ts";
 import { expandFromLine, refreshLinks } from "../core/links.ts";
 import { clockLine, FINISH_LINE, finishLimitLine, finishOf, timeLine } from "../core/clock.ts";
-import { currentSession } from "../core/session.ts";
+import { currentSession, fence } from "../core/session.ts";
 import { backgroundOf } from "../core/fetching.ts";
 import { markWidget } from "../core/widget.ts";
 import { callMistake, checkArgs, GroupOnly, parseOptions, resolveCommand, firstWord, severalRecords, splitPassthrough, usageOf } from "./execute.ts";
@@ -275,6 +276,8 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     typed = resolved.rest;
     const { rest, passthrough } = def.passthrough ? splitPassthrough(resolved.rest) : { rest: resolved.rest, passthrough: [] };
     const parsed = parseOptions(def, rest, own);
+    // an option typed by another name that means exactly it: taken, said in a line (never in --json's answer)
+    if (parsed.readAs?.length) io.stderr(`${parsed.readAs.join(" ")}\n`);
     const v = parsed.values;
     // what writes the tree: a command that writes only with some of its options reads as any read without them
     const writes = !!def.writes && (!def.writesWith || def.writesWith({ args: parsed.positionals, opts: v }));
@@ -432,6 +435,13 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
         // another version still works there (a run, a conversation started before the update): nothing of this one's
         // written under it — its bridge renews itself once that work ends and settles the rest (spec 037)
         if (otherVersionsAtWork(k.root, VERSION).length > 0) continue;
+        // …and the notes of the material a send of the app took off with no reason (1.35.0) given back, what waited with
+        // them committed (first: nothing else is written unasked while the check of a write refuses it)
+        try {
+          settleNotesBack(Tree.open(k.root, env), nobodyAtWork);
+        } catch {
+          // another computer's seal, a tree at work: its bridge's start or the next write gives them back
+        }
         try {
           settleArchive(Tree.open(k.root, env));
           settleWaiting(Tree.open(k.root, env));
@@ -473,6 +483,12 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
           settleVerify(Tree.open(k.root, env));
         } catch {
           // another computer's seal, a tree at work: its bridge's start queues them
+        }
+        // …and how sure a name is: the names a record of the research's names made probable once (spec 066 P5)
+        try {
+          settleNameStatus(Tree.open(k.root, env));
+        } catch {
+          // another computer's seal, a tree at work: its bridge's start sets them
         }
         // …and an agent's proposals whose value proposed holds now: closed by themselves (no value written)
         try {
@@ -537,6 +553,9 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
       // Never write on top of data that was changed outside strom.
       // (a command that locks only while it writes looks under the lock too: another strom may be in the middle of a write)
       if (writes && def.tree) def.lock === "sections" ? ctx.tree().withTreeLock(() => assertIntact(ctx.tree())) : assertIntact(ctx.tree());
+      // a task another's session holds, or a session taken over from the one writing (spec 127): refused before the command,
+      // a dry run too (fencing only reads) — it says what the real one would, never "done" where that is refused
+      if (writes && def.tree && env.STROM_FOR_APP !== "1") fence(ctx.tree(), env, def.path, parsed.positionals);
       let result: Result;
       let blocked: ReturnType<typeof autoCommit>;
       // a write of the Strom app's (through the bridge, which holds the tree from its first read to its commit): the
@@ -578,9 +597,20 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
         if (result.data && typeof result.data === "object" && !Array.isArray(result.data)) result.data = { ...(result.data as object), notices: [...notices] };
       }
       if (blocked) {
+        // a write of the Strom app's (the bridge): a transaction as any failure — nothing of it left in data/ for every
+        // write after it to stumble over (found: one send of the app left behind, the research stuck for all), the app
+        // told why; an agent's stays for it to look at (strom check)
+        const undone = writes && def.tree && !ctx.dryRun && env.STROM_FOR_APP === "1";
+        if (undone) {
+          const t = ctx.current();
+          if (t) t.withTreeLock(() => t.rollback());
+        }
+        const first = blocked.problems[0];
+        const why = first ? `${first.id ?? first.file ?? ""} ${first.message}`.trim() : "";
+        const message = `${undone ? "nothing written" : "written but NOT committed"} — the check of the research found ${counted(blocked.problems.length, "problem")}${why ? `: ${why}` : ""}`;
         // The agent must notice: an uncommitted write is not part of the research yet.
-        result.text = result.text ? `${result.text}\n${blocked.message}` : blocked.message;
-        result.data = { ...((result.data as object | undefined) ?? {}), status: "not-committed", problems: blocked.problems, hint: "strom check" };
+        result.text = undone ? message : result.text ? `${result.text}\n${blocked.message}` : blocked.message;
+        result.data = { ...(undone ? {} : ((result.data as object | undefined) ?? {})), status: undone ? "not-written" : "not-committed", code: "commit.blocked", message, problems: blocked.problems, hint: "strom check" };
         result.exitCode = EXIT.error;
       }
       return result;

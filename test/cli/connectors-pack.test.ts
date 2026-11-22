@@ -33,7 +33,7 @@ test("pack and unpack: the research handed over — the tree with its history, t
   // the sizes as the research's language writes them, never "0.0 MB"
   assert.match(r.out, /Zabaleno „Novákovi“: .*balík\.zip \(\d+(?:,\d)? (?:kB|MB)\)/);
   assert.match(r.out, /skeny z archivů: 1 \(\d+ kB\)/);
-  assert.match(r.out, /vynechané: 2 snímky \(\d+ kB\)/);
+  assert.match(r.out, /vynechané: 2 skeny z archivů \(\d+ kB\)/);
   assert.doesNotMatch(r.out, /\d\.\d MB/);
   assert.match(r.out, /konektory: zkusebni/);
   const names = readZip(zip).map((e) => e.name);

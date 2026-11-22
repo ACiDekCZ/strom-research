@@ -411,6 +411,51 @@ spiegelt das Entfernen ([S2.4](#S2.4)).
 
 <!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 „What the app no longer has is only reported“, gone :2355 · app:src/ui/research-removed-ui.ts :1-14 · strings.ts sync.notWrittenReport, conflict.person.* · CHANGELOG.cs.md 3.16.0 -->
 
+<a id="S2.6.1"></a>
+### S2.6.1 In der App gelöschte Quelle
+
+Eine Quelle, die ein Mensch in der App bei einem Stammbaum aus der Forschung löscht, den die App bearbeitet (nicht
+verfolgt), zieht die Forschung mit dem nächsten Schreiben der Änderungen zurück
+([R3.10](R3-verification-and-citation.md#R3.10)): die Zitate werden in der Quelle aufbewahrt, und `strom source
+restore` holt sie zurück. Ein verfolgter Stammbaum löscht die Quelle direkt in der Forschung
+([A3.1.2](A3-evidence-in-the-app.md#A3.1.2)).
+
+- **Was die App beim Löschen zeigt:**
+  - eine Forschung, die das Löschen von Quellen kann, mit laufender Brücke: den Dialog **Quelle löschen?** mit einer
+    Vorschau aus der Forschung wie bei einem verfolgten Stammbaum. Die Quelle wird nur in der App gelöscht und lässt
+    sich mit **Rückgängig** zurückholen;
+  - eine Forschung, die es kann, ohne Brücke: die bisherige Bestätigung und den Satz „Die Forschung zieht die Quelle
+    beim nächsten Schreiben der Änderungen zurück.“;
+  - eine Forschung, die es nicht kann: die bisherige Bestätigung und den Satz „Die Forschung behält die Quelle; beim
+    nächsten Laden kehrt sie zurück.“;
+  - kennt die App die Forschung nicht, die bisherige Bestätigung.
+- Die Datei für die Forschung nennt die gelöschten Quellen: nur Quellen der Forschung, die in der Datei fehlen,
+  höchstens 50. Eine mit **Rückgängig** zurückgeholte Quelle wird nicht genannt.
+- **Prüft der Code:** die Forschung zieht die Quelle nur zurück, wenn:
+  - das Schreiben ein Mensch gestartet hat, kein Agent;
+  - die Datei der ganze Stammbaum ist, den die Forschung der App gab, und den Forschungsstand trägt, aus dem sie
+    entstand;
+  - niemand die Quelle in der Datei zitiert;
+  - die Forschung die Quelle hat und sie noch nicht zurückgezogen hat.
+
+  Sonst löscht sie nichts. Eine gelöschte Quelle kehrt mit einer späteren Datei aus der App oder einem Import nicht
+  mehr zurück.
+- **Änderungen** und **Was geschrieben wurde:**
+  - die Zeile **Gelöschte Quelle**; wartet das Senden in der Forschung auf Bestätigung, mit dem Vermerk „wartet in
+    der Forschung auf Bestätigung“;
+  - ein nicht übernommenes Löschen mit Grund: „Quelle nicht zurückgezogen: die Datei ist nur ein Teil des Baums“,
+    „… sie wird im Baum weiter zitiert“, „… sie ist nicht in der Forschung“, „… sie ist bereits zurückgezogen“,
+    „… die Datei trägt nicht den Forschungsstand, aus dem sie entstand“, „… das Schreiben hat kein Mensch
+    gestartet“;
+  - ein Zitat auf eine Quelle, die die Forschung schon zurückgezogen hat, wird nicht geschrieben („die Quelle ist in
+    der Forschung zurückgezogen; ein Zitat darauf wird nicht geschrieben“). Bei einer solchen Zeile steht **Quelle in
+    der Forschung wiederherstellen** (über die Brücke), ohne Brücke der Satz „die Quelle lässt sich in der Forschung
+    wiederherstellen“.
+- **Bedienung:** App: **Quellen** → Papierkorb bei der Quelle, dann **Senden** ([S2.2](#S2.2)).
+- **Gilt seit:** App 3.31.0 mit Forschung 1.36.0
+
+<!-- zdroj: app:810319cb src/source-retract.ts sourceRetractEditModeIn (preview / plain / old / unknown), ResearchLink.deletedSources, deletedSourcesToSend (_STROM_SOURCE_DELETED, jen chybějící, max 50, zapomene se po Zpět a po odvolání) · src/ui/research-changes-ui.ts (sourceDeleted, reviewWait při sent.state pending, nwSourceRow, restoreTail now/later) · strings.ts sources.retract.editMode, editModeOld, changes.sourceDeleted, reviewWait, restoreSource, restoreLater, sync.notWritten source.retract-skipped:*, source.retracted · research:e6bbfb40 src/core/sync.ts sourcesDeleted, plan source.retract (notPerson, noHead, partial, stillCited, unknown, retracted), withholdDeleted (spec 117 J6) · SPEC.md 1120-app-117-smazani · spec 117 K1.4, §4 -->
+
 <a id="S2.7"></a>
 ## S2.7 Senden zurücknehmen
 
@@ -451,10 +496,15 @@ zeigt, was sich in der App ändert oder wegfällt.
   die neue). Ein Absatz, den die Forschung nur hinzugefügt hat, streicht nichts durch. Leerzeichen am Zeilenende und
   Zeilenenden aus Windows sind keine Änderung. Eine Notiz nur auf einer Seite behält **hier → aus der Forschung**.
   Geladen werden dieselben Daten wie bisher.
+- **Bildnummer oder Folio hinzugekommen:** eine Quelle, deren Fundstelle die Version der Forschung nur um eine
+  Bildnummer oder ein Folio ergänzt (hier fehlte es, die Fundstelle ist sonst dieselbe), gibt bei keiner ihrer
+  Zitationen eine Zeile. Unter der Liste steht nur der Satz „Bei 3 Quellen ist die Bildnummer hinzugekommen.“ (beim
+  Folio „Bei 3 Quellen ist das Folio hinzugekommen.“), und er zählt nicht als Änderung. Eine geänderte Fundstelle,
+  eine geänderte Bildnummer und ihr Entfernen geben weiter eine Zeile.
 - **Grenzen:** bei einem Stammbaum, der aus der Forschung nur lädt ([S2.2](#S2.2)), und wenn aus der letzten Sendung
   etwas nicht geschrieben wurde, sagt der Dialog, dass das Laden diese Änderungen überschreibt; die Schaltflächen
   sind **Laden und überschreiben** und **Als Kopie öffnen**.
 - **Bedienung:** App: **Version der Forschung laden**
-- **Gilt seit:** App 3.9.0; Notiz zeilenweise seit 3.29.0
+- **Gilt seit:** App 3.9.0; Notiz zeilenweise seit 3.29.0; Bildnummer oder Folio hinzugekommen seit 3.31.0
 
-<!-- zdroj: app:src/ui/research-load-ui.ts askResearchLoad (ROWS_SHOWN 8, overwrite: sendMode off nebo nezapsané z posledního poslání → loadOverwrite + research.openCopy), src/ui/research-ui.ts:2377 · 03352a9c src/line-diff.ts diffLines (LCS po řádcích, mezery na konci a CRLF nejsou změna), research-load-ui.ts notes · strings.ts sync.loadTitle, loadColChange, loadMore, loadAdded, loadBackupNote, loadOverwrite, loadOverNotWritten · CHANGELOG.cs.md 3.29.0 „Načíst verzi výzkumu?“ · v3.9.0 (loadColChange) -->
+<!-- zdroj: app:src/ui/research-load-ui.ts askResearchLoad (ROWS_SHOWN 8, overwrite: sendMode off nebo nezapsané z posledního poslání → loadOverwrite + research.openCopy), src/ui/research-ui.ts:2377 · 03352a9c src/line-diff.ts diffLines (LCS po řádcích, mezery na konci a CRLF nejsou změna), research-load-ui.ts notes · strings.ts sync.loadTitle, loadColChange, loadMore, loadAdded, loadBackupNote, loadOverwrite, loadOverNotWritten · CHANGELOG.cs.md 3.29.0 „Načíst verzi výzkumu?“ · v3.9.0 (loadColChange) · 3.31.0: app:2e68d373 src/research-changes.ts placeNumberAdded, pageMoved, diffValues numbersAdded; src/ui/research-load-ui.ts (věta pod seznamem, nepočítá se); strings.ts sync.loadImageNumbers, loadFolioNumbers · CHANGELOG.cs.md 3.31.0 „Načtení verze výzkumu“ -->

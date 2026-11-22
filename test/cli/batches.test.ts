@@ -50,6 +50,8 @@ test("a batch from the app: its files kept without tasks, a ZIP unpacked by the 
   await w.withTree();
   await w.ok(["lang", "cs"]);
   await w.ok(["person", "add", "Josef /Novák/", "--sex", "M"]); // P1
+  // the batches sorted by themselves: the person's switch (spec 130; off by default — test/cli/batch-sort-optional.test.ts)
+  await w.ok(["config", "set", "intake.auto", "on", "--for-tree"], { tty: true });
   w.env.STROM_LIVE_POLL_MS = "100";
   w.env.STROM_BATCH_CHECK_MS = "200";
   const info = (await w.ok(["live", "start", "--json"])).json;
@@ -165,6 +167,8 @@ test("a batch in an archive: kept, its sorting tasks put aside — nothing is so
   fs.copyFileSync(path.join(fixtures, "png-bw.png"), f);
   const got = (await w.ok(["media", "original", f, "--batch", "a1b2c3d4-e5f6", "--path", "Fotky/foto.png", "--json"])).json;
   assert.match(got.input, /^I\d{4}$/);
+  // sorted by itself only where the person turned it on (spec 130)
+  await w.ok(["config", "set", "intake.auto", "on", "--for-tree"], { tty: true });
   const done = (await w.ok(["input", "batch", "done", "a1b2c3d4-e5f6", "--name", "Fotky", "--json"])).json;
   assert.equal((await w.ok(["task", "show", done.tasks[0], "--json"])).json.task.state, "parked");
   const listed = (await w.ok(["input", "batch", "--json"])).json.batches;

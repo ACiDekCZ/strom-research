@@ -60,13 +60,16 @@ test("the menu: material from the family — a folder dragged in, what the perso
   fs.writeFileSync(path.join(docs, "dopis 1923.jpg"), "a letter");
   fs.writeFileSync(path.join(docs, "křestní list.pdf"), "a certificate");
   const dropped = docs.replace(/ /g, "\\ ");
-  // 4 add · 1 material · 1 files · the folder dropped in · not now with the agent · 0 back · 0 quit
-  const r = await w.ok([], { tty: true, answers: ["4", "1", "1", dropped, "n", "0", "0"] });
+  // 4 add · 1 material · 1 files · the folder dropped in · the agent goes through it (spec 130 K1.3: asked, intake.auto
+  // off) · not now with the agent · 0 back · 0 quit
+  const r = await w.ok([], { tty: true, answers: ["4", "1", "1", dropped, "y", "n", "0", "0"] });
   assert.match(r.out, /Rozšířit výzkum\n {3}1 {2}Přidat podklady/);
+  assert.match(r.out, /Nechat to projít agentem \(úkoly pro agenta, čerpá předplatné AI\)\?/);
   assert.match(r.out, /✓ Přidáno do výzkumu: 2\. Agent to projde při další práci\./);
+  assert.equal((await w.ok(["task", "list", "--json"])).json.tasks.filter((t: { level: string }) => t.level === "intake").length, 1);
   assert.equal((await w.ok(["input", "list", "--json"])).json.inputs.length, 2);
   // the same again: nothing new · then what the person knows, and on with the agent (the first message says what it is)
-  const again = await w.ok([], { tty: true, answers: ["4", "1", "1", `'${docs}'`, "1", "2", "Děda Jan byl mlynář v Týnci, narozen asi 1905.", "", "0", "0"] });
+  const again = await w.ok([], { tty: true, answers: ["4", "1", "1", `'${docs}'`, "n", "1", "2", "Děda Jan byl mlynář v Týnci, narozen asi 1905.", "", "0", "0"] });
   assert.match(again.out, /Tyhle podklady už ve výzkumu jsou – nic nepřibylo\./);
   const inputs = (await w.ok(["input", "list", "--json"])).json.inputs;
   assert.equal(inputs.length, 3);
@@ -582,8 +585,12 @@ test("what a review of the menu found: words that start with a dash, Enter in a 
   fs.writeFileSync(path.join(docs, "dopis.txt"), "Milá Anno");
   // (a symbolic link on Windows needs the computer's developer mode)
   if (process.platform !== "win32") fs.symlinkSync(path.join(w.dir, "nikde"), path.join(docs, "alias"));
+  // the agent not asked to go through it: it waits in the material, no task, no conversation offered
+  const intakes = async () => (await w.ok(["task", "list", "--json"])).json.tasks.filter((t: { level: string }) => t.level === "intake").length;
+  const had = await intakes();
   const r = await w.ok([], { tty: true, answers: ["4", "1", "1", `"${docs}"`, "n", "0", "0"] });
-  assert.match(r.out, /✓ Přidáno do výzkumu: 1\./);
+  assert.match(r.out, /✓ Přidáno do výzkumu: 1\. Čeká neroztříděné v Materiálech\./);
+  assert.equal(await intakes(), had);
   w.cleanup();
 });
 
@@ -637,5 +644,30 @@ test("a story the person approved is locked: written again, the new version wait
   await w.ok(["story", "set", "P0002", "--text", "Marie."]);
   await w.ok(["story", "set", "P0002", "--text", "Marie z Týnce."]);
   assert.deepEqual([(await w.ok(["story", "show", "P0002", "--json"])).json.story.text, (await w.ok(["story", "show", "P0002", "--json"])).json.story.draft], ["Marie z Týnce.", undefined]);
+  w.cleanup();
+});
+
+test("who works, in the menu: the runs strom started, the agents working directly (their holds) on the same line, and a run's wait for a restricted archive", opts, async () => {
+  const w = await world();
+  const { enterWorker, markPaused } = await import("../../src/core/workers.ts");
+  const id = (await w.ok(["task", "add", "Křest Jana Lhotáka", "--level", "locate", "--where", "matrika Lhota", "--why", "rodiče", "--done-when", "zápis", "--json"])).json.task.id as string;
+  // nobody at work: nothing said
+  const none = await w.ok([], { tty: true, answers: ["0"] });
+  assert.doesNotMatch(none.out, /Přímo ve výzkumu|pracuje samostatně|čeká na archiv/u);
+  // an agent working directly (its session's hold) and a run waiting for an archive another session uses
+  await w.ok(["session", "start", id], { env: { CLAUDECODE: "1", CLAUDE_CODE_SESSION_ID: "lhotak-menu" } });
+  const leave = enterWorker(w.cwd, "run-lhota", "Claude Code on its own");
+  try {
+    markPaused(w.cwd, "run-lhota", { until: new Date(Date.now() + 20 * 60_000).toISOString(), reason: "čeká na archiv lhota-example.org", archive: "lhota-example.org", since: new Date().toISOString() });
+    const r = await w.ok([], { tty: true, answers: ["0"] });
+    assert.match(r.out, /Agent právě pracuje samostatně\. Přímo ve výzkumu teď pracuje agent\./u);
+    assert.match(r.out, /Samostatná práce čeká na archiv lhota-example\.org \(nejdéle do (?:\d{4}-\d\d-\d\d )?\d{1,2}:\d{2}\)\./u);
+  } finally {
+    leave();
+  }
+  // the run gone: the agent working directly alone
+  const alone = await w.ok([], { tty: true, answers: ["0"] });
+  assert.match(alone.out, /Přímo ve výzkumu teď pracuje agent\./u);
+  assert.doesNotMatch(alone.out, /pracuje samostatně|čeká na archiv/u);
   w.cleanup();
 });

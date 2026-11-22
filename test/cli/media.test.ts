@@ -275,8 +275,12 @@ test("images the user saves by hand: the folder is made and shown with the link,
   assert.equal(wrong.code, 2);
   assert.match(wrong.err, /images 9–10 of B0002 were asked for, but the file names give 90, 100, 110 — 3 files for 2 images: name each by the number its viewer counts \(9\.jpg\)/);
   assert.equal(fs.readdirSync(dir).length, 3, "nothing moved");
-  // as many as the images missing: taken by their order (the names gave none of the numbers asked for)
+  // as many as the images missing, but numbered otherwise: never by their order (B0408) — nothing is taken
   fs.rmSync(path.join(dir, "kniha-00110.jpg"));
+  assert.equal((await w.run(["media", "add", "--inbox", folder.normalize("NFD")])).code, 2);
+  // named with no number at all, as many as missing: taken by their order
+  fs.renameSync(path.join(dir, "kniha-00090.jpg"), path.join(dir, "stažená stránka.jpg".normalize("NFD")));
+  fs.renameSync(path.join(dir, "kniha-00100.jpg"), path.join(dir, "stažená stránka – kopie.jpg".normalize("NFD")));
   const r = await w.ok(["media", "add", "--inbox", folder.normalize("NFD")]);
   assert.match(r.out, /2 images registered: M0001–M0002 of B0002 \(images 9–10, numbered by their order: the names gave none of the numbers asked for\)/);
   assert.match(r.out, /back in the queue \(they waited for these images\): T0001/);
@@ -375,13 +379,13 @@ test("strom read: batches of at most ten, reports in notes/readings, the finds a
   }
   await w.ok(["media", "add", many, "--recordset", "B1"]);
   w.env.STROM_RUNNER_SCRIPT = path.join(import.meta.dirname, "..", "fixtures", "agent.ts");
-  const r = await w.run(["read", "B1", "--images", "1-23", "--question", "Křty Víšek 1860–1864", "--agent", "script", "--json"]);
+  const r = await w.run(["read", "B1", "--images", "1-23", "--question", "Křty Brdíšek 1860–1864", "--agent", "script", "--json"]);
   assert.equal(r.code, 0, r.out + r.err);
   assert.equal(r.json.reports.length, 3);
   assert.deepEqual(r.json.found.map((f: any) => f.image), [1, 9, 17]);
   assert.deepEqual(r.json.missing, []);
   const report = fs.readFileSync(r.json.reports[0], "utf8");
-  assert.match(report, /^# Reading B0001-1-23 · batch 1 of 3\nQuestion: Křty Víšek 1860–1864/);
+  assert.match(report, /^# Reading B0001-1-23 · batch 1 of 3\nQuestion: Křty Brdíšek 1860–1864/);
   assert.match(report, /## Image 1 · M0001\nresult: found/);
   assert.ok(r.json.reports[0].startsWith(path.join(w.cwd, "notes", "readings")));
   const text = (await w.run(["read", "B1", "--images", "1-3", "--question", "x", "--agent", "script"])).out;

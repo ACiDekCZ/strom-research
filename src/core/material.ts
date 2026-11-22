@@ -21,6 +21,7 @@ import { normalizeDate } from "./gdate.ts";
 import { restoreTakenOff } from "./sync.ts";
 import { inTree, workingRel } from "./treemedia.ts";
 import { mediaRecords } from "./mediaindex.ts";
+import { recordsBySha } from "./shaindex.ts";
 import { listSorts, type SortState } from "./sort.ts";
 import type { Tree } from "./tree.ts";
 
@@ -29,8 +30,8 @@ export interface MaterialFile {
   name: string;
   /** What a person (or whoever sorted it) called it. */
   title?: string;
-  /** What it is: a record, a document, a photo (as it was sorted), other. */
-  kind?: (typeof MATERIAL_KINDS)[number];
+  /** What it is: a record, a document, a photo (as it was sorted), other — or a family tree (`?trees=1`, spec 117 K2.1). */
+  kind?: (typeof MATERIAL_KINDS)[number] | "tree";
   /** When the document was written or the photo taken (a GEDCOM date). */
   date?: string;
   sha: string;
@@ -155,6 +156,14 @@ function isMaterial(i: Input & { sync?: unknown }): boolean {
   return !i.retracted && !!i.sha && (!!i.file || (!!originOf(i) && !!i.working)) && !i.sync && i.kind !== "tree" && !portraitOnly(i);
 }
 
+/**
+ * A family tree's file the research keeps (spec 117 K2.1): an input of a family tree (GEDCOM, the app's JSON) with its
+ * bytes, not one a sync sent, not retracted — listed (GET /material?trees=1) and deleted as the material is.
+ */
+export function isTreeFile(i: Input & { sync?: unknown }): boolean {
+  return !i.retracted && !!i.sha && !!i.file && i.kind === "tree" && !i.sync;
+}
+
 function portraitOnly(i: Input): boolean {
   const links = i.links ?? [];
   // the research's own file a portrait was made of (the same bytes) stays material of the research (spec 102 M4)
@@ -182,7 +191,7 @@ export function materialFile(tree: Tree, shared: string | undefined, i: Input): 
 
 /** The file of a record of the app's tree whose original is not here (by that original's hash): its working copy. */
 export function workingCopyOf(tree: Tree, shared: string | undefined, sha: string): { id: string; kind: "input"; mime: string; bytes: number; name: string; file?: string } | undefined {
-  const i = tree.list<Input>("input").find((x) => !x.retracted && x.sha === sha && !x.file && x.working);
+  const i = recordsBySha<Input>(tree, "input", sha).find((x) => !x.retracted && !x.file && x.working);
   if (!i) return undefined;
   return { id: i.id, kind: "input", mime: i.working!.mime, bytes: i.working!.bytes, name: i.name, ...(shared ? { file: path.join(shared, workingRel(shared, i.working!)) } : {}) };
 }
@@ -315,14 +324,14 @@ function hiddenOf(i: Input): MaterialFile["hidden"] | undefined {
  * The family's files the research keeps (never the family trees sent, which are the research itself), oldest first —
  * hidden ones too, said so. `files: false`: only the batches (and the people's names), counted as with the files.
  */
-export function material(tree: Tree, shared: string | undefined, only: { person?: string; batch?: string; ids?: string[]; files?: boolean } = {}): Material {
+export function material(tree: Tree, shared: string | undefined, only: { person?: string; batch?: string; ids?: string[]; files?: boolean; trees?: boolean } = {}): Material {
   const batches = listBatches(tree.root);
   const batchPersons = new Map(batches.map((b) => [b.id, [...new Set((b.persons ?? []).map((p) => live(tree, p)))]]));
   const person = only.person ? live(tree, only.person) : undefined;
   const ids = only.ids ? new Set(only.ids) : undefined;
   const files: MaterialFile[] = [];
   let idx: UsesIndex | undefined;
-  const all = tree.list<Input & { sync?: unknown }>("input").filter(isMaterial);
+  const all = tree.list<Input & { sync?: unknown }>("input").filter((i) => isMaterial(i) || (!!only.trees && isTreeFile(i)));
   // the oldest file of each content: the others are the same as it
   const firstOf = new Map<string, Input>();
   for (const i of [...all].sort((a, b) => a.created.localeCompare(b.created) || a.id.localeCompare(b.id))) if (!firstOf.has(i.sha!)) firstOf.set(i.sha!, i);
@@ -335,7 +344,7 @@ export function material(tree: Tree, shared: string | undefined, only: { person?
     const file = materialFile(tree, shared, i);
     const s = i.sorted;
     // what the user said in the app comes before what sorting found
-    const kind = i.materialKind ?? (s ? KIND_OF_SORT[s.as] : undefined);
+    const kind = isTreeFile(i) ? ("tree" as const) : (i.materialKind ?? (s ? KIND_OF_SORT[s.as] : undefined));
     const hidden = hiddenOf(i);
     const links = (i.links ?? []).filter((l) => !l.retracted).map((l) => ({ type: l.type, ref: l.type === "person" || (l.type === "event" && l.ref.startsWith("P")) ? live(tree, l.ref) : l.ref, ...(l.event ? { event: l.event } : {}) }));
     const used = usesFrom((idx ??= usesIndex(tree)), i);
@@ -417,8 +426,8 @@ function refused(code: "material.body" | "material.file" | "material.person" | "
   return new UsageError(message, { code, params, hint: code === "material.body" ? "strom help input assign" : "strom input list — the files of the material; strom person list — its people" });
 }
 
-/** The files asked for, as they are now: each a file of the material — or the first that is not, refused. */
-export function filesAsked(tree: Tree, ids: string[]): Input[] {
+/** The files asked for, as they are now: each a file of the material (`trees`: a family tree's file too) — or the first that is not, refused. */
+export function filesAsked(tree: Tree, ids: string[], how: { trees?: boolean } = {}): Input[] {
   if (!ids.length) throw refused("material.body", "give the files (I…)");
   if (ids.length > MATERIAL_MOST_FILES) throw refused("material.body", `at most ${MATERIAL_MOST_FILES} files at once`, { most: String(MATERIAL_MOST_FILES) });
   const out: Input[] = [];
@@ -429,7 +438,7 @@ export function filesAsked(tree: Tree, ids: string[]): Input[] {
     if (seen.has(id)) continue;
     seen.add(id);
     const i = tree.get<Input & { sync?: unknown }>(id);
-    if (!i || i.type !== "input" || !isMaterial(i)) throw refused("material.file", `the research has no file ${id} of the material${i?.retracted ? " (taken back)" : ""}`, { id });
+    if (!i || i.type !== "input" || !(isMaterial(i) || (how.trees && isTreeFile(i)))) throw refused("material.file", `the research has no file ${id} of the material${i?.retracted ? " (taken back)" : ""}`, { id });
     out.push(i);
   }
   return out;
@@ -455,6 +464,11 @@ function peopleAsked(tree: Tree, ids: string[]): string[] {
 /** The tasks that hold a file now (to sort, to look at): open, begun, put aside or waiting. */
 function holding(tree: Tree, id: string): Task[] {
   return tree.list<Task>("task").filter((t) => !t.retracted && t.where.includes(id) && (t.state === "open" || t.state === "doing" || t.state === "parked" || t.state === "waiting"));
+}
+
+/** The people the person took off a file (Input.declined), as they are now (one merged into another: that one). */
+export function declinedOf(tree: Tree, i: Input): Set<string> {
+  return new Set((i.declined ?? []).map((d) => live(tree, d.person)));
 }
 
 export interface AssignAsk {
@@ -523,7 +537,10 @@ export function assignMaterial(tree: Tree, ask: AssignAsk): Assigned {
     const adding = batch ? [] : add.filter((p) => !mine.includes(p) && !sorted.includes(p) && !linked.includes(p));
     const taking = remove.filter((p) => mine.includes(p) || sorted.includes(p) || linked.includes(p));
     if (!batch && i.batch) for (const p of remove) if (personsOfBatch(i.batch).includes(p)) out.kept.push({ id: i.id, person: p, batch: i.batch });
-    if (!adding.length && !taking.length) continue;
+    // taken off: kept so nothing puts them back (sorting, input sort, intake --person); added back: the mark goes
+    const declined = declinedOf(tree, i);
+    const undeclining = add.filter((p) => declined.has(p));
+    if (!adding.length && !taking.length && !undeclining.length) continue;
     update<Input>(
       tree,
       i.id,
@@ -542,9 +559,13 @@ export function assignMaterial(tree: Tree, ask: AssignAsk): Assigned {
             !l.retracted && (l.type === "person" || l.type === "event") && taking.includes(live(tree, l.ref)) ? { ...l, retracted: { at, reason: "removed" as const } } : l,
           );
         if (placed && adding.length) next.links = [...(next.links ?? []), ...adding.map((p) => ({ type: "person" as const, ref: p, order: nextOrder(p), at }))];
+        const still = (x.declined ?? []).filter((d) => !add.includes(live(tree, d.person)) && !taking.includes(live(tree, d.person)));
+        const marks = [...still, ...taking.map((p) => ({ person: p, at, by: tree.actor }))];
+        if (marks.length) next.declined = marks;
+        else delete next.declined;
         return next;
       },
-      { op: "input.assign", summary: `${i.id}: ${[adding.length ? `+ ${adding.join(", ")}` : "", taking.length ? `− ${taking.join(", ")}` : ""].filter(Boolean).join(", ")}`, targets: [...adding, ...taking] },
+      { op: "input.assign", summary: `${i.id}: ${[adding.length ? `+ ${adding.join(", ")}` : "", taking.length ? `− ${taking.join(", ")}` : "", undeclining.filter((p) => !adding.includes(p)).length ? `${undeclining.filter((p) => !adding.includes(p)).join(", ")} no longer taken off` : ""].filter(Boolean).join(", ")}`, targets: [...new Set([...adding, ...taking, ...undeclining])] },
     );
     out.changed.push(i.id);
     // a file that still waits: the task at it is of the people added too
@@ -634,12 +655,12 @@ export function letGo(tree: Tree, ids: string[], why: "hidden" | "deleted" = "hi
 
 /**
  * Hidden files shown again: each the state it had before (new, or processed when a source was made of it); one that
- * waits again and that no task holds gets one (in an archive put aside). Sorted as nothing of the family, that sorting
+ * waits again and that no task holds gets one with auto (intake.auto on; in an archive put aside), else it waits. Sorted as nothing of the family, that sorting
  * goes (the history keeps it). A file of the app's tree removed from it (spec 102 M3, V5): the places the last write
  * took off come back, and the app's next file of the tree has it again. A file not hidden: nothing. The caller holds
  * the tree lock and commits.
  */
-export function unhideMaterial(tree: Tree, ids: string[]): Hidden {
+export function unhideMaterial(tree: Tree, ids: string[], o: { auto?: boolean } = {}): Hidden {
   const files = filesAsked(tree, ids);
   const out: Hidden = { files: files.map((i) => i.id), changed: [], tasks: [] };
   for (const i of files) {
@@ -661,7 +682,8 @@ export function unhideMaterial(tree: Tree, ids: string[]): Hidden {
       { op: "input.unskip", summary: `${i.id} shown again (${state})` },
     );
     out.changed.push(i.id);
-    if (state === "new" && !holding(tree, i.id).length) out.tasks.push(gatherTask(tree, next, next.persons ?? []));
+    // an intake task only where the person turned intake.auto on (spec 130 K1.3): else it waits in the material
+    if (o.auto && state === "new" && !holding(tree, i.id).length) out.tasks.push(gatherTask(tree, next, next.persons ?? []));
   }
   return out;
 }

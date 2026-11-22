@@ -143,6 +143,32 @@ test("the operations added since the last commit judged by their time, never by 
   }
 });
 
+test("two Trees of one process writing in the same millisecond: the later operation the later time, its file the last word — no change outside strom", opts, async () => {
+  const w = new World();
+  const real = Date.now;
+  try {
+    const root = await w.withTree("Lhotákovi");
+    await w.ok(["person", "add", "Jan /Lhoták/", "--sex", "M"]);
+    const one = Tree.open(root, w.env);
+    const two = Tree.open(root, w.env);
+    const at = real() + 60_000;
+    Date.now = () => at;
+    const jan = one.get<Person>("P0001")!;
+    one.withTreeLock(() => one.put({ ...jan, names: jan.names.map((n) => ({ ...n, given: "Jan Křtitel" })) }, { op: "person.edit", targets: [jan.id], summary: "P0001 given name" }));
+    two.withTreeLock(() => two.put({ ...jan, names: [{ given: "Ян".normalize("NFD"), surname: "Лхотак" }] }, { op: "person.edit", targets: [jan.id], summary: "P0001 given name again" }));
+    Date.now = real;
+    const stamps = git(root, "status", "--porcelain=v1", "--untracked-files=all", "--", "data/ops").split("\n").filter(Boolean)
+      .flatMap((l) => fs.readFileSync(path.join(root, l.slice(3)), "utf8").trim().split("\n").map((x) => (JSON.parse(x) as { at: string; summary: string })))
+      .sort((a, b) => a.summary.length - b.summary.length);
+    assert.equal(stamps.length, 2, JSON.stringify(stamps));
+    assert.ok(stamps[1]!.at > stamps[0]!.at, `the later write the later time: ${JSON.stringify(stamps)}`);
+    assert.deepEqual(errors(verifyFast(Tree.open(root, w.env)).findings), []);
+  } finally {
+    Date.now = real;
+    w.cleanup();
+  }
+});
+
 test("a write whose commit never came: the next write takes it once its log lay untouched for long — never one at work", opts, async () => {
   const w = new World();
   try {

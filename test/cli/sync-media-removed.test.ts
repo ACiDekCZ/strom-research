@@ -16,6 +16,9 @@ import { World, hasGit } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { awaitAdoption, receiveAdopted, restoreTakenOff } from "../../src/core/sync.ts";
 import { servedWithMedia } from "../../src/core/treemedia.ts";
+import { create, update } from "../../src/core/records.ts";
+import type { Input } from "../../src/core/model.ts";
+import { execFileSync } from "node:child_process";
 
 const opts = { skip: !hasGit || process.platform === "win32" };
 const APP = "https://beta.stromapp.info";
@@ -402,5 +405,64 @@ test("spec 108: an adopted tree's files become records with their places; nothin
   const input = records(w).find((x) => x.id === r.input) as Rec & { file?: string };
   assert.ok(input.file, "the tree kept as the source's document");
   assert.doesNotMatch(fs.readFileSync(path.join(w.cwd, input.file!), "utf8"), /data:image/u, "without its images");
+  w.cleanup();
+});
+
+const clean = (w: World) => execFileSync("git", ["-C", w.cwd, "status", "--porcelain", "--", "data"], { encoding: "utf8" }).trim();
+const NOTE = { text: "od babičky z Lhoty — Семья".normalize("NFD"), at: "2026-11-21T16:33:01.860Z", by: "user" as const };
+
+/** The user's note on a record of the material, committed (as the person wrote it in the research's material). */
+function noted(w: World, id: string): void {
+  const tree = Tree.open(w.cwd, w.env);
+  tree.withTreeLock(() => {
+    update<Input>(tree, id, "input", (r) => ({ ...r, notes: [...(r.notes ?? []), NOTE] }), { op: "input.note", summary: `${id} the user's note` });
+    tree.commit("the user's note");
+  });
+}
+
+test("a file of the research's material the app was never given (no place in the tree), its note the user's: the app's send that puts it at a person without NOTE keeps the note, the send written and committed", opts, async () => {
+  const { w, url } = await started();
+  try {
+    const tree = Tree.open(w.cwd, w.env);
+    let id = "";
+    tree.withTreeLock(() => {
+      id = create<Input>(tree, "input", { name: "lhota.jpg", file: "inputs/lhota.jpg", sha: sha(LATER), kind: "photo", state: "new", from: "the Strom app" } as never, (x) => `+${x}`).id;
+      tree.commit("a file of the material");
+    });
+    noted(w, id);
+    const t = await given(w, url);
+    assert.ok(!t.includes("lhota.jpg"), "never given to the app");
+    const got = await send(url, under(t, "P0002", obje(1, { data: LATER, titl: "lhota.jpg" })));
+    assert.ok(got.input, JSON.stringify(got));
+    const rec = recordOf(w, sha(LATER)) as Rec & { notes?: { text: string }[] };
+    assert.equal(rec.id, id);
+    assert.deepEqual(live(rec), ["person:P0002"]);
+    assert.deepEqual(rec.notes?.map((n) => n.text), [NOTE.text.normalize("NFC")], "the note stays");
+    assert.equal(clean(w), "", "committed");
+    assert.equal((await w.run(["check"])).out.includes("item-removed"), false);
+  } finally {
+    await w.ok(["live", "stop"]);
+  }
+  w.cleanup();
+});
+
+test("a note the user took off in the app, of a file the app was given with it: taken off with a reason, committed", opts, async () => {
+  const { w, url } = await started();
+  try {
+    const shared = recordOf(w, sha(SHARED));
+    noted(w, shared.id);
+    const t = await given(w, url);
+    const said = (x: string, who: string) => edit(x, who, "_STROM_NAME rodina.jpg", /^2 NOTE .*$/u, "");
+    assert.match(t, /\n2 NOTE od babičky/u, "given with its note");
+    const got = await send(url, said(said(t, "P0001"), "P0002"));
+    assert.deepEqual((got.media ?? []).filter((m) => m.kind === "media.edit").map((m) => [m.record, m.fields]), [[shared.id, ["note"]]], JSON.stringify(got));
+    const rec = recordOf(w, sha(SHARED)) as Rec & { notes?: unknown[] };
+    assert.deepEqual(rec.notes ?? [], []);
+    assert.equal(clean(w), "", "committed");
+    const ops = execFileSync("git", ["-C", w.cwd, "show", "HEAD", "--", "data/ops"], { encoding: "utf8" });
+    assert.match(ops, /"op":"input\.media"[^\n]*"reason":"its note taken off in the Strom app"/u);
+  } finally {
+    await w.ok(["live", "stop"]);
+  }
   w.cleanup();
 });

@@ -52,6 +52,8 @@ test("runs the user started end at the plan's limit as before, saying when it re
   await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true, answers: ["y"] });
   Object.assign(w.env, { AGENT_MODE: "limit", STROM_TEST_LIMIT_RESERVE_MS: "0" });
   for (const how of [["--tasks", "1"], []]) {
+    // (the limit the run before met is marked for the computer: every run here would end at once — test/cli/run-shared-limit.test.ts)
+    fs.rmSync(path.join(w.home, "shared", "agents"), { recursive: true, force: true });
     const t0 = Date.now();
     const r = await w.ok(["run", "--agent", "script", ...how, "--json"]);
     assert.equal(r.json.sessions.length, 1);

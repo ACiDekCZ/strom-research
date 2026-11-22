@@ -35,6 +35,8 @@ export const ALL_PREFIXES: Record<string, string> = {
 /** Certainty of the conclusion (a fact). The quality of each piece of evidence is on its citation (GEDCOM QUAY). */
 export const STATUSES = ["proven", "probable", "possible", "lead", "disproven", "retracted"] as const;
 export type Status = (typeof STATUSES)[number];
+/** The statuses a name takes (spec 066 P5): no disproven or retracted — a name found wrong is retracted itself. */
+export const NAME_STATUSES = ["proven", "probable", "possible", "lead"] as const;
 
 export type Sex = "M" | "F" | "U";
 
@@ -161,7 +163,9 @@ export interface Event {
   verified?: FactVerified;
   /**
    * One copy of an event the Strom app shares among people (spec 085: a census of a household, a move) — a person's
-   * fact only (`_STROM_SHARE`). Read, kept and given back; no command of the research changes it. Optional: no
+   * fact only (`_STROM_SHARE`). Read, kept and given back; the research makes it only of a census household (strom
+   * census add, spec 106 K3: an id of its own, the relation as the role) and keeps the copies' common fields alike
+   * (core/household.ts). Optional: no
    * SCHEMA_VERSION raised.
    */
   share?: EventShare;
@@ -261,12 +265,31 @@ export interface Name {
    * primaryName. GEDCOM NAME > _STROM_PRIMARY Y.
    */
   primary?: true;
+  /**
+   * The name after a marriage the user chose as the one now (spec 010 K4.2: changed in the Strom app): over the rule of
+   * the latest marriage (core/married.ts) until the user chooses another; at most one name of a person. Only the order
+   * the files give the names after a marriage in (the one now last) — never how the person is shown (primary).
+   */
+  marriedNow?: true;
   /** The records that give the person this name (in this form). */
   citations?: Citation[];
   /** Where the name came from (spec 066): an import or the user; none, the research's. */
   origin?: ValueOrigin<"given" | "surname">;
   /** The import's name before the research changed it with a record cited (spec 066). */
   was?: ValueWas<"given" | "surname"> & { given?: string; surname?: string };
+  /**
+   * How sure the name is, as a fact's status (spec 066 P5): drawn from a record that names the person (strom cite P… S…
+   * --status, name add / person add with --cite). Any name may have one; none: the name stands on its citations alone (a
+   * name of an imported family tree shows its origin). Optional: no SCHEMA_VERSION raised.
+   */
+  status?: Status;
+  /**
+   * The person confirmed the name against the scan (spec 066 P5, as a fact's: spec 065) — the name of their identity
+   * (primaryName) alone. Its status stays as it is; no agent changes it. Optional: no SCHEMA_VERSION raised.
+   */
+  confirmed?: FactConfirmed;
+  /** The last verification of the name against its originals by an agent — the name of their identity alone. */
+  verified?: FactVerified;
 }
 
 /**
@@ -529,7 +552,41 @@ export interface Source extends BaseRecord {
    * the program and its version, the file's date (HEAD DATE), when it was imported, the file and its hash.
    */
   imported?: { key: string; program?: string; version?: string; date?: string; at?: string; file?: string; sha?: string };
+  /**
+   * The person deleted the source (spec 117, strom source retract; `retracted.reason` "deleted"): the citations taken
+   * off the facts, names and families with it, the tasks and conflicts it changed — what strom source restore puts
+   * back. Optional: an older strom keeps it and sees the source retracted.
+   */
+  deleted?: SourceDeletion;
   notes: Note[];
+}
+
+/** What deleting a source (strom source retract) took off the tree, kept to put it back (core/sourceretract.ts). */
+export interface SourceDeletion {
+  at: string;
+  by: "user";
+  /** Where the person deleted it: the Strom app (the bridge) or the terminal. */
+  via?: "bridge" | "terminal";
+  reason?: string;
+  cites: DeletedCitation[];
+  /** The facts whose status the citations left could not carry: as sure as they were before. */
+  lowered?: { owner: string; event: string; from: Status; to: Status }[];
+  /** The tasks it ended or narrowed: each as it was, and when the deletion changed it (put back only if unchanged since). */
+  tasks?: { was: Task; after: string }[];
+  /** The conflicts it marked for review. */
+  conflicts?: string[];
+}
+
+/** One citation of a deleted source as it stood: on a fact (event), a name (its index and parts), or a family itself. */
+export interface DeletedCitation {
+  owner: string;
+  /** The fact's tag (NAME a name's, FAM a family's own). */
+  fact: string;
+  event?: string;
+  name?: { index: number; given: string; surname: string };
+  /** Its place among the citations it stood in. */
+  at: number;
+  citation: Citation;
 }
 
 /** The user's reading of a source: how (by hand, confirmed in the app, kept by the fix), when, of which transcript. */
@@ -1000,6 +1057,11 @@ export interface Conflict extends BaseRecord {
   decidedAt?: string;
   /** A conflict of the user's edit decided for a side: whose value the fact keeps. */
   taken?: "user" | "research";
+  /**
+   * To be looked at again (spec 117 K1.7): sources it stands on the person deleted. Gone when it is decided (again),
+   * kept as decided (strom conflict keep) or the sources restored. Optional: an older strom keeps it and ignores it.
+   */
+  review?: { why: "source.retracted"; sources: string[]; at: string };
   notes: Note[];
 }
 
@@ -1148,6 +1210,12 @@ export interface Input extends BaseRecord {
   /** A batch of the Strom app it came in (.strom/batches/<id>.json), and its path there ("Babička/Dopisy/1946.jpg"). */
   batch?: string;
   path?: string;
+  /**
+   * The people the person took off the file (the Strom app's Assign, strom input assign --remove): never put back on it
+   * by sorting, strom input sort or strom intake --person (the sorting's prompt lists them as taken off); added back by
+   * the person, the mark goes.
+   */
+  declined?: { person: string; at: string; by: string }[];
   /** What it is, as whoever sorted the batch found (strom input sort): a record, a document, a photo, nothing of the family. */
   sorted?: { as: (typeof SORT_KINDS)[number]; persons?: string[]; source?: string; reason?: string; at: string; by: string };
   /** The readings of it (strom document read): D… — their results in notes/readings/<D…>.json. */
@@ -1357,6 +1425,8 @@ export interface TreeConfig {
   queueSuggestPersons?: number;
   /** The tasks a book needs to be offered to download by hand (books.minTasks; spec 105). */
   booksMinTasks?: number;
+  /** Years either side of a date estimated from an age a search has to cover (search.ageMargin; spec 131). */
+  searchAgeMargin?: number;
   /** After a session in a book on disk, the next task of that book first: no (default) or yes (queue.sameBook). */
   queueSameBook?: string;
   /** Stories of the ancestors: yes or no (overrides the user's). */
@@ -1371,6 +1441,8 @@ export interface TreeConfig {
   experimentsPlaceHistory?: string;
   /** The kinds of the history's events looked for in this tree alone, both ways (core/eventkinds.ts; unset: the user's config, else all). */
   historyKinds?: string;
+  /** Census records as a source for this tree alone, both ways ("on" | "off"; unset: the user's config, else off — spec 106). */
+  census?: string;
   /** The main person of the tree: first in the GEDCOM files, where the Strom app opens. */
   mainPerson?: string;
   /** The entries cut out of their scans for the Strom app: quality, whose, limit in MB. */

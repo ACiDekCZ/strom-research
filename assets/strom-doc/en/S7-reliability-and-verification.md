@@ -6,7 +6,8 @@ research can verify a fact against the original record: in the background, for o
 part of the tree. Certainty, though, comes only when a **person** compares the fact with the scan of the record and
 confirms it (**Confirm against the scan**, [S7.8](#S7.8)). Verification by the agent gives at most **Proven**; a
 person's confirmation is stronger and the agent never changes it. The chapter describes the Strom app 3.26.0 and the
-research 1.30.0. What works only with the research's bridge and what works without it is summed up in [S7.9](#S7.9).
+research 1.30.0; changes from a newer version carry its number. What works only with the research's bridge and what
+works without it is summed up in [S7.9](#S7.9). The name of a person as a fact is described in [S7.10](#S7.10).
 
 <!-- zdroj: dirigent:spec/065-spolehlivost-a-znovu-overeni/spec.md · app:7b0471f8 CHANGELOG.cs.md 3.26.0 (Ověřit údaje, Jedna značka na kartičce) · research:6c6e7c3b CHANGELOG.cs.md 1.30.0 (ověření podle originálů) -->
 
@@ -82,6 +83,12 @@ behind the facts. It takes the weakest of the card's three facts: name, birth an
     source. A tree with neither sources nor origin has no mark;
   - a placeholder person (“?”) has no mark.
 - **The tip at the mark:** “Weakest fact on the card: …” and in words what the mark means.
+  - **From app 3.31.0:** at the mark **From family tree** the heading “Cited in the family tree, not verified in
+    Strom” stands only above sources cited only at facts from the family tree (for example at the name). A source
+    cited at a proven birth or death (a register, even when the name cites it too) stands under its own heading
+    **Sources (N)**. Before, every source of the card stood under the heading from the family tree. When the name
+    holds the mark, the tip leads with the link **The name in the person card ›** to the name's mark in the person
+    card ([S7.10](#S7.10)).
 - **Controls:** **Settings → Person card → Show on card → Sources and reliability** (on by default).
 - **Since:** app 3.26.0
 - **From app 3.28.0:** when the tree is zoomed out below 0.55 the mark is larger (about 10 px on the screen), below
@@ -120,7 +127,8 @@ on the lines.
   - a verification asked for by a person goes first in the research's queue ([R2](R2-lines-and-queue.md));
   - **Verify** is offered only for a tree linked to the research, when the bridge runs and the research can verify
     ([S7.9](#S7.9));
-  - name, sex, divorce and other events are not verified;
+  - name, sex, divorce and other events are not verified. **From app 3.31.0 with research 1.36.0** the name is
+    verified too ([S7.10](#S7.10));
   - **Verify first** is not offered at a fact whose verification a person asked for already (it is first in the
     queue), at a fact waiting for scans or for an archive's permission, at the one next in line, and when the research
     does not give the fact's place. A task the agent is working on right now the research does not move.
@@ -132,8 +140,11 @@ on the lines.
 - **Controls:** app: the person card → the fact's mark → **Verify** (or **Verify first**) → **Start verifying**.
   Terminal: `strom verify facts P…|F…|E… [--fact …] [--dry-run]`.
 - **Since:** research 1.30.0, app 3.26.0
+- **From app 3.31.0:** instead of “Runs in the research's background. The result shows at the fact.” the preview
+  says “Verified when the research works. The result shows at the fact.” The verification does not wait in the
+  background, a session of the research takes it.
 
-<!-- zdroj: app:7cf409bd src/verify-offer.ts verifyOffer (prioritize: pending wait, position > 1, step, researchVerifies) · src/verify-ui-model.ts factOffer (čekání spuštěné tady: position null) · src/ui/verify-ui.ts (tlačítko prioritize → verifyOpenPreview; verifyStart: pozice z odpovědi) · strings.ts verify.prioritize, verify.pending · research:a4a2f6c0 src/core/verify.ts verifyAsk (držený úkol → queueAt next; doing nebo už next beze změny), verifyWait (wait / asked / images / permission, position) · app:7b0471f8 src/verify-offer.ts verifyOffer (Verify jen u nedoložených, s feature verify, ne archiv, ne čekající; cost low/high) · src/verify-ui-model.ts verifyFactKind (BIRT, BAPM, MARR, DEAT, BURI) · strings.ts verify.btn, previewHead, what, how, estimate1, howRead, howSearch, costLow, costHigh, sessions, previewNote, previewNoteSearch, start, pending, failed, nothing, noResearch · app:669c08f0 strings.ts verify.busy, locked, whyArchive, whyRetracted, whyGone, whyMerged, whyOld, whyRefused (odmítnutí podle kódu) · research:6c6e7c3b strom help verify facts (první ve frontě; bez přečteného originálu se záznam hledá) · research:4ac323ef src/core/verify.ts askedFor (úkol přeřazený člověkem, queueAt next, do konce sezení na něm → asked v souboru, /status, verify status) · app:src/verify-offer.ts (asked: Verify first se nenabízí) · CHANGELOG.cs.md 1.31.0 -->
+<!-- zdroj: app:f19d34cb strings.ts verify.previewNote (065 K7.3) · app:7cf409bd src/verify-offer.ts verifyOffer (prioritize: pending wait, position > 1, step, researchVerifies) · src/verify-ui-model.ts factOffer (čekání spuštěné tady: position null) · src/ui/verify-ui.ts (tlačítko prioritize → verifyOpenPreview; verifyStart: pozice z odpovědi) · strings.ts verify.prioritize, verify.pending · research:a4a2f6c0 src/core/verify.ts verifyAsk (držený úkol → queueAt next; doing nebo už next beze změny), verifyWait (wait / asked / images / permission, position) · app:7b0471f8 src/verify-offer.ts verifyOffer (Verify jen u nedoložených, s feature verify, ne archiv, ne čekající; cost low/high) · src/verify-ui-model.ts verifyFactKind (BIRT, BAPM, MARR, DEAT, BURI) · strings.ts verify.btn, previewHead, what, how, estimate1, howRead, howSearch, costLow, costHigh, sessions, previewNote, previewNoteSearch, start, pending, failed, nothing, noResearch · app:669c08f0 strings.ts verify.busy, locked, whyArchive, whyRetracted, whyGone, whyMerged, whyOld, whyRefused (odmítnutí podle kódu) · research:6c6e7c3b strom help verify facts (první ve frontě; bez přečteného originálu se záznam hledá) · research:4ac323ef src/core/verify.ts askedFor (úkol přeřazený člověkem, queueAt next, do konce sezení na něm → asked v souboru, /status, verify status) · app:src/verify-offer.ts (asked: Verify first se nenabízí) · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="S7.4"></a>
 ## S7.4 Verify facts at a person
@@ -161,6 +172,7 @@ person card and in the tip at the mark on the card, or with the item **Verify fa
   research knows (facts already proven by another reader too), except those confirmed by a person, those waiting to
   be verified, the name and the sex. The count in the menu, in the window and in the message after starting is the
   same.
+  - **From app 3.31.0 with research 1.36.0:** N counts the name too ([S7.10](#S7.10)).
   - **From app 3.30.0:** only birth, baptism, marriage, death and burial. Residences, occupations and other facts are
     verified through **Verify** at the fact. When the research would take other facts too for the whole person, the
     app sends each ticked fact to be verified by name. Up to 3.29.0 residences and occupations too.
@@ -170,8 +182,11 @@ person card and in the tip at the mark on the card, or with the item **Verify fa
   **Verify facts (N)** or **Verify first**; the person's menu → **Verify facts · N**, or **Verify first** under
   **Verifying · N**; then in the window **Verify (N)**. Terminal: `strom verify facts P…`.
 - **Since:** research 1.30.0, app 3.26.0
+- **From app 3.31.0:** under the estimate the window says “Low = read a known record. Higher = the record is still to
+  be found. Verified when the research works; results show at the facts.” (before: “Runs in the research's
+  background”).
 
-<!-- zdroj: app:7cf409bd src/ui/verify-person-ui.ts personVerifyMenu (pending + prioritize), verifyCardTipActions (st-verify-first), renderPersonVerifyRow (jen pending řádek), showVerifyPersonDialog prioritize (titulek verify.prioritize) · src/ui/card-signals-ui.ts signal-verify-first · src/ui/context-menu.ts · research:a4a2f6c0 src/core/verify.ts verifyAsk (osoba: držené úkoly na začátek) · app:7b0471f8 src/verify-ui-model.ts personVerifyAskCount · strings.ts verify.menu, menuPending, personTitle, estimate, startN, bulkStarted · app:7eb903a3 src/ui/verify-person-ui.ts renderPersonVerifyRow, personVerifyMenu (karta osoby nad #events-section; jinak personPending), verifyCardTipActions · strings.ts verify.personBtn, personPending, events.title · dirigent:prace/1109-app-jeden-rodic/karta.md Výsledek (6f58068a: menu = náhled = toast; i bydliště, i doložené) · app:0fbda127 src/verify-ui-model.ts PERSON_VERIFY_KINDS, personVerifyAskCount, src/ui/verify-person-ui.ts others (start po údajích) -->
+<!-- zdroj: app:f19d34cb strings.ts verify.estimateNote (065 K7.3) · app:7cf409bd src/ui/verify-person-ui.ts personVerifyMenu (pending + prioritize), verifyCardTipActions (st-verify-first), renderPersonVerifyRow (jen pending řádek), showVerifyPersonDialog prioritize (titulek verify.prioritize) · src/ui/card-signals-ui.ts signal-verify-first · src/ui/context-menu.ts · research:a4a2f6c0 src/core/verify.ts verifyAsk (osoba: držené úkoly na začátek) · app:7b0471f8 src/verify-ui-model.ts personVerifyAskCount · strings.ts verify.menu, menuPending, personTitle, estimate, startN, bulkStarted · app:7eb903a3 src/ui/verify-person-ui.ts renderPersonVerifyRow, personVerifyMenu (karta osoby nad #events-section; jinak personPending), verifyCardTipActions · strings.ts verify.personBtn, personPending, events.title · dirigent:prace/1109-app-jeden-rodic/karta.md Výsledek (6f58068a: menu = náhled = toast; i bydliště, i doložené) · app:0fbda127 src/verify-ui-model.ts PERSON_VERIFY_KINDS, personVerifyAskCount, src/ui/verify-person-ui.ts others (start po údajích) -->
 
 <a id="S7.5"></a>
 ## S7.5 Verify facts in the tree
@@ -205,8 +220,51 @@ facts in the tree** shows the scope, the order and the cost estimate first and v
   [--order ancestors|weakest|oldest] [--try N] [--budget …] [--dry-run]`, `strom verify status`,
   `strom verify stop [--bulk]`.
 - **Since:** research 1.30.0, app 3.26.0
+- **From app 3.31.0 with research 1.36.0:** the trial goes to the head of the queue and the notice after the start
+  offers **Process now** ([S7.5.1](#S7.5.1)). Under the estimate the window says “Verified when the research works;
+  progress and Stop in “What the research knows › Verifying”.” The row “Waiting to be verified” has **Show in the
+  queue** ([S4.2.4](S4-research-from-the-app.md#S4.2.4)).
 
-<!-- zdroj: app:7b0471f8 src/ui/verify-person-ui.ts verifyRowsHtml, treeVerifyBlock, showVerifyBulkDialog · src/ui/research-actions-ui.ts:371 (nabídka výzkumu) · src/import-next.ts IMPORT_NEXT_VERIFY_FEATURES ['verify.bulk'] · src/verify-ui-model.ts VERIFY_TRY_PEOPLE 5 · strings.ts verify.bulkRow, bulkRowSub, bulkTitle, bulkSub, scope, order, scopeLine, scopeSurname, scopeTree, orderAncestors, orderWeakest, orderOldest, tryFirst, tryFirstSub, tryN, startN, bulkNote, section, pendingRow, pendingRowSub, stop, stopped · research:6c6e7c3b strom help verify bulk, verify stop, verify status · src/core/verify.ts (žijící) · research:94d75934 src/core/verify.ts verifyBulk (origin import nebo tree → search) -->
+<!-- zdroj: app:f19d34cb, 53ef9cbe (065 K7.1–K7.4) · app:7b0471f8 src/ui/verify-person-ui.ts verifyRowsHtml, treeVerifyBlock, showVerifyBulkDialog · src/ui/research-actions-ui.ts:371 (nabídka výzkumu) · src/import-next.ts IMPORT_NEXT_VERIFY_FEATURES ['verify.bulk'] · src/verify-ui-model.ts VERIFY_TRY_PEOPLE 5 · strings.ts verify.bulkRow, bulkRowSub, bulkTitle, bulkSub, scope, order, scopeLine, scopeSurname, scopeTree, orderAncestors, orderWeakest, orderOldest, tryFirst, tryFirstSub, tryN, startN, bulkNote, section, pendingRow, pendingRowSub, stop, stopped · research:6c6e7c3b strom help verify bulk, verify stop, verify status · src/core/verify.ts (žijící) · research:94d75934 src/core/verify.ts verifyBulk (origin import nebo tree → search) -->
+
+<a id="S7.5.1"></a>
+### S7.5.1 The trial at the head of the queue and Process now
+
+The trial **Try on 5 people first** goes to the head of the research's queue, like **Verify** at a person. When the
+research is not working at the moment, the app offers to process it now.
+
+- **In the window:** under the trial option stands “Its tasks go to the head of the research's queue. After 5 people
+  it stops and shows the result.” and under the estimate “Verified when the research works; progress and Stop in
+  “What the research knows › Verifying”.”
+- **After the start** a notice says when the trial will be processed:
+  - the research is working: “12 facts to verify are next in the research's queue.”;
+  - the research is not working: “12 facts to verify are at the head of the queue. The research is not working now.”
+    with **Process now** (the AI and terminal marks, [S4.5.1](S4-research-from-the-app.md#S4.5.1)); the notice stays
+    15 s and can be closed;
+  - otherwise (the research cannot work on chosen tasks, has no agent set up, or has not said whether it is working):
+    “12 facts to verify are at the head of the queue; verified when the research works next.”
+- **Process now** opens the research's terminal like **Work on the queue…** ([S4.2.3](S4-research-from-the-app.md#S4.2.3)):
+  “These tasks, in this order:”, then “One session for each task (N sessions), then it ends; what is not finished goes
+  back to the queue.” It starts only on a yes ([R7.1.2](R7-when-the-agent-works.md#R7.1.2)).
+- **Enforced by the code:**
+  - the trial's tasks get a place in the queue like a manual **Do next** ([R2.3.1](R2-lines-and-queue.md#R2.3.1));
+    the next session takes them. The rest of a scope without a trial still goes after the work on the lines
+    ([S7.5](#S7.5));
+  - two trials in a row go in the order they were given, the older first;
+  - the terminal takes only tasks that are still waiting and that nobody is working on; it leaves out the others (“N
+    tasks of the link no longer wait (done, taken back or held by another): left out.”). When none is waiting,
+    nothing starts.
+- **Where the progress is:** What the research knows › **Verifying** (“Waiting to be verified: N facts”, **Stop**,
+  **Show in the queue**), in the **Queue** the type **Verification** ([S4.2.4](S4-research-from-the-app.md#S4.2.4));
+  terminal `strom verify status`.
+- **Limits:** with an older research the trial goes after the work on the lines like other verification tasks and the
+  notice says “N facts queued for verification.”
+- **Controls:** app: **Verify facts in the tree…** → **Try on 5 people first** → **Try on 5** → the notice →
+  **Process now**. Terminal: `strom verify bulk --scope … --try N` (“a try, first in the queue: the next session
+  takes it”).
+- **Since:** app 3.31.0, research 1.36.0
+
+<!-- zdroj: dirigent:spec/065-spolehlivost-a-znovu-overeni K7.1–K7.3 · prace/1119-app-065-p7, 1119-research-065-p7-drobnosti · app:f19d34cb src/ui/verify-person-ui.ts (tryHead: verify.tryFirst → tryFirstSubHead; bulkNote(knowsTitle › section); showVerifyBulkStarted: BULK_PROCESS_MS 15 s, closable, activeResearchNoAgent, work do=tasks workTasks, researchLinkFlags) · src/research-verify.ts verifyBulkStartedKind (plain / next / head / process: working false, work.tasks, workTaskIds) · src/verify-ui-model.ts VERIFY_TRY_PEOPLE 5 · strings.ts verify.tryFirstSubHead, bulkNote, bulkStartedIdle, bulkStartedNext, bulkStartedHead, processNow, bulkStarted · research:7116bb60 src/core/verify.ts verifyBulk (try → priority 3, queueAt next, first), src/commands/verify.ts (working), src/cli/menu-links.ts workOn (jen open a nedržené, asks výchozí ne, run --task), src/core/links.ts (task= jen s do=tasks, 1–100) · cs.json ui.verify.bulk.first, ui.link.work.picked.head, ui.link.work.picked, ui.link.work.picked.gone, ui.link.work.picked.none · CHANGELOG.cs.md 1.36.0 (dvě zkoušky v pořadí zadání) -->
 
 <a id="S7.6"></a>
 ## S7.6 Verifying by itself in the research's queue
@@ -298,7 +356,11 @@ tip shows the state “✓ Confirmed against the scan on {date}” and **Undo**.
     the scan”, “undoing the confirmation of {name}”) and an entry in the change history (“Fact of {name} confirmed
     against the scan”, “Confirmation against the scan undone: {name}”);
   - a tree linked to the research: the research writes the confirmation through the bridge, only when the bridge runs
-    and the research can do it; the name and the sex are not confirmed here;
+    and the research can do it; the name and the sex are not confirmed here. **From app 3.31.0 with research
+    1.36.0** the name is confirmed too ([S7.10](#S7.10));
+  - **from app 3.31.0:** a confirmed fact that still has the value from another program's family tree has under the
+    confirmation the line “Taken from the family tree {program}, file {date}”: where the value came from stays
+    visible;
   - in the terminal only a person at their own terminal confirms: `strom verify confirm E… [--undo]`. To the agent
     `strom` refuses the confirmation.
 - **Limits:** a tree linked to the research whose bridge does not run: from app 3.30.0 it offers **Confirm against the
@@ -334,3 +396,49 @@ tip shows the state “✓ Confirmed against the scan on {date}” and **Undo**.
 - **Since:** research 1.30.0, app 3.26.0
 
 <!-- zdroj: app:7b0471f8 src/verify-offer.ts (feature verify a facts.confirm jen ze stavu výzkumu přes most) · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2) · research:6c6e7c3b strom help verify · app:0fbda127 researchConfirms offline -->
+
+<a id="S7.10"></a>
+## S7.10 The name as a fact
+
+A person's name has a mark like a birth or a death: how sure it is by the records that support it, and whether a
+person confirmed it. It can be verified and confirmed against the scan. The name's degree is set by the research
+([R10.5.2](R10-people-and-hypotheses.md#R10.5.2)).
+
+- **Where:**
+  - the person card: the mark at **First name** and **Last name** (a name from the family tree changed only in part
+    has the mark only at the part that is from the family tree); the mark's tip as at a fact ([S7.1](#S7.1));
+  - the card in the tree: the name is one of the three facts that make up the one mark ([S7.2](#S7.2)). After a
+    confirmation or its undoing through the bridge the card's mark changes at once;
+  - the married name has a quiet mark at **Married surname**: without a tip and without actions, and it does not
+    enter the card's mark.
+- **Actions at the name** (a tree linked to a research that can handle the name):
+  - **Verify** with the preview as at a fact ([S7.3](#S7.3)). When the research verifies the name together with the
+    record of the birth or baptism, the preview says so: “Verified together with the birth.”, “Verified together
+    with the baptism.”, at a birth or baptism “The name is verified with it.”;
+  - **Confirm against the scan** and **Undo** as at a fact ([S7.8](#S7.8)); a name changed since the tree was loaded
+    is not confirmed;
+  - **Verify facts (N)** at a person counts the name ([S7.4](#S7.4));
+  - when the name holds the card's mark, the mark's tip offers the link **The name in the person card ›**: it opens
+    the person card with the name's tip.
+- **Enforced by the code:**
+  - the app takes the name's degree only from the research's file; it computes and converts nothing itself
+    ([R10.5.3](R10-people-and-hypotheses.md#R10.5.3));
+  - only the name of the person's identity counts toward the card's mark
+    ([R10.5.2](R10-people-and-hypotheses.md#R10.5.2));
+  - a tree linked to the research whose bridge does not run: a name with a research number can be confirmed against
+    the scan; the app keeps the confirmation and it reaches the research with the next handover of the tree
+    ([S7.8](#S7.8));
+  - a tree without research: the app confirms a name with a source itself, like the other facts;
+  - a married name written differently in the app, or deleted, loses its degree;
+  - when no fact of the person is from the family tree alone any more (each is proven or confirmed), the line about
+    the origin in the person card says “This person's facts came from {program} (file {date}, loaded {date}); none
+    is from the family tree alone any more.” ([S6.2](S6-tree-from-another-program.md#S6.2)).
+- **Limits:** with an older research that cannot handle the name nothing changes: the name in the research's tree
+  has neither **Verify** nor **Confirm against the scan**, and the name's mark stays by its origin (for example
+  **From family tree**). The sex is still neither verified nor confirmed.
+- **Controls:** app: person card → the mark at **First name** or **Last name** → **Verify** / **Confirm against the
+  scan** / **Undo**; the mark's tip on the card → **The name in the person card ›**. Terminal: `strom verify facts
+  --fact P….N`, `strom verify confirm P….N [--undo]`.
+- **Since:** app 3.31.0, research 1.36.0
+
+<!-- zdroj: app:58e76958 src/ged-parser.ts (_STROM_STATUS, _STROM_EID P….N, _STROM_CONFIRMED pod NAME), src/reliability.ts factStatusOf (name → nameStatus), src/ui/person-reliability-ui.ts:126-145 (marriedNameStatus inert, fact name:married; jméno u input-firstname a lastname-label, fromParts GIVN/SURN), src/ui/fact-status.ts:200-203 personMarksLayout originHistory · app:bb1c6f0a src/verify-ui-model.ts verifyFactKind NAME, factOffer (nameOk: features name-status, nebo offline s eid; jinak ve stromu výzkumu nic), PERSON_VERIFY_KINDS NAME, verifyTogetherKind (NAME ↔ BIRT/BAPM/CHR), src/verify.ts NAME_STATUS_FEATURE, researchNameRef · strings.ts verify.kinds.NAME, verify.together · app:837ca7a4 src/ui/verify-person-ui.ts:293-310 verifyCardTipActions nameAtPerson, src/renderer.ts refreshCardStatus, src/data.ts (married name přepsaný → bez stavu) · CHANGELOG.cs.md 3.31.0 „Stav jména“ · research:8b92b3ae features name-status, POST /facts/confirm a /verify s P….N · research:0bbd1d22 src/core/stromapp.ts APP_READS_NAME_STATUS · dirigent:spec/066 K6.3, K6.5 · app:docs/ZADANI_VYZKUM_stav-jmena.md Odpověď aplikace -->

@@ -46,6 +46,9 @@ kann er eine Bedingung fragen ([R7.4](#R7.4)).
 - **Gilt seit:** Forschung 1.0.0; das Warten auf ein Archiv, das nicht antwortet, seit 1.22.0
 - **Ab Forschung 1.32.0:** ein Lauf mit `--tasks` endet mit **N Aufgaben erledigt**, oder nach 2×n Sitzungen mit
   **Sitzungen: … (höchstens so viele für die gewünschten Aufgaben) – erledigte Aufgaben: …**.
+- **Ab Forschung 1.36.0:** ein Lauf, dem nur Aufgaben in einem eingeschränkten Archiv geblieben sind, das eine andere
+  Sitzung nutzt, wartet höchstens `archive.wait` und endet mit **nichts weiter zu tun – die übrigen Aufgaben brauchen
+  das Archiv …** ([R9.13](R9-archives.md#R9.13)).
 
 <!-- zdroj: research:src/commands/session.ts:853 Stop, :1220-1268, :1277-1285 · cs.json ui.run.summary, ui.run.stop.*, ui.run.asleep.wait · CHANGELOG.cs.md 1.22.0 · 1.32.0: session.ts Stop tasks|sessions, cs.json ui.run.stop.tasks, ui.run.stop.sessions -->
 
@@ -73,8 +76,17 @@ kann er eine Bedingung fragen ([R7.4](#R7.4)).
 - **Bedienung:** ein Link aus der Strom-App (`strom-research://work` mit `do=tasks` und `n`, oder `do=loop`), in der
   App 3.28.0 **An der Warteschlange arbeiten…** ([S4.2.3](S4-research-from-the-app.md#S4.2.3)); Terminal: `strom link open "<Link>"`.
 - **Gilt seit:** Forschung 1.32.0
+- **Ab Forschung 1.36.0:** Bei **Agent aus der Strom-App starten: ohne Rückfrage** startet die Arbeit ohne Frage nach
+  einem Ja; die Bedingung fragt weiter ([S4.5.5](S4-research-from-the-app.md#S4.5.5)).
+- **Ab Forschung 1.36.0:** der Link kann Aufgaben nennen (`do=tasks` mit `task=T…,T…`, nur Nummern von Aufgaben,
+  höchstens 100, nie mit `n`): **Jetzt bearbeiten** nach einer Probe der Prüfung
+  ([S7.5.1](S7-reliability-and-verification.md#S7.5.1)). Das Terminal zeigt „Diese Aufgaben, in dieser Reihenfolge:“
+  und „Eine Sitzung je Aufgabe (N Sitzungen), dann Ende; was nicht fertig wird, geht zurück in die Warteschlange.“
+  Nach einem Ja startet es `strom run --task` mit diesen Aufgaben in der Reihenfolge des Links. Aufgaben, die nicht mehr
+  warten (erledigt, zurückgenommen oder von einem anderen gehalten), lässt es aus und sagt, wie viele; wartet keine,
+  startet nichts.
 
-<!-- zdroj: research:src/cli/menu-links.ts workRun (WORK_LIST=5, agentCliHere, busyIn, taskQueue s RUN_TURNS, loop jen s run.gate, choose výchozí „Teď nic“, asks … false, run --tasks | --loop) · src/core/links.ts LINK_WORK_DOS, LINK_WORK_MAX=100, LINK_WORK_DEFAULT=5 · src/commands/links.ts case "work" · cs.json ui.link.work.*, ui.link.what.work.*, ui.run.next, ui.run.limit, ui.link.cost · CHANGELOG.cs.md 1.32.0 · spec 052 K6.2 (cesta terminál, most agenta nespouští) -->
+<!-- zdroj: 1.36.0: research:7116bb60 src/cli/menu-links.ts workOn, src/core/links.ts (task= jen s do=tasks, ne s n, 1–LINK_WORK_MAX) · cs.json ui.link.work.picked.* · research:src/cli/menu-links.ts workRun (WORK_LIST=5, agentCliHere, busyIn, taskQueue s RUN_TURNS, loop jen s run.gate, choose výchozí „Teď nic“, asks … false, run --tasks | --loop) · src/core/links.ts LINK_WORK_DOS, LINK_WORK_MAX=100, LINK_WORK_DEFAULT=5 · src/commands/links.ts case "work" · cs.json ui.link.work.*, ui.link.what.work.*, ui.run.next, ui.run.limit, ui.link.cost · CHANGELOG.cs.md 1.32.0 · spec 052 K6.2 (cesta terminál, most agenta nespouští) -->
 
 <a id="R7.2"></a>
 ## R7.2 Jede Sitzung hat ein Zeitlimit
@@ -116,6 +128,8 @@ und schließt die Sitzung. Dann endet der Lauf, und keine weitere Sitzung beginn
   **Forschungsübersicht**, beim arbeitenden Agenten **Abschließen und beenden**; bestätigt wird im Terminal der
   Forschung. Wenn der Lauf auf die Bedingung wartet, fehlt die Schaltfläche.
 - **Gilt seit:** Forschung 1.8.0, App 3.5.0
+- **Ab Forschung 1.36.0:** ein Lauf lässt sich auch von außen und einzeln anhalten, `strom run stop <run-…>
+  [--finish]`; bei mehreren Läufen hat in der App jeder sein eigenes **Abschließen und beenden** ([R7.10.2](#R7.10.2)).
 
 <!-- zdroj: research:src/commands/session.ts:198-221 session finish, :865 onSignal, :1194 askedToFinish · src/core/clock.ts askFinish, refuseReadersWhenFinishing · runners/runner.ts:296 OWN_GROUP · src/cli/menu-links.ts:473 finishSession · app:v3.21.2 research-overview-ui.ts:810,868 (!w.paused) · strings.ts live.finishSession -->
 
@@ -286,6 +300,8 @@ Lauf endet: **Limit des Abonnements (erneuert sich …)**. Bis Forschung 1.33.0 
   - unverändert: ein Lauf von Hand (eine Aufgabe, `--tasks n`, `--max` ohne `--loop`) und ein Lauf ohne Bedingung
     enden mit **Limit des Abonnements** wie bisher. Die Meldung von Claude Code „You've hit your limit · resets …“
     und eine Ablehnung des Agenten wegen des Limits gelten als Limit.
+- **Ab Forschung 1.36.0:** ein Limit, auf das ein Lauf stößt, hält neue Sitzungen aller Läufe desselben Agenten auf
+  dem Computer an ([R7.10.3](#R7.10.3)).
 
 <!-- zdroj: research:src/commands/session.ts:1196-1206 closeSession (session.limit), :1255-1259 · src/core/session.ts:248-262 · runners/runner.ts:226 looksLikeLimit · cs.json ui.run.stop.limit, ui.run.stop.resets · 1.34.0: research:8f24e9f7 src/commands/session.ts:1453-1483 (gateHolds && gate, limitResume, limitReserve, DEFAULT_WAIT_MS 15 min, until → time, markPaused), :1363 metrics.limit, src/core/planlimit.ts limitResume, timeOf, LIMIT_RESERVE_MS 60 s, FURTHEST_MS · 03146702 (B8: „You've hit your limit“, odmítnutý rate_limit_event) · cs.json ui.run.limit.wait, ui.run.limit.unknown, ui.run.limit.why, ui.run.limit.five_hour, ui.run.limit.seven_day · dirigent:prace/1115-vyzkum-k036-limit-obnova -->
 
@@ -379,3 +395,184 @@ anderen Computer übertragen), wartet auf ihn. Bis dahin verhält sie sich wie e
   Agent wieder auf dem Computer ist.
 
 <!-- zdroj: research:src/core/state.ts (hlavička, stateOf, actsAsArchive, kindOf, refuseInArchive agent.missing) · cs.json ui.mode.is.waiting, ui.waiting.refuse, ui.menu.keeparchive · CHANGELOG 1.15.0 · 1.35.0: research:31def74a src/core/state.ts heldWhereNobody (parked, heldBy archive, waiting.held), settleWaiting (atWork: session start, run, chat; jinak stateOf research) · src/core/records.ts create · CHANGELOG.cs.md 1.35.0 „Rodinný materiál … odložený, dokud tu agent není“ -->
+
+<a id="R7.9"></a>
+## R7.9 Eine Aufgabe hält die Sitzung, die an ihr arbeitet
+
+An einer Forschung können mehrere Agenten zugleich arbeiten: die Arbeit allein (`strom run`), ein Gespräch (`strom
+chat`), ein Agent, der `strom` direkt in seinem Terminal aufruft, und auch ein anderer Computer mit derselben
+Forschung. Eine Aufgabe hat immer nur einen, der an ihr arbeitet: Die offene Sitzung hält sie, solange deren Agent ein
+Lebenszeichen gibt. Eine verlassene Aufgabe wird von selbst frei.
+
+- **Prüft der Code:**
+  - die Wahl einer Aufgabe und ihre Belegung geschehen in einem Schritt. Wollen zwei dieselbe Aufgabe, bekommt sie
+    einer; der andere nimmt die nächste freie. Das gilt für `strom run`, `strom chat`, `strom session start`, `strom
+    task start`, einen Link aus der Strom-App und einen Agenten, der direkt arbeitet;
+  - Lebenszeichen: der Prozess eines Laufs oder Gesprächs, den strom gestartet hat, auf diesem Computer; sonst jeder
+    Befehl `strom` dieser Sitzung. Einen Agenten, der direkt arbeitet, erkennt die Forschung an der Nummer seines
+    Gesprächs (Claude Code, Codex…): zwei solche Agenten haben je eine eigene Sitzung;
+  - ohne Lebenszeichen länger als `task.hold` (Standard 30 Min.) verfällt das Halten. Ist der Prozess des Halters auf
+    diesem Computer beendet, verfällt es sofort;
+  - eine verfallene Sitzung übernimmt nur ein Interessent. Die alte Sitzung wird als unterbrochen geschlossen, mit der
+    Notiz „übernommen nach N Minuten ohne Lebenszeichen; begonnene Arbeit in N…“; was darin geschrieben wurde, bleibt,
+    und die Aufgabe geht in die Warteschlange zurück;
+  - ein alter Halter, der nach der Übernahme aufwacht (Computer im Ruhezustand, angehaltener Prozess), schreibt nichts
+    mehr: ein schreibender Befehl wird abgelehnt und sagt, welche Sitzung die Aufgabe wann übernommen hat. Lesen darf
+    er weiter. `strom task done` und andere Einträge zu einer Aufgabe, die eine andere Sitzung hält, werden abgelehnt;
+  - wer eine Aufgabe will, die eine andere Sitzung hält, bekommt einen Satz: „T12 hält Claude Code (Sitzung N0040)
+    seit 14:05, zuletzt 14:31; frei spätestens um 15:01.“ Hält sie ein lebender Prozess auf diesem Computer, steht
+    statt der Uhrzeit „frei, sobald es endet“. `strom run` nimmt die nächste freie Aufgabe, `strom session start T…`
+    wird abgelehnt, mit dem Angebot der nächsten (`strom task next`). Auf das Freiwerden wird nicht gewartet;
+  - `strom run` übernimmt verfallene Sitzungen am Anfang jeder Sitzung und lässt Aufgaben aus, die eine andere Sitzung
+    hält („T12 ausgelassen: ein anderer Agent arbeitet daran“).
+- **Nur Methodik:** ein Agent, der direkt arbeitet, gibt mindestens alle 20 Minuten einen Befehl `strom`; ein langes
+  Lesen von Scans ohne ihn würde die Aufgabe freigeben.
+- **Grenzen:**
+  - die Zeit stammt vom selben Computer; bei einer Forschung auf einem gemeinsamen Laufwerk von einem anderen Computer
+    entscheidet nur das letzte Lebenszeichen. Bei verstellten Uhren hält eine Reservierung eher länger, doppelt wird
+    sie nie;
+  - ein älteres strom neben diesem hält keine Aufgaben: seine Sitzungen beurteilt das neue strom nach seinem Lauf und
+    nach dem letzten Eintrag, sonst ab dem Beginn der Sitzung;
+  - nichts davon steht in den Daten der Forschung; das Halten ist nur ein lokaler Zustand neben der Forschung.
+- **In der App:** wer eine Aufgabe hält und bis wann, zeigt die Forschungsübersicht
+  ([S4.1](S4-research-from-the-app.md#S4.1), [S4.2](S4-research-from-the-app.md#S4.2)).
+- **Bedienung:** Terminal: `strom config set task.hold <Minuten>` (z. B. `45m`, `2h`; 5 Min. bis 24 Std., gilt für
+  diesen Computer, nicht für eine Forschung), `strom task next`; das Menü zeigt in der Zeile über die Arbeit auch
+  Agenten, die direkt arbeiten („Gerade arbeitet ein Agent direkt in der Forschung.“).
+- **Gilt seit:** Forschung 1.36.0
+
+<!-- zdroj: research:1e58aa7b, f08b6574, 23b20c27 src/core/holds.ts (Hold by run|chat|agent, agentSession, BEAT_MS 60 s, holdAlive: proces tady mrtvý → hned, jinak lastSign < task.hold; lastSign max(beat, mtime), budoucnost jako teď; sessionLife: bez holdu worker, run.lock, ops logy, jinak start) · src/core/session.ts claimTask, takeOver (session.taken: „převzato po … bez známky života; rozdělaná práce v …“), :574 session.taken · src/core/errors.ts:122 task.held, task.held.here · src/commands/session.ts:217-225 (session start: sign of life, at least once every 20 minutes, task.held), :985-997 (run: vynechá držené, převzetí na začátku sezení) · src/brief/brief.ts:1668, src/commands/guide.ts:152 (aspoň jednou za 20 minut) · src/core/config.ts:242-246, :335 task.hold (tree: false, 5 min–24 h, výchozí 30) · ověřeno: strom config set task.hold 3 / 25h / --for-tree odmítnuto (izolovaně) · cs.json ui.error.task.held(.here), ui.error.session.taken, ui.run.skip.held, ui.menu.working.direct(.more), session.taken · CHANGELOG.cs.md 1.36.0 „Více agentů a výzkumů najednou“ · dirigent:spec/127 K1.1–K1.5, K5.1–K5.3, navrh-rezervace.md kap. 1–4, 6 -->
+
+<a id="R7.10"></a>
+## R7.10 Lauf einer Linie: jede Linie kann einen eigenen Lauf haben
+
+Das Arbeiten allein ([R7.1](#R7.1)) lässt sich für eine Linie starten (`strom run --research G…`). Jede Linie hat
+höchstens einen Lauf. Die Läufe verschiedener Linien und der Lauf der ganzen Warteschlange arbeiten nebeneinander,
+jeder an anderen Aufgaben.
+
+- **Prüft der Code:**
+  - der Lauf einer Linie hält seine Linie, solange sein Prozess lebt. Ein zweiter Lauf derselben Linie wird sofort
+    mit einem Satz abgelehnt: „Die Linie Vorfahren von Jan Horák hat schon einen Lauf (seit 14:05) – eine Linie, ein
+    Lauf. Er lässt sich in seinem Fenster anhalten.“;
+  - der Lauf einer Linie nimmt die Aufgaben, deren Hauptlinie seine ist. Die Hauptlinie einer Aufgabe ist ihre eigene
+    Linie, und wenn diese beendet ist, die engste aktive Linie ihrer Personen ([R2.1.3](R2-lines-and-queue.md#R2.1.3)).
+    Er nimmt auch gemeinsame Aufgaben (ein gemeinsamer Vorfahre, Hilfe für eine andere Linie,
+    [R2.3](R2-lines-and-queue.md#R2.3)), deren Hauptlinie keinen eigenen Lauf hat. Eine Aufgabe, deren Hauptlinie ein
+    anderer Lauf hält, nimmt er nie;
+  - der Lauf der ganzen Warteschlange lässt jede Aufgabe einer Linie mit eigenem Lauf aus, und auch eine gemeinsame
+    Aufgabe, deren Personen zu einer solchen Linie gehören. Die Arbeit außerhalb der Linien, die Ortsgeschichte und
+    die Orte bleiben bei ihm;
+  - das wird bei jeder Wahl einer Aufgabe beurteilt, bevor die Aufgabe beansprucht wird ([R7.9](#R7.9)). Eine Aufgabe,
+    an der schon eine andere Sitzung arbeitet, wird nicht übernommen: die laufende Sitzung schließt sie ab;
+  - Gespräche (`strom chat`) halten keine Linie und zählen nicht zu den Läufen ([R7.10.1](#R7.10.1));
+  - der Lauf einer Linie startet nicht neben einem Lauf eines strom älter als 1.25. Neben einem Lauf eines neueren
+    strom, der keine Linien kennt, startet er und sagt das: jener kann auch Aufgaben dieser Linie nehmen, nie aber
+    die, an der gerade gearbeitet wird.
+- **Grenzen:**
+  - der Lauf einer Linie hat ein eigenes Terminalfenster mit dem Titel „Strom · Horák · Vorfahren von Jan Horák
+    (G0002)“; der Agent benennt seine Sitzung nach der Linie. Inzwischen lässt sich aus dem Menü der Lauf einer
+    anderen Linie starten;
+  - das Fenster derselben Linie öffnet sich nicht gleich nach dem ersten noch einmal („Ein Fenster für die Linie …
+    wurde gerade geöffnet – der Lauf geht dort weiter.“);
+  - nur eine aktive Linie: weder eine pausierte noch eine beendete Linie bekommt einen Lauf
+    ([R2.1.2](R2-lines-and-queue.md#R2.1.2));
+  - die Forschung merkt sich den Agenten, mit dem die Linie zuletzt lief, und bietet ihn beim nächsten Mal im Menü
+    und in der App an;
+  - die Warnung bei einem Lauf neben einem anderen Lauf sagt, dass sich der Verbrauch des Abonnements addiert.
+- **In der App:** **Agent auf diese Richtung ansetzen** ([S4.3.3](S4-research-from-the-app.md#S4.3.3)); Läufe im
+  Bereich **Jetzt** ([S4.1.8](S4-research-from-the-app.md#S4.1.8)).
+- **Bedienung:** Terminal: Menü **Den Agenten allein arbeiten lassen**; bei zwei und mehr aktiven Linien fragt es
+  **Woran arbeiten?**: **die ganze Warteschlange (Linien mit eigenem Lauf ausgenommen)** oder eine Linie („– in einem
+  eigenen Fenster“; eine Linie mit Lauf „– hat schon einen Lauf“ und startet nicht). Befehl `strom run --research G…`
+  (mit den übrigen Optionen aus [R7.1](#R7.1)); die Nummern der Linien zeigt `strom research list`.
+- **Gilt seit:** Forschung 1.36.0
+
+<!-- zdroj: research:089875ec src/core/linerun.ts (lineHolds .strom/lines/<G>.json zámek s procesem, run.line.held, run.line.older pro strom před 1.25, lineRunFilter: obecný běh vynechá úkol s linií drženou jiným během; běh linie bere hlavní linii G nebo úkoly v G, jejichž hlavní linii nedrží jiný běh; linie úkolu = vlastní + hlavní (placer core/offline.ts) + linie jeho lidí; mimo linie, dějiny, místa žádnou; rememberLineAgent) · src/cli/menu.ts runMenu (ui.run.where, ui.run.whole, ui.run.line.item/busy/held, openInNewTerminal title Strom · strom · linie (G…), key linie, ui.run.window, ui.run.window.recent; dějiny jen celá fronta) · src/commands/session.ts:1107 enterRun (research, agent) · cs.json ui.run.line, ui.run.line.older, ui.run.beside, ui.run.others · help run (Runs of lines) · CHANGELOG.cs.md 1.36.0 · dirigent:spec/126 U11, prace/1121-research-126-linie-b1 -->
+
+<a id="R7.10.1"></a>
+### R7.10.1 Höchstens so viele Läufe gleichzeitig: `run.parallel`
+
+In einem Stammbaum arbeiten höchstens `run.parallel` Läufe gleichzeitig (Standard 3, 1–10): der Lauf der ganzen
+Warteschlange und die Läufe der Linien zusammen. Gespräche zählen nicht.
+
+- **Prüft der Code:**
+  - gezählt wird beim Start eines Laufs, unter einer kurzen Sperre der Linien des Stammbaums. Ein Lauf über das Limit
+    wird abgelehnt und sagt, welche Läufe arbeiten und wie man sie anhält;
+  - erhöhen darf den Wert nur ein Mensch: `strom config set run.parallel <n>` fragt „Bis zu N Läufe des Agenten
+    gleichzeitig in einem Stammbaum erlauben (jetzt M)? Jeder Lauf verbraucht das Abo des Agenten – der Verbrauch
+    addiert sich.“ Der Agent erhöht den Wert nicht. Senken darf ihn jeder, auch die App
+    ([S4.4.12](S4-research-from-the-app.md#S4.4.12));
+  - ein Senken unter die Zahl der laufenden Läufe hält keinen an; ein neuer Lauf startet, sobald es weniger sind.
+- **Grenzen:** die Einstellung gilt für diesen Computer, nicht für einen Stammbaum.
+- **Bedienung:** Terminal: `strom config set run.parallel <n>`, zurück mit `strom config unset run.parallel`.
+- **Gilt seit:** Forschung 1.36.0
+
+<!-- zdroj: research:089875ec src/core/linerun.ts (run.parallel, hint strom config set run.parallel <n>, rozhovory se nepočítají) · src/core/config.ts run.parallel (tree: false, DEFAULT_RUN_PARALLEL 3, RUN_PARALLEL_MAX 10, „only you raise it“) · src/commands/setup.ts runsDecision (requireHuman jen při zvýšení), cs.json ui.consent.runParallel · src/core/live.ts runsLimitWrite (POST settings/runs: snížení, zvýšení 403 runs.raise s příkazem, mimo 1–10 400 runs.max) · src/core/liveruns.ts runLimits · help run -->
+
+<a id="R7.10.2"></a>
+### R7.10.2 Einen Lauf anhalten
+
+Jeder Lauf lässt sich einzeln anhalten; die übrigen Läufe arbeiten weiter. Das Anhalten unterbricht nichts mit
+Gewalt.
+
+- **Grenzen:**
+  - `strom run stop <run-…>`: die laufende Sitzung schließt ihre Aufgabe ab, und keine weitere startet. Mit
+    `--finish` wird die laufende Sitzung zusätzlich gebeten, sofort abzuschließen: der Agent schreibt auf, was er
+    gefunden hat, und schließt die Sitzung wie `strom session finish` ([R7.3](#R7.3));
+  - ein Lauf, der wartet (auf die Bedingung, das Limit des Abonnements oder ein Archiv), endet sofort;
+  - der Lauf liest die Bitte innerhalb von ein, zwei Sekunden und sagt das in seinem Terminal. Strg-C im Fenster des
+    Laufs hält nur diesen Lauf an;
+  - die Nummer eines Laufs (`run-…`) nennt die Ablehnung eines Laufs über das Limit ([R7.10.1](#R7.10.1)) und
+    `strom session list --open`;
+  - nach dem Ende des Laufs einer Linie nimmt ihre Aufgaben wieder der Lauf der ganzen Warteschlange.
+- **In der App:** **Stoppen** und **Abschließen und beenden** im Block des Laufs
+  ([S4.1.8](S4-research-from-the-app.md#S4.1.8)).
+- **Bedienung:** Terminal: `strom run stop <run-…> [--finish]`, Strg-C im Fenster des Laufs.
+- **Gilt seit:** Forschung 1.36.0
+
+<!-- zdroj: research:src/commands/session.ts run stop (help: the task at work is finished, no next one starts; --finish; a run that waits ends at once; read within a second or two) · src/core/live.ts POST runs/stop · src/commands/links.ts finish?run= finishRun (strom run stop <run> --finish) · STOP_HINT src/core/linerun.ts · help run stop -->
+
+<a id="R7.10.3"></a>
+### R7.10.3 Was sich die Läufe auf einem Computer teilen
+
+Läufe auf einem Computer (alle Forschungen mit demselben gemeinsamen Ordner) teilen sich das Limit des Abonnements des
+Agenten, die Fragen an die Bedingung, die Anfragen an Websites und die Leser von Scans.
+
+- **Prüft der Code:**
+  - ein Limit des Abonnements, auf das ein Lauf stößt ([R7.6](#R7.6)), gilt für alle Läufe desselben Agenten (und
+    Kontos) auf dem Computer: keine neue Sitzung startet, bis sich das Limit erneuert. Ein Lauf unter einer Bedingung
+    mit `--loop` oder `--until` wartet, jeder andere endet (**Limit des Abonnements**). Eine laufende Sitzung macht
+    weiter;
+  - die Läufe fragen ihre Bedingungen ([R7.4](#R7.4)) nacheinander: die nächste erst, nachdem die Sitzung, die die
+    Bedingung durchgelassen hat, gestartet ist;
+  - die Seiten einer Website, die die Agenten öffnen, zählen für `web.perHost` ([R9.3](R9-archives.md#R9.3)) aus allen
+    Sitzungen auf dem Computer in den letzten `run.minutes`;
+  - auf dem ganzen Computer lesen höchstens `read.parallel` Leser gleichzeitig Scans
+    ([R8.3.1](R8-reading-scans.md#R8.3.1)).
+- **Gilt seit:** Forschung 1.36.0
+
+<!-- zdroj: research:src/core/machine.ts (limit-<agent>.json ve sdílené složce agents/, brána po jednom, sloty čtenářů) · src/core/web.ts web.perHost za run.minutes ze všech sezení · src/core/config.ts read.parallel, web.perHost (počítáno na počítač) · help run (What runs share on this computer) · CHANGELOG.cs.md 1.36.0 · dirigent:spec/126 U8 -->
+
+<a id="R7.10.4"></a>
+### R7.10.4 Lauf einer Linie über einen Link der App Strom
+
+- Der Link `strom-research://work` mit `research=G…` (und gegebenenfalls `agent=…`) bittet um den Lauf einer Linie.
+  Das Terminal der Forschung öffnet ihn in einem neuen Fenster mit dem Namen der Linie, sagt „Lauf der Linie …: nur
+  ihre Aufgaben – eine andere Linie kann daneben einen eigenen Lauf haben.“, den Agenten und die ersten 5 Aufgaben
+  der Linie und startet `strom run --research G…` mit `--tasks N` oder `--loop` wie in [R7.1.2](#R7.1.2).
+- **Grenzen:**
+  - nichts startet, wenn die Linie nicht in der Forschung ist oder pausiert oder beendet ist, wenn das Programm des
+    gewählten Agenten nicht auf dem Computer ist, wenn die Linie schon einen Lauf hat, wenn an der Forschung ein Lauf
+    eines strom älter als 1.25 arbeitet, oder bei voller Zahl der Läufe („Es arbeiten schon so viele Läufe
+    gleichzeitig wie erlaubt (3 von 3, Einstellung run.parallel). Nichts weiter wurde gestartet.“);
+  - die Bestätigung richtet sich nach der Einstellung **Agent aus der Strom-App starten**
+    ([S4.5.5](S4-research-from-the-app.md#S4.5.5));
+  - ein Link für die ganze Warteschlange wird neben einem Lauf der ganzen Warteschlange oder einer Sitzung außerhalb
+    der Läufe der Linien weiterhin abgelehnt. Die Läufe der Linien zählen für ihn nur in `run.parallel`; die
+    Warteschlange, die er zeigt, hat keine Aufgaben der Linien mit eigenem Lauf;
+  - `strom-research://finish` mit `run=run-…` bittet den Lauf abzuschließen und zu enden wie
+    `strom run stop <run-…> --finish` ([R7.10.2](#R7.10.2)).
+- **Bedienung:** die App ([S4.3.3](S4-research-from-the-app.md#S4.3.3)); Terminal: `strom link open "<Link>"`.
+- **Gilt seit:** Forschung 1.36.0
+
+<!-- zdroj: research:src/cli/menu-links.ts workRun byLine (ui.link.direction.none, ui.link.work.line.state, ui.link.work.agent, ui.link.work.older, ui.run.line.held, ui.link.work.cap; obecný odkaz: busy bez běhů linií, runRefusal max; lineRunFilter; ui.run.line, ui.link.work.agent.is; run --research [--agent] --tasks|--loop) · src/commands/links.ts lineWindow (titulek Strom · strom · linie (G…), klíč linie), finish run= → finishRun · src/core/links.ts work research=, agent= -->

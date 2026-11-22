@@ -41,7 +41,12 @@ kopií stejné a úprava kterékoli kopie platí pro všechny.
   - mazání v patičce: **Smazat jen u této osoby** („U ostatních N zůstane.“), **Oddělit tuto osobu**, **Smazat
     u všech N osob…** (potvrzení vyjmenuje osoby, u kterých událost zmizí). Obojí jde vrátit přes **Zpět**.
 - **Platí od:** aplikace 3.28.0
+- **Od výzkumu 1.36.0:** domácnost ze sčítání lidu, kterou zapsal výzkum ([R9.12.3](R9-archives.md#R9.12.3)),
+  přijde jako jedna společná událost **Sčítání lidu**. Role je vztah k přednostovi, jak ho zapsal výzkum (hlava
+  domácnosti, manželka, syn…), věk má každá osoba svůj a lidé z archu mimo strom jsou v poznámce. Ukáže se u každé
+  její osoby a na **Časové ose** ([A10.2](#A10.2), [A6.3](A6-views.md#A6.3)) (aplikace 3.31.0).
 
+<!-- zdroj: research:8dba2e52 src/core/household.ts (CENS, _STROM_SHARE + _ROLE, společná NOTE) · app:6edc7dc7 src/__tests__/census-bridge.test.ts (parser domácnosti) · app:80d6358c e2e/research-census.spec.ts (domácnost u osoby a na Časové ose linie) · app:cc6f3104 src/timeline-chart.ts · CHANGELOG.cs.md 3.31.0 · dirigent:spec/106 K3.1, K3.4 -->
 <!-- zdroj: app:80c2ffb9 src/events.ts SHAREABLE_EVENT_TYPES (census, residence, emigration, immigration, military, naturalization, custom), SHARED_EVENT_COMMON_FIELDS (type, customLabel, date, place, address, note, sourceIds, citationQuay) · src/types.ts LifeEvent.shareId, shareRole · src/shared-events.ts, src/shared-event-editor.ts · src/ui/shared-event-ui.ts LARGE_HOUSEHOLD 7, SHOWN 5, openSharedRowMenu, openSharedDeleteMenu, sharedTakeOut, sharedDeleteAll · strings.ts events.sharedWith, sharedWithHint, sharedBanner, sharedCol*, sharedRoleDefault, sharedRoleOther, sharedRolePlaceholder, sharedShowMore, sharedShowLess, sharedOpenPerson, sharedSeparate(Hint), sharedRemove(Hint), sharedSeparateSelf, sharedDeleteSelf(Hint), sharedDeleteAll(Title, Lead), undoHint, sharedTypeLocked(Hint), sharedSaved, sharedSaveRefused, personDelete deleteShared · spec 085 K1.1–K1.3 · dirigent:prace/1113-app-sdilena-udalost Výsledek -->
 
 <a id="A10.1.1"></a>

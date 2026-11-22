@@ -161,6 +161,92 @@ währenddessen schreibgeschützt, damit sich eine Änderung in der App nicht mit
 
 <!-- zdroj: app:src/ui/research-ui.ts startLiveFollow :2376 (opts.auto), researchReconnectOnly · strings.ts live.followLive, live.followingTree, live.followStarted, live.followMoved, live.liveEndedArchive, live.liveEndedNoAgent · CHANGELOG.cs.md 3.13.1 · spec 011 · app:669c08f0 src/research-tree-file.ts (ged.stale → tree.ged?stale=1, treeFileState preparing; ged.etag → If-None-Match jen u stromu přesně z toho souboru, 304 = strom zůstává), src/ui/research-ui.ts livePreparing, strings.ts research.newerPreparing · research:94d75934 src/core/liveged.ts (strom pro aplikaci jednou pro stav a variantu, na disku i po restartu mostu), src/core/live.ts (change až s hotovým stromem; ETag u tree.ged) · CHANGELOG.cs.md 1.30.0 -->
 
+<a id="S1.4.1"></a>
+### S1.4.1 Der Stammbaum sofort, die Fotos folgen
+
+Ein mit **Live verfolgen** geöffneter Stammbaum erscheint sofort, mit den Fotos, die die App schon hat. Die übrigen
+Porträts, Paarfotos, Anhänge und Ausschnitte von Quellen kommen danach aus der Forschung, im Hintergrund. Namen,
+Beziehungen und Karten lassen sich sofort ansehen.
+
+- **Reihenfolge:** zuerst die Fotos der Karten auf dem Bildschirm, dann die um die Mitte. Verschieben oder Zoomen des
+  Stammbaums ordnet sie neu. Der erste Stapel hat 30 Fotos, die weiteren je 500, höchstens 2 Anfragen zugleich. Jedes
+  Foto wird vor dem Einfügen in den Stammbaum an seinem Fingerabdruck geprüft.
+- **Ein Foto unterwegs:** die Karte zeigt die Initialen unter einem ruhigen, langsam pulsierenden Schleier; eine Karte
+  mit einem älteren Foto zeigt dieses unter dem Schleier, bis das neue kommt. Der Tooltip sagt „Foto wird geladen…“
+  oder „Neues Foto wird geladen…“. Ein ankommendes Foto blendet an Ort und Stelle ein; der Stammbaum wird dafür nicht
+  neu gezeichnet.
+  - Denselben Schleier haben der Dialog der Person, die Personenseite und die Familienseiten im Fenster der App, das
+    Fenster **Materialien**, Dateien und Material der Person, Vorschauen von Quellen und Ausschnitten und das Paarfoto
+    in der Tabelle. Die Diashow, die Änderungen aus der Forschung und ein Konflikt beim Zusammenführen zeigen die
+    Initialen, bis das Porträt kommt.
+- **Ein Foto, das nicht kam:** die Karte sieht aus wie eine Karte ohne Foto; Tooltip „Das Foto wurde nicht geladen.“
+  Eine Kachel in Listen zeigt ein durchgestrichenes Bild, ab 64 px mit **Nicht geladen**. Der Dialog der Person und
+  die Personenseite haben beim Foto **Erneut versuchen**.
+- **Die Anzeige Fotos k / n:** sie erscheint, wenn die Fotos länger als 400 ms laden, und zählt die Fotos des ganzen
+  Stammbaums („Fotos 846 / 860“, mit „· 3 nicht geladen“) mit einem Fortschrittsbalken. Am Computer steht sie oben, in
+  einem Fenster bis 1024 px Breite unten über den Meldungen. Ein Klick zeigt die Einzelheiten: „Noch N · M nicht
+  geladen“ und was sich mit dem Stammbaum inzwischen tun lässt: beim Live-Verfolgen „Der Stammbaum kann inzwischen
+  angesehen werden.“ (der Stammbaum ist schreibgeschützt, [S1.4](#S1.4)), sonst „Der Stammbaum kann inzwischen
+  bearbeitet werden.“ Sind alle da, zeigt sie 2 s lang ✓ und verschwindet.
+- **Einige wurden nicht geladen:** die Anzeige verschwindet und es bleibt eine Meldung „Einige Fotos wurden nicht
+  geladen (N).“ mit dem Grund („Die Forschung läuft nicht. Strom Research muss gestartet werden.“, „Die Forschung hat
+  in 60 s nicht geantwortet.“ oder „Die Forschung hat diese Fotos nicht.“) und **Erneut versuchen**. Das lädt die
+  nicht geladenen Fotos erneut, und die Anzeige zählt wieder den ganzen Stammbaum.
+- **Prüft der Code:** ein Foto unterwegs löscht oder überschreibt nie ein gespeichertes Foto.
+  - Wird der Stammbaum gespeichert, bevor die Fotos kommen, behalten Porträt und Paarfoto das bisherige Foto (oder
+    keines). Die noch nicht gekommenen Fotos merkt sich die App beim Stammbaum und holt sie bei der nächsten Verbindung
+    zur Forschung.
+  - Der Dialog der Person schreibt das Foto nur, wenn es im Dialog geändert wurde. Ein Foto, das bei offenem Dialog
+    kommt, wird dort ergänzt.
+  - **Rückgängig**, **Wiederholen**, ein verworfener Dialog, die tägliche Sicherung und weitere Fenster behalten die
+    Fotos, die schon gekommen sind.
+  - **Ausschnitt bearbeiten** bei einem Porträt oder Paarfoto wartet auf das Foto: „Der Ausschnitt lässt sich
+    bearbeiten, sobald das Foto geladen ist.“
+  - Das Ankommen eines Fotos ist keine Änderung des Stammbaums: es lässt sich nicht als Schritt rückgängig machen, und
+    ein mit der Forschung abgeglichener Stammbaum bleibt abgeglichen.
+  - Fotos, die nicht kamen, nimmt die Forschung nicht als entfernt: bis sie kommen, fügen Schreibvorgänge des
+    Stammbaums nur hinzu ([S8.5](S8-where-the-data-are.md#S8.5)).
+- **Grenzen:**
+  - nur beim Öffnen des Stammbaums mit **Live verfolgen**. Eine neuere Version während des Verfolgens, die Übernahme
+    eines Stammbaums und andere Ladevorgänge einer Version aus der Forschung bringen die Fotos wie bisher zugleich mit
+    dem Stammbaum;
+  - eine Forschung bis 1.29 schickt den Stammbaum mit den Fotos in der Datei: der Stammbaum erscheint erst mit ihnen;
+  - ein während des Ladens geöffneter anderer Stammbaum bricht das Laden ab, und die Anzeige verschwindet. Ein Foto
+    landet nur in dem Stammbaum und dem Ladevorgang, für den es geholt wurde;
+  - weitere Fenster der App ([A6.8](A6-views.md#A6.8)) haben keine Ladezustände und zeigen den Stammbaum ohne Schleier;
+  - bei einem verschlüsselten Stammbaum kommen Dateien und Ausschnitte von Quellen, die bis zum Schließen der Seite
+    nicht kamen, erst mit der nächsten Version aus der Forschung;
+  - auf einem quer gehaltenen Telefon klappt das aufgeklappte Panel der Forschung bei der Anzeige zu
+    ([S4.1](S4-research-from-the-app.md#S4.1)).
+- **Bedienung:** App: **Live verfolgen**; die Anzeige **Fotos k / n** (Klick: Einzelheiten, Esc schließt sie); die
+  Meldung → **Erneut versuchen**; Dialog der Person und Personenseite → **Erneut versuchen**.
+- **Gilt seit:** App 3.31.0, Forschung 1.30.0
+
+<!-- zdroj: dirigent:spec/116-fotky-nacitat-pozdeji K1.2–K1.6, K2.1 · prace/1119-app-116-fotky (Výsledek, odchylky) · app:45dd3426 src/image-loads.ts (ImageLoadQueue, IMAGE_FIRST_BATCH 30, takePendingImages, write jen do současného stromu a načtení, bez kroku zpět), src/research-image-refs.ts IMAGE_BATCH 500, IMAGE_CONCURRENCY 2, IMAGE_ANSWER_MS 60 s · src/ui/research-ui.ts startLiveFollow (ged.imagesByHash → later, priority TreeRenderer.imagePriority: na obrazovce, pak kolem středu; setPendingImages I1; researchResumePendingImages) · research:33ac2e38 (1.30.0) src/core/live.ts ged.imagesByHash · app:95e68ac7 (K1.5 I1–I7: TreeMetadata.pendingImages, notes(records) bez záznamů u šifrovaného stromu) · 87b9ec30 src/ui/image-slot.ts (data-img-state loading/refresh/failed, IMG_PULSE_MS, TILE_NOTE_MIN_PX 64) · ad9e82a0 src/ui/person-modal.ts renderPhotoState, photoModel · 05cf608c, e188236f (další místa) · 4afeb434, b1bcb476 src/ui/image-load-chip.ts CHIP_SHOW_MS 400, BUSY_DONE_MS, detailNote(readOnly), failedReasonText (offline → timeout → missing), treeSwitched · 4afeb434 src/image-loads.ts abort (strom už není současný) · strings.ts photos.loading, loadingNew, failed, failedNew, tileFailed, recropWait, chipLabel, chipFailed, detailLeft, detailEditable, detailViewOnly, someFailed, whyMissing · busy.errOffline, errTimeout, retry · a2feee6b (≤ 1024 dole nad oznámením) · 7be40d24 src/ui/landscape-panel-fold.ts · CHANGELOG.cs.md 3.31.0 -->
+
+<a id="S1.4.2"></a>
+### S1.4.2 Ausgaben warten auf die Fotos
+
+Eine Ausgabe, die angefordert wird, während die Fotos des Stammbaums noch kommen ([S1.4.1](#S1.4.1)), wartet auf sie
+und entsteht erst mit ihnen. Ohne die Fotos entsteht sie nur auf ausdrückliche Wahl.
+
+- **Welche Ausgaben:** Poster drucken, PNG-Bild und SVG-Vektor, Personenseite, Familienseiten, Familienbuch, die
+  Datensicherung (**In Datei speichern**, Schreiben in die verknüpfte Datei, eine Datei zum Teilen, **Exportieren**
+  der Sicherung) und der GEDCOM-Export. Eine CSV-Datei hat keine Fotos und wartet nicht.
+- **Warten:** die Schaltfläche oder Zeile der Ausgabe sagt „Warten auf Fotos · k von n“, und ein zweiter Klick startet
+  nichts. Eine Meldung mit dem Namen der Ausgabe („Poster drucken“, „Familienbuch“…) zählt die Fotos mit einem Balken
+  und hat **Abbrechen**. Die Anzeige **Fotos k / n** blendet sich inzwischen aus.
+- **Wenn einige nicht kamen:** eine Meldung „Einige Fotos wurden nicht geladen (N).“ mit dem Grund und drei
+  Möglichkeiten: **Erneut versuchen**, **Ohne N Fotos fortfahren** (die Ausgabe aus den Daten, wie sie sind) und
+  **Abbrechen**.
+- **Prüft der Code:** eine Ausgabe enthält nie den Schleier oder das Zeichen eines nicht geladenen Fotos. Der Druck
+  lädt und zeichnet vor dem Öffnen des Drucks auch die Bilder, die die Seite erst beim Scrollen lädt.
+- **Bedienung:** App: die Ausgabe wie immer; in der Meldung **Abbrechen**; im Hinweis **Erneut versuchen**, **Ohne
+  N Fotos fortfahren**, **Abbrechen**.
+- **Gilt seit:** App 3.31.0
+
+<!-- zdroj: dirigent:spec/116-fotky-nacitat-pozdeji K1.7 · app:9d326239 src/ui/output-images.ts imagesBeforeOutput, waitingLine, someFailedText, toastImagesView (retry, without, cancel; suspendImageLoadChip), imagesReadyForPrint · src/image-loads.ts awaitTreeImages · volající: src/ui/export-image-ui.ts (poster, png, svg), person-page-ui.ts (personPage, familyPages), book-ui.ts (book, familyPages), file-copy-ui.ts, file-access-ui.ts, share-ui.ts (backup), encryption-ui.ts (backup, gedcom; csv ne) · src/ui/fan-view.ts (live false: fotka nebo nic) · strings.ts photos.waiting, continueWithout, out.*, busy.kOfN, buttons.cancel · CHANGELOG.cs.md 3.31.0 -->
+
 <a id="S1.5"></a>
 ## S1.5 Wenn die Forschung nicht läuft oder die Verbindung nicht geht
 

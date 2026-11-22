@@ -49,6 +49,14 @@ export const METHOD_LINKS = "links";
 export const METHOD_CONDITIONS = ["connector", "part", "no-connector", "by-hand"] as const;
 export type MethodCondition = (typeof METHOD_CONDITIONS)[number];
 
+/**
+ * Conditions of census records (spec 106), held with a level or without one: `census` — the brief of a census task
+ * while census records are on (their page, census.md); `census-off` — census records off (the agent may propose them
+ * once). Never given both.
+ */
+export const CENSUS_CONDITIONS = ["census", "census-off"] as const;
+const CONDITIONS: readonly string[] = [...METHOD_CONDITIONS, ...CENSUS_CONDITIONS];
+
 const MARK = /^<!-- for ([^>]*?) -->$/u;
 const END = "<!-- end -->";
 
@@ -65,10 +73,13 @@ export function methodPage(text: string, level: string | undefined, conditions: 
     const mark = MARK.exec(line);
     if (mark) {
       const words = mark[1]!.trim().split(/\s+/u);
-      const levels = words.filter((w) => !(METHOD_CONDITIONS as readonly string[]).includes(w));
-      const when = words.filter((w) => (METHOD_CONDITIONS as readonly string[]).includes(w));
+      const levels = words.filter((w) => !CONDITIONS.includes(w));
+      const when = words.filter((w) => CONDITIONS.includes(w));
+      // census records on or off: held with no level too
+      const census = when.filter((w) => (CENSUS_CONDITIONS as readonly string[]).includes(w));
+      const held = !census.length || census.some((w) => conditions.includes(w));
       // no level (a brief with no task): the whole page, but the part of a task linking hypotheses
-      keep = !level ? !levels.length || levels.some((l) => l !== METHOD_LINKS) : ((!levels.length || levels.includes(level)) && (!when.length || when.some((w) => conditions.includes(w))));
+      keep = !level ? held && (!levels.length || levels.some((l) => l !== METHOD_LINKS)) : ((!levels.length || levels.includes(level)) && (!when.length || when.some((w) => conditions.includes(w))) && held);
       continue;
     }
     if (line === END) {
@@ -80,8 +91,9 @@ export function methodPage(text: string, level: string | undefined, conditions: 
   return out.join("\n");
 }
 
-/** Method text for a task level: the core plus the level's own page and the pages it works by, each with the parts the level uses. */
+/** Method text for a task level: the core plus the level's own page and the pages it works by (a census task's: census.md), each with the parts the level uses. */
 export function methodFor(level: string | undefined, conditions: readonly string[] = []): string {
-  const pages = ["core.md", ...(level ? [...(level === METHOD_LINKS ? [] : [`${level}.md`]), ...(METHOD_PAGES[level] ?? [])] : [])];
+  // a census task while census records are on: their page too (spec 106)
+  const pages = ["core.md", ...(level ? [...(level === METHOD_LINKS ? [] : [`${level}.md`]), ...(METHOD_PAGES[level] ?? [])] : []), ...(conditions.includes("census") ? ["census.md"] : [])];
   return pages.map((p) => readAsset("method", p)).filter((t): t is string => !!t).map((t) => methodPage(t, level, conditions)).join("\n");
 }

@@ -334,7 +334,8 @@ test("an app that never loads the research again (found on Mac): a send the same
     await pause();
     await w.ok(["sync", "undo", old.input]);
     await pause();
-    assert.equal((await post("sync", copy([...karel("sedlák", "1885"), ...marie, ...fam(false)]))).applied, 1);
+    const since = await post("sync", copy([...karel("sedlák", "1885"), ...marie, ...fam(false)]));
+    assert.equal(since.applied, 1, JSON.stringify(since));
     await pause();
     const again = await post(`sync/${old.intake}/again`);
     assert.equal(again.conflicts.length, 1, JSON.stringify(again));

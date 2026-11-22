@@ -77,6 +77,8 @@ export const PHRASES = {
   "verify.search.why": "the person asked for these facts to be verified; the research read no original of them (a family tree's, or another's reading): the record the citation names (archive, book, page) is looked for first",
   "verify.bulk.search.why": "a bulk verification: these facts come from an imported family tree and the research read no original of them — the record the citation names (archive, book, page) is looked for first, after the lines' work",
   "verify.search.done": "each record found cited (strom cite E… S…) and read, then strom verify done E… --proven --image … or --kept --reason \"…\"; a search in vain recorded (strom search add …)",
+  "verify.done.name": "each fact and the name ({names}): the entry on the image of the original read first, then compared — the same → strom verify done E…|{names} --proven --image M…; otherwise --kept --reason \"…\" (a value that differs: a conflict, never overwritten); the same name in Latin or another language's form agrees, another name → --kept with a conflict or a form of the name",
+  "verify.search.done.name": "each record found cited (strom cite E… S…, the name strom cite {id} S…) and read, then strom verify done E…|{names} --proven --image … or --kept --reason \"…\" (the same name in Latin or another language's form agrees); a search in vain recorded (strom search add …)",
   "verify.dropped.resolved": "every fact of it verified, confirmed or proven otherwise",
   "verify.dropped.undo": "the fix verify-originals undone",
   "verify.dropped.confirmed": "its facts confirmed by the person against the scan",
@@ -118,6 +120,7 @@ export const PHRASES = {
   "waiting.held": "kept for later: the research waits for its agent, which is not on this computer; back in the queue when the agent is here",
   "archive.removed": "removed in the Strom app",
   "archive.wait": "Decision on downloading from the archive {title}",
+  "audit.wait.images": "Images {images} of {book}",
   "history.why.archive": "Nothing is looked for while the research is kept as an archive.",
   "history.why.held": "Another research on this computer is looking for the events of {region}.",
   "history.why.nobody": "Nobody of the tree lived there in those years.",
@@ -192,6 +195,8 @@ export const PHRASES = {
   "session.chat": "the conversation ended before the session was closed",
   "session.agent": "the agent stopped ({outcome}) without closing the session",
   "session.limit": "the agent's plan limit ran out before the session was closed{resets}",
+  "session.taken": "taken over after {minutes, plural, one {# minute} other {# minutes}} without a sign of life; work in progress in {session}",
+  "session.taken.dead": "taken over, its process had ended; work in progress in {session}",
 
   "transcript.read": "Transcript written by a reader ({model}) from the entry cut out of its scan and checked by a second reader ({date}, strom transcripts).",
 
@@ -243,6 +248,8 @@ export const PHRASES = {
   // who is at work, for the Strom app (the bridge's working)
   "who.run": "{agent} on its own",
   "who.chat": "{agent} conversation",
+  "who.agent": "{agent} working directly",
+  "who.someone": "Agent",
 
   // what a commit saved, for the Strom app (core/changelog.ts)
   "log.person.add": "New person: {who}",
@@ -305,8 +312,14 @@ export const PHRASES = {
   "browser.wait": "images {images} of {book}, saved by the agent's browser from {url}",
   "browser.save.other": "the browser's tab shows another image than {n} ({url}), nothing was saved",
   "browser.wait.held": "images {images} of {book}, saved by the agent's browser from {url} — the browser held image {n} back: {host} to be allowed to download several files in the browser profile the agent works in, once (the icon at the right end of the browser's address bar)",
+  "browser.range.stopped": "images {images} of {book}: the archive stopped the agent's browser at image {n} ({why}) — to be saved by hand from {url} into the task's folder; nothing goes to {host} through the agent's browser before {until}",
+  "browser.range.why.check": "its check whether a person is there",
+  "browser.range.why.login": "it asked for a login",
+  "browser.range.why.http": "it answered HTTP {status}",
+  "browser.range.why.failed": "the viewer did not show the image",
   "wait.group.app": "The Strom app",
   "wait.group.tune": "The reading of scans",
+  "wait.group.aside": "Images saved by hand",
   "wait.group.conflicts": "Conflicts to decide",
   "wait.group.places": "Places to identify",
   "wait.group.branches": "Branches off the lines",
@@ -352,6 +365,10 @@ export const PHRASES = {
   "log.person.restore": "Back again: {who}",
   "log.family.retract": "Family withdrawn: {who}",
   "log.source.retract": "Record withdrawn: {name}",
+  "log.source.deleted": "Source withdrawn: {name} [{id}] – {cites, plural, one {# citation} other {# citations}}, {stories, plural, one {# story} other {# stories}}",
+  "log.source.restored": "Source restored: {name} [{id}] – {cites, plural, one {# citation} other {# citations}} back",
+  "log.conflict.keep": "Decision stands without the withdrawn source: {name}",
+  "source.retracted.task": "source withdrawn ({id})",
   "log.place.retract": "Place withdrawn: {name}",
   "log.repository.retract": "Archive withdrawn: {name}",
   "log.name.remove": "Name taken off: {name} – {who}",
@@ -361,6 +378,7 @@ export const PHRASES = {
   "log.name.restore": "Name put back: {name} – {who}",
   "log.name.primary": "Shown by the name: {name} – {who}",
   "log.name.primary.clear": "Shown by the birth name again: {name} – {who}",
+  "log.name.now": "The name after the marriage now: {name} – {who}",
   "log.note.retract": "Note retracted: {name}",
   "log.note.restore": "Note put back: {name}",
   "log.event.status": "How sure a fact is, changed: {who} – {fact}",
@@ -466,6 +484,14 @@ export const PHRASES = {
   "proposal.read.confirm": "confirmed in the Strom app",
   "proposal.read.earlier": "read before",
   "wait.group.transcripts": "Transcripts to decide",
+  // the agent's proposal to switch census records on (spec 106, strom census propose); its result once switched on
+  "census.propose.what": "Census records could help this research: {why} They can be switched on in the settings of this research.",
+  "census.propose.who": "Census records could help with {who}: {why} They can be switched on in the settings of this research.",
+  "census.propose.done": "Census records switched on",
+  "census.propose.on": "The person's decision: census records switched on in the settings of this research, or not",
+  "census.propose.when": "census records switched on in the settings of this research, or the proposal declined",
+  "census.propose.session": "Census records proposed to be switched on ({task}).",
+  "census.propose.where": "the settings of this research (census records)",
   // the roles of GEDCOM 7 (ROLE under an ASSO) the research has none of: a participant "other", said so in its note
   "role.child": "child",
   "role.father": "father",
@@ -483,6 +509,113 @@ export const PHRASES = {
 } as const;
 
 export type PhraseKey = keyof typeof PHRASES;
+
+/**
+ * The languages the relations of a census household are said in (spec 106 K3.1): the research's language, else English.
+ * Kept here whole, one table, so every language has every word (a word missing in one would be English in the midst of
+ * another language's).
+ */
+export const HOUSEHOLD_LANGS = ["en", "cs", "de", "pl"] as const;
+type HouseholdLang = (typeof HOUSEHOLD_LANGS)[number];
+
+/**
+ * The fixed words of a member's relation to the head of a census household (`_ROLE` of each copy), per language — the
+ * head always said. A pair told by sex (`-m`/`-f`) is one relation of a man and of a woman; English says some alike
+ * ("servant"). The sheet's own wording ("Sohn", "Dienstmagd") stays in the citation's quote; a relation none of these
+ * says is written as the agent gives it ("foster child of the widow").
+ */
+export const HOUSEHOLD_ROLES: Readonly<Record<string, Readonly<Record<HouseholdLang, string>>>> = {
+  head: { en: "head of household", cs: "hlava domácnosti", de: "Haushaltsvorstand", pl: "głowa gospodarstwa domowego" },
+  wife: { en: "wife", cs: "manželka", de: "Ehefrau", pl: "żona" },
+  husband: { en: "husband", cs: "manžel", de: "Ehemann", pl: "mąż" },
+  son: { en: "son", cs: "syn", de: "Sohn", pl: "syn" },
+  daughter: { en: "daughter", cs: "dcera", de: "Tochter", pl: "córka" },
+  father: { en: "father", cs: "otec", de: "Vater", pl: "ojciec" },
+  mother: { en: "mother", cs: "matka", de: "Mutter", pl: "matka" },
+  "father-in-law": { en: "father-in-law", cs: "tchán", de: "Schwiegervater", pl: "teść" },
+  "mother-in-law": { en: "mother-in-law", cs: "tchyně", de: "Schwiegermutter", pl: "teściowa" },
+  "son-in-law": { en: "son-in-law", cs: "zeť", de: "Schwiegersohn", pl: "zięć" },
+  "daughter-in-law": { en: "daughter-in-law", cs: "snacha", de: "Schwiegertochter", pl: "synowa" },
+  grandson: { en: "grandson", cs: "vnuk", de: "Enkel", pl: "wnuk" },
+  granddaughter: { en: "granddaughter", cs: "vnučka", de: "Enkelin", pl: "wnuczka" },
+  brother: { en: "brother", cs: "bratr", de: "Bruder", pl: "brat" },
+  sister: { en: "sister", cs: "sestra", de: "Schwester", pl: "siostra" },
+  stepson: { en: "stepson", cs: "nevlastní syn", de: "Stiefsohn", pl: "pasierb" },
+  stepdaughter: { en: "stepdaughter", cs: "nevlastní dcera", de: "Stieftochter", pl: "pasierbica" },
+  "foster-m": { en: "foster child", cs: "schovanec", de: "Ziehsohn", pl: "wychowanek" },
+  "foster-f": { en: "foster child", cs: "schovanka", de: "Ziehtochter", pl: "wychowanica" },
+  "relative-m": { en: "relative", cs: "příbuzný", de: "Verwandter", pl: "krewny" },
+  "relative-f": { en: "relative", cs: "příbuzná", de: "Verwandte", pl: "krewna" },
+  "servant-m": { en: "servant", cs: "sluha", de: "Diener", pl: "służący" },
+  "servant-f": { en: "servant", cs: "služka", de: "Dienstmagd", pl: "służąca" },
+  farmhand: { en: "farmhand", cs: "čeledín", de: "Knecht", pl: "parobek" },
+  maid: { en: "maid", cs: "děvečka", de: "Magd", pl: "dziewka" },
+  "lodger-m": { en: "lodger", cs: "nájemník", de: "Mieter", pl: "lokator" },
+  "lodger-f": { en: "lodger", cs: "nájemnice", de: "Mieterin", pl: "lokatorka" },
+  "inmate-m": { en: "inmate", cs: "podruh", de: "Inwohner", pl: "komornik" },
+  "inmate-f": { en: "inmate", cs: "podruhyně", de: "Inwohnerin", pl: "komornica" },
+  "retired-m": { en: "retired farmer", cs: "výměnkář", de: "Ausgedinger", pl: "dożywotnik" },
+  "retired-f": { en: "retired farmer", cs: "výměnkářka", de: "Ausgedingerin", pl: "dożywotniczka" },
+  apprentice: { en: "apprentice", cs: "učeň", de: "Lehrling", pl: "uczeń" },
+  journeyman: { en: "journeyman", cs: "tovaryš", de: "Geselle", pl: "czeladnik" },
+};
+
+/**
+ * More words a relation is given in — the forms' own words of their time and the readers' (never written: a relation
+ * is written in the fixed word of HOUSEHOLD_ROLES). Any language; compared without accents.
+ */
+export const HOUSEHOLD_ROLES_ALSO: Readonly<Record<string, readonly string[]>> = {
+  head: ["head of the household", "head of family", "přednosta", "přednosta domácnosti", "hlava rodiny", "Haushaltungsvorstand", "Haushaltsvorstand", "Familienhaupt", "głowa rodziny", "głowa domu"],
+  wife: ["Gattin"],
+  husband: ["Gatte"],
+};
+
+/**
+ * Words after a relation that say only whom it is to, or where — "manželka přednosty", "son of the head", "Tochter
+ * des Haushaltungsvorstandes": the relation is the words before them. Any language; compared without accents.
+ */
+export const HOUSEHOLD_OF_HEAD: readonly string[] = [
+  "of the head",
+  "of the head of household",
+  "of the head of the household",
+  "of household head",
+  "in the household",
+  "přednosty",
+  "přednosty domácnosti",
+  "hlavy domácnosti",
+  "hlavy rodiny",
+  "v domácnosti",
+  "des Haushaltungsvorstandes",
+  "des Haushaltungsvorstands",
+  "des Haushaltsvorstands",
+  "des Haushaltsvorstandes",
+  "des Vorstandes",
+  "im Haushalt",
+  "głowy gospodarstwa domowego",
+  "głowy rodziny",
+  "głowy domu",
+  "w gospodarstwie domowym",
+];
+
+/** What a household's note says of the people in it who are not in the tree (K3.2), per language. */
+const HOUSEHOLD_OTHERS: Readonly<Record<HouseholdLang, string>> = {
+  en: "Also in the household: {others}",
+  cs: "V domácnosti dále: {others}",
+  de: "Außerdem im Haushalt: {others}",
+  pl: "Ponadto w gospodarstwie domowym: {others}",
+};
+
+const householdLang = (lang: string): HouseholdLang => ((HOUSEHOLD_LANGS as readonly string[]).includes(lang) ? (lang as HouseholdLang) : "en");
+
+/** A relation of a household in the research's language (another language: English). */
+export function householdRole(lang: string, key: string): string | undefined {
+  return HOUSEHOLD_ROLES[key]?.[householdLang(lang)];
+}
+
+/** The line of a household's note naming the people not in the tree, in the research's language. */
+export function householdOthers(lang: string, others: string): string {
+  return fill(HOUSEHOLD_OTHERS[householdLang(lang)], { others });
+}
 
 const catalogs = new Map<string, Record<string, string>>();
 

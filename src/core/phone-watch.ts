@@ -13,7 +13,7 @@ import { actsAsArchive } from "./state.ts";
 import { liveWorkers } from "./workers.ts";
 import { openSessions } from "./session.ts";
 import crypto from "node:crypto";
-import { directionOf, scopes, type Scope } from "./directions.ts";
+import { effectiveDirection, scopes, type Scope } from "./directions.ts";
 import { lineOf } from "./offline.ts";
 import { workOrder } from "./order.ts";
 import { waitingFor, type Waiting } from "./waiting.ts";
@@ -281,7 +281,7 @@ export function treeOverview(root: string, env: Env): Overview {
     const now = workers.map((w): NowLine => {
       const s = open.find((x) => x.worker === w.id);
       const task = s?.task ? tree.get<Task>(s.task) : undefined;
-      const rid = s?.research ?? (task ? directionOf(tree, task, all) : undefined);
+      const rid = s?.research ?? (task ? effectiveDirection(tree, task, all) : undefined);
       const r = rid ? tree.get<Research>(rid) : undefined;
       const way = r?.direction === "ancestors" ? "up" : r?.direction === "descendants" ? "down" : "other";
       const what = task ? taskText(tree, task) : undefined;

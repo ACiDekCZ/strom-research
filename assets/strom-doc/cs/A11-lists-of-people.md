@@ -116,10 +116,14 @@ Všechny seznamy stromu jsou na jednom místě, v dialogu **Seznamy osob**: vlev
   (**Podle** / **Vznikl z**), souhrn ([A11.3.1](#A11.3.1)) a **Osoby v seznamu · N** s řazením ([A11.4](#A11.4)).
   U pevného seznamu × u osoby (**Odebrat ze seznamu**) a **Přidat osobu…** ([A11.5](#A11.5)). U osoby je podle
   řazení generace, datum přidání, nebo místo narození.
-- **⋯ seznamu** (u řádku v přehledu i v detailu): **Otevřít v Tabulce**, **Přejmenovat**, **Duplikovat**,
+- **⋯ seznamu** (u řádku v přehledu i v detailu): **Otevřít v Tabulce**, **Na mapě** (od aplikace 3.31.0),
+  **Přejmenovat**, **Duplikovat**,
   **Odškrtávat hotové** (pevný, [A11.8](#A11.8)) nebo **Zmrazit** (automatický, [A11.2.2](#A11.2.2)), **Exportovat ›**
   ([A11.9](#A11.9)), **Smazat**.
   - **Otevřít v Tabulce** zavře dialog a otevře Tabulku v rozsahu seznamu ([A6.7.19](A6-views.md#A6.7.19)).
+  - **Na mapě** (i tlačítko vedle **Otevřít v Tabulce** v detailu) zavře dialog, nastaví seznam jako výběr okna
+    ([A6.6](A6-views.md#A6.6)) a otevře Mapu s rozsahem **Výběr** ([A6.5.7](A6-views.md#A6.5.7)). V dalším okně to
+    provede hlavní okno; bez něj je **Na mapě** nedostupné („Hlavní okno není otevřené.“).
   - **Duplikovat** udělá kopii stejného druhu se stejným pravidlem, pořadím, ručně odebranými i odškrtnutými, jménem
     „{jméno} (2)“.
   - **Smazat** se neptá: oznámení „Seznam „{jméno}“ smazán.“ s **Zpět**.
@@ -133,7 +137,7 @@ Všechny seznamy stromu jsou na jednom místě, v dialogu **Seznamy osob**: vlev
   přehled a seznam střídají na celé obrazovce (‹ **Zpět na seznamy**), **⋯** je panel zdola.
 - **Platí od:** aplikace 3.30.0
 
-<!-- zdroj: app:src/ui/person-lists-ui.ts (OVERLAY_ID person-lists-modal, SEARCH_FROM 9, LIST_DETAIL_ROWS 200, NARROW_QUERY, přejmenování klik/✎/F2, klávesy ↑↓ Enter Delete) · src/ui/person-list-hooks.ts listMenu (freezeAndChecklistRows, exportRows) · src/data.ts duplicatePersonList (structuredClone, suggestPersonListName), deletePersonList (Vrátit), storePersonList audit (personList.save, :2224 přejmenování, :2254 personList.delete, :2330 zmrazení) · index.html #actions-lists-row · src/ui/bottom-sheet.ts řádek Seznamy osob v listu Více · strings.ts menu.lists, lists.title, search, byName, byChange, changed, left, people, remove, addPerson, openTable, menu.*, large, back, toast.deleted, undo.*, audit.* · app:4acf7a09, 3dc8e709 · ZADANI_DEV §2, §16 (okna 079: WindowEditSink) -->
+<!-- zdroj: app:src/ui/person-lists-ui.ts (OVERLAY_ID person-lists-modal, SEARCH_FROM 9, LIST_DETAIL_ROWS 200, NARROW_QUERY, přejmenování klik/✎/F2, klávesy ↑↓ Enter Delete) · src/ui/person-list-hooks.ts listMenu (freezeAndChecklistRows, exportRows) · src/data.ts duplicatePersonList (structuredClone, suggestPersonListName), deletePersonList (Vrátit), storePersonList audit (personList.save, :2224 přejmenování, :2254 personList.delete, :2330 zmrazení) · index.html #actions-lists-row · src/ui/bottom-sheet.ts řádek Seznamy osob v listu Více · strings.ts menu.lists, lists.title, search, byName, byChange, changed, left, people, remove, addPerson, openTable, menu.*, large, back, toast.deleted, undo.*, audit.* · app:4acf7a09, 3dc8e709 · ZADANI_DEV §2, §16 (okna 079: WindowEditSink) · 3.31.0 Na mapě: src/ui/person-lists-ui.ts (tlačítko pl-onmap v detailu, ⋯ řádek map za open), src/ui/person-list-hooks.ts showOnMap, src/windows/window-show-on-map.ts, strings.ts lists.onMap, onMapTitle, table.onMapNoMain (app:2a578474, 39020cf1, ZADANI_DEV_vyber-osob §6) -->
 
 <a id="A11.3.1"></a>
 ### A11.3.1 Souhrn seznamu
@@ -205,7 +209,7 @@ Některé pohledy jdou uložit jako seznam: jen tam, kde výběr osob dává smy
 | Tabulka › Osoby | **⋯** Tabulky nebo nabídka **Pohled** → **Uložit jako seznam osob…** | pevný: osoby v pořadí řádků Tabulky |
 | Tabulka › Svazky | **⋯** Tabulky → **Uložit jako seznam osob…** | pevný: oba partneři každého svazku, každá osoba jednou |
 | výsledky hledání | **Výsledky do seznamu ›** ([A11.5](#A11.5)) | jen pevný |
-| rod | výběr rodu, poslední řádek **Uložit rod {rod} jako seznam…** | automatický |
+| výběr okna | **Výběr ▾**, patička **Uložit výběr jako seznam…** (rod, předci, potomci, linie výzkumu; [A6.6.1](A6-views.md#A6.6.1)); do aplikace 3.30.0 jen rod: **Uložit rod {rod} jako seznam…** | automatický |
 | linie výzkumu | **⋯** linie → **Uložit jako seznam…** | automatický |
 
 - Z Tabulky se uloží osoby po filtru a řazení; dočasně ukázané řádky ne. Ukotvený řádek mimo filtr se neuloží
@@ -216,7 +220,7 @@ Některé pohledy jdou uložit jako seznam: jen tam, kde výběr osob dává smy
 - **Hranice:** Události, Prameny a pohledy Rodina, Potomci, Vějíř, Časová osa a Mapa se jako seznam neukládají.
 - **Platí od:** aplikace 3.30.0
 
-<!-- zdroj: app:src/ui/person-list-new-ui.ts (SAVE_ID person-list-save; zdroje table/unions/search/rod/line, pinOut, keepFilter) · src/ui/table-view/table-ui.ts saveTableAsList, saveTableRule (lists.saveRule), canSaveAsList · src/ui/rod-view.ts (rodView.saveList) · src/ui/research-directions-ui.ts:1127 directionSaveListItem · src/person-lists.ts rulePersonIds tableFilter (unions: p1, p2) · strings.ts lists.saveAs, save.*, saveRule, rodView.saveList, research.dirSaveList · app:e09dcacb, 68363dbe, 211323e8 · ZADANI_DEV §6 · spec 084 K1.4, K6.3 a -->
+<!-- zdroj: app:src/ui/person-list-new-ui.ts (SAVE_ID person-list-save; zdroje table/unions/search/rod/line, pinOut, keepFilter) · src/ui/table-view/table-ui.ts saveTableAsList, saveTableRule (lists.saveRule), canSaveAsList · src/ui/rod-view.ts (rodView.saveList) · src/ui/research-directions-ui.ts:1127 directionSaveListItem · src/person-lists.ts rulePersonIds tableFilter (unions: p1, p2) · strings.ts lists.saveAs, save.*, saveRule, rodView.saveList, research.dirSaveList · app:e09dcacb, 68363dbe, 211323e8 · ZADANI_DEV §6 · spec 084 K1.4, K6.3 a · 3.31.0: src/ui/selection-picker-ui.ts saveListOptions (rod, line, selection = předci/potomci), person-list-new-ui.ts dynamic pro rod/line/selection, strings.ts selection.saveList (app:61873988, ZADANI_DEV_vyber-osob §2) -->
 
 <a id="A11.7"></a>
 ## A11.7 Kdy osoba přibyla: Přidáno za posledních 30 dní

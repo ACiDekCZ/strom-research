@@ -1,6 +1,7 @@
 // Per-invocation context: environment, settings, IO, and lazy access to the
 // tree. Asking the user happens only here, and only on a terminal.
 
+import { beatSession } from "../core/holds.ts";
 import { writesAsPerson } from "../core/transcriptguard.ts";
 import fs from "node:fs";
 import path from "node:path";
@@ -594,6 +595,8 @@ export class Context {
     const session = this.env.STROM_FOR_APP === "1" ? undefined : currentSession(this.opened, this.env, this.refs);
     if (session) this.opened.actor = session.id;
     else if (isAgent(this.env) && this.env.STROM_FOR_APP !== "1") this.opened.actor = "agent";
+    // every command in a session is its sign of life: its task stays held (core/holds.ts; at most once a minute)
+    if (session && !this.dryRun) beatSession(root, session, this.env, { create: true });
     // the person writes: their own terminal, or the Strom app's bridge — only then is what is theirs changed (a
     // transcript they read or confirmed: core/transcriptguard.ts); an agent, known or not, never
     this.opened.personWrites = writesAsPerson(this.env, this.interactive);

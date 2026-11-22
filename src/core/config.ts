@@ -64,6 +64,8 @@ export interface UserConfig {
   stories?: string;
   /** The gate the agent working alone asks before each session (plugins/gates/<name>). */
   runGate?: string;
+  /** Before the agent starts from a link of the Strom app: ask (the default) or no — the person's standing yes (spec 123). */
+  runConfirm?: string;
   /** A person's pace for the images of restricted archives: "<seconds> <requests an hour>" (core/terms.ts humanPace). */
   archivePace?: string;
   /** Readings of documents the Strom app may ask: "<an hour> <a day>" (core/live-read.ts appReadLimits). */
@@ -76,6 +78,14 @@ export interface UserConfig {
   briefBudget?: number;
   /** Time limit of one `strom run` session in minutes. */
   runMinutes?: number;
+  /** Runs of strom run at once in one tree (run.parallel). */
+  runParallel?: number;
+  /** Minutes a task's hold lasts without a sign of life of its holder (task.hold; spec 127). */
+  taskHold?: number;
+  /** Minutes a restricted archive's hold lasts without a request of its session (archive.hold). */
+  archiveHold?: number;
+  /** Minutes a run waits for a restricted archive another session holds before it stops (archive.wait). */
+  archiveWait?: number;
   /** Web requests to one server in one session through an agent's own web fetch before strom refuses or asks (web.perHost). */
   webPerHost?: number;
   /** Readers of strom read at the same time (read.parallel). */
@@ -90,6 +100,8 @@ export interface UserConfig {
   queueSuggestPersons?: number;
   /** The books most tasks need (spec 105): how many tasks a book needs to be offered to download (books.minTasks). */
   booksMinTasks?: number;
+  /** Years either side of a date estimated from an age a search has to cover (search.ageMargin; spec 131). */
+  searchAgeMargin?: number;
   /** After a session in a book on disk, the next task of that book (queue.sameBook): no (default) or yes. */
   queueSameBook?: string;
   /** Ask the user before a connector runs: off (default) or on. */
@@ -119,6 +131,8 @@ export interface UserConfig {
   experimentsPlaceHistory?: string;
   /** The kinds of the history's events looked for (core/eventkinds.ts): all (unset), none, "war,epidemic", "-economy,-law". */
   historyKinds?: string;
+  /** Census records as a source of the research (core/census.ts): on, off (default). */
+  census?: string;
   /**
    * When the person was asked about the history of the places (the setup, the settings, or once at the menu after an
    * update to a strom that has it — never again there, whatever the answer).
@@ -227,6 +241,23 @@ export interface Flags {
  */
 export const DEFAULT_BUDGET = 55_000;
 export const DEFAULT_RUN_MINUTES = 60;
+/** The holds' times (task.hold, archive.hold, archive.wait; spec 127 K5): 30 minutes unless set, from 5 minutes to 24 hours. */
+export const DEFAULT_HOLD_MINUTES = 30;
+export const HOLD_MIN_MINUTES = 5;
+export const HOLD_MAX_MINUTES = 24 * 60;
+export type HoldKey = "task.hold" | "archive.hold" | "archive.wait";
+
+/**
+ * A time of the holds as typed: minutes ("30"), or with a unit ("45m", "2h", "1h30m"); its minutes, or undefined when it
+ * says no time. The range is checked apart (checkValue).
+ */
+export function parseDuration(raw: string): number | undefined {
+  const v = raw.trim().toLowerCase().replace(",", ".");
+  if (/^\d+(?:\.\d+)?$/u.test(v)) return Number(v);
+  const m = /^(?:(\d+(?:\.\d+)?)\s*h(?:ours?)?)?\s*(?:(\d+(?:\.\d+)?)\s*m(?:in(?:utes?)?)?)?$/u.exec(v);
+  if (!m || (m[1] === undefined && m[2] === undefined)) return undefined;
+  return Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0);
+}
 /** How often the experiment of history takes a session of strom run, from the most often (core/pastevents.ts historyTurn). */
 export const HISTORY_PACES = ["sometimes", "rare", "idle"] as const;
 export type HistoryPace = (typeof HISTORY_PACES)[number];
@@ -234,6 +265,9 @@ export const DEFAULT_HISTORY_PACE: HistoryPace = "sometimes";
 /** Readers of strom read at the same time: the default, and the most one research may set (each reader is an agent process). */
 export const DEFAULT_READ_PARALLEL = 5;
 export const READ_PARALLEL_MAX = 10;
+/** Runs of strom run at once in one tree (run.parallel, spec 126): conversations are not counted. */
+export const DEFAULT_RUN_PARALLEL = 3;
+export const RUN_PARALLEL_MAX = 10;
 
 /**
  * Minutes the bridge (strom live) runs on with nobody asking it, then ends by itself (live.idleMinutes; 0: never — the
@@ -253,7 +287,7 @@ export interface SettingDef {
   env: string;
   /** Can a tree carry its own value (strom.json)? */
   tree: boolean;
-  kind: "path" | "lang" | "agent" | "model" | "number" | "choice" | "version" | "person" | "url" | "plugin" | "views" | "tuned" | "pace" | "limits" | "kinds";
+  kind: "path" | "lang" | "agent" | "model" | "number" | "choice" | "version" | "person" | "url" | "plugin" | "views" | "tuned" | "pace" | "limits" | "kinds" | "duration";
   /** The values a "choice" allows. */
   choices?: readonly string[];
   description: string;
@@ -270,6 +304,10 @@ export const SUGGEST_PERSONS = 5;
 export const BOOKS_MIN_TASKS = 5;
 /** books.minTasks at most (a whole number). */
 export const BOOKS_MIN_TASKS_MAX = 999;
+/** Years either side of a date estimated from an age that a search has to cover (search.ageMargin; spec 131). */
+export const AGE_MARGIN = 5;
+/** search.ageMargin at most (a whole number of years). */
+export const AGE_MARGIN_MAX = 30;
 
 export const SETTINGS: SettingDef[] = [
   { key: "home", env: "STROM_HOME", tree: false, kind: "path", description: "folder with the trees and shared data" },
@@ -295,12 +333,22 @@ export const SETTINGS: SettingDef[] = [
   { key: "model.effort", env: "", tree: true, kind: "model", description: "reasoning effort of the agent's model in the sessions strom starts (Codex, Claude Code, Antigravity, Grok): high recommended — old handwriting read with the best setting; a plan's limit runs out sooner. Unset: the agent's own settings (Codex: its config.toml); only you raise it" },
   { key: "brief.budget", env: "STROM_BRIEF_BUDGET", tree: true, kind: "number", description: `size of the brief in tokens (default ${DEFAULT_BUDGET})` },
   { key: "run.minutes", env: "STROM_RUN_MINUTES", tree: true, kind: "number", description: `time limit of one \`strom run\` session (default ${DEFAULT_RUN_MINUTES})` },
-  { key: "read.parallel", env: "", tree: true, kind: "number", description: `readers of \`strom read\` at the same time, 1 to ${READ_PARALLEL_MAX} (default ${DEFAULT_READ_PARALLEL}): --parallel of the command, else the tree's, else yours — the same readers and requests, only sooner; fewer when the agent's usage runs out too fast` },
+  // This computer's, from the config file only: more runs at once spend the agent's plan sooner — raised by the person
+  // alone (as web.perHost); lowering it is anyone's.
+  { key: "run.parallel", env: "", tree: false, kind: "number", description: `runs of \`strom run\` at once in one family tree — the whole queue and each line's own (strom run --research) together; conversations are not counted (default ${DEFAULT_RUN_PARALLEL}, 1 to ${RUN_PARALLEL_MAX}; each run spends the agent's plan: they add up) — only you raise it` },
+  // This computer's (the user config alone, as run.gate and archive.pace): on a research shared over a network disk the
+  // value of whoever judges a hold decides (spec 127 K5.2).
+  { key: "task.hold", env: "", tree: false, kind: "duration", description: `how long a task stays held by the session working on it without a sign of life (a command of strom, its run or conversation alive): then the next one who wants it takes it over (default ${DEFAULT_HOLD_MINUTES} minutes; minutes or with a unit, 45m, 2h; ${HOLD_MIN_MINUTES} min to 24 h; this computer's). An older strom beside this one holds no task: its sessions are judged by its run and its writes` },
+  { key: "archive.hold", env: "", tree: false, kind: "duration", description: `how long an archive that restricts automated access stays held by the session using it without a request to it: then another may use it (default ${DEFAULT_HOLD_MINUTES} minutes; minutes or with a unit, 45m, 2h; ${HOLD_MIN_MINUTES} min to 24 h; this computer's). An older strom beside this one holds no archive: it is kept to the archive's pace by the limiter alone` },
+  { key: "archive.wait", env: "", tree: false, kind: "duration", description: `how long a run waits for an archive that restricts automated access while another session holds it, when no other work is left: then it stops (default ${DEFAULT_HOLD_MINUTES} minutes; minutes or with a unit, 45m, 2h; ${HOLD_MIN_MINUTES} min to 24 h; this computer's)` },
+  { key: "read.parallel", env: "", tree: true, kind: "number", description: `readers of \`strom read\` at the same time, 1 to ${READ_PARALLEL_MAX} (default ${DEFAULT_READ_PARALLEL}): --parallel of the command, else the tree's, else yours — the same readers and requests, only sooner; fewer when the agent's usage runs out too fast. Counted for the computer: every reading here (any research, any session) shares as many readers at once, a reader waits for a free one` },
   // Read from the config files only (the user's or the tree's) — no variable: more requests to one server is the
   // user's decision (as model.effort higher); lowering it is anyone's.
-  { key: "web.perHost", env: "", tree: true, kind: "number", description: `web requests to one site (its mirrors with it) in one session through an agent's own web fetch (default ${WEB_PER_HOST}; past ${WEB_SOFT} they go slower and the agent builds a connector): past it a run refuses and a conversation asks you, and more pages of that site go through strom fetch with a connector — only you raise it` },
+  { key: "web.perHost", env: "", tree: true, kind: "number", description: `web requests to one site (its mirrors with it) in one session through an agent's own web fetch (default ${WEB_PER_HOST}; past ${WEB_SOFT} they go slower and the agent builds a connector): past it a run refuses and a conversation asks you, and more pages of that site go through strom fetch with a connector — only you raise it. Counted for the computer too: the requests to the site of every session here within the last run.minutes count against it` },
   // Read from the config file only, changed by the user alone: the gate decides what working alone spends.
-  { key: "run.gate", env: "", tree: false, kind: "plugin", description: "a condition on the agent working alone: the gate (plugins/gates/<name>) strom asks before each session of strom run — go on, wait or stop; its name, then what it is given (strom gate list; e.g. claude-usage 10: the Claude subscription's daily ration, 10 points in hand; claude-usage 10 --cap 95: and never past 95 % of the week, before every session of every run, no “start anyway”) — only you set it" },
+  { key: "run.gate", env: "", tree: false, kind: "plugin", description: "a condition on the agent working alone: the gate (plugins/gates/<name>) strom asks before each session of strom run — go on, wait or stop; its name, then what it is given (strom gate list; e.g. claude-usage 10: the Claude subscription's daily ration, 10 points in hand; claude-usage 10 --cap 95: and never past 95 % of the week, before every session of every run, no “start anyway”) — only you set it. Runs side by side on this computer ask it one at a time (the next once the session the gate let go has begun), and a plan limit one run meets holds every run of that agent here until it resets" },
+  // Read from the config file only, changed by the user alone: a standing yes to the agent's subscription or credit.
+  { key: "run.confirm", env: "", tree: false, kind: "choice", choices: ["ask", "no"], description: "the question before the agent starts from a link of the Strom app (a conversation, a task, the work on the queue, a conflict left to the agent, the identification of places): ask (default — said and asked in the terminal) or no (started at once, one line says so; what says a price in money, a consent, a deletion, a request sent and the gate run.gate still ask; an agent's own command is never let through) — every research on this computer, only you set it" },
   // Read from the config file only, changed by the user alone: how fast strom may take images of an archive whose
   // terms restrict automation, once the user allowed it slowly (core/terms.ts).
   { key: "archive.pace", env: "", tree: false, kind: "pace", description: "a person's pace for the images of an archive whose terms restrict automated access, once you allowed it slowly: seconds between two images, then requests to the archive an hour, its catalogue counted too (default \"10 120\"; auto: the default) — the service's own pace stays the slowest; one archive's own: strom allow host <host> --pace/--per-hour — only you set it" },
@@ -311,6 +359,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "queue.suggestLines", env: "", tree: true, kind: "choice", choices: ["yes", "no"], description: "a line proposed for a branch off the lines that grows (What waits for you, the Strom app): yes (default), no" },
   { key: "queue.suggestTasks", env: "", tree: true, kind: "number", description: `the open tasks of a branch off the lines from which a line is proposed for it (default ${SUGGEST_TASKS}; again only at twice as many after an answer)` },
   { key: "queue.sameBook", env: "", tree: true, kind: "choice", choices: ["no", "yes"], description: "after a session in a book that is on disk, the next task of the same book first (at most 5 sessions in a row in one book; the person's own turn, the lines and the work off the lines still go first): no (default — the agent is only told which other tasks need the book) or yes" },
+  { key: "search.ageMargin", env: "", tree: true, kind: "number", description: `years either side of a date estimated from an age (ABT 1761: born about 1761 by the age at death) that the images searched should cover: the agent is told when they do not (search add, session close, task done), never refused — default ${AGE_MARGIN}, a whole number from 1 to ${AGE_MARGIN_MAX}; more for older books, where ages were given loosely` },
   { key: "books.minTasks", env: "", tree: true, kind: "number", description: `how many tasks a book needs to be offered to download by hand (strom task books, the Strom app's "Speed up by downloading"): default ${BOOKS_MIN_TASKS}, a whole number from 1 to ${BOOKS_MIN_TASKS_MAX}` },
   { key: "queue.suggestPersons", env: "", tree: true, kind: "number", description: `the people of a branch off the lines from which a line is proposed for it (default ${SUGGEST_PERSONS}; again only at twice as many after an answer)` },
   { key: "gedcom.for", env: "STROM_GEDCOM_FOR", tree: true, kind: "choice", choices: ["both", "standard", "strom"], description: "GEDCOM files written: both (default), standard (any program), strom (the Strom app)" },
@@ -352,6 +401,11 @@ export const SETTINGS: SettingDef[] = [
   { key: "experiments.historyPlaces", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "the history of each place of the tree with coordinates and its surroundings, looked for by itself one place at a time at the pace of the history (experiments.historyPace), the places of the most people first, while experiments.placeHistory is on: on or off (unset: off) — only you turn it on; a tree may only turn it off" },
   // How often: the user's config, a tree's strom.json only less often; more often than before is the person's alone.
   { key: "experiments.historyPace", env: "", tree: true, kind: "choice", choices: HISTORY_PACES, description: "how often the history of the places takes a session when the agent works alone (strom run): sometimes (default — about every 5th session), rare (about every 10th) or idle (only when the family research has nothing to do); a region a session just worked at goes first — only you make it more often; a tree may only make it less often" },
+  // Read from the config files only — no variable, no flag: the person alone turns it on (the menu's settings, the Strom
+  // app, a terminal), for every research on this computer or for one (strom.json, both ways); off is anyone's.
+  // the person's switch alone (like census): an agent never turns it on — sorting spends the plan and changes the tree
+  { key: "intake.auto", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "files sent to the research — a batch of the Strom app or a phone once whole, a single file of the app, material the person adds (strom intake): off (default — nothing of an agent starts by itself: the files wait in the material unsorted until the person asks: the app's Sort by agent…, strom input batch done --sort, strom intake --sort) or on (tasks for the agent: a batch's sorting tasks of about 25 files each, taken up first; an intake task for a file; a task to read the scan of a source). Turned on by the person alone" },
+  { key: "census", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "census records as a source of the research: a household in one year shows who lived with whom and where each came from — tasks of kind census and the method's page for them (most archives only show their census sheets: they come by hand, as a screenshot, a task waiting for its images; nothing promises them fetched): on or off (unset: off) — only you turn it on (the menu's settings, the Strom app, strom config set census on in a terminal), for every research on this computer or with --for-tree for one (a tree's own value wins both ways); the agent may propose it once (strom census propose); off is anyone's" },
   { key: "mode", env: "", tree: false, kind: "choice", choices: ["research", "archive"], description: "what a new research on this computer is: research (default — an agent works on it; while none is here it waits for one, kept as an archive) or archive (the data come from the Strom app, no agent — the person's choice: the setup wizard asks it with an agent here, the menu's settings) — a research's own: strom mode" },
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
@@ -374,6 +428,10 @@ export const SETTINGS: SettingDef[] = [
 const FIELDS: Record<string, string> = {
   "brief.budget": "briefBudget",
   "run.minutes": "runMinutes",
+  "run.parallel": "runParallel",
+  "task.hold": "taskHold",
+  "archive.hold": "archiveHold",
+  "archive.wait": "archiveWait",
   "read.parallel": "readParallel",
   "web.perHost": "webPerHost",
   "gedcom.for": "gedcomFor",
@@ -386,6 +444,7 @@ const FIELDS: Record<string, string> = {
   "queue.suggestPersons": "queueSuggestPersons",
   "queue.sameBook": "queueSameBook",
   "books.minTasks": "booksMinTasks",
+  "search.ageMargin": "searchAgeMargin",
   "connectors.consent": "connectorsConsent",
   "browser.downloads": "browserDownloads",
   "browser.tileWait": "browserTileWait",
@@ -408,6 +467,7 @@ const FIELDS: Record<string, string> = {
   "excerpts.for": "excerptsFor",
   "excerpts.mb": "excerptsMb",
   "run.gate": "runGate",
+  "run.confirm": "runConfirm",
   "archive.pace": "archivePace",
   "read.app": "readApp",
   "tune.transcripts": "tuneTranscripts",
@@ -545,6 +605,17 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
       return normalizeKinds(v, def.key);
     case "tuned":
       throw new UsageError(`${def.key} is set by strom itself from the reading of scans, not typed`, { hint: `strom media calibrate --report says why · strom config unset ${def.key} returns to the default` });
+    case "duration": {
+      const n = parseDuration(v);
+      const range = `from ${HOLD_MIN_MINUTES} minutes to 24 hours`;
+      if (n === undefined || !(n >= HOLD_MIN_MINUTES && n <= HOLD_MAX_MINUTES))
+        throw new UsageError(`${def.key} is a time ${range}: minutes (30) or with a unit (45m, 2h) — not "${raw}"`, {
+          hint: `strom config set ${def.key} ${DEFAULT_HOLD_MINUTES} (the default) — allowed ${HOLD_MIN_MINUTES} to ${HOLD_MAX_MINUTES} minutes`,
+          code: "config.duration",
+          params: { key: def.key, value: raw, min: String(HOLD_MIN_MINUTES), max: String(HOLD_MAX_MINUTES) },
+        });
+      return Math.round(n * 100) / 100;
+    }
     case "number": {
       const n = Number(v);
       // the bridge's idle time: whole minutes, 0 for never
@@ -552,6 +623,9 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
         if (!v || !Number.isInteger(n) || n < 0) throw new UsageError(`${def.key} is a whole number of minutes, 0 or more`, { hint: `minutes with nobody asking the bridge before it ends; 0 (the default): never by itself — strom config set live.idleMinutes ${LIVE_IDLE_AFTER_MINUTES}` });
         return n;
       }
+      // years either side of an estimated date: its range said for 0 and a word too, as for 31
+      if (def.key === "search.ageMargin" && (!Number.isInteger(n) || n < 1 || n > AGE_MARGIN_MAX))
+        throw new UsageError(`${def.key} is a whole number of years from 1 to ${AGE_MARGIN_MAX}`, { hint: `years either side of a date estimated from an age — strom config set search.ageMargin ${AGE_MARGIN} --for-tree` });
       if (!Number.isFinite(n) || n <= 0) throw new UsageError(`${def.key} must be a positive number`);
       if (def.key === "queue.offLineShare" && (!Number.isInteger(n) || n < 2)) throw new UsageError(`${def.key} is a whole number from 2`, { hint: `one task off the lines in so many sessions — strom config set queue.offLineShare ${OFF_LINE_SHARE}` });
       if ((def.key === "queue.suggestTasks" || def.key === "queue.suggestPersons") && !Number.isInteger(n)) throw new UsageError(`${def.key} is a whole number from 1`);
@@ -559,6 +633,7 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
         throw new UsageError(`${def.key} is a whole number from 1 to ${BOOKS_MIN_TASKS_MAX}`, { hint: `the tasks a book needs to be offered to download — strom config set books.minTasks ${BOOKS_MIN_TASKS} --for-tree` });
       if (def.key === "browser.tileWait" && (!Number.isInteger(n) || n < TILE_WAIT_MIN_S || n > TILE_WAIT_MAX_S))
         throw new UsageError(`${def.key} is a whole number of seconds from ${TILE_WAIT_MIN_S} to ${TILE_WAIT_MAX_S}`, { hint: `strom config set browser.tileWait ${TILE_WAIT_SUGGESTED_S} · back to 30 s: strom config unset browser.tileWait` });
+      if (def.key === "run.parallel" && (!Number.isInteger(n) || n > RUN_PARALLEL_MAX)) throw new UsageError(`${def.key} is a whole number from 1 to ${RUN_PARALLEL_MAX}`, { hint: `runs at once in one family tree — strom config set run.parallel ${DEFAULT_RUN_PARALLEL}` });
       if (def.key === "read.parallel" && (!Number.isInteger(n) || n > READ_PARALLEL_MAX)) throw new UsageError(`${def.key} is a whole number from 1 to ${READ_PARALLEL_MAX}`, { hint: `readers at the same time — strom config set read.parallel ${DEFAULT_READ_PARALLEL}` });
       return def.key === "brief.budget" || def.key === "web.perHost" ? Math.max(1, Math.round(n)) : n;
     }
@@ -584,6 +659,11 @@ export function historySwitches(user: UserConfig | undefined, tree: TreeConfig |
     regions: (readStored(tree, "experiments.history", "") ?? readStored(user, "experiments.history", "")) === "on",
     places: (places(tree) ?? places(user)) === "on",
   };
+}
+
+/** Census records as a source (spec 106) as the stores hold them: the tree's own value both ways, else the user's. Unset: off. */
+export function censusSwitch(user: UserConfig | undefined, tree: TreeConfig | undefined): boolean {
+  return (readStored(tree, "census", "") ?? readStored(user, "census", "")) === "on";
 }
 
 /** Write (or with undefined, remove) a setting in a store. */
@@ -731,7 +811,7 @@ export class Settings {
     return r && EFFORTS[agent]!.includes(String(r.value)) ? { value: String(r.value), source: r.source } : undefined;
   }
 
-  number(key: "brief.budget" | "run.minutes" | "excerpts.mb" | "web.perHost" | "read.parallel", tree: TreeConfig | undefined, fallback: number): number {
+  number(key: "brief.budget" | "run.minutes" | "run.parallel" | "excerpts.mb" | "web.perHost" | "read.parallel", tree: TreeConfig | undefined, fallback: number): number {
     const r = this.resolve(key, tree);
     return r ? Number(r.value) : fallback;
   }
@@ -772,6 +852,16 @@ export class Settings {
     return Number.isFinite(n) && n >= 1 ? n : WEB_PER_HOST;
   }
 
+  /**
+   * A time of the holds in minutes (task.hold, archive.hold, archive.wait: the user config alone, this computer's), else
+   * DEFAULT_HOLD_MINUTES — a stored value out of the range (written by hand) brought into it.
+   */
+  holdMinutes(key: HoldKey): number {
+    const v = readStored(this.config, key, "");
+    const n = typeof v === "number" ? v : typeof v === "string" ? (parseDuration(v) ?? NaN) : NaN;
+    return Number.isFinite(n) ? Math.min(HOLD_MAX_MINUTES, Math.max(HOLD_MIN_MINUTES, n)) : DEFAULT_HOLD_MINUTES;
+  }
+
   /** How the task queue is ordered (core/queue.ts). */
   strategy(tree?: TreeConfig): Strategy {
     return String(this.resolve("queue.strategy", tree)?.value ?? "balanced") as Strategy;
@@ -805,6 +895,12 @@ export class Settings {
   booksMinTasks(tree?: TreeConfig): number {
     const n = Number(this.resolve("books.minTasks", tree)?.value ?? BOOKS_MIN_TASKS);
     return Number.isInteger(n) && n >= 1 && n <= BOOKS_MIN_TASKS_MAX ? n : BOOKS_MIN_TASKS;
+  }
+
+  /** Years either side of a date estimated from an age a search has to cover (search.ageMargin, a whole number; spec 131). */
+  ageMargin(tree?: TreeConfig): number {
+    const n = Number(this.resolve("search.ageMargin", tree)?.value ?? AGE_MARGIN);
+    return Number.isInteger(n) && n >= 1 && n <= AGE_MARGIN_MAX ? n : AGE_MARGIN;
   }
 
   /** After a session in a book on disk, the next task of that book first (queue.sameBook: no by default). */
@@ -864,6 +960,23 @@ export class Settings {
    */
   historyPlace(tree?: TreeConfig): boolean {
     return historySwitches(this.config, tree).places;
+  }
+
+  /**
+   * Census records as a source (spec 106): the tree's strom.json both ways, else the user's own config — never a
+   * variable or a flag. Unset: off.
+   */
+  census(tree?: TreeConfig): boolean {
+    return censusSwitch(this.config, tree);
+  }
+
+  /**
+   * Files sent to the research sorted by the agent by themselves (spec 130): the Strom app's batches once whole and a
+   * single file (an original, a phone's, strom intake — K1.3) alike; the tree's strom.json both ways, else the user's
+   * own config — never a variable or a flag. Unset: off (a research of an older strom too).
+   */
+  intakeAuto(tree?: TreeConfig): boolean {
+    return (readStored(tree, "intake.auto", "") ?? readStored(this.config, "intake.auto", "")) === "on";
   }
 
   /**
@@ -934,6 +1047,11 @@ export class Settings {
   /** The gate of working alone, if the user set one (the config file only). */
   runGate(): string | undefined {
     return this.config.runGate || undefined;
+  }
+
+  /** The question before the agent starts from a link of the Strom app: ask (the default) or no (the config file only, the person's). */
+  runConfirm(): "ask" | "no" {
+    return this.config.runConfirm === "no" ? "no" : "ask";
   }
 
   /** The readings of documents the Strom app may ask ("<an hour> <a day>"; the config file only, raised by the person alone). */

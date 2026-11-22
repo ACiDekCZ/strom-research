@@ -230,6 +230,63 @@ function withOptionAliases(defs: OptionDef[], rest: string[]): string[] {
   });
 }
 
+/**
+ * Names agents type that mean exactly an option or the command's one argument (OptionDef.readAs, ArgDef.readAs): taken
+ * as it, each said in a note — "(--parish read as --place)", "(--image 5 read as --images 5-5)", "(--query read as
+ * <question>)". Seen in a long run (21 November 2026): eight guessed options, a turn each.
+ */
+export function withReadAs(def: CommandDef, defs: OptionDef[], rest: string[]): { rest: string[]; notes: string[] } {
+  const opt = new Map<string, OptionDef>(defs.flatMap((o) => (o.readAs ?? []).map((a): [string, OptionDef] => [`--${a}`, o])));
+  const args = def.args ?? [];
+  const arg = args.length === 1 && !args[0]!.variadic ? args[0]! : undefined;
+  const toArg = new Set((arg?.readAs ?? []).map((a) => `--${a}`));
+  if (!opt.size && !toArg.size) return { rest, notes: [] };
+  const notes: string[] = [];
+  const out: string[] = [];
+  const tail: string[] = [];
+  const end = rest.indexOf("--");
+  for (let i = 0; i < rest.length; i++) {
+    const t = rest[i]!;
+    if (end >= 0 && i >= end) {
+      out.push(t);
+      continue;
+    }
+    const eq = t.indexOf("=");
+    const name = eq > 0 ? t.slice(0, eq) : t;
+    const own = opt.get(name);
+    if (own) {
+      if (own.type === "boolean" || !own.readAsValue) {
+        out.push(`--${own.name}${eq > 0 ? t.slice(eq) : ""}`);
+        notes.push(`(${name} read as --${own.name})`);
+        continue;
+      }
+      const value = eq > 0 ? t.slice(eq + 1) : rest[i + 1];
+      if (value === undefined) {
+        out.push(`--${own.name}`);
+        continue;
+      }
+      if (eq <= 0) i++;
+      const put = own.readAsValue(value);
+      out.push(`--${own.name}=${put}`);
+      notes.push(`(${name} ${value} read as --${own.name} ${put})`);
+      continue;
+    }
+    if (arg && toArg.has(name)) {
+      const value = eq > 0 ? t.slice(eq + 1) : rest[i + 1];
+      if (value !== undefined) {
+        if (eq <= 0) i++;
+        tail.push(value);
+        notes.push(`(${name} read as <${arg.name}>)`);
+        continue;
+      }
+    }
+    out.push(t);
+  }
+  // the argument after the options' end: a value that begins with "-" stays a word
+  if (tail.length) out.push(...(out.includes("--") ? [] : ["--"]), ...tail);
+  return { rest: out, notes };
+}
+
 /** An ID as an option of IDs takes it ("S0213", "s12"): its letter, upper case. */
 function idLetter(v: string): string | undefined {
   return /^(\p{L})\p{N}+$/u.exec(v)?.[1]?.toUpperCase();
@@ -313,9 +370,11 @@ function foldSurplus(def: CommandDef, defs: OptionDef[], tokens: Token[], values
 }
 
 /** Parse options strictly; Node's messages are replaced by short ones with suggestions. */
-export function parseOptions(def: CommandDef, rest: string[], program = "strom"): { values: Input["opts"]; positionals: string[]; fix?: string; seq?: Typed[] } {
+export function parseOptions(def: CommandDef, rest: string[], program = "strom"): { values: Input["opts"]; positionals: string[]; fix?: string; seq?: Typed[]; readAs?: string[] } {
   const defs: OptionDef[] = optionsOf(def);
-  rest = withOptionAliases(defs, rest);
+  const read = withReadAs(def, defs, withOptionAliases(defs, rest));
+  rest = read.rest;
+  const said = read.notes.length ? { readAs: read.notes } : {};
   const usage = usageOf(def, program);
   const options: Record<string, { type: "string" | "boolean"; short?: string; multiple?: boolean }> = {};
   for (const o of defs) {
@@ -329,14 +388,14 @@ export function parseOptions(def: CommandDef, rest: string[], program = "strom")
     const r = parseArgs({ args: rest, options, allowPositionals: true, strict: true, tokens: true });
     const folded = foldSurplus(def, defs, r.tokens as Token[], r.values as Input["opts"], r.positionals);
     // the line as typed, in order: which option came after which argument (a command of several arguments only)
-    if (!def.args?.some((a) => a.variadic)) return folded;
+    if (!def.args?.some((a) => a.variadic)) return { ...folded, ...said };
     const seq: Typed[] = [];
     let seen = 0;
     for (const t of r.tokens as Token[]) {
       if (t.kind === "positional") seq.push({ arg: seen++ });
       else if (t.kind === "option") seq.push({ opt: t.name, ...(t.value !== undefined ? { value: t.value } : {}) });
     }
-    return { ...folded, seq };
+    return { ...folded, seq, ...said };
   } catch (err) {
     const e = err as Error & { code?: string };
     const opt = /'(-{1,2}[^' =]+)/.exec(e.message)?.[1] ?? "";
@@ -345,11 +404,11 @@ export function parseOptions(def: CommandDef, rest: string[], program = "strom")
       // "strom brief --task T0003": the task is an argument there, not an option
       const arg = def.args?.find((a) => `--${a.name}` === opt || a.mistaken?.includes(opt.replace(/^-+/u, "")));
       if (arg) throw new UsageError(`--${arg.name}` === opt ? `${opt.slice(2)} is an argument of ${cmd}, not an option` : `${opt} is no option of ${cmd}: <${arg.name}> is its argument`, { hint: `strom ${def.path.join(" ")} <${arg.name}>`, code: "option.is-arg", params: { opt, cmd, arg: arg.name }, usage });
-      // a status asked of a name or a family (N0191): it is a fact's only — said as cite says it (the person's
-      // language: the plain unknown option, its code kept)
+      // a status asked of a family, or of a name by a command that takes none (N0191): a fact's or a name's only —
+      // said as cite says it (the person's language: the plain unknown option, its code kept)
       if (opt === "--status" && (def.path[0] === "name" || def.path[0] === "family"))
         throw new UsageError(`unknown option ${opt} for ${cmd}`, {
-          hint: `a status is a fact's (E…) only, never a name's or a family's: strom cite E… S… --status probable|proven, strom event edit E… --status …`,
+          hint: `a status is a fact's (E…) or a name's (P…), never a family's: strom cite E…|P… S… --status probable|proven, strom event edit E… --status …`,
           code: "option.unknown", hintCode: "option.unknown.status", params: { opt, cmd, options: own.join(" "), path: def.path.join(" ") }, usage,
         });
       // a name agents type meaning another option (--timeout for --minutes): that one, with what it takes

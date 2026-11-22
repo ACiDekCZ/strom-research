@@ -7,6 +7,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { Settings } from "./config.ts";
 import { UsageError } from "./errors.ts";
+import { retryingHeld } from "./json.ts";
 import type { Input, Media, Region, Source } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { safeFolderName } from "./text.ts";
@@ -16,7 +17,8 @@ export const MAX_IN_TREE = 20 * 1024 * 1024;
 
 export function fileSha256(file: string): string {
   const h = crypto.createHash("sha256");
-  const fd = fs.openSync(file, "r");
+  // opened again for a while on Windows when another program (an antivirus) holds it for a moment
+  const fd = retryingHeld(file, process.platform, () => fs.openSync(file, "r"));
   try {
     const buf = Buffer.allocUnsafe(1 << 20);
     let n: number;
@@ -218,10 +220,14 @@ export function imageNumbers(files: string[]): (number | undefined)[] {
 }
 
 /** The shared inbox by folder ("" = files lying in the inbox itself): one download, one record set. */
+/** A file of the inbox strom set aside, not taken (commands/media.ts takeFiles): a question, never a download. */
+export const SET_ASIDE = /\.(?:same-as|other-than)-M\p{N}+$/u;
+
 export function inboxFolders(inbox: string): { folder: string; files: string[] }[] {
   if (!fs.existsSync(inbox)) return [];
   const by = new Map<string, string[]>();
   for (const f of collectFiles([inbox])) {
+    if (SET_ASIDE.test(f.normalize("NFC"))) continue;
     const rel = path.relative(inbox, f).split(path.sep);
     const folder = rel.length > 1 ? rel[0]! : "";
     by.set(folder, [...(by.get(folder) ?? []), f]);

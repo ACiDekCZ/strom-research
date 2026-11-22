@@ -19,6 +19,7 @@ Postup v kostce:
    všechny ([R9.6](#R9.6)).
 5. **Rozhodnutí:** tabulka a průběh úkolu jsou v [R9.8](#R9.8), kroky člověka v [R9.9](#R9.9) a příklady v
    [R9.10](#R9.10).
+6. **Sčítání lidu:** volitelný pramen, který zapíná jen člověk; od výzkumu 1.36.0 ([R9.12](#R9.12)).
 
 > **Poznámka: kde přesně platí prohlížeč agenta.** Prohlížeč agenta hlídá strom u **Claude Code** s rozšířením
 > **Claude in Chrome**, ve vestavěném prohlížeči aplikace Claude ([R12.2](R12-where-the-agent-works.md#R12.2))
@@ -604,3 +605,211 @@ Kroky u úkolu, který čeká na snímky archivu, kam agent nesmí:
 - **Platí od:** výzkum 1.35.0
 
 <!-- zdroj: research:465c54ea assets/archives.json blha-recherche.brandenburg.de (restricted, browserOnly, terms robots.txt, quoteFrom reply, replied 2026-11-18, robots Disallow / zrušeno odpovědí pro jednotlivé snímky, nejvýš 2 požadavky, imagesFrom blha-digi.brandenburg.de, scope: nikdy prohledávání databáze ani celá kniha, adresa prohlížeče snímek nejmenuje, citace „BLHA, Rep. 5KB Nr. <n>“; bez wholeBook), blha-digi.brandenburg.de (restricted, IIIF, po jednom), blha.brandenburg.de (unknown, pace 10 s) · src/core/net.ts HUMAN_PACE 10 s · src/commands/archives.ts paceFor · src/core/terms.ts allows (browserOnly + restricted) · src/core/books.ts downloadOf (bez údaje range) · CHANGELOG.cs.md 1.35.0 (BLHA podle odpovědi z 18. 11. 2026) · commit d013df1c -->
+
+<a id="R9.12"></a>
+## R9.12 Sčítání lidu jako pramen
+
+Sčítání lidu zapisuje jednu domácnost v jednom roce: kdo bydlel v domě, jaký vztah měl k přednostovi, věk nebo rok
+narození, často rodiště, domovskou obec a povolání. Výzkum sčítání použije, jen když ho člověk pro výzkum zapne.
+
+- **Hlídá kód:**
+  - volba `census` (**Sčítání lidu v tomto výzkumu**) je ve výchozím stavu vypnutá. Nenastavená volba znamená
+    vypnuto, i u výzkumů založených dřív;
+  - volba platí pro všechny výzkumy na tomto počítači, nebo s `--for-tree` jen pro jeden. Hodnota výzkumu má přednost
+    oběma směry (zapnuto i vypnuto). Menu terminálu i aplikace Strom zapisují hodnotu výzkumu. Proměnná prostředí ani
+    přepínač příkazu volbu nemění;
+  - zapne ji jen člověk: v menu, ve svém terminálu, nebo přepínačem v aplikaci Strom ([S4.4.10](S4-research-from-the-app.md#S4.4.10)).
+    Když zapnutí spouští agent v rozhovoru, ptá se člověka okno systému. Bez okna (samostatná práce agenta) strom
+    zapnutí odmítne a řekne agentovi, ať sčítání navrhne ([R9.12.1](#R9.12.1)). Vypnout smí kdokoli, bez dotazu;
+  - zapnuto: jdou založit úkoly sčítání (`strom task add … --census <rok>[:<dům>]`) a agent u nich dostane stránku
+    metodiky o sčítání a seznam sčítání, která strom zná ([R9.12.2](#R9.12.2));
+  - vypnuto: úkol sčítání nejde založit (odmítnutí řekne, jak sčítání navrhnout), stránku `strom guide census` strom
+    nedá a úkoly sčítání jsou odložené ([R9.12.4](#R9.12.4)). Zapsané události sčítání zůstávají;
+  - Archiv Stromu volbu v menu nemá. Most ji v Archivu Stromu i ve výzkumu, který čeká na agenta, odmítne.
+- **Proč:** matriky zachycují jednotlivé události. Sčítání ukáže celou domácnost v jednom roce, kam se rodina
+  stěhovala a odkud kdo přišel, což matriky často neřeknou. Většina archivů sčítání jen zobrazuje, archy proto
+  většinou dodá člověk snímkem obrazovky.
+- **Ovládání:** terminál: menu **Nastavení** → **Jazyk, agent, model, co smí agent sám, příběhy… (průvodce
+  nastavením)** → **Sčítání lidu v tomto výzkumu: …**. Nejdřív věta, co sčítání dává, pak otázka **Zapnout sčítání
+  lidu v tomto výzkumu?** nebo **Vypnout sčítání lidu v tomto výzkumu? Jeho úkoly se odloží a po zapnutí se vrátí.**
+  (Enter = nic se nemění). Příkaz `strom config set census on|off [--for-tree]`, platnou hodnotu ukáže
+  `strom config where`. Aplikace: [S4.4.10](S4-research-from-the-app.md#S4.4.10).
+- **Platí od:** výzkum 1.36.0, aplikace 3.31.0
+
+<!-- zdroj: research:c7b117cd src/core/config.ts SETTINGS census (env "", tree: true, off|on), censusSwitch (strom.json oběma směry, jinak config uživatele; nenastaveno = off) · src/commands/setup.ts censusDecision (requireHuman: terminál člověka; agent → okno systému, bez okna NeedsConsentError s návodem census propose; STROM_FOR_APP bez okna; vypnutí bez dotazu), effective census off · src/commands/tasks.ts censusOrigin (--census <rok>[:<dům>], census.off s návodem) · src/commands/meta.ts guide census (census.off) · src/brief/brief.ts (podmínka census / census-off) · src/core/live.ts POST /census (409 census.archive) · research:5a73905e src/cli/menu-settings.ts censusLabel, censusStep (ui.settings.census.about, .on, .off; --for-tree; jen mimo archiv) · cs.json ui.settings.census* · assets/method/census.md (úvod) · test/cli/census.test.ts · CHANGELOG.cs.md 1.36.0 „Sčítání lidu“ · dirigent:spec/106-vyzkum-scitani-lidu Proč, K1.1–K1.4, rozhodnutí 19. 11. a 20. 11. M2 -->
+
+<a id="R9.12.1"></a>
+### R9.12.1 Návrh zapnout sčítání
+
+Při vypnutém sčítání smí agent sčítání člověku navrhnout, jednou za výzkum.
+
+- **Hlídá kód:**
+  - `strom census propose --why "…" [--person P…]` založí jednu položku Co čeká ([R6.2](R6-awaiting-action.md#R6.2))
+    v jazyce výzkumu: „Sčítání lidu by mohlo výzkumu pomoci: … Zapnout jde v nastavení tohoto výzkumu.“ (s osobou
+    „… by mohlo pomoci u osoby …“). Čeká na rozhodnutí: zapnout sčítání, nebo ne;
+  - druhý návrh strom odmítne, ať první skončil jakkoli (vyřízený, zrušený, odmítnutý). Při zapnutém sčítání
+    odmítne každý návrh;
+  - `--why` je jedna nebo dvě věty v jazyce výzkumu, nejvýš 600 znaků, a nesmí člověka oslovovat;
+  - zapnutí sčítání návrh uzavře („Sčítání lidu zapnuto“). Při zapnutém sčítání se otevřený návrh nikde neukazuje;
+  - souhrn sezení, ve kterém návrh vznikl, ho řekne větou „Navrženo zapnout sčítání lidu (T…).“;
+  - návrh je úkol druhu **Ostatní**, ne úkol sčítání.
+- **Jen metodika:** návrh jen na slepém místě, kde by sčítání pomohlo: původ osoby neznámý, mezera mezi událostmi
+  z matrik. Po návrhu agent pokračuje bez sčítání a znovu se neptá.
+- **Ovládání:** aplikace: **Čeká na vyřízení**. Terminál: menu Co čeká, zapnutí v [R9.12](#R9.12).
+- **Platí od:** výzkum 1.36.0
+
+<!-- zdroj: research:5a73905e src/commands/census.ts census propose (census.on, census.proposed, census.addresses, --why max 600, state waiting, wait kind other, origin census:propose) · src/core/census.ts censusProposal, censusHidden · src/commands/setup.ts closeCensusProposal (census.propose.done) · src/commands/session.ts censusSummary (census.propose.session) · src/core/taskkind.ts (census:propose → other) · assets/method/core.md „Census records are off“ · cs.json census.propose.* · dirigent:spec/106 rozhodnutí 20. 11. M1 -->
+
+<a id="R9.12.2"></a>
+### R9.12.2 Kdy a kde agent sčítání hledá
+
+Úkol sčítání je jedna domácnost v jednom roce a domě. Kde sčítání hledat, říká agentovi seznam archivů dodaný
+s výzkumem.
+
+- **Hlídá kód:**
+  - brief úkolu sčítání (jen při zapnutém sčítání) vyjmenuje sčítání ze seznamu archivů: roky, území, rejstřík jmen,
+    jak se domácnost hledá a cesta pro strom. Úroveň a podmínky archivu platí jako u každého záznamu
+    ([R9.1](#R9.1)) a cesta nikdy není mírnější než úroveň archivu;
+  - sčítání v seznamu archivů (výzkum 1.36.0):
+
+| Archiv | Roky | Území | Hledání | Cesta |
+|---|---|---|---|---|
+| Moravský zemský archiv (Acta Publica) | 1857, 1869, 1880, 1890, 1900, 1910, 1921 | jižní Morava a Vysočina | obec, ulice; bez rejstříku jmen | ručně: arch uloží člověk ([R9.10.1](#R9.10.1)) |
+| SOA v Třeboni (DigiArchiv) | jako MZA | jižní Čechy | obec | ručně |
+| Východočeské archivy (ARON) | jako MZA | východní Čechy | obec; bez rejstříku jmen | agent sám |
+| FamilySearch | jako MZA | vybraná místa | obec | jen odkaz a úkol pro člověka |
+| Archiv hlavního města Prahy | 1869, 1880, 1890 | Praha | – | ručně |
+| MyHeritage | 1900, 1910, 1921 | Česko | jméno (rejstřík jmen) | ručně |
+| Archiv města Brna | 1850, 1857, 1870, 1880, 1890, 1900, 1921 | Brno | jméno, dům (rejstřík jmen) | pomalu, po jednom záznamu |
+| Archiv města Ostravy | neuvedeny | Ostrava | – | pomalu, po jednom záznamu |
+
+- **Jen metodika:**
+  - **kdy:** původ osoby neznámý (křest nenalezen tam, kde žila), mezera mezi událostmi z matrik (stěhování, děti
+    zemřelé jinde, druhý sňatek), nebo dům známý z křtu, sňatku či pohřbu v roce blízkém roku sčítání;
+  - jen lidé, ke kterým strom vede (nic mimo strom), nikdy žijící. Jeden úkol na domácnost, rok a dům, nikdy na
+    osobu;
+  - **kde:** sčítání obce a roku v katalogu archivu jedním hledáním, nikdy procházením čísel. V něm dům podle čísla;
+    kde je rejstřík jmen, hledat jménem a číslo domu ověřit. Nikdy neprocházet čísla domů ani nehledat lidi, které
+    strom nepotřebuje;
+  - archiv, který sčítání jen zobrazuje: úkol čeká na člověka, s adresou sčítání obce a tím, co uložit („obec, rok,
+    číslo domu: celý arch, obě strany“), nebo na snímky knihy ([R9.6](#R9.6)). Arch větší než jedna obrazovka přijde
+    po částech;
+  - nenalezeno (sčítání obce ztracené, dům chybí, rodina jinde): negativní hledání s tím, co přesně se prošlo, a
+    agent se k tomu nevrací.
+- **Ovládání:** terminál: `strom task add … --census <rok>:<dům>`, `strom task wait T… --kind web --url <adresa>
+  --on "…"` nebo `--images B…:<čísla>`, `strom search add … --result negative`.
+- **Platí od:** výzkum 1.36.0
+
+<!-- zdroj: research:5a73905e assets/archives.json census (years, area, nameIndex, search, how, says, checked 2026-11-04 až 2026-11-20: mza.cz by-hand, digi.ceskearchivy.cz by-hand, aron.vychodoceskearchivy.cz agent, familysearch.org link, digi.ahmp.cz by-hand, myheritage.com by-hand, digiarchiv.brno.cz slow, badatelna.ostrava.cz slow bez let), censusDays · src/core/census.ts censusHoldings · src/brief/brief.ts (oddíl census jen pro úkol sčítání při zapnutí) · src/core/assets.ts methodFor (census.md) · test/unit/known-terms.test.ts (how nikdy mírnější než úroveň) · assets/method/census.md „When“, „Where“ · dirigent:spec/106 K2.1–K2.4 -->
+
+<a id="R9.12.3"></a>
+### R9.12.3 Domácnost: jedna společná událost
+
+`strom census add` zapíše jeden arch (jeden dům, jednu domácnost) najednou. V aplikaci Strom je domácnost jedna
+společná událost **Sčítání lidu** ([A10.1](A10-shared-events.md#A10.1)).
+
+- **Hlídá kód:**
+  - každý člen domácnosti, který je osobou stromu, dostane událost sčítání se svým vztahem k přednostovi a věkem
+    podle archu. Datum, místo, dům, poznámka a citace archu jsou u všech kopií stejné. Jediný člen ze stromu dostane
+    obyčejné sčítání osoby a jeho vztah je v poznámce;
+  - lidé z archu, kteří nejsou ve stromu (čeleď, podruzi, nájemníci), jsou jen v poznámce domácnosti; osoba z nich
+    nevznikne. Nic dalšího se nezapíše: rok a místo narození z archu nejsou narození;
+  - **datum:** rok sám znamená rozhodný den sčítání toho roku, když ho strom zná: v Česku 31. 10. 1857, 31. 12. 1869,
+    1880, 1890, 1900 a 1910 a 15. 2. 1921. Jinak zůstane rok. Celé datum má přednost;
+  - **místo** je obec nebo záznam místa, nikdy ulice ani číslo domu. Dům se píše, jak ho uvádí arch („14“, „Dlouhá 12“);
+  - **vztah:** pevná slova (hlava domácnosti, manželka, manžel, syn, dcera, otec, matka, tchán, tchyně, zeť, snacha,
+    vnuk, vnučka, bratr, sestra, nevlastní syn, nevlastní dcera, schovanec, příbuzný, sluha, služka, čeledín,
+    děvečka, nájemník, podruh, výměnkář, učeň, tovaryš) se poznají v češtině, angličtině, němčině i polštině a zapíší
+    se slovem jazyka výzkumu. Jiný vztah zůstane, jak je napsaný;
+  - vztah, jak ho píší formuláře a čtení archu: „přednosta [domácnosti]“, „hlava rodiny“, „Haushaltungsvorstand“,
+    „głowa rodziny“ a „head of the household“ jsou hlava domácnosti. Dovětek, který říká jen ke komu vztah je
+    („manželka přednosty“, „son of the head“, „Tochter des Haushaltungsvorstandes“, „v domácnosti“), se odřízne.
+    Z výčtu přes čárku platí hlava domácnosti, je-li v něm; jinak zůstane celý;
+  - **odmítne se:** člen, který není osobou stromu (nebo je sloučený či odvolaný), osoba uvedená dvakrát, člen bez
+    vztahu, osoba, která nejspíš žije, dvě hlavy domácnosti a domácnost už zapsaná (týž rok, obec a dům);
+  - **upozorní:** v témže domě a roce jsou další osoby stromu (jiná domácnost domu, nebo tatáž zapsaná dvakrát);
+    sčítání téhož roku jinde (stěhování, nebo dvě osoby vzaté za jednu);
+  - kopie zůstávají jednou událostí: společný údaj opravený u jedné kopie (`strom event edit`, `strom cite`,
+    `strom note edit|retract|restore`, `strom event main`) a návrh opravy přijatý u jedné kopie platí pro všechny.
+    Věk, vztah, ověření a potvrzení člověkem má každá kopie svůj; stav výzkumu jde na všechny kopie jen výslovně
+    (`--status`). Do společné poznámky nejde nic, co patří jedné kopii;
+  - zapsat domácnost jde i při vypnutém sčítání: příkaz zapisuje dodaný arch, nic nehledá.
+- **Jen metodika:**
+  - arch číst jako zápis matriky, celou domácnost i hlavu domu; zapsat jednou. Každý rok je vlastní domácnost,
+    nikdy se neslučuje;
+  - **vodítko, ne doklad:** rok nebo místo narození, domovská obec a povolání ze sčítání nikdy nenahradí narození ani
+    křest. Vedou do matriky: úkol najít faru rodiště. Kde se sčítání a matrika rozcházejí, vznikne poznámka nebo
+    hypotéza; údaj z matriky se kvůli sčítání nemění;
+  - **přečíslované domy:** dům poznat i podle sousedů a jmen, ne jen podle čísla; nejistotu říct v poznámce.
+- **Ovládání:** terminál: `strom census add --source S… --date <rok|den> --place <obec|L…> --house <č.>`
+  `--member P…:<vztah>:<věk> … [--others "…"] [--note "…"] [--locator "…"] [--transcript "…"]`. Aplikace: domácnost
+  u každé osoby a na **Časové ose** ([A10.2](A10-shared-events.md#A10.2), [A6.3](A6-views.md#A6.3)). Příklad
+  (smyšlený): `strom census add --source S0004 --date 1890 --place L0007 --house 14`
+  `--member P0002:"přednosta domácnosti":41 --member P0003:"manželka přednosty":36 --others "čeledín, 19 let"`
+  zapíše Janu Horákovi hlavu domácnosti (41) a Marii Horákové manželku (36), obojí k 31. 12. 1890.
+- **Platí od:** výzkum 1.36.0, aplikace 3.31.0
+
+<!-- zdroj: research:8dba2e52 src/commands/household.ts census add (--source, --date, --place, --house, --member, --others, --note, --locator, --transcript/--quote, --information, --status, --country; sameHouse, elsewhere) · src/core/household.ts addHousehold (census.member.none, record.none, merged/retracted, census.member.twice, census.living, relace chybí, census.head.twice, domácnost už zapsaná; jeden člen bez share id, vztah do poznámky; others jen v poznámce), parseMember, alignCopies · src/gedcom/export.ts (2 NOTE bez řádků kopie) · src/commands/people.ts alignCopies u note edit/retract/restore, cite, event edit, event main · research:ece404b9 src/core/origin.ts (přijatý návrh na všechny kopie), censusDay jedna tabulka · research:5a73905e assets/archives.json censusDays CZ · research:d2bef48e src/core/household.ts householdRoleOf, src/core/phrases.ts HOUSEHOLD_ROLES, HOUSEHOLD_ROLES_ALSO, HOUSEHOLD_OF_HEAD · test/cli/census-household.test.ts, census-reader.test.ts · assets/method/census.md „Reading and recording“ · CHANGELOG.cs.md 1.36.0 · dirigent:spec/106 K3.1–K3.3 · dirigent:prace/1120-vyzkum-106-scitani Výsledek (census add i při vypnutí, stav jen výslovně) -->
+
+<a id="R9.12.4"></a>
+### R9.12.4 Vypnuté sčítání: odložené úkoly
+
+Vypnutí sčítání úkoly sčítání odloží, nesmaže. Po zapnutí se vrátí samy.
+
+- **Hlídá kód:**
+  - při vypnutém sčítání jsou úkoly sčítání otevřené nebo čekající (i na snímky) mimo frontu, její počty, Co čeká
+    a stav pro aplikaci. Nic se nezapíše ani nesmaže: odložení se počítá z volby;
+  - úkol, na kterém sezení právě pracuje, se neodloží: sezení ho dokončí. Zůstane-li nedokončený, je zase otevřený
+    a od té chvíle odložený. Agent to při zavření sezení slyší;
+  - úkol, který člověk odložil na později, zůstává odložený jako dosud. Vyřízené a zrušené úkoly se nemění;
+  - `strom task list` řekne, kolik úkolů sčítání je odloženo; `strom task list --kind census` je ukáže se značkou
+    „held: census off“. U odloženého úkolu spuštěného podle čísla (`strom session start T…`) agent slyší, že úkol
+    je odložený, ať sezení zavře a vezme jiný úkol;
+  - menu nastavení ukáže u volby např. „vypnuto, odloženy 3 úkoly sčítání“ a po vypnutí větu „Odloženo: 3 úkoly
+    sčítání. Po zapnutí se vrátí.“
+- **Ovládání:** terminál: volba v [R9.12](#R9.12), `strom task list --kind census`. Aplikace: přepínač
+  [S4.4.10](S4-research-from-the-app.md#S4.4.10) s větou o odložených úkolech.
+- **Platí od:** výzkum 1.36.0
+
+<!-- zdroj: research:c7b117cd src/core/census.ts censusHeld (open, parked do uplynulého dne, waiting; nikdy doing ani parked člověkem), censusHidden, censusHeldCount · src/core/queue.ts rankTasks censusHide · src/core/waiting.ts (Co čeká) · src/core/live.ts censusStatus (/status.census {on, held}) · src/commands/tasks.ts task list (censusHeldNow, „held: census off“, --kind census) · src/commands/session.ts censusLine, censusCloseLine · research:5a73905e src/cli/menu-settings.ts censusLabel (ui.settings.census.held), censusStep (ui.settings.census.back) · test/cli/census.test.ts (M3) · dirigent:spec/106 K1.3, rozhodnutí 20. 11. M3 -->
+
+<a id="R9.13"></a>
+## R9.13 Omezený archiv: jedno sezení najednou
+
+Archiv, který omezuje automatický přístup, používá najednou jen jedno sezení ze všech výzkumů se společnou složkou
+na počítači. Archiv tak nezablokuje přístup a jeden pracující jede plnou povolenou rychlostí, místo aby se víc
+pracujících dělilo o tempo.
+
+- **Omezený archiv:** podmínky archivu chtějí lidské tempo nebo jen prohlížeč, člověk dal svolení „pomalu“ nebo „přes
+  prohlížeč“ ([R9.2](#R9.2)), nebo stahovač archivu má hodinový strop. Odmítnutí archivu (401, 403, 429) omezený
+  archiv nedělá: archiv se nechá chvíli být jako dosud. Archiv se pozná podle domény webu.
+- **Hlídá kód:**
+  - úkol, jehož knihy leží jen na omezeném archivu, vezme se zabráním úkolu i archiv. Archiv drží sezení; agent,
+    který na archiv teprve zabloudí, ho zabere prvním požadavkem;
+  - držení archivu skončí se sezením, s propadnutím sezení ([R7.9](R7-when-the-agent-works.md#R7.9)), nebo po
+    `archive.hold` (výchozí 30 min) bez požadavku na archiv, i když sezení dál běží. Kdo jen čte stažené skeny,
+    archiv tak uvolní;
+  - úkol na archivu, který drží jiné sezení, se zatím vynechá a vezme se jiná práce („vynechán: archiv … omezuje
+    automatický přístup a teď ho používá jiné sezení“). Požadavek agenta na takový archiv se odmítne;
+  - samostatná práce, které zbyly jen takové úkoly, počká nejvýš `archive.wait` (výchozí 30 min). Archivu se během
+    čekání nic neposílá. Pak běh skončí s důvodem „nic dalšího k práci – zbylé úkoly potřebují archiv …, který celou
+    dobu čekání používalo jiné sezení“;
+  - `strom session start T…` na úkolu obsazeného archivu se odmítne jednou větou: „Archiv … teď používá jiný výzkum
+    (od 9:10, naposledy 9:40); uvolní se nejpozději v 10:10.“ Ve stejném výzkumu stojí místo „jiný výzkum“ číslo
+    sezení;
+  - kdo na archiv čeká, stojí ve frontě; po uvolnění má přednost ten, kdo čeká nejdéle. Sezení, které archiv pustilo,
+    ho hned znovu nezabere, když na něj někdo čeká.
+- **Hromadné stahování:** na počítači běží najednou jen jedno hromadné stahování snímků z omezeného archivu
+  (`strom fetch`). Další se zařadí do fronty („queued behind …“) a počká samo nejvýš `archive.wait`; pak skončí
+  s časem, kdy to zkusit znovu. Stahování drží i archiv, takže ho agenti ostatních výzkumů přeskakují. Neomezené archivy
+  se nemění: jejich tempo dál hlídá jen omezovač požadavků.
+- **Hranice:** držení neříká, jak rychle se stahuje, jen kdo; tempo archivu se nemění. Starší strom vedle tohoto
+  archivy nedrží a drží se jen tempa.
+- **V aplikaci:** kdo archiv používá a na který archiv práce čeká, ukazuje Přehled výzkumu
+  ([S4.1](S4-research-from-the-app.md#S4.1), [S4.2](S4-research-from-the-app.md#S4.2)).
+- **Ovládání:** terminál: `strom config set archive.hold <minuty>`, `strom config set archive.wait <minuty>` (např.
+  `45m`, `2h`; 5 min až 24 h, platí pro tento počítač); menu ukazuje „Samostatná práce čeká na archiv … (nejdéle do
+  …).“
+- **Platí od:** výzkum 1.36.0
+
+<!-- zdroj: research:10894288, 9408c7ea, 41dcd8eb src/core/archiveholds.ts (hlavička; restrictedLevel: browserOnly, permission slow|browser, allows(…).human; ne forbidden/refused; cappedConnector policy.pace.perHour; siteOf webDomain; siteLife: proces, sezení, archive.hold; PRIORITY_MS 2 min; joinQueue, releaseSite; BULK) · src/commands/connectors.ts:1443-1448 (help fetch), :3085-3190 holdArchive (fetch obrázků čeká ve frontě ≤ archive.wait, ostatní exit 7 data.held) · src/commands/session.ts:985-997, :1355-1389 (stop archive) · src/core/errors.ts:142 archive.held(.own) · src/core/config.ts:336-337 archive.hold, archive.wait · cs.json ui.run.skip.archive, ui.run.archive.wait, ui.run.stop.archive, ui.error.archive.held(.own), ui.menu.working.archive · CHANGELOG.cs.md 1.36.0 · dirigent:spec/127 K2.1–K2.5, K5.1, rozhodnutí 21. 11. (1)–(3), navrh-rezervace.md kap. 5 -->

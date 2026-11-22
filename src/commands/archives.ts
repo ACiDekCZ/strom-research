@@ -4,7 +4,8 @@
 // (the agent neither sees nor clicks it), and when nobody can be asked the question waits in strom's menu while the
 // work goes on with other sources. An agent may make an archive stricter; nothing milder is ever its to decide.
 
-import { browserAdviceFor, browserHelps, browserKept, treeBrowserArchives } from "../core/browserhelp.ts";
+import { browserAdviceFor, browserHelps, browserKept, browserState, treeBrowserArchives } from "../core/browserhelp.ts";
+import { floorNotes, floorSource, holdText, type FloorNote } from "../core/floor.ts";
 import { detectAgent } from "../core/which.ts";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
@@ -46,6 +47,10 @@ import {
   rank,
   settlePending,
   revokeWay,
+  grantRange,
+  revokeRange,
+  browserRangeOf,
+  knownTerms,
   setFloor,
   strictest,
   takenOverWaiting,
@@ -238,6 +243,53 @@ export function wakeAfterDecision(ctx: Context, hosts: string[], way: Way): Woke
       if (!m) merged.set(r.root, r);
       else for (const k of ["woken", "kept"] as const) m[k] = [...new Set([...m[k], ...r[k]])];
     }
+  return [...merged.values()];
+}
+
+/**
+ * The person made an archive milder (strom allow archive --level, the question of a floor in What waits): the tasks
+ * that waited for it come back only in a research where the level now opens them — the archive allows images by its
+ * terms, or the person's permission "slowly" (an archive not only a person's browser's), or "through the browser" where
+ * the research's agent has a browser strom keeps, ready. Anything still by hand (a downloader's reading, the research's
+ * record, the host's refusal) wakes nothing; a check of a site waits for the person's answer still.
+ */
+export function wakeOpened(ctx: Context, hosts: string[]): Woken[] {
+  if (ctx.dryRun) return [];
+  const root = rootHere(ctx);
+  const roots = [...new Set([...(root ? [root] : []), ...ctx.knownTrees().map((k) => k.root)])];
+  const dir = shared(ctx);
+  const net = netHere(ctx);
+  const all = listConnectors(dir, ctx.env);
+  const merged = new Map<string, Woken>();
+  for (const r of roots) {
+    let tree: Tree;
+    try {
+      tree = Tree.open(r, ctx.env);
+    } catch {
+      continue;
+    }
+    for (const h of hosts) {
+      let way: Way | undefined;
+      try {
+        const input = { tree, readOnly: true, ...(net ? { net } : {}) };
+        const levels = [archiveLevel(ctx.env, { ...input, url: `https://${h}/` }), ...all.filter((c) => c.manifest.hosts.map(bareHost).includes(h)).map((c) => archiveLevel(ctx.env, { ...input, connector: c, url: h }))];
+        const a = levels.reduce((x, y) => (rank(y.level) > rank(x.level) ? y : x));
+        if (a.refused || rank(a.level) >= rank("manual")) continue;
+        const browserOnly = levels.some((x) => x.browserOnly);
+        if (a.level === "allowed" && !browserOnly) way = undefined;
+        else if (a.permission === "slow" && !browserOnly) way = "slow";
+        else if (a.permission === "browser" && browserState(ctx.env, ctx.settings.agent(tree.config).value, r).state === "ready") way = "browser";
+        else continue;
+      } catch {
+        continue;
+      }
+      for (const w of wakeForArchive(ctx.env, [r], h, { ...(dir ? { shared: dir } : {}), ...(way ? { way } : {}) })) {
+        const m = merged.get(w.root);
+        if (!m) merged.set(w.root, w);
+        else for (const k of ["woken", "kept"] as const) m[k] = [...new Set([...m[k], ...w[k]])];
+      }
+    }
+  }
   return [...merged.values()];
 }
 
@@ -565,7 +617,7 @@ export function syncTrees(ctx: Context): string[] {
  * The hosts a name stands for: a connector's (its name), else the connector hosts on that host or site — never wider,
  * but for the other hosts of one archive whose question waits with it (one archive, one decision).
  */
-function targetHosts(ctx: Context, target: string): { hosts: string[]; connectors: Connector[]; bare?: ArchiveLevel } {
+function targetHosts(ctx: Context, target: string, floorToo = false): { hosts: string[]; connectors: Connector[]; bare?: ArchiveLevel } {
   const all = listConnectors(shared(ctx), ctx.env);
   const byName = all.find((c) => c.name === target);
   if (byName) return { hosts: [...new Set(byName.manifest.hosts.map(bareHost))], connectors: [byName] };
@@ -582,6 +634,16 @@ function targetHosts(ctx: Context, target: string): { hosts: string[]; connector
       const tree = ctx.hasTree() ? ctx.tree() : undefined;
       const named = tree ? treeBrowserArchives(tree, shared(ctx)).map((a) => a.host).filter((h) => within(h, given)) : [];
       return { hosts: [...new Set([bare.host, ...named])], connectors: [], bare };
+    }
+    // a level of an archive of strom's list no downloader here reaches (its floor stricter than the list: by hand
+    // only, the agent's browser shut): the hosts strom keeps a level for on it — the person's to make milder or keep
+    if (floorToo && shippedTerms().some((k) => within(given, k.host) || within(k.host, given))) {
+      const kept = Object.entries(loadArchives(ctx.env).archives).filter(([h, r]) => r.floor && (h === given || within(h, given))).map(([h]) => h);
+      const hs = kept.length ? kept : [given];
+      const tree = ctx.hasTree() ? ctx.tree() : undefined;
+      const net = netHere(ctx);
+      const levels = hs.map((h) => archiveLevel(ctx.env, { url: `https://${h}/`, ...(tree ? { tree } : {}), ...(net ? { net } : {}), readOnly: true }));
+      return { hosts: hs, connectors: [], bare: levels.reduce((x, y) => (rank(y.level) > rank(x.level) ? y : x)) };
     }
   }
   if (!hosts.length)
@@ -609,15 +671,21 @@ register({
     "connector's own hosts on this computer, every tree; the person gives and takes it back (their terminal, a window\n" +
     "when an agent asks, exit 4 with none). --level makes an archive stricter — anybody, an agent too; milder only the\n" +
     "person. --accept takes connectors' readings as they are now (those taken over when this strom first ran, one that\n" +
-    "says it may do more than before) — the person's; --keep keeps what strom kept instead (the person's too). Without a\n" +
-    "target: the archives and what waits.",
+    "says it may do more than before) — the person's; --keep keeps what strom kept instead (the person's too), and so a\n" +
+    "level strom keeps stricter than its list of the archive's terms (a downloader or a research's record read it so once:\n" +
+    "asked in What waits — kept, or --level as the list says). After a milder level the tasks that waited come back where\n" +
+    "it opens them. --range: the person's own consent, for this archive alone, to a range of its images saved through the\n" +
+    "agent's browser in one call (strom media save --images) — besides \"through the browser\", only where strom's list\n" +
+    "lets the archive have it (none yet); --range --revoke takes it back, one image at a time again. Without a target: the\n" +
+    "archives, such levels with what holds them, and what waits.",
   args: [{ name: "archive", description: "a connector's name, or a host (www.example.org) or site (example.org) of its connectors" }],
   options: [
     { name: "way", type: "string", value: "<slow|browser|manual>", description: "the person's permission for its images" },
     { name: "revoke", type: "boolean", description: "forget the permission: asked again at the next need" },
     { name: "level", type: "string", value: "<allowed|restricted|manual|forbidden>", description: "the archive's level: stricter by anyone, milder by the person" },
     { name: "accept", type: "boolean", description: "accept the connectors' readings as they are now (without a target: those taken over)" },
-    { name: "keep", type: "boolean", description: "keep what strom kept of a connector that says now the archive allows more: not asked again for that reading" },
+    { name: "keep", type: "boolean", description: "keep what strom kept of a connector that says now the archive allows more, or a level strom keeps stricter than its list: not asked again" },
+    { name: "range", type: "boolean", description: "the person's consent to a range of its images through the browser in one call (strom media save --images), for this archive alone — where strom's list lets it have one; with --revoke: taken back" },
   ],
   examples: ["strom allow archive www.example.org --way slow", "strom allow archive example-archive --way browser", "strom allow archive example.org --level restricted", "strom allow archive example.org --revoke", "strom allow archive --accept"],
   run: async (ctx, { args, opts }) => {
@@ -635,12 +703,15 @@ register({
       const all = listConnectors(shared(ctx), ctx.env);
       const claude = claudeHere(ctx, tree?.config);
       const ways = (p: PendingQuestion) => waysOffered(connectorFor(all, p.host!, p.connector), claude, p.way, !!p.browserOnly).join("|");
+      // a level strom keeps stricter than strom's list of the archive's terms: whose, since when, what holds it, what to do
+      const floors = floorNotes(ctx.env, { ...(tree ? { tree } : {}), ...(shared(ctx) ? { shared: shared(ctx)! } : {}), all: true });
       return {
         text: lines(
-          rows.length ? table(rows.map(([h, r]) => [h, r.way ? WAY_TEXT[r.way] : "no permission", r.floor ? `level ≥ ${r.floor}` : "", Object.keys(r.seen ?? {}).join(", ")])) : "no archive decided yet",
+          rows.length ? table(rows.map(([h, r]) => [h, r.way ? WAY_TEXT[r.way] : "no permission", r.floor ? `level ≥ ${r.floor}${r.floorBy ? ` (${r.floorBy}${r.floorAt ? ` ${r.floorAt.slice(0, 10)}` : ""})` : ""}` : "", Object.keys(r.seen ?? {}).join(", ")])) : "no archive decided yet",
+          ...floors.map((n) => `${n.host}: strom keeps ${n.floor} since ${n.at?.slice(0, 10) ?? "?"} (${floorSource(n)}) — strom's list of its terms (checked ${n.checked ?? "?"}): ${n.list}${n.browserOnly ? ", only through a person's browser" : ""}; ${n.holds.length ? `still held by ${n.holds.map(holdText).join(", ")}` : n.ask ? `the person decides (What waits): strom allow archive ${n.host} --level ${n.list} (as its terms) or --keep` : `milder only by the person: strom allow archive ${n.host} --level ${n.list}`}`),
           s.pending.length ? `waiting for the person: ${s.pending.map((p) => p.kind === "takeover" ? `confirm the connectors taken over (${p.connectors?.join(", ")}): strom allow archive --accept` : p.kind === "milder" ? `${p.connector} says ${p.host} allows ${p.to} (kept ${p.from}): strom allow archive ${p.connector} --accept` : `${p.title ?? p.host}: strom allow archive ${p.host} --way ${ways(p)}`).join(" · ")}` : undefined,
         ),
-        data: { archives: s.archives, pending: s.pending },
+        data: { archives: s.archives, pending: s.pending, ...(floors.length ? { floors } : {}) },
       };
     }
     if (opts.accept && !target) {
@@ -651,14 +722,26 @@ register({
       acceptConnectors(ctx.env, all);
       return { text: `accepted as they say: ${all.map((c) => `${c.name} ${claimOf(c)}`).join(", ")}`, data: { accepted: all.map((c) => c.name) } };
     }
-    const { hosts, connectors, bare } = targetHosts(ctx, target!);
+    const { hosts, connectors, bare } = targetHosts(ctx, target!, !!(opts.keep || level));
     const named = connectors.length === 1 ? connectors[0] : connectors.find((c) => c.name === target);
     const title = (named ?? connectors[0])?.manifest.title ?? bare?.title ?? hosts[0]!;
-    if (bare && (opts.keep || opts.accept || level))
-      throw new UsageError(`${title} has no connector here: only its way is the person's to decide (--way browser|manual, --revoke)`, { hint: `strom allow archive ${hosts[0]} --way browser` });
+    if (bare && opts.accept)
+      throw new UsageError(`${title} has no connector here: only its way and its level are the person's to decide (--way browser|manual, --revoke, --level)`, { hint: `strom allow archive ${hosts[0]} --way browser` });
+    // the floors strom keeps stricter than strom's list of the archive's terms, whose question waits for the person
+    const floors = (): FloorNote[] => floorNotes(ctx.env, { ...(ctx.hasTree() ? { tree: ctx.tree() } : {}), ...(shared(ctx) ? { shared: shared(ctx)! } : {}) }).filter((n) => n.ask && hosts.includes(n.host));
     if (opts.keep) {
+      // nothing is known of what strom keeps while its settings cannot be read: never written whole over them
+      if (loadArchives(ctx.env).broken) throw new UsageError("the settings of archives (archives.json) cannot be read — nothing changed", { hint: "strom doctor" });
       const milder = loadArchives(ctx.env).pending.filter((p) => p.kind === "milder" && connectors.some((c) => c.name === p.connector) && hosts.includes(p.host ?? ""));
-      if (!milder.length) return { text: `${hosts.join(", ")}: no connector says it may do more than strom keeps — nothing to keep`, data: { hosts, kept: [] } };
+      const asked = floors();
+      if (!milder.length && asked.length) {
+        // the floor kept as the person's: the question goes (a person's floor is never asked about), the level stays
+        const level0 = asked[0]!.floor;
+        ctx.requireHuman(`Keep ${title} (${asked.map((n) => n.host).join(", ")}) ${level0} as strom keeps it — not ${asked[0]!.list} as strom's list of its terms says?`, `strom allow archive ${target} --keep`, `archive:keep:${hosts.join(",")}`, ui(lang, "ui.archive.floor.confirm.keep", { title: asked[0]!.title, level: levelWords(lang, level0, false, ["floor"]) }));
+        for (const n of asked) setFloor(ctx.env, [n.host], n.floor, "person");
+        return { text: `${asked.map((n) => `${n.host}: ${n.floor}`).join(", ")} kept — the person's now, not asked again (milder only by the person: strom allow archive ${target} --level ${asked[0]!.list})`, data: { hosts, kept: [], floors: asked.map((n) => ({ host: n.host, level: n.floor })) } };
+      }
+      if (!milder.length) return { text: `${hosts.join(", ")}: no connector says it may do more than strom keeps, no level of strom's waits for the person — nothing to keep`, data: { hosts, kept: [] } };
       const kept = connectors.filter((c) => milder.some((p) => p.connector === c.name));
       ctx.requireHuman(`Keep ${hosts.join(", ")} as strom keeps it (${milder.map((p) => `${p.connector}: ${p.from}, not ${p.to}`).join(", ")})?`, `strom allow archive ${target} --keep`, `archive:keep:${hosts.join(",")}`, ui(lang, "ui.archive.keep", { names: kept.map((c) => c.manifest.title).join(", ") }));
       keepReadings(ctx.env, kept);
@@ -670,21 +753,46 @@ register({
       return { text: `${hosts.join(", ")}: the connectors' readings accepted — ${connectors.map((c) => `${c.name} ${claimOf(c)}`).join(", ")}`, data: { hosts, accepted: connectors.map((c) => c.name) } };
     }
     if (level) {
-      // the level as it is now (the strictest of all that is known, the person's permission aside)
-      const now = strictest(...connectors.flatMap((c) => levelsOf(ctx, c, true).filter((a) => hosts.includes(a.host)).map((a) => a.level)));
+      // the levels as they are now (the strictest of all that is known, the person's permission aside): each
+      // downloader's of the hosts, and the archive's without one (what strom run and the agent's browser take)
+      const tree = ctx.hasTree() ? ctx.tree() : undefined;
+      const net = netHere(ctx);
+      const levelsNow = (): { a: ArchiveLevel; c?: Connector }[] => [
+        ...connectors.flatMap((c) => levelsOf(ctx, c, true).filter((a) => hosts.includes(a.host)).map((a) => ({ a, c }))),
+        ...hosts.map((h) => ({ a: archiveLevel(ctx.env, { url: `https://${h}/`, ...(tree ? { tree } : {}), ...(net ? { net } : {}), readOnly: true }) })),
+      ];
+      const now = strictest(...levelsNow().map((x) => x.a.level));
       // as strict as now or stricter lowers nothing that is known: anybody's (an agent's too)
       const stricter = rank(level) >= rank(now);
+      // a store that cannot be read is never written whole over what it held (permissions, refusals, floors) — stricter
+      // neither: what it held is not known, so neither is what stricter means
+      if (loadArchives(ctx.env).broken) throw new UsageError("the settings of archives (archives.json) cannot be read — nothing changed", { hint: "strom doctor" });
       if (!stricter)
         ctx.requireHuman(`Make ${title} (${hosts.join(", ")}) ${level} — milder than ${now} now?`, `strom allow archive ${target} --level ${level}`, `archive:level:${hosts.join(",")}`, ui(lang, "ui.archive.level.milder", { title, level: levelWords(lang, level), now: levelWords(lang, now) }));
       // milder by the person: the connectors' readings as they are taken with it (else the latch keeps the old one)
       if (!stricter) acceptConnectors(ctx.env, connectors);
       setFloor(ctx.env, hosts, level, stricter && isAgent(ctx.env) ? "agent" : "person");
-      const after = strictest(...connectors.flatMap((c) => levelsOf(ctx, c, true).filter((a) => hosts.includes(a.host)).map((a) => a.level)));
+      const levels = levelsNow();
+      const after = strictest(...levels.map((x) => x.a.level));
+      // what still holds it stricter: its real sources, each with what to look at (the downloader, the research's archive)
+      const holding = levels.filter((x) => rank(x.a.level) > rank(level));
+      const look = [...new Set(holding.flatMap((x) => [...(x.c && x.a.from.some((f) => f === "connector" || f === "kept" || f === "pages" || f === "new connector") ? [`strom connector show ${x.c.name}`] : []), ...(x.a.from.includes("tree") && x.a.repository ? [`strom repo show ${x.a.repository}`] : [])]))];
+      const said = [...new Set(holding.map((x) => `${x.c ? `${x.c.name}: ` : ""}${levelText(x.a)}`))];
+      // strom run and the agent's browser take the archive's level without a downloader: said where it differs
+      const plain = levels.filter((x) => !x.c);
+      const plainLevel = strictest(...plain.map((x) => x.a.level));
+      const woken = stricter ? [] : wakeOpened(ctx, hosts);
       return {
-        text: lines(`${hosts.join(", ")}: level ${level}${stricter ? " (stricter — anybody may)" : " (the person's)"}`, rank(after) > rank(level) ? `  it stays ${after}: another source is stricter (strom's known terms of the archive, the tree's archive) — strom connector show <connector>` : undefined),
-        data: { hosts, level, effective: after },
+        text: lines(
+          `${hosts.join(", ")}: level ${level}${stricter ? " (stricter — anybody may)" : " (the person's)"}`,
+          holding.length ? `  it stays ${after}: ${said.join("; ")}${look.length ? ` — ${look.join(" · ")}` : ""}` : undefined,
+          connectors.length && rank(plainLevel) !== rank(after) ? `  strom run and the agent's browser take the archive's level without a downloader: ${plainLevel}` : undefined,
+          ...wokenLines(lang, woken, rootHere(ctx)),
+        ),
+        data: { hosts, level, effective: after, ...(holding.length ? { stricter: holding.map((x) => ({ ...(x.c ? { connector: x.c.name } : {}), level: x.a.level, from: x.a.from })) } : {}), woken: woken.map((r) => ({ tree: r.name, path: r.root, woken: r.woken, inbox: r.inbox, kept: r.kept })) },
       };
     }
+    if (opts.range) return rangeConsent(ctx, target!, hosts, bare, title, !!opts.revoke, lang);
     if (opts.revoke) {
       ctx.requireHuman(`Forget the permission for ${title} (${hosts.join(", ")})?`, `strom allow archive ${target} --revoke`, `archive:${hosts.join(",")}`, ui(lang, "ui.archive.revoke", { title }));
       revokeWay(ctx.env, hosts);
@@ -734,12 +842,35 @@ register({
 });
 
 /**
+ * strom allow archive <host> --range (spec 132 K1.2): the person's own consent, for this one archive, to a range of its
+ * images saved by the agent's browser in one call (strom media save --images) — only where strom's list lets the
+ * archive have it (browserRange) and its images go through the browser as the person allowed. Asked of the person as
+ * every permission is (their terminal, a window when an agent asks, exit 4 with none); --revoke takes it back.
+ */
+function rangeConsent(ctx: Context, target: string, hosts: string[], bare: ArchiveLevel | undefined, title: string, revoke: boolean, lang: string) {
+  if (revoke) {
+    ctx.requireHuman(`Take back the consent to a range of ${title}'s images through the browser (${hosts.join(", ")})?`, `strom allow archive ${target} --range --revoke`, `archive:range:${hosts.join(",")}`, ui(lang, "ui.archive.range.revoke", { title }));
+    revokeRange(ctx.env, hosts);
+    return { text: `${hosts.join(", ")}: the consent to a range taken back — its images through the browser one at a time again`, data: { hosts, range: false } };
+  }
+  const max = Math.max(0, ...hosts.map((h) => browserRangeOf(ctx.env, h) ?? 0));
+  if (!max) throw new UsageError(`${title}: strom's list gives it no range — its images through the browser one at a time`, { hint: `strom media save <task> --image <n> --at <the archive's page of that one image>`, code: "archive.range.none" });
+  const a = bare ?? archiveLevel(ctx.env, { url: `https://${hosts[0]}/`, ...(ctx.hasTree() ? { tree: ctx.tree() } : {}), readOnly: true });
+  if (a.permission !== "browser")
+    throw new UsageError(`${title}: a range only besides the permission "through the browser" — ${a.permission ? `it is "${WAY_TEXT[a.permission]}" now` : "none given yet"}`, { hint: `strom allow archive ${target} --way browser, then --range`, code: "archive.range.way" });
+  const how = ctx.requireHuman(`Allow ${title} (${hosts.join(", ")}): a range of its images through the browser, up to ${max} in one call, at a person's pace?`, `strom allow archive ${target} --range`, `archive:range:${hosts.join(",")}`, ui(lang, "ui.archive.range.consent", { title, max: String(max) }));
+  grantRange(ctx.env, hosts, how === "window" ? "window" : "terminal");
+  return { text: ui(lang, "ui.archive.range.granted", { title, max: String(max), host: hosts[0]! }), data: { hosts, range: true, max, by: how } };
+}
+
+/**
  * An archive with no connector here that strom's list keeps as only a person's browser's (the host itself, or its
  * site's entry) and where the agent's browser could help: its level as strom reads it now. Others without a connector:
  * none (nothing to allow there).
  */
 export function bareArchive(ctx: Context, host: string): ArchiveLevel | undefined {
-  const entry = shippedTerms().filter((k) => k.browserOnly && within(host, k.host));
+  // strom's list, and a test's own (STROM_ARCHIVES_FILE, settings of its own)
+  const entry = knownTerms(ctx.env).filter((k) => k.browserOnly && within(host, k.host));
   if (!entry.length) return undefined;
   const tree = ctx.hasTree() ? ctx.tree() : undefined;
   const net = netHere(ctx);

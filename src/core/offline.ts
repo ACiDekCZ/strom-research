@@ -31,7 +31,7 @@
 import path from "node:path";
 import type { Conflict, Hypothesis, OffLine, Person, Research, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
-import { aboutPeople, directionOf, hypothesisPeople, scopes as scopesOf, type Scope } from "./directions.ts";
+import { aboutPeople, effectiveDirection, hypothesisPeople, scopes as scopesOf, type Scope } from "./directions.ts";
 import { kinship } from "./kin.ts";
 import { linePeople as peopleOfLine } from "./frontier.ts";
 import { descendantGenerations, familiesAsChild, familiesAsPartner } from "./people.ts";
@@ -65,7 +65,7 @@ export interface OfflineFile {
 }
 
 export interface Placed {
-  /** The line it belongs to: its own (directionOf), else the one it helps — undefined when none is known. */
+  /** The line it belongs to: its own (effectiveDirection: of an ended line, the narrowest active one of its people), else the one it helps — undefined when none is known. */
   research?: string;
   /** It belongs to no line, but helps one (b: the line may be unknown). */
   helps?: HelpsBy;
@@ -271,7 +271,8 @@ export function placer(tree: Tree, all: Scope[], file?: OfflineFile): (t: Pick<T
   };
   const partnerLines = () => (partners ??= partnersOf(tree, people()));
   return (t) => {
-    const own = directionOf(tree, t, all);
+    // its own line, or — the line ended — the narrowest active one its people are in (nothing written)
+    const own = effectiveDirection(tree, t, all);
     if (own) return { research: own };
     const about = aboutPeople(tree, t.subject);
     // nobody: an archive, places, history — their own rules; one line or none: everything is its

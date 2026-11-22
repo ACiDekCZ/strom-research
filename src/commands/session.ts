@@ -5,6 +5,8 @@
 // closes what the agent left open, exports the GEDCOM and commits. Between
 // sessions not a single token is spent.
 
+import { BEAT_MS, beatHolds, readTaken, type Taken } from "../core/holds.ts";
+import { floorLine, floorNotes, floorWhat, treeNames } from "../core/floor.ts";
 import { RUN_TURNS } from "../core/queue.ts";
 import { queueVerify } from "../core/verify.ts";
 import { opsLogs, opsLogsOf } from "../core/opslog.ts";
@@ -16,9 +18,10 @@ import { ui, type UIKey } from "../cli/ui.ts";
 import type { Context } from "../cli/context.ts";
 import { addressesPerson } from "../core/impersonal.ts";
 import { counted, lines, shellArg, table, truncate } from "../cli/format.ts";
-import { NeedsConsentError, UsageError, StromError } from "../core/errors.ts";
+import { ArchiveHeld, NeedsConsentError, TaskTaken, UsageError, StromError } from "../core/errors.ts";
+import { archiveWaitMs, heldSiteOfTask, heldSites, joinQueue, leaveQueue, siteFor, type Holder } from "../core/archiveholds.ts";
 import type { Person, RecordSet, Research, Session, Task } from "../core/model.ts";
-import { closeSession, costPartial, currentSession, openSessions, othersAtWork, sessionCost, sessionNote, startSession, whichSession, withReaders } from "../core/session.ts";
+import { archiveHeldLines, archiveSkip, type ArchiveSkip, claimTask, lifeOf, takeOver, takeOverLapsed, closeSession, costPartial, currentSession, olderBeside, olderBesideLine, openSessions, othersAtWork, sessionCost, sessionNote, startSession, tookOverLine, whichSession, withReaders } from "../core/session.ts";
 import { reviveLive } from "../core/live.ts";
 import { cutDenied, DENIED_KEPT, DENIED_KEPT_CHARS } from "../core/report.ts";
 import { revivePhone } from "../core/phone.ts";
@@ -28,6 +31,7 @@ import { agentSettingsSaid, effortInArgs, ownEffort, raisesEffort } from "../age
 import { agentSettingsLine } from "../cli/model-choice.ts";
 import { DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, Settings } from "../core/config.ts";
 import { historyHeld, raiseHistoryTasks, regionOfTask, requireHistoryOn } from "../core/pastevents.ts";
+import { censusHeld, censusProposal, forCensus } from "../core/census.ts";
 import { keepPlacesTask, PLACES_IDENTIFY_ORIGIN } from "../core/placeid.ts";
 import { appendLog, deniedStrom, prependPath, type AgentLimit } from "../runners/runner.ts";
 import { frontier } from "../core/frontier.ts";
@@ -51,6 +55,7 @@ import { AGENTS, detectAgent, isAgent, which, withoutAgentMarks } from "../core/
 import { requireAgentCli } from "../core/agentcli.ts";
 import { askGate, checkGateSpec, DEFAULT_WAIT_MS, ensureGatesDir, gateLogLine, gateRecord, loadGate, recordGate, type Gate, type GateAnswer, type GateRecord } from "../core/gate.ts";
 import { limitReserve, limitResume } from "../core/planlimit.ts";
+import { gateTurn, limitMark, markLimit } from "../core/machine.ts";
 import { keepAwake } from "../core/awake.ts";
 import { askFinish, deadlineOf, earlyClose, finishAsked, finishByLimit, WRAP_UP_MS } from "../core/clock.ts";
 import { openUnclear } from "./readings.ts";
@@ -58,7 +63,10 @@ import { OWN_GROUP } from "../runners/runner.ts";
 import { stromLauncher, unpinShim, writeShim } from "../core/self.ts";
 import { phrase } from "../core/phrases.ts";
 import { permissionWait } from "../core/archivewait.ts";
-import { enterWorker, markPaused, runAlive, runsAtWork } from "../core/workers.ts";
+import { markPaused, runAlive, runsAtWork } from "../core/workers.ts";
+import { askRunStop, recordEnded, recordRunEnd, RUN_ID, runEndOf, runStateWriter, runStopAsked, type RunStop } from "../core/runstate.ts";
+import { enterRun, lineRunFilter, runsWithoutLines } from "../core/linerun.ts";
+import { DEFAULT_RUN_PARALLEL } from "../core/config.ts";
 import type { Env } from "../core/paths.ts";
 import { assertIntact, snapshot, verifyFast } from "../core/integrity.ts";
 import { guard } from "../core/guard.ts";
@@ -74,6 +82,7 @@ import { afterDeathProposals, settleAfterDeath } from "../core/afterdeath.ts";
 import { usageOpt, webOpt } from "../core/metrics.ts";
 import { calibrationKey, viewModel } from "../core/viewsizes.ts";
 import { claudeLoggedIn, claudeLoginCommand } from "../core/claudedir.ts";
+import { closeCoverage, coverageLine } from "../core/coverage.ts";
 
 function written(tree: Tree): string {
   return lines(...tree.written.map((o) => o.summary));
@@ -144,6 +153,35 @@ function historyLine(tree: Tree, t: Task, shared: string | undefined, settings: 
   return undefined;
 }
 
+/**
+ * What an agent is told of a census task started by its ID while census records are off (spec 106): held, the
+ * person's switch. Undefined when it may be worked on (or is no census task).
+ */
+function censusLine(tree: Tree, t: Task, settings: Settings): string | undefined {
+  if (!censusHeld(t, settings.census(tree.config))) return undefined;
+  return `⚠ ${t.id} is a census task and census records are off for this research (the person's switch): it waits held — close the session (strom session close --continue …) and take another task`;
+}
+
+/**
+ * The session's summary with the one sentence of a census proposal made in it (spec 106: strom census propose), in the
+ * research language — said where the person reads the session's result, unless the summary names the proposal already.
+ */
+function censusSummary(tree: Tree, s: Session, summary: string): string {
+  const p = censusProposal(tree);
+  if (!summary.trim() || !p || p.created < s.started || summary.includes(p.id)) return summary;
+  return `${summary.trim()} ${phrase(tree.lang, "census.propose.session", { task: p.id })}`;
+}
+
+/**
+ * What the agent is told at the close when its session's task is a census task and census records are off now
+ * (switched off while it worked, spec 106 M3): back in the queue, held until the person switches them on again.
+ */
+function censusCloseLine(tree: Tree, s: Session, settings: Settings): string | undefined {
+  const t = s.task ? tree.get<Task>(s.task) : undefined;
+  if (!t || !forCensus(t) || settings.census(tree.config) || !censusHeld(t, false)) return undefined;
+  return `${t.id} is a census task and census records are off for this research now (the person's switch): it waits held, out of the queue, until they switch them on again — never propose them a second time`;
+}
+
 /** Commit behind the same gate as every write. */
 /**
  * Images the person saved by hand into the folders of waiting tasks, taken (commands/media.ts takeWaiting): at a
@@ -176,6 +214,17 @@ register(
     group: "research",
     tree: true,
     writes: true,
+    description:
+      "The session holds its task: every strom command of it is its sign of life (run one at least once every 20\n" +
+      "minutes); with none for task.hold (default 30 min, 5 min–24 h, this computer's) another session may take it over\n" +
+      "— a write of a session taken over is refused with exit 3 (session.taken): stop writing to it and start again.\n" +
+      "The next task is one nobody else holds; a task given by its ID that another session holds is refused (task.held,\n" +
+      "who holds it, since when, its last sign, free by when at the latest) — take another: strom task next.\n" +
+      "A task whose every book lies on an archive that restricts automated access, which another session (of this or\n" +
+      "another research sharing the folder) uses now, is left for now (said, archiveHeld in --json) and other work\n" +
+      "taken; given by its ID it is refused (archive.held). The archive's hold lapses with its session, or after\n" +
+      "archive.hold (default 30 min) with no request to it. An older strom beside this one holds nothing; its\n" +
+      "sessions are told by its writes.",
     args: [{ name: "task", description: "task ID (default: strom task next)" }],
     options: [
       { name: "research", type: "string", value: "<G…>", description: "take the next task of this research" },
@@ -189,19 +238,26 @@ register(
       const research = researchOf(tree, opts.research);
       // images the person saved for waiting tasks while no bridge ran: taken first, a task they complete back in the queue
       const taken = takeSaved(tree, ctx.settings.shared()?.value);
-      // The next task nobody else is working on (other agents may be at work in this tree).
-      const others = othersAtWork(tree).tasks;
-      const task = args[0] ? requireRecord<Task>(tree, args[0], "task") : taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config) }).find((t) => !others.has(t.id));
-      if (task && !["open", "doing", "parked"].includes(task.state)) throw new UsageError(`${task.id} is ${task.state}`);
-      const s = startSession(tree, { ...(task ? { task } : {}), ...(research ? { research: research.id } : {}) });
+      // The next task nobody else is working on (other agents may be at work in this tree): the sessions whose holder
+      // gave no sign of life for task.hold taken over first (core/session.ts claimTask).
+      const asked = args[0] ? requireRecord<Task>(tree, args[0], "task") : undefined;
+      if (asked && !["open", "doing", "parked"].includes(asked.state)) throw new UsageError(`${asked.id} is ${asked.state}`);
+      const next = (busy: Set<string>) => taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config) }).find((t) => !busy.has(t.id));
+      const claimed = claimTask(tree, { ...(asked ? { task: asked } : {}), next, ...(research ? { research: research.id } : {}) })!;
+      const s = claimed.session;
+      const task = claimed.task;
       reviveLive(tree.root, ctx.env, { work: true });
       revivePhone(ctx.env);
       const shared = ctx.settings.shared()?.value;
       const brief = buildBrief(tree, { ...(task ? { task } : {}), session: s, budget: ctx.settings.number("brief.budget", tree.config, DEFAULT_BUDGET), shared, browser: briefBrowser(tree, shared, s, task) });
       // a task the queue holds back, started by its ID: the agent hears why before it begins
-      const off = task && args[0] ? offTreeLine(tree, task, true) : undefined;
-      const held = task && args[0] ? historyLine(tree, task, shared, ctx.settings) : undefined;
-      return { text: lines(written(tree), ...takenLines(taken), off, held, "", brief.text), data: { session: s, brief: brief.text, sections: brief.sections, ...(off ? { offTree: true } : {}), ...(taken.length ? { taken } : {}) } };
+      // (the task as it was asked for, read before the claim: claimed, it is "doing" and the queue's tests leave it out)
+      const off = asked ? offTreeLine(tree, asked, true) : undefined;
+      const held = asked ? (historyLine(tree, asked, shared, ctx.settings) ?? censusLine(tree, asked, ctx.settings)) : undefined;
+      const over = claimed.tookOver.map((t) => tookOverLine(t));
+      // tasks whose archive (restricted) another session uses now: left for now, said with who and until when (K2.5)
+      const archives = archiveHeldLines(claimed.archiveHeld, task?.id);
+      return { text: lines(written(tree), ...over, olderBesideLine(tree.root), ...archives, ...takenLines(taken), off, held, "", brief.text), data: { session: s, brief: brief.text, sections: brief.sections, ...(off ? { offTree: true } : {}), ...(taken.length ? { taken } : {}), ...(claimed.tookOver.length ? { tookOver: claimed.tookOver } : {}), ...(claimed.archiveHeld.length ? { archiveHeld: claimed.archiveHeld.map((k) => ({ task: k.task, site: k.site, who: k.who, until: new Date(k.until).toISOString() })) } : {}) } };
     },
   },
   {
@@ -343,13 +399,15 @@ register(
       }
       const alsoDone = also.map((id) => finishTask(tree, id, `fulfilled in ${s.id}${s.task ? ` (${s.task})` : ""}: ${alsoResult}`, csvOpt(opts.produced)));
       const closed = closeSession(tree, s, {
-        summary: String(opts.summary ?? (done ? (finished?.task.result ?? done) : "")),
+        summary: censusSummary(tree, s, String(opts.summary ?? (done ? (finished?.task.result ?? done) : ""))),
         next: String(opts.next ?? ""),
         continueTask: Boolean(opts.continue),
         interrupted: Boolean(opts.interrupted),
       });
       // the waits it touched not written as strom needs them: said to the agent, never in the way of the close (K1.2)
       const audits = touchedWaits(tree, s, also, ctx.settings.shared()?.value);
+      // the years its task's people's estimated dates ask for, not all searched (spec 131): said once a session and book
+      const coverage = opts.interrupted ? [] : closeCoverage(tree, s.task, s.id, ctx.settings.ageMargin(tree.config));
       const research = s.research ? tree.get<Research>(s.research) : undefined;
       const newTasks = research ? applyFrontier(tree, research) : [];
       // what was written, said before the tasks of history are raised: those are strom run's, never the conversation's
@@ -367,9 +425,11 @@ register(
           wrote,
           ...(finished?.said ?? []),
           ...alsoDone.flatMap((a) => a.said),
+          ...coverage.map(coverageLine),
           // its task waits: what brings it back, as strom does it (never a promise strom does not keep)
           ((t) => (t ? wakesBy(tree, ctx.settings.shared()?.value, t, (p) => ctx.display(p)) : undefined))(s.task ? tree.get<Task>(s.task) : undefined),
           ...audits.map((a) => a.line),
+          censusCloseLine(tree, s, ctx.settings),
           audits.length ? `check of each wait: ${WAIT_CHECKLIST}` : undefined,
           ged ? `GEDCOM ${geds.map((g) => ctx.display(g.file)).join(" · ")}: ${ged.stats.persons} persons, ${ged.stats.families} families` : byRun ? "GEDCOM: exported by strom run when the session ends" : undefined,
           newTasks.length ? `${counted(newTasks.length, "new task")} from the research frontier` : undefined,
@@ -377,7 +437,7 @@ register(
           // In a conversation, the next task is best begun in a fresh context: all of this one is in strom.
           !s.runner && ctx.env.STROM_NONINTERACTIVE !== "1" ? freshContext(ctx, tree, s) : undefined,
         ),
-        data: { session: closed, ...(finished ? { task: finished.task } : {}), ...(alsoDone.length ? { alsoDone: alsoDone.map((a) => a.task) } : {}), ...(audits.length ? { audit: audits.map((a) => ({ task: a.task, kinds: a.kinds })) } : {}), newTasks, ged: ged?.file, geds: geds.map((g) => g.file) },
+        data: { session: closed, ...(finished ? { task: finished.task } : {}), ...(alsoDone.length ? { alsoDone: alsoDone.map((a) => a.task) } : {}), ...(audits.length ? { audit: audits.map((a) => ({ task: a.task, kinds: a.kinds })) } : {}), ...(coverage.length ? { coverage } : {}), newTasks, ged: ged?.file, geds: geds.map((g) => g.file) },
       };
     },
   },
@@ -931,12 +991,31 @@ register(
     "A task whose archive is not answering now (left alone for a while: it went silent, or asked to slow down) waits\n" +
     "out of the queue until then; when only such tasks are left, --loop and --until wait for that time (within\n" +
     "--until), any other run ends saying when.\n" +
+    "Tasks another session holds (its agent alive: strom started it, or a strom command of it within task.hold) are\n" +
+    "left out; a session whose holder gave no sign of life for task.hold (default 30 min, 5 min–24 h) is taken over\n" +
+    "at the start of each session — closed as interrupted, what it wrote kept, its task back in the queue. A task on\n" +
+    "an archive that restricts automated access another session uses now is left for now and other work taken; when\n" +
+    "only such tasks are left, the run waits for the archive (paused, in the archive's queue, nothing asked of it) at\n" +
+    "most archive.wait (default 30 min) and then ends (stop reason: archive). An older strom beside this one holds no\n" +
+    "task: its sessions are told by its run and its writes alone.\n" +
+    "Runs of lines (--research G…): each line has at most one run — a second run of the same line is refused at once\n" +
+    "(code run.line.held). A run of a line takes the tasks whose main line is its own (the line of the task, else the\n" +
+    "narrowest active line of its people) and shared tasks (a common ancestor, help to another line) whose main line\n" +
+    "has no run; a run of the whole queue leaves every task of a line with a run of its own and keeps the work off the\n" +
+    "lines, history and places. At most run.parallel runs (default 3; conversations not counted) work in one tree:\n" +
+    "one more is refused saying which work and how to stop them (code run.parallel); raising it is the person's alone.\n" +
+    "A run of a line does not start beside a run of strom before 1.25 (code run.line.older).\n" +
+    "What runs share on this computer (every research with the same shared folder): a plan limit one run meets holds\n" +
+    "every run of that agent (and account) here — no new session before it resets (a run under a gate with --loop or\n" +
+    "--until waits, any other ends: limit); a session at work goes on. Runs ask their gate one at a time, the next once\n" +
+    "the session the gate let go has begun. The agents' web pages of a site count for web.perHost from every session\n" +
+    "here within run.minutes, and at most read.parallel readers of scans read at once on the computer.\n" +
     "Arguments after -- go to the agent CLI unchanged.\n" +
     "It starts the agent's CLI: where only its desktop app is here, it refuses before anything is asked (code\n" +
     "agent.cli-missing) — the conversation in the app goes on (strom chat); strom doctor --fix offers Claude Code.",
   options: [
     { name: "task", type: "string", multiple: true, value: "<T…>", description: "work on these tasks, in this order (repeatable or T0003,T0007; default: the next one of the queue)" },
-    { name: "research", type: "string", value: "<G…>", description: "only tasks of this research" },
+    { name: "research", type: "string", value: "<G…>", description: "a run of this line: its tasks only, one run per line (strom research list)" },
     { name: "history", type: "boolean", hidden: true, description: "only the tasks of the history of the places, in their order, whatever its pace (the places to map first)" },
     { name: "places", type: "boolean", hidden: true, description: "only the task of identifying the places of the facts: one session for each batch of its queue, for as long as places wait (at most --max, default 1)" },
     { name: "max", type: "string", value: "<n>", description: "at most n sessions (default 1; with --until, no limit)" },
@@ -1021,8 +1100,17 @@ register(
     const worker = `run-${process.pid}-${Date.now().toString(36)}`;
     const runEnv: Env = { ...ctx.env, STROM_WORKER: worker };
     // Present in the tree for the others at work (conversations with agents): strom shows who works.
+    // the line of a run of one line (spec 126): held while the run lives — a second run of it is refused, as a run past
+    // run.parallel (the person's: default 3) and a run of a line beside a run of a strom that knows no lines
+    const line = opts.research !== undefined ? researchOf(Tree.open(root, runEnv), opts.research) : undefined;
     const beside = runsAtWork(root);
-    const leave = enterWorker(root, worker, `${PROFILES[runnerId]?.name ?? runnerId} on its own`, VERSION);
+    const leave = enterRun(root, { worker, label: `${PROFILES[runnerId]?.name ?? runnerId} on its own`, version: VERSION, agent: runnerId, ...(line ? { research: line.id } : {}), max: ctx.settings.number("run.parallel", undefined, DEFAULT_RUN_PARALLEL) });
+    const runSince = new Date().toISOString();
+    // what the Strom app sees of the run (core/runstate.ts): its last step, its sessions, a stop asked of it
+    const runState = runStateWriter(root, worker, models.lead);
+    // the sign of life of the run's session while its agent works (its task stays held: core/holds.ts)
+    const beating = setInterval(() => beatHolds(root, { STROM_WORKER: worker }, { force: true }), BEAT_MS);
+    beating.unref();
     let stopAwake = keepAwake(ctx.env);
     // Progress goes to stderr when stdout carries JSON.
     const out = (s: string) => (ctx.json ? ctx.io.stderr : ctx.io.stdout)(s + "\n");
@@ -1036,16 +1124,33 @@ register(
     // Why the run stopped: a code for the exit status and for data, words for the user (their language — the run's
     // --lang or STROM_LANG before the tree's own, as for every command)
     const lang = ctx.settings.lang(Tree.open(root, runEnv).config).value;
-    type Stop = "done" | "tasks" | "sessions" | "user" | "time" | "empty" | "asleep" | "problems" | "denied" | "denied.codex" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
+    type Stop = "done" | "tasks" | "sessions" | "user" | "time" | "empty" | "asleep" | "archive" | "problems" | "denied" | "denied.codex" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
     // The plan's limits as the agent said them last (Claude Code), for the gate; and the window a cap of the gate holds.
     let lastLimits: AgentLimit[] | undefined;
     let watch: GateAnswer["watch"];
+    // tasks another agent took between reading the queue and starting the session (core/session.ts TaskTaken): each
+    // time the next free one, the gate not asked again for it — a bound only against a loop nobody would see end
+    let collisions = 0;
+    let retaken = false;
+    // the restricted archives the run waits for (spec 127 K2.3): in their queues while it waits, left when it ends
+    const queued = new Set<string>();
+    const runShared = ctx.settings.shared()?.value;
+    const leaveQueues = () => {
+      for (const site of queued) if (runShared) leaveQueue(runShared, site, root);
+      queued.clear();
+    };
     let stopCode: Stop = "done";
     let stopValues: Record<string, string | number> = {};
+    // Why the run stopped in the user's words.
+    const reasonOf = (): string =>
+      historyOnly && stopCode === "empty" ? ui(lang, "ui.run.stop.history") : placesOnly && stopCode === "empty" ? ui(lang, "ui.run.stop.places") : ui(lang, (stopCode === "model" && stopValues.agent === "codex" ? "ui.run.stop.model.codex" : `ui.run.stop.${stopCode}`) as UIKey, stopValues);
+    // the task picked and not yet started when the run ends (a gate, the time, a limit): its end says it (A2)
+    let nextUp: string | undefined;
     // The first Ctrl-C while a session works: it is asked to finish (the agent writes down what it found and closes
     // it), then the run stops — no next session. Ctrl-C again, a closed terminal, a shutdown: stop the agent now,
     // close its session, give the task back. (Windows: the console stops the agent itself — now.)
     const stop = new AbortController();
+    let releaseTurn = () => {};
     let atWorkOn: string | undefined;
     let finishing = false;
     const onSignal = (sig: NodeJS.Signals) => {
@@ -1053,6 +1158,7 @@ register(
       if (sig === "SIGINT" && atWorkOn && !finishing && OWN_GROUP && !opts.interactive) {
         finishing = true;
         askFinish(root, atWorkOn, "user");
+        runState.stop("finish");
         out(`\n${ui(lang, "ui.run.finishing", { session: atWorkOn })}`);
         return;
       }
@@ -1061,7 +1167,38 @@ register(
     };
     const signals: NodeJS.Signals[] = ["SIGINT", "SIGTERM", "SIGHUP"];
     for (const sig of signals) process.on(sig, onSignal);
+    // A stop asked of the run from elsewhere (the Strom app, strom run stop): "stop" — the task at work is finished,
+    // no next one starts; "finish" — the session at work is asked to finish too (the agent writes down what it found).
+    // A run that waits (its gate, the plan's limit, an archive) ends at once. Read about every second; the agent is
+    // never stopped by it.
+    let stopAsked: RunStop | undefined;
+    const held = new AbortController();
+    const stopWaits = AbortSignal.any([stop.signal, held.signal]);
+    const lookStop = () => {
+      const how = runStopAsked(root, worker);
+      if (!how || how === stopAsked) return;
+      out(`\n${ui(lang, how === "finish" ? "ui.run.asked.finish" : "ui.run.asked.stop")}`);
+      stopAsked = how;
+      runState.stop(how);
+      if (how === "finish" && atWorkOn && !finishing) {
+        finishing = true;
+        askFinish(root, atWorkOn, "user");
+      }
+      held.abort();
+    };
+    const watching = setInterval(lookStop, STOP_POLL_MS);
+    watching.unref();
+    // the run ended as it should (not by an error): why it ended, for the Strom app (.strom/lines/ended.json)
+    let ended = false;
+    const older = olderBeside(root);
+    if (older.length) out(ui(lang, "ui.run.older", { versions: older.join(", ") }));
     if (beside.length) out(ui(lang, "ui.run.others", { since: new Date(beside[0]!.since).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" }) }));
+    if (line) out(ui(lang, "ui.run.line", { name: line.name, research: line.id }));
+    // a run of a strom that knows no lines beside a run of one: it may take this line's tasks (each task stays held)
+    const noLines = line ? runsWithoutLines(root, worker) : [];
+    if (noLines.length) out(ui(lang, "ui.run.line.older", { versions: [...new Set(noLines.map((w) => w.version ?? "< 1.25"))].join(", ") }));
+    // the sessions of runs gone, taken over before the first turn (their records get the session that takes the work over)
+    const gone: Taken[] = [];
     try {
       {
         const tree = Tree.open(root, runEnv);
@@ -1070,8 +1207,10 @@ register(
         if (files.length) tree.withTreeLock(() => tree.commit(`Agent instructions: ${files.join(", ")}`, files));
         // A session of a run that is no longer at work: the run was killed or the computer went down.
         // Close it; its task goes back to the queue. (The sessions of other runs at work stay theirs.)
+        // (taken over as any session whose process is gone, core/session.ts takeOver: its task's note says so, the record
+        // gets the session that takes the work over, and its agent, should it live on, is refused its writes)
         for (const s of openSessions(tree).filter((x) => x.runner && !runAlive(root, x))) {
-          closeSession(tree, s, { summary: phrase(tree.lang, "session.run"), next: "", interrupted: true, endedBy: "run" });
+          gone.push(takeOver(tree, s, lifeOf(tree, s), "run", Date.now(), phrase(tree.lang, "session.run")));
           commitNow(tree, `${s.id} interrupted: its run had stopped`);
           out(ui(lang, "ui.run.gone", { session: s.id, back: s.task ? ui(lang, "ui.run.back", { task: s.task }) : "" }));
         }
@@ -1089,6 +1228,10 @@ register(
       // Archives through the browser with an agent that has no browser tools, or without the extension: said before it starts.
       const browserSays = browserNote(ctx, Tree.open(root, runEnv), runnerId);
       if (browserSays) out(browserSays);
+      // An archive strom keeps stricter than strom's list of its terms (by hand only: no browser there, its images the
+      // person's): said once, with what holds it and who decides — never changed here
+      const floorTree = Tree.open(root, runEnv);
+      for (const n of floorNotes(ctx.env, { tree: floorTree, ...(ctx.settings.shared()?.value ? { shared: ctx.settings.shared()!.value } : {}) }).filter((x) => treeNames(floorTree, x.host))) out(`· ${floorLine(lang, n)} ${floorWhat(lang, n)}`);
       if (permissions === "full") out(ui(lang, "ui.run.full"));
       const settingsLine = agentSettingsLine(lang, said, (p) => ctx.display(p));
       if (settingsLine) out(settingsLine);
@@ -1099,6 +1242,13 @@ register(
       // how the gate is asked (before each session, once, its cap) is said in its first answer's line, never a line of its own
       let gateTold = false;
       let capTold = false;
+      // the turn at the gate of this computer's runs of the agent (core/machine.ts): held from the gate's question until
+      // the session it let go has begun
+      let turn: (() => void) | undefined;
+      releaseTurn = () => {
+        turn?.();
+        turn = undefined;
+      };
       // Claude Code not logged in — of a folder said outright (CLAUDE_CONFIG_DIR, agent.claudeConfigDir, found 2026-11-03)
       // or its own default one (K040) —: no session would work, said before the first one with how to log in
       const loggedOut = runnerId === "claude" && claudeLoggedIn(runEnv, runner.command) === false;
@@ -1107,7 +1257,9 @@ register(
         stopValues = { command: claudeLoginCommand(runEnv) };
       }
       for (let i = 0; i < (loggedOut ? 0 : max); i++) {
-        if (stop.signal.aborted || finishing) {
+        lookStop();
+        releaseTurn();
+        if (stop.signal.aborted || finishing || stopAsked) {
           stopCode = "user";
           break;
         }
@@ -1117,7 +1269,12 @@ register(
         }
         const tree = Tree.open(root, runEnv); // fresh: the agent wrote from other processes
         const research = researchOf(tree, opts.research);
-        // Other agents may be at work in this tree (conversations): never their tasks.
+        // Other agents may be at work in this tree (conversations): never their tasks — the sessions whose holder gave
+        // no sign of life for task.hold (or whose process ended) taken over first, their tasks free again (spec 127).
+        const lapsed = takeOverLapsed(tree, runnerId);
+        const tookOver = [...gone.splice(0), ...lapsed];
+        for (const t of lapsed) if (t.task) out(ui(lang, t.reason === "dead" ? "ui.run.tookOver.dead" : "ui.run.tookOver", { session: t.session, task: t.task, minutes: t.minutes }));
+        if (lapsed.length && tree.uncommitted().length) commitNow(tree, `${lapsed.map((t) => t.session).join(", ")} taken over: no sign of life`);
         const others = othersAtWork(tree, tree.env, runnerId).tasks;
         // The tasks of history the experiment asks for (core/pastevents.ts), made before the queue is read.
         // (and the places another research on this computer maps so, taken: core/placeadopt.ts)
@@ -1129,8 +1286,23 @@ register(
         // Working alone: now and then a story's turn (in a conversation the user leads); the tasks of history after the
         // research, and now and then one of them first — how often is experiments.historyPace (core/pastevents.ts
         // historyTurn), or with --history those alone in their order; the gate, if any, decides whether a session starts at all.
-        const free = () =>
-          taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config), ...(historyOnly ? { history: "only" as const } : RUN_TURNS) }).find((t) => !others.has(t.id));
+        // the restricted archives another session (of any research here) holds now: their tasks left out (spec 127 K2.3)
+        const me: Holder = { tree: root, by: "run", pid: process.pid };
+        const held = heldSites(runShared, me, tree.env);
+        const archiveOut: ArchiveSkip[] = [];
+        const onHeld = (t: Task): boolean => {
+          const site = heldSiteOfTask(tree, t, held);
+          if (site && !archiveOut.some((k) => k.task === t.id)) archiveOut.push(archiveSkip(t.id, site, held.get(site)!, root));
+          return !!site;
+        };
+        // the lines other runs hold (spec 126): a run of a line takes its line's work and shared work no run's line is;
+        // a run of the whole queue leaves every line with a run of its own
+        const lineOk = lineRunFilter(tree, line?.id, worker);
+        const freeOf = (busy: Set<string>) =>
+          placesOnly
+            ? tree.list<Task>("task").find((t) => t.origin === PLACES_IDENTIFY_ORIGIN && (t.state === "open" || t.state === "doing") && !busy.has(t.id))
+            : taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config), ...(historyOnly ? { history: "only" as const } : RUN_TURNS) }).find((t) => !busy.has(t.id) && lineOk(t) && !onHeld(t));
+        const free = () => freeOf(others);
         let task: Task | undefined;
         if (placesOnly) {
           task = tree.list<Task>("task").find((t) => t.origin === PLACES_IDENTIFY_ORIGIN && (t.state === "open" || t.state === "doing") && !others.has(t.id));
@@ -1143,6 +1315,12 @@ register(
           const left = !task || !["open", "doing", "parked", "waiting"].includes(task.state) ? task?.state : others.has(task.id) ? "held" : undefined;
           if (left) {
             out(ui(lang, left === "held" ? "ui.run.skip.held" : "ui.run.skip", { task: picked[i]! }));
+            continue;
+          }
+          // a task the user named whose archive another session uses now: left out, as one another works on
+          const site = task && heldSiteOfTask(tree, task, held);
+          if (site) {
+            out(ui(lang, "ui.run.skip.archive", { task: picked[i]!, site }));
             continue;
           }
         } else task = free();
@@ -1164,7 +1342,7 @@ register(
               stopAwake(); // nothing to do meanwhile: the computer may sleep
               markPaused(root, worker, { until: new Date(at).toISOString(), reason: ui(lang, "ui.run.asleep.why", values) });
               try {
-                await pause(at - Date.now(), stop.signal);
+                await pause(at - Date.now(), stopWaits);
               } finally {
                 markPaused(root, worker, undefined);
               }
@@ -1176,6 +1354,46 @@ register(
             stopValues = values;
             break;
           }
+          // Nothing else left but tasks whose restricted archive another session uses: the run waits for it, in its queue
+          // (the one waiting longest goes first once it is let go), outside every lock, at most archive.wait — then it
+          // stops and says so. Nothing is asked of the archive meanwhile.
+          if (archiveOut.length && runShared && i >= picked.length && !historyOnly) {
+            const sites = [...new Set(archiveOut.map((k) => k.site))];
+            const first = archiveOut[0]!;
+            const waits = sites.map((site) => joinQueue(runShared, site, me));
+            for (const site of sites) queued.add(site);
+            const since = Math.min(...waits.map((w) => Date.parse(w.since)));
+            const limit = () => Math.min(...sites.map((site) => Date.parse(joinQueue(runShared, site, me).since))) + archiveWaitMs(tree.env);
+            const values = { site: first.site, at: clockUp(Math.min(limit(), first.until)), minutes: Math.round(archiveWaitMs(tree.env) / 60_000) };
+            const free = () => sites.some((site) => siteFor(runShared, site, me, tree.env).ok);
+            if (!free() && Date.now() < limit() && !(until && Date.now() > until)) {
+              out(ui(lang, "ui.run.archive.wait", values));
+              stopAwake();
+              markPaused(root, worker, { until: new Date(Math.min(limit(), until || Infinity)).toISOString(), reason: ui(lang, "ui.run.archive.why", values), archive: first.site, since: new Date(since).toISOString(), kind: "archive" });
+              try {
+                while (!free() && Date.now() < limit() && !(until && Date.now() > until) && !stop.signal.aborted && !finishing && !stopAsked) await pause(ARCHIVE_POLL_MS, stopWaits);
+              } finally {
+                markPaused(root, worker, undefined);
+              }
+              stopAwake = keepAwake(ctx.env);
+            }
+            if (free() && !stopAsked) {
+              i--; // this was no session: the queue again, as it is then (the archive is taken with its task)
+              continue;
+            }
+            if (stop.signal.aborted || finishing || stopAsked) {
+              stopCode = "user";
+              break;
+            }
+            if (until && Date.now() > until) {
+              stopCode = "time";
+              break;
+            }
+            leaveQueues();
+            stopCode = "archive";
+            stopValues = values;
+            break;
+          }
           stopCode = "empty";
           break;
         }
@@ -1183,7 +1401,47 @@ register(
         // itself. Tasks the user started themselves: asked once, and the user decides when it would not start.
         // A gate with a cap (the user's own hard stop, its answer's "watch") is asked before every session, also of the
         // tasks the user started: there only its hard stop counts, and no "start anyway" goes past it.
-        if (gate && (!gateAnswered || watch)) {
+        if (gate && (!gateAnswered || watch) && !retaken) turn = await gateTurn(runShared, runnerId, runEnv, worker, stop.signal);
+        if (stop.signal.aborted) {
+          stopCode = "user";
+          break;
+        }
+        // The agent's plan used up, as another run of this computer met it (its mark in the shared folder, spec 126 U8):
+        // no session of it begins here before the plan resets — a run that goes on by itself under a gate waits, as for
+        // a limit of its own; one the user started ends saying when. Sessions other runs have at work go on.
+        const marked = limitMark(runShared, runnerId, runEnv);
+        if (marked) {
+          releaseTurn();
+          const at = Date.parse(marked.until);
+          const values = {
+            at: new Date(at).toLocaleString(lang, { weekday: "short", hour: "2-digit", minute: "2-digit" }),
+            kind: marked.kind === "five_hour" || marked.kind === "seven_day" ? ` (${ui(lang, `ui.run.limit.${marked.kind}`)})` : "",
+            by: marked.by,
+          };
+          out(ui(lang, "ui.run.limit.here", values));
+          if (gateHolds && gate) {
+            if (until && at > until) {
+              stopCode = "time";
+              break;
+            }
+            out(ui(lang, "ui.run.limit.wait", values));
+            stopAwake(); // nothing to do meanwhile: the computer may sleep
+            markPaused(root, worker, { until: new Date(at).toISOString(), reason: ui(lang, "ui.run.limit.why", values), kind: "limit" });
+            try {
+              await pause(at - Date.now(), stopWaits);
+            } finally {
+              markPaused(root, worker, undefined);
+            }
+            stopAwake = keepAwake(ctx.env);
+            i--; // this was no session: the gate next, with the queue as it is then
+            continue;
+          }
+          stopCode = "limit";
+          stopValues = { resets: ui(lang, "ui.run.stop.resets", { at: values.at }) };
+          break;
+        }
+        nextUp = task.id;
+        if (gate && (!gateAnswered || watch) && !retaken) {
           const facts = { tree: root, lang, agent: runnerId, model: models.lead, sessions: report.length, costUsd: report.reduce((a, r) => a + (r.costUsd ?? 0), 0), nextTask: task.id, limits: lastLimits };
           const said = askGate(gate, runEnv, facts);
           const asked = gateRecord(gate, said, { ...facts, run: worker });
@@ -1220,10 +1478,13 @@ register(
               stopValues = { name, reason: said.reason ?? "" };
               break;
             }
+            // its pace is not this run's (the person started it): only its hard stop counted — said so in the record
+            if (said.verdict !== "go") asked.pace = true;
             noted("go");
           } else if (!gateHolds) {
             gateAnswered = true;
             if (said.verdict !== "go") {
+              releaseTurn(); // the person decides, as long as it takes: the other runs ask their gates meanwhile
               if (!(await startAnyway(ctx, name, gateReason(said, lang), lang))) {
                 noted("stop");
                 stopCode = "gate.declined";
@@ -1246,13 +1507,14 @@ register(
               break;
             }
             noted("wait");
+            releaseTurn();
             out(ui(lang, "ui.run.gate.wait", { at: new Date(at).toLocaleString(lang, { weekday: "short", hour: "2-digit", minute: "2-digit" }), reason: said.reason ?? "" }));
             // nothing to do meanwhile: the computer may sleep
             stopAwake();
             // the Strom app shows the run paused until then, not at work
             markPaused(root, worker, { until: new Date(at).toISOString(), ...(said.reason ? { reason: said.reason } : {}) });
             try {
-              await pause(at - Date.now(), stop.signal);
+              await pause(at - Date.now(), stopWaits);
             } finally {
               markPaused(root, worker, undefined);
             }
@@ -1261,8 +1523,55 @@ register(
             continue;
           } else noted("go");
         }
-        const session = startSession(tree, { task, ...(research ? { research: research.id } : {}), runner: runnerId, ...(models.lead ? { model: models.lead } : {}), ...(said.effort ? { effort: said.effort } : {}) });
+        let session: Session;
+        try {
+          // The queue is read outside the tree's lock (the gate waits outside it too): a run beside this one or a
+          // conversation may have taken the task meanwhile — then the next free one, under the same lock, the gate not
+          // asked again (core/session.ts claimTask). A task the user named: left out, as when held.
+          // (the sessions taken over at this turn's start get the session that takes the work over)
+          const want = { ...(research ? { research: research.id } : {}), runner: runnerId, ...(models.lead ? { model: models.lead } : {}), ...(said.effort ? { effort: said.effort } : {}), tookOver };
+          const raced: ArchiveSkip[] = [];
+          const claimed = i < picked.length ? claimTask(tree, { ...want, task }) : claimTask(tree, { ...want, prefer: task.id, next: freeOf, need: true, archiveHeld: raced });
+          if (!claimed) {
+            // all taken meanwhile: the queue again, as it is then — the tasks left for their archive are no collision
+            // (the next turn reads which archives are held and waits for them if nothing else is left)
+            if (raced.length) {
+              retaken = true;
+              i--;
+              continue;
+            }
+            if (++collisions > 100) {
+              stopCode = "empty";
+              break;
+            }
+            out(ui(lang, "ui.run.skip.held", { task: task.id }));
+            retaken = true;
+            i--;
+            continue;
+          }
+          for (const t of claimed.tookOver.slice(tookOver.length)) if (t.task) out(ui(lang, t.reason === "dead" ? "ui.run.tookOver.dead" : "ui.run.tookOver", { session: t.session, task: t.task, minutes: t.minutes }));
+          if (claimed.instead) out(ui(lang, "ui.run.skip.held", { task: claimed.instead }));
+          session = claimed.session;
+          task = claimed.task!;
+          nextUp = undefined;
+          // waiting for an archive no more: out of its queue (the one taken left it already)
+          leaveQueues();
+        } catch (e) {
+          if (e instanceof ArchiveHeld) {
+            // a task the user named whose archive another took a moment ago: left out
+            out(ui(lang, "ui.run.skip.archive", { task: task.id, site: e.site }));
+            continue;
+          }
+          if (!(e instanceof TaskTaken) || ++collisions > 100) throw e;
+          out(ui(lang, "ui.run.skip.held", { task: task.id }));
+          retaken = true;
+          if (i >= picked.length) i--;
+          continue;
+        }
+        retaken = false;
         commitNow(tree, `${session.id} session started on ${task.id}`);
+        // begun: the next run of this computer may ask its gate (the plan now counts this session)
+        releaseTurn();
         // what the gate answered before it (the waits too), at the head of the session's log
         if (gateTrail.length) {
           try {
@@ -1301,6 +1610,7 @@ register(
           fs.appendFileSync(log, `strom: ${runsWith}\n`);
         }
         out(`${ui(lang, "ui.run.start.session", { session: session.id, task: task.id, what: truncate(task.what, 70) })} · brief ~${brief.total} tokens`);
+        runState.step(ui(lang, "ui.run.start.session", { session: session.id, task: task.id, what: truncate(task.what, 70) }).replace(/^[\s▶■·]+/u, ""));
         const prompt =
           `You are the researcher in strom session ${session.id}. Below is the brief for your task. ` +
           "Work only through `strom` commands in this folder; record findings as you go; finish with `strom session close` as the brief says.\n\n" +
@@ -1320,6 +1630,12 @@ register(
           ...(opts.interactive ? {} : { STROM_NONINTERACTIVE: "1" }),
         };
         atWorkOn = session.id;
+        runState.session(session.id, task.id);
+        // a finish asked while the session was being prepared: asked of it now
+        if (stopAsked === "finish" && !finishing) {
+          finishing = true;
+          askFinish(root, session.id, "user");
+        }
         const runLog = path.join(root, ".strom", "runs", `${session.id}.log`);
         let result = await runner.run({
           cwd: root,
@@ -1327,7 +1643,7 @@ register(
           kickoff,
           env,
           // Found again in the agent's list of sessions: the family, the line, the task.
-          name: ["Strom", tree.config.name, tree.get<Research>(task.research ?? research?.id ?? "")?.name, `${truncate(task.what, 50)} (${task.id})`].filter(Boolean).join(" · "),
+          name: ["Strom", tree.config.name, line ? `${line.name} (${line.id})` : tree.get<Research>(task.research ?? research?.id ?? "")?.name, `${truncate(task.what, 50)} (${task.id})`].filter(Boolean).join(" · "),
           logFile: runLog,
           timeoutMs: minutes * 60_000,
           wrapUp: {
@@ -1351,7 +1667,10 @@ register(
           // the browser only for a session whose task may need it (its sites above)
           ...(runnerId === "claude" ? { chrome: Boolean(sites), remote: ctx.settings.agentRemote() } : {}),
           ...(extra?.length ? { extraArgs: extra } : {}),
-          onProgress: (l) => out(`  · ${l}`),
+          onProgress: (l) => {
+            out(`  · ${l}`);
+            runState.step(l);
+          },
           // its connection failed on the way (a passing network error): its session resumed after a wait
           onRecover: (r) => out(ui(lang, "ui.run.recover", { why: r.why, s: Math.round(r.waitMs / 1000), n: r.n, max: r.max })),
           // a tool it asked for and the agent did not load: said in the research language
@@ -1383,10 +1702,15 @@ register(
           signal: stop.signal,
         });
         atWorkOn = undefined;
+        runState.session(undefined);
         lastLimits = result.limits ?? lastLimits;
         // Close what the agent left open, record the metrics, export, commit.
         const after = Tree.open(root, runEnv);
         let s = after.get<Session>(session.id)!;
+        // taken over meanwhile (its agent gave no sign of life for task.hold — stopped, the computer asleep): its work
+        // stays, the run goes on with the next free task
+        const lost = s.state !== "open" ? readTaken(root, s.id) : undefined;
+        if (lost) out(ui(lang, "ui.run.lost", { session: s.id, by: lost.by ?? "–" }));
         // strom itself refused to the agent (its permissions, its sandbox — said through any shell): kept with the
         // session's metrics, so the session is not counted against its task. strom first in the command — in any part
         // of it only where the agent refused the command whole before any of it ran (Codex's policy: deniedWhole); a
@@ -1470,6 +1794,7 @@ register(
         // what it cost: the agent's own and its readers', both apart too
         const m = after.get<Session>(s.id)?.metrics ?? withReaders(result.metrics, s.metrics);
         const total = sessionCost(m);
+        runState.sessions(report.length + 1);
         report.push({ session: s.id, task: task.id, outcome: result.outcome, ...(result.exitOnly && result.outcome === "ok" ? { agentExit: result.exitCode } : {}), ...(result.recovered ? { recovered: result.recovered } : {}), ...(result.denied?.length ? { denied: result.denied.length } : {}), ...(stromDenied ? { stromDenied } : {}), ...(s.summary ? { summary: s.summary } : {}), ...(total !== undefined ? { costUsd: total } : {}), ...(m.readersUsd !== undefined ? { agentUsd: m.costUsd ?? 0, readersUsd: m.readersUsd } : {}) });
         out(`■ ${s.id} ${s.state} · ${result.outcome}${costText(m) ? ` · ${costText(m)}` : ""}${s.summary ? ` · ${truncate(s.summary, 80)}` : ""}`);
         if (result.denied?.length) out(ui(lang, "ui.run.denied", { n: result.denied.length, what: result.denied.slice(0, 3).map((d) => truncate(d.split("\n")[0]!, 120)).join(" · ") }));
@@ -1482,7 +1807,8 @@ register(
           stopCode = "problems";
           break;
         }
-        if (stop.signal.aborted || finishing || askedToFinish) {
+        lookStop();
+        if (stop.signal.aborted || finishing || askedToFinish || stopAsked) {
           stopCode = "user";
           break;
         }
@@ -1490,10 +1816,12 @@ register(
           // A run that goes on by itself under a gate: the limit that cut the session off is waited out — until it
           // resets as the agent said (a minute more, as the gate's), unknown: the gate asked again after a while —
           // then the gate decides the next session (K036). Not past --until; a run the user started ends saying when.
+          // every other run of the agent on this computer begins no session before then (core/machine.ts)
+          const now = Date.now();
+          const known = limitResume(result, now);
+          const at = known.at !== undefined ? known.at + limitReserve(ctx.env) : now + DEFAULT_WAIT_MS;
+          markLimit(runShared, runnerId, runEnv, { until: at, by: worker, tree: root, kind: known.kind, now });
           if (gateHolds && gate) {
-            const now = Date.now();
-            const known = limitResume(result, now);
-            const at = known.at !== undefined ? known.at + limitReserve(ctx.env) : now + DEFAULT_WAIT_MS;
             if (until && at > until) {
               stopCode = "time";
               break;
@@ -1505,9 +1833,9 @@ register(
             out(ui(lang, known.at !== undefined ? "ui.run.limit.wait" : "ui.run.limit.unknown", values));
             stopAwake(); // nothing to do meanwhile: the computer may sleep
             // the Strom app shows the run paused until then, and why
-            markPaused(root, worker, { until: new Date(at).toISOString(), reason: ui(lang, "ui.run.limit.why", values) });
+            markPaused(root, worker, { until: new Date(at).toISOString(), reason: ui(lang, "ui.run.limit.why", values), kind: "limit" });
             try {
-              await pause(at - Date.now(), stop.signal);
+              await pause(at - Date.now(), stopWaits);
             } finally {
               markPaused(root, worker, undefined);
             }
@@ -1558,16 +1886,47 @@ register(
         stopCode = "sessions";
         stopValues = { n: settled.size, max };
       }
+      ended = true;
     } finally {
+      releaseTurn();
+      clearInterval(beating);
+      clearInterval(watching);
+      // the run's end, for the Strom app: why (runsEnded[]); its files go with its worker
+      const endedAt = new Date().toISOString();
+      const why = ended ? runEndOf(stopCode, !!stopAsked) : "error";
+      recordEnded(root, { id: worker, research: line?.id ?? null, agent: runnerId, since: runSince, ended: endedAt, why });
+      // and as it stays in the research (.strom/runs/<run>.end.json): why, in strom run's code and words too
+      let words: string | undefined;
+      try {
+        words = ended ? reasonOf() : undefined;
+      } catch {
+        // its words are no reason to lose the record
+      }
+      const last = report.at(-1)?.task;
+      recordRunEnd(root, {
+        run: worker,
+        research: line?.id ?? null,
+        agent: runnerId,
+        since: runSince,
+        at: endedAt,
+        why,
+        stopCode: ended ? stopCode : "error",
+        ...(words ? { reason: words } : {}),
+        sessions: report.length,
+        costUsd: report.reduce((a, r) => a + (r.costUsd ?? 0), 0),
+        ...(last ? { lastTask: last } : {}),
+        ...(ended && nextUp ? { nextTask: nextUp } : {}),
+      });
+      runState.end();
       for (const sig of signals) process.off(sig, onSignal);
       stopAwake();
       leave();
+      leaveQueues();
       unpinShim(root);
     }
     // What the research now waits for from the user who started it.
     const waiting = waitingLines(Tree.open(root, runEnv), { shared: ctx.settings.shared()?.value, display: (p) => ctx.display(p) });
-    const reason =
-      historyOnly && stopCode === "empty" ? ui(lang, "ui.run.stop.history") : placesOnly && stopCode === "empty" ? ui(lang, "ui.run.stop.places") : ui(lang, (stopCode === "model" && stopValues.agent === "codex" ? "ui.run.stop.model.codex" : `ui.run.stop.${stopCode}`) as UIKey, stopValues);
+    const reason = reasonOf();
     return {
       text: lines(ui(lang, "ui.run.summary", { n: report.length, reason }), waiting ? `\n${waiting}` : undefined),
       data: { sessions: report, stopped: reason, stop: stopCode, ...(tasksN !== undefined ? { settled: [...settled] } : {}), ...(gate ? { gate: { name: gate.name, answers: gates } } : {}) },
@@ -1576,6 +1935,38 @@ register(
   },
   }),
 );
+
+register({
+  path: ["run", "stop"],
+  summary: "Ask a run to stop: the task at work is finished, no next one starts (--finish: its session finishes now)",
+  group: "research",
+  tree: true,
+  description:
+    "For the user (the Strom app asks the same): a run of strom run (its ID run-…, as the refusal of one run too many\n" +
+    "and strom session list --open say it) is told to start no next session; its session at work goes on to the end of\n" +
+    "its task. --finish: that session is asked to finish now as well (its agent writes down what it found and closes\n" +
+    "it, as strom session finish). A run that waits (its gate, the plan's limit, an archive) ends at once. Nothing is\n" +
+    "stopped by force; the run reads it within a second or two and says so in its terminal.",
+  args: [{ name: "run", description: "the run's ID (run-…)", required: true }],
+  options: [{ name: "finish", type: "boolean", description: "its session at work finishes now too (the agent writes down what it found)" }],
+  examples: ["strom run stop run-12345-abc", "strom run stop run-12345-abc --finish"],
+  run(ctx, { args, opts }) {
+    const tree = ctx.tree();
+    const id = args[0]!;
+    const runs = runsAtWork(tree.root).filter((w) => w.id.startsWith("run-"));
+    if (!RUN_ID.test(id) || !runs.some((w) => w.id === id))
+      throw new UsageError(runs.length ? `no run ${id} at work; at work: ${runs.map((w) => `${w.id}${w.research ? ` (${w.research})` : ""}`).join(", ")}` : `no run ${id} at work: no run works in this tree`, {
+        code: "runs.unknown",
+        params: { run: id },
+        hint: "strom session list --open",
+      });
+    const how = askRunStop(tree.root, id, opts.finish ? "finish" : "stop", ctx.env.STROM_WORKER ?? "user");
+    return {
+      text: how === "finish" ? `${id}: asked to finish its session now and end` : `${id}: asked to finish its task and start no next one`,
+      data: { run: id, stop: how },
+    };
+  },
+});
 
 /**
  * strom updated while a run worked (an agent's call in a session ran the new strom, which brought the research to its
@@ -1695,7 +2086,13 @@ async function startAnyway(ctx: Context, name: string, reason: string, lang: str
   }
 }
 
+/** How often a run waiting for a restricted archive looks whether it is free (a file read, nothing asked of the archive). */
+const ARCHIVE_POLL_MS = 1000;
+/** How often a run looks whether it was asked to stop (a file read: core/runstate.ts). */
+const STOP_POLL_MS = 1000;
+
 /** Wait, until the time or until the user stops the run. */
+
 function pause(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     if (signal.aborted || ms <= 0) return resolve();

@@ -20,7 +20,8 @@ Postup v kostce:
 6. **Jistota:** stupeň jistoty podle toho, kdo a jak zápis četl; těžké místo potřebuje druhé, slepé čtení
    ([R8.7](#R8.7)).
 
-Kdo co čte, v kostce a na příkladu jednoho zápisu, říká [R8.9](#R8.9).
+Kdo co čte, v kostce a na příkladu jednoho zápisu, říká [R8.9](#R8.9). Proč se výřezy zvětšují, k čemu je ostřejší
+výřez a proč čtou dva čtenáři, vysvětluje [R8.10](#R8.10).
 
 > **Poznámka: čtení modelem není stoprocentní.** Staré písmo čte model AI a přesnost čtení závisí na modelu.
 > Metodika chce na staré písmo nejsilnější model, nikdy rychlé nebo levné čtení. Čtenáři čtou modelem pro písmo
@@ -32,7 +33,9 @@ Kdo co čte, v kostce a na příkladu jednoho zápisu, říká [R8.9](#R8.9).
 > rozpor a Doložené chce metodika jen po vlastním čtení zápisu hlavním agentem ([R8.7](#R8.7)).
 > **Zásada projektu:** důležité údaje má ideálně ještě ověřit člověk. Aplikace Strom ukazuje u pramene výřez zápisu
 > vedle přepisu ([A3.3](A3-evidence-in-the-app.md#A3.3)). Přepis zkontrolovaný člověkem jde označit **Přepis ověřen**
-> ([A3.1.1](A3-evidence-in-the-app.md#A3.1.1), jak s ním výzkum počítá: [R3.5.1](R3-verification-and-citation.md#R3.5.1)).
+> ([A3.1.1](A3-evidence-in-the-app.md#A3.1.1), jak s ním výzkum počítá: [R3.5.1](R3-verification-and-citation.md#R3.5.1));
+> přepis výzkumu, který člověk podle zápisu zkontroloval, jde potvrdit **Potvrdit přepis**
+> ([A3.1.3](A3-evidence-in-the-app.md#A3.1.3)).
 > Chybný údaj jde opravit v aplikaci; úprava údaje doloženého záznamem se stane rozporem ([S2](S2-edits-from-the-app.md)).
 > Čtení modelem je jen návrh: přepis, který člověk napsal nebo potvrdil, nezmění nikdo jiný než člověk, ani nové čtení
 > ([R3.4.1](R3-verification-and-citation.md#R3.4.1)).
@@ -662,3 +665,44 @@ Datum křtu Jana Horáka zapsal do stromu člověk v aplikaci.
 u údaje k vrácení ([S6.3](S6-tree-from-another-program.md#S6.3)).
 
 <!-- zdroj: research:v1.30.0 src/core/sourceread.ts placesOf (fresh, ordered: jistá věcná změna první, s ní ostatní neposouzená místa), decideReading, review · assets/lang/cs.json read.source.why, read.source.unsure.why · src/commands/read.ts --blind --crop · assets/method/verify.md · app:1c9b2392 strings.ts read.check „Co ověřit“, gMajor, gUnsure, gMinor, tAgent, tQueue, origin.proposeUser, origin.conflictOpen · spec 059 ukoly U6 (nové 8. 11.: oddíl se čtenáři a příkladem, jen text) -->
+
+<a id="R8.10"></a>
+## R8.10 Jak model vidí sken: zvětšení, ostřejší výřez a dva čtenáři
+
+Vysvětlení, proč výzkum ukazuje čtenářům skeny tak, jak je ukazuje. Opírá se o dokumentaci výrobců modelů, o studie
+čtení rukopisů modely AI a o měření na vzorku zápisů jednoho výzkumu projektu. Čísla velikostí hlídá kód; závěry
+měření jsou jen vodítko.
+
+- **Jak model obrázek vidí:** model nebere obrázek po pixelech, ale po čtverečcích (Claude 28 px, GPT 32 px).
+  Malý obrázek sám nezvětší a velký sám zmenší ([R8.3.2](#R8.3.2)). Když je na malém výřezu písmeno menší než jeden
+  čtvereček, model ho vidí jen zčásti a čte hůř; potíž je ve velikosti písma, ne v tom, že by zápis nenašel.
+- **Proč se výřez zvětšuje (hlídá kód):** výřez nebo půlka menší než pohled, který čtenář čte dobře, se zvětší:
+  pro Claude na 800 px po delší straně, pro čtenáře s modelem GPT (Codex, OpenCode s modelem OpenAI) až na 2000 px;
+  vždy nejvýš 3× a nikdy nad to, co model vezme celé. Zvětšení písmo jen rozprostře na víc čtverečků: nové detaily
+  nepřidá. Pohled proto čtenáři řekne, z kolika pixelů skenu je zvětšený a že víc detailu nemá; co čtenář jistě
+  nepřečte, píše jako `[?]` a do údajů to nejde.
+- **Ostřejší výřez z archivu (hlídá kód):** skutečný detail přidá jen sken ve vyšším rozlišení. Když z archivu
+  přišla ostřejší část snímku, která ukazuje celé místo (mimo ni zůstane nejvýš okraj), čte se z ní. U místa malého na
+  skenu se nabídne ostřejší výřez z archivu, sám se nestáhne; jinak pohled agentovi poradí požádat člověka
+  o ostřejší sken ([R8.2](#R8.2), [R8.5](#R8.5)).
+- **Dva čtenáři naslepo:** studie ukazují, že model vlastní čtení sám neopraví, čtení jiným modelem ale chyby
+  odhalí. Proto **Přečíst znovu** a čtení dokumentu nabízejí dva čtenáře, kteří o sobě nevědí; u každého jde
+  zvolit agenta a model ([R8.8.1](#R8.8.1)). Místa, kde se liší, jsou jantarová a nejistá ([R8.8](#R8.8),
+  [R8.8.2](#R8.8.2)). Shoda dvou čtenářů chybu nevylučuje: oba se mohou splést stejně.
+- **Opus a GPT na vzorku projektu** (listopad 2026):
+  - GPT četl malý výřez v původní velikosti špatně, u jednoho zápisu určil i špatný druh (křest místo sňatku); po zvětšení
+    k 2000 px určil druh správně a přečetl výrazně víc slov. Proto se pro něj výřez zvětšuje víc;
+  - Opus četl tentýž výřez dobře už při 800 px; větší pohled ani ostřejší část mu nic měřitelného nepřidaly. Na
+    hustém rukopisu přečetl víc slov než GPT, na čitelném písmu četli podobně;
+  - nejsilnější signál pro GPT dala ostřejší část snímku; půlky místo celé strany ani zesílený kontrast slova
+    nepřidaly, proto je výzkum jako výchozí nezavedl;
+  - **úskalí:** šlo o několik zápisů jednoho výzkumu a málo běhů (u GPT často jeden). Rozdíly mezi opakovanými běhy
+    téhož čtení byly 1–3 slova. Měřítkem byly přepisy, které zčásti vytvořila také AI. Výsledky ukazují směr, ne
+    přesnost, a na jiném písmu, jazyce nebo modelu mohou dopadnout jinak.
+- **Ověření člověkem:** ani dva čtenáři, ani zvětšení nedají jistotu. Důležitý údaj má ideálně ověřit člověk podle
+  výřezu zápisu: vlastní přepis označit **Přepis ověřen** ([A3.1.1](A3-evidence-in-the-app.md#A3.1.1)), přepis
+  výzkumu potvrdit **Potvrdit přepis** ([A3.1.3](A3-evidence-in-the-app.md#A3.1.3)).
+- **Platí od:** výzkum 1.0.0 (zvětšení výřezu na 800 px); čtení z ostřejší části 1.19.0; zvětšení pro GPT
+  a ostřejší část i s okrajem 1.29.0; **Potvrdit přepis** aplikace 3.25.0
+
+<!-- zdroj: research:v1.35.0 src/agents/images.ts VIEW_MIN 800, imageMin (GPT min(2000, imageMax)), gptReader, IMAGE_MAX/IMAGE_MAX_LARGE · src/core/views.ts makeView enlarge min(3, …), viewSize, describeView, ENLARGED_HINT, SHARPER_SCAN · src/core/media.ts SHARPER · src/commands/document.ts sharperOf, sharperCover · CHANGELOG.cs.md 1.29.0 · dirigent:analyza/2026-11-07-cteni-obrazku/reserse.md (dlaždice 28/32 px, modely malé obrázky nezvětšují, interpolace nepřidává informaci, Zhang 2025, Humphries 2024/2025 a Crosilla 2025: sebeoprava nepomáhá, oprava jiným modelem ano) · experiment.md (Opus 800 vs 2000 v šumu, GPT ostřejší část nejsilnější signál, poloviny horší, kontrast nezaveden, n malé, rozptyl 1–3 slova) · test/vysledek-1106-simulace-cteni.md (GPT 1× druh zápisu chybně, 2× správně) · spec 059 ukoly U6 (jen text, bez obrázků) -->

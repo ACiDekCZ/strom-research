@@ -50,8 +50,20 @@ Research** a z něj větší **Přehled výzkumu**. Oba jen čtou. Co ukazují, 
   výzkumy, výchozí rozbaleno. Převezme ji obnovení stránky, nové sledování i panel jiného výzkumu; zapíše ji jen
   šipka panelu. Otevřený Přehled už panel za sebou nerozbalí. Telefon volbu nečte ani nepíše (pruh otevírá Přehled
   jako dřív). Bez úložiště prohlížeče (soukromé okno) platí do zavření stránky.
+- **Od aplikace 3.31.0:** na telefonu drženém na šířku se rozbalený panel sledovaného výzkumu sbalí do proužku, když
+  se objeví ukazatel načítání fotek **Fotky k / n**
+  ([S1.4.1](S1-connecting-app-and-research.md#S1.4.1)) nebo oznámení (ne pilulka **Zpět** ani potvrzení zaměření).
+  Sám se znovu nerozbalí, ani když ukazatel nebo oznámení zmizí; rozbalí ho ťuknutí na hlavičku. Sbalení se
+  nepamatuje jako volba zařízení. Na počítači, tabletu a telefonu na výšku se nic nemění.
+- **Od aplikace 3.31.0 s výzkumem 1.36.0:** **Pracuje se** a **Teď** ukazují i agenta, který pracuje přímo ve
+  výzkumu („Claude Code – práce přímo“). U práce, která drží úkol ([R7.9](R7-when-the-agent-works.md#R7.9)), stojí
+  „naposledy 14:31; uvolní se nejpozději v 15:01“ (naposledy jen, když se liší od začátku; u procesu na tomto
+  počítači bez času uvolnění). Běh, který čeká na omezený archiv ([R9.13](R9-archives.md#R9.13)), má stav
+  „Pozastaveno · čeká na archiv … (nejdéle do 14:40)“. Se starším výzkumem je všechno jako dřív.
+- **Od aplikace 3.31.0 s výzkumem 1.36.0:** při více bězích má **Teď** blok pro každý běh, každý se sleduje
+  a zastavuje zvlášť ([S4.1.8](#S4.1.8)).
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:223 PANEL_CHANGES, (3.28.0: app 8da3f11e MINI_OPEN_KEY strom-research-mini-open, miniPanelFolded, rememberMiniPanelFolded, ne na telefonu; otevřený Přehled panel nerozbalí), :227 AUTO_FOLD, :3326 appendQueueSection(…, 3), renderLivePanel, renderIdleResearchPanel · src/ui/research-overview-ui.ts:5 (≥1280), :51 FOLDED_BY_DEFAULT, :53 GROUP_MS, :59 MAX_STEPS, :74, :309-311 · strings.ts live.overviewTitle, research.panelLabel, research.stop, research.atWork, research.queue · 3.27.0 Teď: app 4e4f6d8c src/research-link.ts WORKING_HELPS_FEATURE (working.helps), sanitizeWorking (helps jen s linií, branch) · src/ui/research-offline-ui.ts workingWhyText (helps → qWhyHelps + qWhyHow / qWhyHowBranch; větev mimo linie → qWhyOutBranch, ve skupině qWhyHowBranch) · src/ui/research-overview-ui.ts (Teď: důvod místo názvu linie) · strings.ts live.qWhyHelps, qWhyHow.*, qWhyHowBranch, qWhyOutBranch · spec 036 K1.8 · malý panel: app 2c018779 src/ui/research-ui.ts, research-directions-ui.ts (pod nadpisem linie jen jak) · 3.27.0 spec 057: app f05fff8e src/ui/research-actions-ui.ts overviewRows (research-item-overview první; stop při sledování, jinak followLive, ne bez agenta), src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (live.researchLink v záhlaví focus) · 28bbebeb src/ui/live-section-prefs.ts TOP_DEFAULTS (month.price false), research-overview-ui.ts appendOverviewSummary, strings.ts live.spendSessions, spendAmount · 87a6ea88 live.dirWorkedOn · strings.ts live.openOverview -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:223 PANEL_CHANGES, (3.28.0: app 8da3f11e MINI_OPEN_KEY strom-research-mini-open, miniPanelFolded, rememberMiniPanelFolded, ne na telefonu; otevřený Přehled panel nerozbalí), :227 AUTO_FOLD, :3326 appendQueueSection(…, 3), renderLivePanel, renderIdleResearchPanel · src/ui/research-overview-ui.ts:5 (≥1280), :51 FOLDED_BY_DEFAULT, :53 GROUP_MS, :59 MAX_STEPS, :74, :309-311 · strings.ts live.overviewTitle, research.panelLabel, research.stop, research.atWork, research.queue · 3.27.0 Teď: app 4e4f6d8c src/research-link.ts WORKING_HELPS_FEATURE (working.helps), sanitizeWorking (helps jen s linií, branch) · src/ui/research-offline-ui.ts workingWhyText (helps → qWhyHelps + qWhyHow / qWhyHowBranch; větev mimo linie → qWhyOutBranch, ve skupině qWhyHowBranch) · src/ui/research-overview-ui.ts (Teď: důvod místo názvu linie) · strings.ts live.qWhyHelps, qWhyHow.*, qWhyHowBranch, qWhyOutBranch · spec 036 K1.8 · malý panel: app 2c018779 src/ui/research-ui.ts, research-directions-ui.ts (pod nadpisem linie jen jak) · 3.27.0 spec 057: app f05fff8e src/ui/research-actions-ui.ts overviewRows (research-item-overview první; stop při sledování, jinak followLive, ne bez agenta), src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (live.researchLink v záhlaví focus) · 28bbebeb src/ui/live-section-prefs.ts TOP_DEFAULTS (month.price false), research-overview-ui.ts appendOverviewSummary, strings.ts live.spendSessions, spendAmount · 87a6ea88 live.dirWorkedOn · strings.ts live.openOverview · 3.31.0: app 7be40d24 src/ui/landscape-panel-fold.ts (MQ_PHONE_LANDSCAPE, jen rozbalený panel, images nebo toast message, nerozbalí se sám, nepamatuje se) · SPEC.md 1120-app-108-diry · spec 116 · 3.31.0 spec 127: app:f89b5166, 040e42e6 src/research-holds.ts workingHoldText, waitsText, src/ui/research-ui.ts pausedText (statePaused · waitsArchive), workingHoldEl, src/ui/research-overview-ui.ts:921, src/research-link.ts features task.holds, archive.holds · strings.ts live.holdLast, holdFreeBy, waitsArchive · research cs.json who.agent -->
 
 <a id="S4.1.1"></a>
 ### S4.1.1 Sledovat agenta ve stromu
@@ -331,7 +343,7 @@ ostatní okna sledují dál. Všechna okna jsou při tom jen ke čtení.
   Mapě) v něm zůstanou. **Sledovat agenta** okno znovu připojí a hned skočí na agenta. Odpojení vydrží obnovení okna
   (F5) a zapomene se s koncem sledování.
 - **Výběr z jiného okna:** připojené okno, které není pozastavené, osobu vybranou v jiném okně jen vyznačí, i když má
-  **Výběr** → **Toto okno**: **přepnout** ([A6.8.1](A6-views.md#A6.8.1)); střed zůstane u agenta. Tabulka řádek té osoby
+  **Vybraná osoba** → **Toto okno**: **přepnout** ([A6.8.1](A6-views.md#A6.8.1)); střed zůstane u agenta. Tabulka řádek té osoby
   vybere, ale neposune se k němu. Skok za agentem se ostatním oknům jako výběr osoby neposílá. Pozastavené a odpojené
   okno se řídí volbou **Toto okno** jako mimo sledování. Výběr poslaný do hlavního okna s volbou **zaměřit** hlavní okno
   při sledování agenta jen vyznačí ([A6.8.4](A6-views.md#A6.8.4)).
@@ -361,6 +373,53 @@ ostatní okna sledují dál. Všechna okna jsou při tom jen ke čtení.
 - **Platí od:** aplikace 3.30.0
 
 <!-- zdroj: app:9cec9c30 (od 3714c539) src/windows/agent-follow-state.ts AgentFollow attached/paused/detached, agentFollowKey (sessionStorage jen detached), setLive (konec sezení zapomene odpojení), detach, attach, setPaused · src/windows/agent-state.ts, agent-mirror.ts, src/ui/agent-window-ui.ts (stav agenta z hlavního okna bez adresy a tokenu mostu, K1.3) · src/windows/sat-states.ts SatStrip, liveStrip (lost › paused › detached › idle › attachedNoJump › attached), STRIP_ICON, AMBER, writeStrip (tlačítka, goToMain poslední) · src/main.ts noJump (descendants, timeline) · src/ui/live-follow-ui.ts (další okno: pohled okna, Zpět pohled nepřepne, bez štítku pauzy ani mapPaused, pauza jen v okně, návrat po 20 s) · src/windows/window-selection.ts (připojené okno výběr jen vyznačí; skok agenta se nerozesílá) · src/windows/takeover.ts TAKEOVER_STEP_MS 400, takeoverOrder (sledující, pak odpojená; okno bez vlastního sledování ne), hasBridge (storedResearchBridge) · src/windows/become-main.ts, window-start.ts (◎ jako v zavřeném hlavním okně) · strings.ts win.agentAttached, agentAttachedNoJump, agentIdle, agentPaused, agentDetached, detach, attach, bridgeLost, followEnded, takingOver, takenOver, takeoverFailed, goToMain; live.followOff, followBack; research.stop · CHANGELOG.cs.md 3.30.0 „Sledování agenta ve všech oknech“ · spec 097 K1.1–K1.4, K2.1–K2.6, Rozhodnutí 16. 11. O1–O5, dotazy 3–5, 8 · app:docs/ZADANI_DEV_sledovani-ve-vsech-oknech.md §1–§4, §6, §7; ZADANI_UIX dotazy 10, 12 · prace/1116-app-097-sledovani-okna -->
+
+<a id="S4.1.8"></a>
+### S4.1.8 Teď s více běhy
+
+S výzkumem, který běhy linií umí ([R7.10](R7-when-the-agent-works.md#R7.10)), ukazuje oddíl **Teď** v **Přehledu
+výzkumu** jeden blok na každý běh: běh celé fronty i běh každé linie zvlášť. Každý běh jde sledovat a zastavit zvlášť.
+
+- **Blok běhu:**
+  - záhlaví: znak linie, její název a číslo (G…), u běhu celé fronty **Celá fronta**; vpravo stav: **pracuje**,
+    **spouští se…**, **čeká na limit předplatného do 14:00**, **čeká na archiv do 14:40**, **čeká na prohlížeč
+    archivu** („Prohlížeč archivu má teď jiný běh; tento počká, až se uvolní.“), **čeká na stahování**, **čeká do …**,
+    **končí – agent dopisuje nalezené**, **skončil v 11:52**;
+  - pod záhlavím agent, od kdy a jak dlouho, a poslední krok (osoba – úkol) jako dřív ([S4.1](#S4.1));
+  - běh celé fronty, vedle kterého mají vlastní běh linie: „Přeskakuje: Předci Jana Horáka, Potomci Marie Vlkové“.
+    Když dokončuje úkol linie, která mezitím dostala vlastní běh: „Dokončí T0103 linie …, pak ji přeskočí.“;
+  - skončený běh zůstane v **Teď** 60 s se stavem **skončil v …**. Pod ním jen u konce limitem **Došel limit
+    předplatného.** a u chyby **Agent skončil chybou; podrobnosti jsou v terminálu výzkumu.**; u běhu linie ještě
+    **Linii zase bere celá fronta.** Pak blok zmizí. Nové otevření aplikace skončené bloky neukazuje.
+- **Pořadí bloků:** běh celé fronty první, pak běhy linií v pořadí linií ([R2.1.4](R2-lines-and-queue.md#R2.1.4)).
+  Nadpis oddílu je „Teď · 3 agenti“; souhrn **Stav** při dvou a více bězích „Pracují 3 agenti“ a případně „1 čeká na
+  limit do 14:00“.
+- **Akce bloku:**
+  - **Ukázat ve stromu**: lidé linie, u běhu celé fronty osoba, na které agent pracuje;
+  - **Sledovat tento běh** / **● Sleduje se**: jen při dvou a více bězích a zapnutém sledování;
+  - **Zastavit** („Dokončí rozdělaný úkol a další nezačne“): přímo přes most, bez terminálu, u pracujícího nebo
+    čekajícího běhu; během zápisu **Zastavuje se…**, při odmítnutí **Agenta se nepodařilo zastavit.** Význam jako
+    `strom run stop` ([R7.10.2](R7-when-the-agent-works.md#R7.10.2));
+  - **Dokončit a skončit**: otevře terminál výzkumu a požádá ten běh o dokončení a konec
+    ([R7.3](R7-when-the-agent-works.md#R7.3)); u pracujícího běhu a běhu, který čeká na prohlížeč archivu nebo
+    stahování. Běh, který čeká na limit nebo archiv, ho nemá;
+  - končící běh má jen **Ukázat ve stromu**. Zastavení jednoho běhu ostatní nemění; zastavit všechny najednou nejde.
+- **Sledování:** sleduje se jeden běh. Výchozí je první nepozastavený běh v pořadí **Teď**; nový běh sledování
+  nepřepne. Když sledovaný skončí, sleduje se zase výchozí.
+  - ve stromu je při dvou a více bězích pilulka **Sleduje se: Předci Jana Horáka ▾** s nabídkou **Sledovat běh**
+    (číslo bloku a název, pod tím agent a osoba; čekající běh šedě se stavem; na konci **Přestat sledovat**);
+  - lidé všech běhů jsou označení jako dřív ([S4.1.1](#S4.1.1)); sledovaný běh má první barvu sledování, ostatní
+    druhou. Místo čísla sezení nesou štítek běhu: znak linie a číslo bloku v **Teď** („↑ 2“), běh celé fronty jen
+    číslo;
+  - další okna stromu ([S4.1.7](#S4.1.7)) sledují tentýž běh jako hlavní okno.
+- **Telefon:** bloky a stavy stejné, bez **Zastavit**, **Dokončit a skončit** a volby sledovaného běhu; pilulka jen
+  říká, který běh se sleduje, a označení jsou jen u lidí sledovaného běhu.
+- **Hranice:** se starším výzkumem nebo s jediným během celé fronty je **Teď** jako dřív.
+- **Ovládání:** aplikace: **Přehled výzkumu → Teď**; pilulka **Sleduje se:** ve stromu. Terminál:
+  `strom run stop <run-…> [--finish]`.
+- **Platí od:** aplikace 3.31.0 (výzkum 1.36.0)
+
+<!-- zdroj: app:4de0835a src/research-runs.ts (run.lines, RUN_ENDED_MS 60 s, orderRuns obecný první a linie v pořadí, runCount, noteEndedRuns jen v paměti) · src/ui/research-overview-ui.ts vykreslení bloku (runStateWorking/Starting/Limit/Archive/Waiting/WaitingUntil/Browser/Download/Finishing/Ended, runBrowserNote, runSkips, runFinishesThen, runEndedText jen limit|error, runAfterStop), overviewRunActions (Ukázat ve stromu; Sledovat tento běh jen ≥ 2 běhy a sledování, ne telefon; Zastavit s run.stop u working|waiting, ne telefon; Dokončit a skončit finish?run= u working a čekání na prohlížeč nebo stahování) · src/ui/live-follow-ui.ts pilulka followRunPill, followRunMenu, followOff · strings.ts live.nowAgents, stateAgents, stateAgentsWaiting, runWhole, run*, followRun* · app:docs/ZADANI_DEV_beh-po-liniich.md §3, §4, §7, Kolo 2 C2 · dirigent:spec/126 K2.1, K2.2, K2.5, prace/1121-app-126-linie, 1122-app-126-kolo2 · research: /status runs[], runsEnded[] (POST runs/stop) -->
 
 <a id="S4.2"></a>
 ## S4.2 Fronta v aplikaci
@@ -393,8 +452,22 @@ fronta zůstává ve výzkumu.
 - **Od aplikace 3.28.0:** s výzkumem 1.32.0 jde ve **Frontě** hledat ([S4.2.1](#S4.2.1)), úkol dát jako další
   a vrátit ([S4.2.2](#S4.2.2)) a požádat o práci agenta na frontě ([S4.2.3](#S4.2.3)). Rozbalená **Fronta** má pak
   počet úkolů v nadpisu („Fronta · 1 240“) místo vpravo. Se starším výzkumem je Fronta jako dřív.
+- **Od aplikace 3.31.0 s výzkumem 1.36.0:** úkol ve frontě, který drží jiné sezení, má poznámku „Úkol drží Claude
+  Code (sezení N0040) od 14:05, naposledy 14:31; uvolní se nejpozději v 15:01.“ Úkol, jehož omezený archiv teď
+  používá jiné sezení, má „Archiv … teď používá jiný výzkum (od 14:05, naposledy 14:31); uvolní se nejpozději
+  v 15:01.“; místo „jiný výzkum“ může stát „sezení N0040“, „jiné sezení“ nebo „hromadné stahování“. Když na archiv
+  déle čeká jiná práce: „Na archiv … déle čeká jiná práce; na řadě nejpozději v 15:01.“ Spustit úkol, který drží
+  jiné sezení, výzkum odmítne ([R7.9](R7-when-the-agent-works.md#R7.9), [R9.13](R9-archives.md#R9.13)). Se starším
+  výzkumem bez poznámek.
+- **Od aplikace 3.31.0 s výzkumem 1.36.0:** úkoly linie s vlastním během ([R7.10](R7-when-the-agent-works.md#R7.10)),
+  i úkoly, které jí pomáhají, nejsou bez filtru v číslované řadě. Místo nich stojí nad řadou jeden řádek na linii:
+  znak, název linie, počet úkolů, „dělá je vlastní agent linie (Claude)“ a **Ukázat ›** (filtr linie). Počet ve
+  **Frontě** a v čipu **Všechny linie** a pořadová čísla jsou jen úkoly pro běh celé fronty. Ve filtru takové linie
+  jsou její úkoly očíslované v jejím pořadí a nad nimi „Na této linii pracuje vlastní agent (Claude, od 10:42). Celá
+  fronta ji přeskakuje.“ Práce mimo linie, větve a dějiny zůstávají běhu celé fronty.
+  Na telefonu je **Fronta** stejná.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear · 3.27.0: app 2ee3718d (queue[].kind ze /status i ze stránek fronty, jiná hodnota zahozena) strings.ts live.queueKind · research 5f48cdaf src/core/queue.ts RUN_TURNS, runOrder (most /status queue[], GET /queue, menu před strom run), kind story|history · 3.28.0: app 4ad34832 src/ui/research-ui.ts appendQueueSection (counted: queueTitleCount místo summary, když je pole nebo akce záhlaví) · spec 052 -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear · 3.27.0: app 2ee3718d (queue[].kind ze /status i ze stránek fronty, jiná hodnota zahozena) strings.ts live.queueKind · research 5f48cdaf src/core/queue.ts RUN_TURNS, runOrder (most /status queue[], GET /queue, menu před strom run), kind story|history · 3.28.0: app 4ad34832 src/ui/research-ui.ts appendQueueSection (counted: queueTitleCount místo summary, když je pole nebo akce záhlaví) · spec 052 · 3.31.0 spec 127: app:f89b5166 src/research-holds.ts heldByText, archiveHeldText, queueHoldText (linie vynechána), src/ui/research-ui.ts queueHoldNote · strings.ts live.heldByTask, archiveHeld, archiveHolderOther, archiveHolderFetch, archiveHolderOwn, archiveHolderSession, archiveHeldWaiting · app:docs/ZADANI_VYZKUM_rezervace.md Odpověď aplikace -->
 
 <a id="S4.2.1"></a>
 ### S4.2.1 Hledání ve frontě
@@ -502,8 +575,42 @@ předplatné AI.
   zmizí, jakmile výzkum potvrdí odkaz ([S4.5.4](#S4.5.4)) nebo začne sezení či běh; pak ho nahradí řádek sezení.
   Bez potvrzení do 30 s se **Teď** zeptá **Práce na frontě se nespustila?** („Terminál se do 30 s neozval.“) se
   **Zkusit znovu** a radou a tlačítka jsou zase volná.
+- **Od aplikace 3.31.0 s výzkumem 1.36.0:** když mají linie vlastní běhy ([R7.10](R7-when-the-agent-works.md#R7.10)):
+  - **Pracovat na frontě…** je obsazené (**● Pracuje se ›**) jen při běhu celé fronty, ne při bězích linií;
+  - při plném počtu běhů ([S4.4.12](#S4.4.12)) je tlačítko nepřístupné s „Pracují 3 agenti, víc nastavení
+    nedovolí.“ a **Nastavení ›**; v nabídce **Výzkum** je položka šedá s tímtéž vysvětlením;
+  - dialog ukazuje frontu bez úkolů linií s vlastním během a pod úkolem **Jako první přijde** „Přeskočí linii
+    Předci Jana Horáka (pracuje na ní vlastní agent).“; když už nějaký běh pracuje, i „Teď už pracuje 1 agent.
+    Čerpání předplatného se sčítá.“
 
 <!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) · 3.29.0: app:a0a66d45 Teď nabízí Pracovat na frontě… (bez práce agenta a běhu; okno přehledu; fokus zpět) · 3c8f4128 src/ui/queue-work-dialog.ts Další (n) (pořadí: ruční další, místo ve frontě; bez odložených a mimo linie, které se neberou; queue.page; zbytek, Přehled výzkumu ›; sbalené při otevření) · strings.ts live.queueWorkMore, queueWorkLess, queueWorkByQueue, queueWorkByQueueHint, queueWorkRest, queueWorkRestUnknown, queueWorkOverview, queueTagNext · 3.30.0: app:574e7ef9 src/ui/queue-start.ts (QUEUE_START_MS 30 s, důkaz handoff nebo sezení/běh, silent → queueNotStarted, proven bez sezení zmizí potichu) · src/ui/research-overview-ui.ts (live-now-starting, terminalSilent) · strings.ts busy.queueStarting, queueStartingSub, queueNotStarted, terminalSilent -->
+
+<a id="S4.2.4"></a>
+### S4.2.4 Fronta podle druhu úkolu
+
+S výzkumem, který u úkolů uvádí druh práce, má **Fronta** v Přehledu výzkumu pod čipy linií řadu **Druh úkolu**:
+čip pro každý druh, který má ve frontě úkol, s počtem („Ověřování 12“). Druh určuje výzkum
+([R2.2](R2-lines-and-queue.md#R2.2)).
+
+- **Druhy** v tomto pořadí: **Ověřování**, **Matriky**, **Sčítání lidu**, **Materiál**, **Místa**, **Zdroje mimo
+  matriky**, **Dotazy**, **Vyprávění**, **Dějiny**, **Ostatní**.
+- **Hranice:**
+  - vybraný čip zúží frontu na úkoly toho druhu a ukáže ×; druhé kliknutí výběr zruší („Ukázat všechny druhy
+    úkolů“). Vybraný druh zůstane v řadě i s nulou, když jeho poslední úkol zmizí;
+  - filtr se skládá s linií nebo větví a s hledáním ve frontě ([S4.2.1](#S4.2.1)): „Nalezeno 12 úkolů · druh
+    Ověřování“; bez výsledku „Mezi úkoly druhu Ověřování nic nenalezeno.“ s **Hledat ve všech druzích úkolů**;
+  - volba platí pro výzkum, u kterého vznikla, dokud ji člověk nezruší nebo neskončí sledování;
+  - se starším výzkumem se řada neukazuje a fronta je jako dřív;
+  - **Sčítání lidu** je jen s výzkumem, který sčítání nabízí ([R9.12](R9-archives.md#R9.12)); úkoly sčítání pak
+    nejsou pod **Ostatní**. Odložené úkoly sčítání ([R9.12.4](R9-archives.md#R9.12.4)) ve frontě nejsou.
+- **Z oddílu Ověřování:** řádek „Čeká na ověření“ v Co ví výzkum › **Ověřování**
+  ([S7.5](S7-reliability-and-verification.md#S7.5)) má **Ukázat ve frontě**. Otevře **Frontu** v Přehledu výzkumu
+  zúženou na **Ověřování**. Zůstává v aplikaci a nemá značku.
+- **Ovládání:** aplikace: **Přehled výzkumu** → **Fronta** → řada **Druh úkolu**; Co ví výzkum › **Ověřování** →
+  **Ukázat ve frontě**. Terminál: `strom task list --kind verify` ([R2.2](R2-lines-and-queue.md#R2.2)).
+- **Platí od:** aplikace 3.31.0, výzkum 1.36.0
+
+<!-- zdroj: dirigent:spec/065-spolehlivost-a-znovu-overeni K7.4 · app:53ef9cbe src/ui/queue-kind-ui.ts (queueKindChips: jen druhy s úkolem v pevném pořadí, vybraný i s 0; queueKindRow aria-pressed, ×, taskKindClear; volba pro bridge.base) · src/research-link.ts QUEUE_KIND_FEATURE queue.kind, QUEUE_TASK_KINDS · src/research-queue-pages.ts (kind= s linií, větví a q) · src/ui/research-ui.ts queueSearchInKind, queueSearchNoneKind, queueSearchAllKinds · src/ui/verify-person-ui.ts verifyRowsHtml (pendingQueue, bez značky), showOverviewQueueKind('verify') · strings.ts live.taskKinds, taskKindLabel, taskKindClear, queueSearchFound, verify.pendingQueue · research:7116bb60 src/core/taskkind.ts, GET /queue?kind=, queueCounts.kind · CHANGELOG.cs.md 3.31.0 · sčítání: app:6edc7dc7 src/research-link.ts QUEUE_TASK_KINDS (census za records), CENSUS_FEATURE · src/research-queue-pages.ts queuePageQuery (kind=census jen s funkcí census, other + known=census) · strings.ts live.taskKinds.census · research:c7b117cd src/core/taskkind.ts (census, KINDS_065, kindMatches known) -->
 
 <a id="S4.3"></a>
 ## S4.3 Linie v aplikaci
@@ -530,6 +637,10 @@ se linie jen čtou; každá změna se potvrzuje v terminálu výzkumu.
   Detail linie řekne, co linie našla za poslední dny (**Za N dní:** sezení, osoby, prameny); osoby ukáže ve
   stromu. Ukončené linie jsou sbalené na konci (**Ukončené · N**). V úzkém okně a na telefonu je přehled listem:
   místo úchytu pořadí šipky ▲▼.
+- **Od aplikace 3.31.0 s výzkumem 1.36.0:** každá linie jde dát vlastnímu agentovi, **Pustit agenta na tuto linii**
+  ([S4.3.3](#S4.3.3)). Řádek linie s vlastním během říká „Agent pracuje: Claude“ s odkazem **V Teď ›**, který
+  rozbalí **Teď** a zvýrazní blok běhu ([S4.1.8](#S4.1.8)). Rozhovor **Pracovat na této linii** má nápovědu „Rozhovor
+  s agentem o linii v terminálu“.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-directions-ui.ts:156 linesMulti, :350-353 appendOverviewDirections, :385 canDo, :528 dirWork · strings.ts live.dirTitle, live.dirOutside, live.dirInactive, live.dirWork · research:v1.25.2 assets/lang/cs.json ui.link.what.direction.pause/done/resume · 3.22.0: research-directions-ui.ts:703 dirEnded, :852 dirNow, :878 dirFoundIn, :720 sheet; strings.ts live.dirLimitGen, dirLimitBefore, dirFound* -->
 
@@ -554,6 +665,14 @@ S výzkumem, který to umí, zapisuje aplikace změny linií přímo přes most.
   - Když výzkum zápis odmítne (například je zaneprázdněný), aplikace nic nezmění a nabídne **Zkusit znovu**.
 - **Ovládání:** aplikace: **Přehled výzkumu → Linie**, **+ Nová linie**, u linie **⋯**; menu osoby **Výzkum ›**.
 - **Platí od:** aplikace 3.22.0 (výzkum 1.26.0)
+- **Od aplikace 3.31.0 s výzkumem 1.36.0:** nová linie uvnitř širší linie ([R2.1.5](R2-lines-and-queue.md#R2.1.5)):
+  formulář **Nová linie** řekne „Nová linie je uvnitř linie Předci Jana Horáka. Lidé v ní zůstávají i v širší linii.“
+  a nabídne předem zaškrtnuté „Převést sem 7 otevřených úkolů z linie Předci Jana Horáka (o lidech této linie)“ (z více
+  širších linií „ze širších linií“). Po založení s převodem stojí 10 s bublina „Linie založena. Převedeno 7 úkolů.“
+  s **Vrátit převod** a **Pracovat na této linii**. **Vrátit převod** (**Vrací se…**) vrátí jen převod, linie
+  zůstane: „Převod vrácen · 7 úkolů zpět v širší linii“; když se úkoly mezitím změnily, **Není co vrátit.** Bez
+  převodu (pole odškrtnuté, nic k převodu, starší výzkum) je bublina jako dřív; na telefonu bez **Pracovat na této
+  linii**.
 
 <!-- zdroj: app:HEAD src/ui/research-directions-ui.ts:372 DIRECTIONS_WRITE_SINCE, :628 · src/research-directions-write.ts createDirection, editDirection, setDirectionState, writeDirectionOrder · src/ui/research-actions-ui.ts:1015-1024, :1067 openDirectionForm · strings.ts live.dirNew, dirFormNew, dirFree, dirEditFree, dirLocked, dirOrderWeight, dirOrderStrict, dirArchive, dirPhoneOnly, dirBridgeDown, dirOldResearch, dirBusy, dirRetry, dirDupActive, dirShowIt, dirAnyway · research:src/core/live.ts /directions -->
 
@@ -590,6 +709,46 @@ Při dvou a více liniích ukazuje přehled práci mimo linie po větvích. Volb
   aplikace 3.29.0
 
 <!-- zdroj: app:HEAD src/ui/research-offline-ui.ts:3, :104 (caps.offLineBranches, ≥2 linie) · src/research-directions-write.ts setBranchMode, setOffLineTree, answerBranchWaiting · strings.ts live.offModeLink, live.offModeCap, live.branchAddPick, live.branchCreate, live.branchNever, live.branchReset · research-offline-ui.ts:202-228 growingBranchLine, :542 branch choices, :680 branchQueueBeyond, :740 pick · strings.ts live.dirNear, branchGrows, branchOwnChoice, branchQueueHead, branchQueuePos, branchAllTasks, branchTaken, branchDefaultTag, branchAdd(Paused), branchNeverGroup, waitBranchLeave, waitBranchHint, setOutTitle, setOutOcc, setSuggest, setOwnChoice, setManualTasks, menu treeSettings · spec 038 K7 · 3.27.0: strings.ts live.setOutIntro (app 4e4f6d8c, spec 036 K1.8) · 3.29.0: app:70d50162 research-offline-ui.ts openOffLineSettings bez sledování (prohlížený strom), overview-window offline-settings → hlavní okno · 0a00fb2b research-tree-settings-ui.ts offLineSettingsOffered (archiv, čeká na agenta: text, ne odkaz) -->
+
+<a id="S4.3.3"></a>
+### S4.3.3 Pustit agenta na tuto linii
+
+U každé aktivní linie jde požádat o vlastní běh agenta, který bere jen úkoly té linie
+([R7.10](R7-when-the-agent-works.md#R7.10)). Aplikace nic nespouští: otevře terminál výzkumu v novém okně a ten běh
+spustí ([R7.10.4](R7-when-the-agent-works.md#R7.10.4)). Práce agenta čerpá předplatné AI.
+
+- **Kde:** detail linie, tlačítko **Pustit agenta na tuto linii** (značka AI a terminál) s větou „Agent sám bere úkoly
+  této linie (7 ve frontě), v novém okně terminálu.“; nabídka **⋯** u linie, položka před **Pracovat na této linii**
+  (nápověda „Agent sám bere úkoly linie“).
+- **Linie s během:** v detailu místo tlačítka „● Agent pracuje · Claude · od 10:42“ a **V Teď ›**; v nabídce položka
+  není. Druhý běh téže linie nejde.
+- **Když to nejde:** tlačítko i položka zůstanou, nepřístupné, s důvodem:
+  - „Linie je pozastavená.“ (vedle zůstává **Znovu spustit**);
+  - „Ve frontě linie nic není.“;
+  - „Pracují 3 agenti, víc nastavení nedovolí.“ s **Nastavení ›** ([S4.4.12](#S4.4.12));
+  - „Na tomto počítači není nainstalovaný agent, kterého výzkum umí pustit.“;
+  - „Na stromu pracuje agent spuštěný starší verzí výzkumu; vedle něj se agent linie nespustí. Půjde to, až skončí.“;
+  - jinak „Agenta na tuto linii teď pustit nejde.“
+  U ukončené linie akce není.
+- **Dialog Pustit agenta na linii:** v nadpisu znak, název a číslo linie.
+  - **Agent** (jen když výzkum zná dva a více agentů): volba agenta, výchozí s „(výchozí)“, pod tím „Volba se pamatuje
+    u této linie.“ Předvybraný je agent, se kterým linie běžela naposledy, jinak výchozí agent výzkumu;
+  - **Automaticky** („Agent bere úkol za úkolem této linie, dokud to dovolí limit předplatného.“) nebo **Jen 5 úkolů**,
+    **Jako první přijde** a **Další (n)** jako v [S4.2.3](#S4.2.3), jen z fronty linie; pod nimi „a další 12 úkolů
+    linie ve frontě“;
+  - když už nějaký běh pracuje: „Teď už pracuje 1 agent. Čerpání předplatného se sčítá.“ Nic se tím neblokuje;
+  - **Zrušit** a **Spustit** (značka AI a terminál) s větou „Agent začne v novém okně terminálu. Práci zastaví Ctrl-C
+    v jeho okně nebo Dokončit a skončit v oddílu Teď.“ Když se mezitím linie zablokuje, **Spustit** je nepřístupné
+    s důvodem.
+- **Po Spustit:** v **Teď** hned „Spouští se… · Předci Jana Horáka (G0002)“ s „Agent naběhne v novém okně terminálu
+  výzkumu.“; bez ozvy do 30 s „Běh linie se nespustil? · Předci Jana Horáka“ se **Zkusit znovu** jako u [S4.2.3](#S4.2.3).
+- **Hranice:** jen s výzkumem, který běhy linií umí, s mostem, který odpovídá, a s agentem; ne v Archivu Stromu, ne ve
+  výzkumu, který čeká na agenta, a ne na telefonu (tam se běhy jen ukazují, [S4.1.8](#S4.1.8)).
+- **Ovládání:** aplikace: **Přehled výzkumu → Linie**, detail linie nebo **⋯**. Terminál: `strom run --research G…`,
+  menu **Nechat agenta pracovat samotného** ([R7.10](R7-when-the-agent-works.md#R7.10)).
+- **Platí od:** aplikace 3.31.0 (výzkum 1.36.0)
+
+<!-- zdroj: app:4de0835a src/ui/research-directions-ui.ts (managedDirectionDetail blok běhu, openManagedDirectionMenu položka před dirWork, managedDirectionMeta lineRunWorkingMeta + lineRunInNow, lineRunWhy) · src/research-runs.ts lineRunBlock (ended, running, canStart/why z mostu, paused > empty > limit), atRunLimit · src/ui/queue-work-dialog.ts showLineRunDialog, syncLineRunDialog (lineRunKicker, lineRunAgent, lineRunAgentDefault, lineRunAgentKept, lineRunAutoHint, lineRunRest, runsAddUp, lineRunStart, lineRunConfirm) · beginRunWork (work?research=G&agent=), lineRunStarting, lineRunStartingSub, lineRunNotStarted · strings.ts live.lineRun*, runsLimitReached, runsSettingsLink, dirWorkHint · app:docs/ZADANI_DEV_beh-po-liniich.md §1, §2, Kolo 2 B · dirigent:spec/126 K2.1, K2.2, K2.4, K2.7, K2.8 · research: researches[].run/canStart/why/agent, agents[] -->
 
 <a id="S4.4"></a>
 ## S4.4 Čeká na vyřízení v aplikaci
@@ -980,11 +1139,81 @@ fronty. Aplikace u takové položky ukáže nález a nabídne opravu v jednom kr
 
 <!-- zdroj: app:929d7813, ed7f7a04, 287ebc72, 01a1e760 src/ui/waiting-task-ui.ts openWaitingAuditFix (GET waiting/<T>/fix, auditLoading, jeden náhled), náhled (auditChanges, auditThisTask, auditNewTask, auditRemains, chat u první knihy, ne sheet; auditFixNote), confirmWaitingAuditFix (auditBusy, expect = stamp), writeWaitingAuditFix (toast auditFixed / auditFixedWoke 8000 ms, Vrátit = waitingWrite.undo), undoWaitingAuditFix (unfix, auditUndone, auditUndoFailed), cancelWaitingAuditFix (Esc, fokus na audit-fix), auditErrorText (409 auditErr409 + auditReload, 503, locked, disk), AUDIT_SHEET_ID (telefon) · src/research-audit.ts auditChangeLines (wait-images, wait-book, folder, split), auditLeftLines · src/research-link.ts postWaitingAudit (do fix/unfix/keep/unkeep, expect) · strings.ts live.waitingAudit.* · ZADANI_DEV_kontrola-ukolu.md §2 · dirigent:prace/1117-app-109-kontrola (D3 texty náhledu z op/images/title, D5 Vrátit jen v toastu) -->
 
+<a id="S4.4.10"></a>
+### S4.4.10 Výzkum u stromu › Sčítání lidu
+
+Sčítání lidu jako pramen výzkumu ([R9.12](R9-archives.md#R9.12)) jde zapnout a vypnout i v aplikaci. Zapisuje se přes
+most hned po kliknutí, oběma směry, a je to rozhodnutí člověka v aplikaci: okno systému se neukazuje.
+
+- **Skupina Prameny** s přepínačem **Sčítání lidu** a větou „Výzkum smí jako pramen použít sčítání lidu: domácnost
+  v jednom roce ukáže, kdo s kým bydlel a odkud kdo přišel. Většina archivů sčítání jen zobrazuje, archy se proto
+  většinou dodávají ručně snímkem obrazovky.“
+- **Hranice:**
+  - jen s výzkumem, který sčítání nabízí; se starším výzkumem skupina není. Ne u Archivu Stromu ani u výzkumu, který
+    čeká na agenta; když se výzkum mezitím přepne na Archiv Stromu, skupina zmizí;
+  - po kliknutí se nový stav ukáže hned, přerušovaně a zamčený, dokud výzkum zápis nepotvrdí;
+  - vypnuto s odloženými úkoly ([R9.12.4](R9-archives.md#R9.12.4)): pod řádkem „Odloženo: 3 úkoly sčítání. Po
+    zapnutí se vrátí.“;
+  - bez mostu je přepínač neaktivní: „Výzkum neběží. Změnit to půjde, až poběží.“;
+  - odmítnutí řekne důvod pod řádkem a přepínač zůstane, jak byl (např. „Výzkum je teď zaneprázdněný. Za chvíli to
+    půjde znovu.“, zamčený výzkum, plný disk).
+- **Ovládání:** aplikace: **Výzkum → Další → Výzkum u tohoto stromu… → Prameny → Sčítání lidu**. Terminál:
+  [R9.12](R9-archives.md#R9.12).
+- **Platí od:** výzkum 1.36.0, aplikace 3.31.0
+
+<!-- zdroj: app:6edc7dc7 src/research-link.ts CENSUS_FEATURE census, LiveCensus {on, held}, sanitizeCensus · src/history-bridge.ts postBridgeCensus, censusReply (held, invalid, archive 409 census.archive, busy, locked, full) · app:80d6358c src/ui/research-tree-settings-ui.ts renderResearchCensusRow (jen s funkcí census, ne archiv ani výzkum bez agenta, gone po 409; pend přerušovaně a zamčeno; censusHeld jen vypnuto a held > 0; bez mostu storiesBridgeDown), setResearchCensus · strings.ts history.censusSection, censusTitle, censusDesc, censusHeld, storiesBridgeDown, errBusy · e2e/research-census.spec.ts · research:c7b117cd src/core/live.ts POST /census (config set census --for-tree v prostředí aplikace, bez okna) · CHANGELOG.cs.md 3.31.0 „Sčítání lidu z výzkumu“ · dirigent:spec/106 K1.1, K1.4 -->
+
+<a id="S4.4.11"></a>
+### S4.4.11 Výzkum u stromu › Materiály: soubory projde agent sám
+
+Jestli soubory poslané do výzkumu projde agent sám ([R11.6](R11-material-from-the-user.md#R11.6)), jde zapnout a
+vypnout i v aplikaci. Zapisuje se přes most hned po kliknutí, oběma směry, a je to rozhodnutí člověka v aplikaci.
+
+- **Skupina Materiály** s přepínačem **Soubory poslané do výzkumu projde agent sám** a větou „Soubory poslané do
+  výzkumu (dávky, jednotlivé soubory, skeny pramenů) dostanou úkoly pro agenta: připojí je k osobám, pojmenuje je
+  a založí prameny. Čerpá předplatné nebo kredit. Vypnuto: soubory čekají v Materiálech a roztřídí se jen na
+  požádání.“ Ve výchozím stavu je vypnutý.
+- **Hranice:**
+  - jen s výzkumem, který nastavení nabízí; se starším výzkumem skupina není a platí dosavadní texty. Ne u Archivu
+    Stromu ani u výzkumu, který čeká na agenta; když se výzkum mezitím přepne na Archiv Stromu, skupina zmizí;
+  - po kliknutí se nový stav ukáže hned, přerušovaně a zamčený, dokud výzkum zápis nepotvrdí;
+  - bez mostu je přepínač neaktivní: „Výzkum neběží. Změnit to půjde, až poběží.“;
+  - odmítnutí řekne důvod pod řádkem a přepínač zůstane, jak ho má výzkum (zaneprázdněný nebo zamčený výzkum,
+    zápis drží jiný, plný disk);
+  - přepínač platí pro tento strom; stejné nastavení platí i pro fotky z telefonu ([S5.4](S5-phone.md#S5.4)).
+- **Ovládání:** aplikace: **Výzkum → Další → Výzkum u tohoto stromu… → Materiály → Soubory poslané do výzkumu
+  projde agent sám**. Terminál: [R11.6](R11-material-from-the-user.md#R11.6).
+- **Platí od:** výzkum 1.36.0, aplikace 3.31.0
+
+<!-- zdroj: app:74d06317 src/ui/research-tree-settings-ui.ts renderResearchIntakeRow (features intake.auto, /status.intake, researchAgentlessFor, storiesBridgeDown, pend), setResearchIntake (POST /intake, archive → gone, busy, held, locked, full) · src/research-link.ts postBridgeIntake · strings.ts history.intakeSection, intakeTitle, intakeDesc · research:src/core/live.ts POST /intake (intake.body, intake.archive), /status intake · dirigent:spec/130 K2.1 -->
+
+<a id="S4.4.12"></a>
+### S4.4.12 Výzkum u stromu › Nejvýš agentů najednou
+
+V okně **Výzkum u tohoto stromu…** je pod volbou agenta řádek **Nejvýš agentů najednou**: kolik běhů smí na stromu
+pracovat najednou, běh celé fronty i běhy linií dohromady ([R7.10.1](R7-when-the-agent-works.md#R7.10.1)).
+
+- **Hranice:**
+  - pole s **−** a **+**, od 1 do stropu, který řekne výzkum (10); pod ním „Výchozí 3. Do počtu se počítá i práce na
+    celé frontě.“;
+  - snížení zapíše aplikace přes most hned. Snížení pod počet běžících běhů žádný nezastaví, nové se nespustí;
+  - zvýšit z aplikace nejde: hodnota se vrátí a řádek řekne „Zvýšit jde jen v terminálu výzkumu.“ s příkazem
+    `strom config set run.parallel 4` ke zkopírování;
+  - při plném počtu je **Pustit agenta na tuto linii** ([S4.3.3](#S4.3.3)) i **Pracovat na frontě…**
+    ([S4.2.3](#S4.2.3)) nepřístupné a odkaz **Nastavení ›** otevře toto okno na tomto řádku. Běžící běhy se nemění;
+  - řádek není se starším výzkumem (platí 3), v Archivu Stromu a u výzkumu, který čeká na agenta.
+- **Ovládání:** aplikace: **Výzkum → Další → Výzkum u tohoto stromu… → Nejvýš agentů najednou**. Terminál:
+  `strom config set run.parallel <n>`.
+- **Platí od:** aplikace 3.31.0 (výzkum 1.36.0)
+
+<!-- zdroj: app:4de0835a src/ui/research-tree-settings-ui.ts renderResearchRunsRow (pod dl.research-tree-agent; bez run.limit, v archivu a bez agenta se nekreslí; RUN_LIMIT_MIN 1, cap z výzkumu), setResearchRunsMax (POST settings/runs, 403 runs.raise → runsMaxRaise + příkaz) · src/research-runs.ts atRunLimit · strings.ts research.runsMax, runsMaxHint, runsMaxRaise, live.runsLimitReached, runsSettingsLink · research:src/core/live.ts runsLimitWrite, src/core/liveruns.ts runLimits (cap 10) · app:docs/ZADANI_DEV_beh-po-liniich.md §5 · dirigent:spec/126 K2.3 -->
+
 <a id="S4.5"></a>
 ## S4.5 Akce, které otevřou výzkum
 
 Většina akcí výzkumu v aplikaci je odkaz `strom-research://`. Odkaz otevře terminál výzkumu na tomtéž počítači.
-Terminál řekne, co aplikace žádá, a zeptá se. Bez potvrzení v terminálu se nic nezapíše ani nezaplatí.
+Terminál řekne, co aplikace žádá, a zeptá se. Bez potvrzení v terminálu se nic nezapíše ani nezaplatí. Výjimkou je
+jen práce agenta na předplatné nebo kredit AI, když je tak nastavený tento počítač ([S4.5.5](#S4.5.5)).
 
 - **Hranice:**
   - Akce je vidět jen na počítači (ne na dotykovém zařízení), jen když výzkum odkaz ohlásil a jen když je zapnuté
@@ -992,7 +1221,8 @@ Terminál řekne, co aplikace žádá, a zeptá se. Bez potvrzení v terminálu 
   - Odkaz nese jen čísla záznamů a pevné hodnoty, žádná jména ani volný text.
   - Terminál začne **Aplikace Strom žádá: … / Výzkum: …** a zeptá se **Pokračovat?** U práce agenta
     připíše **Agent pracuje na předplatné nebo kredit AI.**, u zadání úkolů **Výzkum zapíše úkoly pro agenta – teď
-    se nic nehledá a nic se neplatí.**
+    se nic nehledá a nic se neplatí.** Při **Spouštění agenta z aplikace Strom: bez potvrzení** se práce agenta
+    spustí bez dotazu ([S4.5.5](#S4.5.5)).
   - Archiv Stromu a výzkum, který čeká na agenta, práci agenta odmítnou (rozhovor, prověření, hledání, místa, dějiny).
   - Když stejná aktivní linie už je, **Hledat předky** jen řekne **Taková linie výzkumu už je: „…“ – agent v ní
     pokračuje.**
@@ -1074,6 +1304,8 @@ Každá akce výzkumu má jednu ze tří značek podle toho, co otevře.
 - **Ovládání:** aplikace: **Otevřít úkol T…** (značka terminál) po založení úkolu z nového čtení a v řádku u pramene
   ([R8.8.3](R8-reading-scans.md#R8.8.3)). Terminál: `strom chat --task T…` vezme úkol z fronty rovnou do rozhovoru.
 - **Platí od:** výzkum 1.29.0, aplikace 3.25.0
+- **Od výzkumu 1.36.0:** při **Spouštění agenta z aplikace Strom: bez potvrzení** začne rozhovor bez dotazu, jen když
+  cena podobných sezení zatím není známá. Se známou cenou se ptá dál ([S4.5.5](#S4.5.5)).
 
 <!-- zdroj: research:c2a690ea src/cli/menu-links.ts (odkaz task bez do, úkol open) · assets/lang/cs.json ui.link.open.title/why/done/pick/chat/ahead/keep/already/kept/busy/estimate/estimate.none, ui.chat.task.open.say · strom help chat (--task: „a task in the queue (open): gone through now, taken up in the conversation“) · commit 9bd14e84 · test/cli/link-open-task.test.ts · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 7; klik v aplikaci neověřen) · app:6bd8609e strings.ts read.openTaskN, src/__tests__/read-source-state-view.test.ts:75 (researchLinkMark task) -->
 
@@ -1111,6 +1343,39 @@ tak přestane čekat hned a ozve se, jen když se nic neotevřelo ([S4.5](#S4.5)
 
 <!-- zdroj: research:fbae81fc src/core/handoffs.ts (HANDOFF tvar UUID, HANDOFF_MS 60 s, HANDOFF_MAX 64, handoffsNow úklid, noteHandoff) · src/core/links.ts parseLink (handoff malými písmeny, jiná hodnota vynechána), linkText · src/commands/links.ts link open noteTaken (tty hned; bez terminálu done: true; researchesWithId) · src/core/live.ts withHandoffs (/status i parts=1, mimo stav), BRIDGE_FEATURES handoffs · test/cli/link-handoffs.test.ts · CHANGELOG.cs.md 1.35.0 (odkaz aplikace Strom … výzkum aplikaci potvrdí) · app:574e7ef9, f63cc742 src/ui/research-open-busy.ts (handoffProven: handoffs s feature handoffs, jinak nové sezení; OPEN_ASK_MS 1000, OPEN_LATE_ASK_MS 2000, OPEN_LATE_WATCH_MS 60 s, OPEN_REPEAT_MS 400, bridgeDown 30 s, quietLimit new?app=) · src/research-link.ts HANDOFFS_FEATURE · app:docs/ZADANI_VYZKUM_tlacitka-cekani.md „Odpověď výzkumu“ · app:c3e09951 (79a05311) src/ui/research-open-busy.ts unprovable (poslední status bez feature handoffs → quietEnd: po limitu bez věty a bez pozdního hlídání; most dole → věta hned; opts.proof fronty beze změny) · dirigent:prace/1118-app-tlacitka-n1 (N2, Milan 18. 11.) -->
 
+<a id="S4.5.5"></a>
+### S4.5.5 Spouštění agenta z aplikace bez potvrzení
+
+Nastavení tohoto počítače **Spouštění agenta z aplikace Strom** určuje, jestli se terminál před prací agenta, o kterou požádala
+aplikace, zeptá **Pokračovat?** Výchozí je **s potvrzením**: terminál řekne, co aplikace žádá, že agent pracuje na
+předplatné nebo kredit AI, a čeká na ano ([S4.5](#S4.5)). **Bez potvrzení** se práce agenta spustí hned a terminál to
+řekne jednou řádkou: **▶ Spouští se bez potvrzení (výzkum …): …** a kde se dotaz znovu zapíná.
+
+- **Hlídá kód:**
+  - bez dotazu se spustí jen akce, které pouští agenta na předplatné nebo kredit AI: rozhovor s agentem (i o osobě
+    nebo linii), rozhovor o úkolu ve frontě ([S4.5.3](#S4.5.3)) nebo v **Čeká na vyřízení**, rozpor ponechaný agentovi
+    ([R5.6](R5-conflicts.md#R5.6)), práce na frontě ([R7.1.2](R7-when-the-agent-works.md#R7.1.2)) a určení míst;
+  - dál se ptá:
+    - dotaz, který řekne cenu v penězích: odhad u úkolu ve frontě, určení míst se změřenou cenou sezení;
+    - každý odkaz, který otevře agent nebo skript bez terminálu člověka;
+    - odeslání žádosti, souhlasy archivů a hostů (`strom allow`), mazání, zadání úkolů pro agenta a dějiny místa;
+    - podmínka samostatné práce (`run.gate`): práce na frontě se jí ptá jako dosud
+      ([R7.4](R7-when-the-agent-works.md#R7.4), [R7.4.1](R7-when-the-agent-works.md#R7.4.1));
+  - když na výzkumu už běží jiné sezení nebo běh, nic dalšího se nespustí ani bez potvrzení;
+  - volba platí pro všechny výzkumy na tomto počítači, ne pro jeden strom. V Archivu Stromu ji menu nenabízí;
+  - **bez potvrzení** zapne jen člověk: terminál řekne, co se dál ptá, a chce druhé ano (Enter = ne). Když nastavení
+    spouští agent nebo příkaz bez terminálu, ptá se člověka okno systému; bez okna strom nastavení odmítne.
+    Zpět na **s potvrzením** smí kdokoli, bez dotazu;
+  - aplikace Strom volbu nemá ani nemění. Hodnotu ukazuje `strom config` a zpráva `strom error`
+    ([R13](R13-reporting-a-problem.md#R13)).
+- **Ovládání:** terminál: menu **Nastavení** → **Jazyk, agent, model, co smí agent sám, příběhy… (průvodce
+  nastavením)** → **Spouštění agenta z aplikace Strom: …** → **Ptát se před spuštěním (výchozí)** nebo **Spouštět bez
+  potvrzení**; `strom config set run.confirm no`, zpět `strom config unset run.confirm`. Platnou hodnotu ukáže
+  `strom config where`.
+- **Platí od:** výzkum 1.36.0
+
+<!-- zdroj: research:8aa0f374 src/core/config.ts run.confirm (ask|no, tree: false, env žádná), Settings.runConfirm · src/cli/menu-links.ts asksToStart (priced || runConfirm !== no || !ctx.interactive || isAgent → asks; jinak ui.link.noconfirm) u openTask (priced = taskEstimate), waitingDo chat, placesRun (priced = est.session.usd || fronta), workRun, workOn · src/commands/links.ts conflict do=agent, chat (direction/person) · placeSearch dál asks (placeCost), review/research ui.link.tasks dál asks · src/commands/setup.ts setUserSetting run.confirm no → requireHumanYes (ui.consent.run.confirm), FALLBACKS run.confirm ask · src/cli/context.ts requireHuman (terminál → humanYes, jinak okno systému, jinak odmítnutí) · src/cli/menu-settings.ts runConfirmStep (ui.runconfirm.*, ui.runconfirm.about; jen !archive), unset pro ask · src/core/report.ts CONFIG_PLAIN runConfirm · cs.json ui.settings.runconfirm, ui.runconfirm.*, ui.link.noconfirm · strom help link · CHANGELOG.cs.md 1.36.0 „Agent z aplikace Strom bez potvrzení“ · test/cli/run-confirm.test.ts, test/cli/gates.test.ts · spec 123 K1.1–K1.5 (K1.4 bez zápisu do logu výzkumu: rozhodnutí dirigenta 20. 11.) -->
+
 <a id="S4.6"></a>
 ## S4.6 Co je jen v terminálu
 
@@ -1122,6 +1387,8 @@ v terminálu výzkumu, i když to začne kliknutím v aplikaci.
     podmínka, volba agenta, nastavení fronty a položky **Jen tady v terminálu**
     ([R6.1.1](R6-awaiting-action.md#R6.1.1)).
   - Potvrzují se v terminálu: vše se značkou terminál nebo AI ([S4.5.1](#S4.5.1)), v 3.21.2 i akce linií a fronty.
+    Práci agenta bez ceny v penězích jde od výzkumu 1.36.0 spouštět bez potvrzení ([S4.5.5](#S4.5.5)); tuto volbu
+    zapíná jen člověk v terminálu.
   - Na telefonu odkazy nejsou; odpovídá se ve výzkumu na počítači ([S5](S5-phone.md)).
 - **Platí od:** aplikace 3.4.0 (výzkum 1.6.0)
 - **Od aplikace 3.22.0:** s výzkumem 1.26.0 jdou bez terminálu linie ([S4.3.1](#S4.3.1)), práce mimo linie po

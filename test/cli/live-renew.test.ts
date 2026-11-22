@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
 import { bridgeRuns, notedBridges, within } from "../bridges.ts";
 import { acquireLock } from "../../src/core/lock.ts";
@@ -14,9 +14,25 @@ import { diskVersion } from "../../src/core/self.ts";
 
 const opts = { skip: !hasGit };
 
+/**
+ * How long this computer takes now to start a Node process and let it end (the longest of three), measured as this
+ * file starts — under the load it runs in (a performance budget, never fixed milliseconds).
+ */
+function nodeStartMs(): number {
+  let most = 0;
+  for (let i = 0; i < 3; i++) {
+    const t = Date.now();
+    spawnSync(process.execPath, ["-e", ""], { stdio: "ignore" });
+    most = Math.max(most, Date.now() - t);
+  }
+  return most;
+}
+
 // what the bridge itself gives a hand-over (its probe of the newer strom, the new bridge's /status made first up to
-// 10 s, STROM_LIVE_RENEW_WAIT_MS 30 s) — never less: a computer under load (the whole suite at once) takes that long
-const until = async (what: string, ok: () => boolean, ms = 60_000) => {
+// 10 s, STROM_LIVE_RENEW_WAIT_MS 30 s) — never less; a computer under load (the whole suite at once) takes longer
+// (found: a bridge brought back after 61 s): a thousand Node starts of it, at most five minutes
+const WAIT_MS = opts.skip ? 0 : Math.min(5 * 60_000, Math.max(60_000, 1_000 * nodeStartMs()));
+const until = async (what: string, ok: () => boolean, ms = WAIT_MS) => {
   for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 100))) if (ok()) return;
   assert.fail(`waited in vain: ${what}`);
 };

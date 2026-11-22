@@ -99,6 +99,12 @@ gewählten Stammbaums als ein Stapel. Zum Stapel lassen sich eine Notiz und eine
 übergeben** schließt den Stapel ab, und die Forschung macht daraus Aufgaben zum Sortieren, wie bei **Materialien
 hinzufügen** ([S4](S4-research-from-the-app.md)).
 
+- **Ab Forschung 1.36.0:** Aufgaben zum Sortieren entstehen nur, wenn die Einstellung der Forschung **An die
+  Forschung gesendete Dateien geht der Agent selbst durch** eingeschaltet ist
+  ([R11.6](R11-material-from-the-user.md#R11.6)); sonst warten die Fotos unsortiert unter Materialien, und sortieren
+  lassen sie sich in der App am Computer (**Mit dem Agenten sortieren…**,
+  [A3.5.8](A3-evidence-in-the-app.md#A3.5.8)).
+
 - **Grenzen:** Fotos werden unverändert gespeichert, in voller Auflösung und außerhalb der Geschichte des
   Stammbaums. Eine Datei, die die Forschung schon hat, wird nicht erneut gesendet („schon in der Forschung, wird
   nicht gesendet“). Ein Foto darf höchstens 500 MB haben. Wo der Computer das Format HEIC nicht umwandeln kann,

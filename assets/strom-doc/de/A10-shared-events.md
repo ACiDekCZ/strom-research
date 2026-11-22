@@ -49,7 +49,14 @@ die gemeinsamen Angaben sind in allen Kopien gleich, und eine Änderung einer be
     abtrennen**, **Bei allen N Personen löschen…** (die Bestätigung nennt die Personen, bei denen das Ereignis
     verschwindet). Beides lässt sich mit **Rückgängig** zurücknehmen.
 - **Gilt seit:** App 3.28.0
+- **Ab Forschung 1.36.0:** ein Haushalt aus einer Volkszählung, den die Forschung eingetragen hat
+  ([R9.12.3](R9-archives.md#R9.12.3)), kommt als ein gemeinsames Ereignis **Volkszählung**. Die Rolle ist die
+  Beziehung zum Haushaltsvorstand, wie die Forschung sie eingetragen hat (Haushaltsvorstand, Ehefrau, Sohn…), das
+  Alter hat jede Person für sich, und die Menschen aus dem Bogen außerhalb des Stammbaums stehen in der Notiz. Es
+  erscheint bei jeder seiner Personen und auf der **Zeitleiste** ([A10.2](#A10.2), [A6.3](A6-views.md#A6.3)) (App
+  3.31.0).
 
+<!-- zdroj: research:8dba2e52 src/core/household.ts (CENS, _STROM_SHARE + _ROLE, společná NOTE) · app:6edc7dc7 src/__tests__/census-bridge.test.ts (parser domácnosti) · app:80d6358c e2e/research-census.spec.ts (domácnost u osoby a na Časové ose linie) · app:cc6f3104 src/timeline-chart.ts · CHANGELOG.cs.md 3.31.0 · dirigent:spec/106 K3.1, K3.4 -->
 <!-- zdroj: app:80c2ffb9 src/events.ts SHAREABLE_EVENT_TYPES (census, residence, emigration, immigration, military, naturalization, custom), SHARED_EVENT_COMMON_FIELDS (type, customLabel, date, place, address, note, sourceIds, citationQuay) · src/types.ts LifeEvent.shareId, shareRole · src/shared-events.ts, src/shared-event-editor.ts · src/ui/shared-event-ui.ts LARGE_HOUSEHOLD 7, SHOWN 5, openSharedRowMenu, openSharedDeleteMenu, sharedTakeOut, sharedDeleteAll · strings.ts events.sharedWith, sharedWithHint, sharedBanner, sharedCol*, sharedRoleDefault, sharedRoleOther, sharedRolePlaceholder, sharedShowMore, sharedShowLess, sharedOpenPerson, sharedSeparate(Hint), sharedRemove(Hint), sharedSeparateSelf, sharedDeleteSelf(Hint), sharedDeleteAll(Title, Lead), undoHint, sharedTypeLocked(Hint), sharedSaved, sharedSaveRefused, personDelete deleteShared · spec 085 K1.1–K1.3 · dirigent:prace/1113-app-sdilena-udalost Výsledek -->
 
 <a id="A10.1.1"></a>

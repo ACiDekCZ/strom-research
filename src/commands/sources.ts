@@ -1,5 +1,6 @@
 // source · cite · repo · recordset · place — where the evidence comes from.
 
+import { stricterThanList } from "../core/floor.ts";
 import { opLine } from "../core/proposals.ts";
 import { browserOnlyAccess, browserOnlyArchive } from "../core/byhand.ts";
 import { OFF_MAP_HOW, offMapLine, placesOffMap } from "../core/places.ts";
@@ -8,7 +9,7 @@ import { isAgent } from "../core/which.ts";
 import fs from "node:fs";
 import { commands, register, type CommandDef, type Input } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { LIST_PAGE_MAX, counted, lines, moreLine, paginate, shellArg, table, truncate } from "../cli/format.ts";
+import { LIST_PAGE_MAX, counted, lines, moreLine, narrowLine, paginate, shellArg, table, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
 import { ui } from "../cli/ui.ts";
 import {
@@ -37,12 +38,13 @@ import { clipNote, clipText, imageOfRef, MAX_CLIPS, transcriptNote } from "../co
 import { mediaOrient, partRegion } from "../core/views.ts";
 import { fileToShown } from "../image/image.ts";
 import { formatName } from "../core/people.ts";
+import { deletedSource } from "../core/sourceretract.ts";
 import { yearsOption, yearsOverlap } from "../core/years.ts";
 import type { Tree } from "../core/tree.ts";
 import { readAgainOf, unverifiedReading, type ReadAgain } from "../core/sourceread.ts";
 import { levelWords } from "../core/archiveasks.ts";
 import { bookUrlKey, sameBooks, sameBookText } from "../core/samebook.ts";
-import { handReading, typedByHand, userReading } from "../core/readers.ts";
+import { handReading, localDayOf, typedByHand, userReading } from "../core/readers.ts";
 import { agentClipped, joinedText, mergeOverlappingClips, researchWritesNow, type JoinedClip } from "../core/clipmerge.ts";
 import { transcriptDiffers } from "../core/transcriptguard.ts";
 import { decideProposal, proposeTranscript, type ProposalResult } from "../core/proposal.ts";
@@ -289,18 +291,23 @@ register(
       { name: "kind", type: "string", value: "<kind>", description: "only this kind" },
       { name: "recordset", type: "string", value: "<B…>", description: "only from this recordset" },
       { name: "full", type: "boolean", description: "--json: whole records instead of one row each" },
+      { name: "retracted", type: "boolean", description: "only the sources retracted: deleted by the person (when, how many citations kept in it — strom source restore puts it back), merged, taken back" },
     ],
     run(ctx: Context, { args, opts }: Input) {
       const tree = ctx.tree();
-      let all = tree.list<Source>("source").filter((s) => !s.retracted);
-      if (args[0]) all = all.filter((s) => matches(s.title, args[0]!) || matches(s.locator, args[0]!) || matches(s.folio, args[0]!) || matches(s.image, args[0]!) || matches(s.transcript, args[0]!));
-      if (opts.kind) all = all.filter((s) => s.kind === opts.kind);
-      if (opts.recordset) all = all.filter((s) => s.recordset === normId(opts.recordset as string));
+      const wanted = (s: Source) =>
+        (!args[0] || matches(s.title, args[0]) || matches(s.locator, args[0]) || matches(s.folio, args[0]) || matches(s.image, args[0]) || matches(s.transcript, args[0])) &&
+        (!opts.kind || s.kind === opts.kind) &&
+        (!opts.recordset || s.recordset === normId(opts.recordset as string));
+      const found = tree.list<Source>("source").filter(wanted);
+      const all = found.filter((s) => !!s.retracted === !!opts.retracted);
       const page = paginate(all, ctx.limit, ctx.page);
       const text = all.length
-        ? lines(table(page.items.map((s) => [s.id, s.kind, truncate(s.title, 60), s.locator ?? "", s.form === "original" ? "" : s.form])), moreLine(page, "strom source list"))
-        : "no sources match";
-      const rows = opts.full ? page.items : page.items.map((s) => ({ id: s.id, kind: s.kind, title: s.title, locator: s.locator, form: s.form, information: s.information }));
+        ? opts.retracted
+          ? lines(table(page.items.map((s) => [s.id, s.kind, truncate(s.title, 60), retractedLine(s)])), moreLine(page, "strom source list --retracted"), page.items.some(deletedSource) ? "put back a deleted one (the person's alone): strom source restore <S…>" : undefined)
+          : lines(table(page.items.map((s) => [s.id, s.kind, truncate(s.title, 60), s.locator ?? "", s.form === "original" ? "" : s.form])), moreLine(page, "strom source list"))
+        : opts.retracted ? "no retracted sources match" : lines("no sources match", retractedHint(found));
+      const rows = opts.full ? page.items : page.items.map((s) => ({ id: s.id, kind: s.kind, title: s.title, locator: s.locator, form: s.form, information: s.information, ...(s.retracted ? retractedData(s) : {}) }));
       return { text, data: { total: page.total, sources: rows } };
     },
   },
@@ -328,6 +335,7 @@ register(
       const loc = locationOf(tree, s);
       const text = lines(
         `${s.id} ${s.title}`,
+        s.retracted ? `RETRACTED ${retractedLine(s)}${deletedSource(s) ? ` — the person puts it back: strom source restore ${s.id}` : ""}` : undefined,
         `kind ${s.kind} · ${s.form} · information ${s.information}${s.language ? ` · language ${s.language}` : ""}${s.date ? ` · dated ${s.date}` : ""}`,
         s.recordset || s.repository ? `in     ${[s.recordset, s.repository].filter(Boolean).join(" · ")}${s.locator ? ` · ${s.locator}` : ""}` : s.locator ? `at     ${s.locator}` : undefined,
         // what finds the entry again when its link no longer leads to it: the archive, the book's call number, the folio, the image
@@ -342,7 +350,7 @@ register(
         s.transcript ? `\ntranscript\n${s.transcript}` : undefined,
         s.translation ? `\ntranslation\n${s.translation}` : undefined,
         againLine(again, s.id, again?.state === "unchecked" ? (unverifiedReading(tree, s)?.places ?? 0) : 0),
-        citing.length ? `\ncited by\n${citing.map((c) => `  ${c}`).join("\n")}` : "\ncited by nothing yet",
+        citing.length ? `\ncited by\n${citing.map((c) => `  ${c}`).join("\n")}` : deletedSource(s) ? `\ncited by nothing now — ${s.deleted!.cites.length === 1 ? "the citation" : `the ${s.deleted!.cites.length} citations`} kept in it come${s.deleted!.cites.length === 1 ? "s" : ""} back with strom source restore ${s.id}` : s.retracted ? "\ncited by nothing" : "\ncited by nothing yet",
         ...s.notes.map((n) => `note   ${n.text}`),
       );
       return {
@@ -354,6 +362,7 @@ register(
           ...(loc.proposed ? { proposed: loc.proposed } : {}),
           ...(locatorOverlap(s) ? { locatorOverlap: locatorOverlap(s) } : {}),
           citedBy: citing,
+          ...(s.retracted ? retractedData(s) : {}),
           ...(again ? { readAgain: again } : {}),
         },
       };
@@ -483,7 +492,8 @@ register(
         },
         (id) => `+${id} repository "${args[0]}"`,
       );
-      return { text: written(tree), data: { repository: r } };
+      const stricter = r.url && URL.canParse(r.url) ? stricterThanList([new URL(r.url).hostname], r.automation, "repo") : undefined;
+      return { text: lines(written(tree), stricter), data: { repository: r } };
     },
   },
   {
@@ -653,7 +663,7 @@ register(
     tree: true,
     args: [{ name: "filter", description: "text in title, place or call number", mistaken: ["find", "search", "text"] }],
     options: [
-      { name: "place", type: "string", value: "<name>", description: "only the books of this place (diacritics optional)" },
+      { name: "place", type: "string", value: "<name>", description: "only the books of this place (diacritics optional)", readAs: ["parish"] },
       { name: "kind", type: "string", value: "<kind>", description: "only the books holding this kind of record (baptism, marriage, burial…)" },
       { name: "years", type: "string", value: "<from-to>", description: "only the books whose years reach into these" },
       { name: "repo", type: "string", value: "<R…>", description: "only the books of this archive", aliases: ["repo-of"] },
@@ -683,7 +693,7 @@ register(
       // A page at most (--limit, LIST_PAGE_MAX rows: under ~20 kB — an agent's tool keeps a longer output in a file and
       // shows only its start, N0280, N0281); a long list says its filters first, where a cut output still shows them.
       const page = paginate(all, Math.min(ctx.limit, LIST_PAGE_MAX), ctx.page);
-      const narrow = all.length > LONG_LIST && filters.length ? `${all.length} record sets — narrow: strom recordset list ${filters.join(" ")}` : undefined;
+      const narrow = all.length > LONG_LIST ? narrowLine(counted(all.length, "record set"), "strom recordset list", filters) : undefined;
       return {
         text: all.length
           ? lines(
@@ -1076,7 +1086,9 @@ register(
         {},
         opts,
       );
-      return { text: written(tree), data: { repository: r } };
+      // a level stricter than strom's list of the archive's terms, written now (its level or its address)
+      const stricter = (opts.automation !== undefined || opts.url !== undefined) && r.url && URL.canParse(r.url) ? stricterThanList([new URL(r.url).hostname], r.automation, "repo") : undefined;
+      return { text: lines(written(tree), stricter), data: { repository: r } };
     },
   },
   {
@@ -1263,3 +1275,30 @@ register({
     return { text: written(tree), data: { ...confirmAnswer(tree, source.id), task: t.id, take } };
   },
 });
+
+/** A retracted source in one line: deleted by the person (when, where, how many citations kept in it), merged, taken back. */
+function retractedLine(s: Source): string {
+  const at = localDayOf(s.retracted!.at);
+  if (deletedSource(s)) return `deleted by the person ${at}${s.deleted!.via === "bridge" ? " in the Strom app" : s.deleted!.via === "terminal" ? " in the terminal" : ""} · ${counted(s.deleted!.cites.length, "citation")} kept in it`;
+  if (s.mergedInto) return `merged into ${s.mergedInto} ${at}`;
+  return `retracted ${at}: ${s.retracted!.reason}`;
+}
+
+/** Nothing standing matched, but retracted sources match: where they are listed. */
+function retractedHint(all: Source[]): string | undefined {
+  const n = all.filter((s) => s.retracted).length;
+  return n ? `${counted(n, "retracted source")}: strom source list --retracted` : undefined;
+}
+
+/** The same for --json: when, why, and of a deleted one how many citations it keeps and the command that puts it back. */
+function retractedData(s: Source): { retracted: { at: string; reason: string; deleted?: true; via?: string; cites?: number; mergedInto?: string; restore?: string } } {
+  const d = deletedSource(s) ? s.deleted! : undefined;
+  return {
+    retracted: {
+      at: s.retracted!.at,
+      reason: s.retracted!.reason,
+      ...(d ? { deleted: true as const, ...(d.via ? { via: d.via } : {}), cites: d.cites.length, restore: `strom source restore ${s.id}` } : {}),
+      ...(s.mergedInto ? { mergedInto: s.mergedInto } : {}),
+    },
+  };
+}

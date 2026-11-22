@@ -135,10 +135,10 @@ test("validate: a mark is true or left out, one per person", () => {
 test("the Strom file: 2 _STROM_PRIMARY Y on the marked name, the identity first, a marked married name last; the standard file: the marked name first, no tag", opts, async () => {
   const w = await world();
   await w.ok(["name", "add", "P1", "Zdislava /Lhotová/", "--kind", "alias"]);
-  // nothing marked: as before, no tag
+  // nothing marked: no tag; the names after a marriage last (spec 010 K4.1: the one now the very last)
   let ged = await exported(w, "strom");
   assert.doesNotMatch(ged, /_STROM_PRIMARY/);
-  assert.deepEqual(nameLines(indi(ged, "P0001")), ["1 NAME Jana /Lhotová/", "2 TYPE birth", "1 NAME Jana /Pěnkavová/", "2 TYPE married", "1 NAME Zdislava /Lhotová/", "2 TYPE aka"].filter((l) => ged.includes(l)));
+  assert.deepEqual(nameLines(indi(ged, "P0001")), ["1 NAME Jana /Lhotová/", "2 TYPE birth", "1 NAME Zdislava /Lhotová/", "2 TYPE aka", "1 NAME Jana /Pěnkavová/", "2 TYPE married"].filter((l) => ged.includes(l)));
   // the birth name marked: the mark on the first NAME
   await w.ok(["name", "primary", "P1", "Jana /Lhotová/"]);
   ged = await exported(w, "strom");
@@ -351,7 +351,8 @@ test("sync: the married surname changed in the app while shown by it — the new
   await w.ok(["name", "primary", "P1", "Jana /Pěnkavová/"]);
   const t = asApp(await given(w), "3.17.0").replace("1 NAME Jana /Pěnkavová/", "1 NAME Jana /Brkoslavová/");
   const plan = (await w.ok(["sync", send(w, t), "--json"])).json.changes as { kind: string; action: string }[];
-  assert.deepEqual(plan.map((c) => [c.kind, c.action]), [["name.new", "add"], ["name.gone", "remove"], ["name.shown", "correct"]]);
+  // the new one the user's choice of the one now (spec 010 K4.2): added of the married kind as the one now
+  assert.deepEqual(plan.map((c) => [c.kind, c.action]), [["name.now", "correct"], ["name.gone", "remove"], ["name.shown", "correct"]]);
   await w.ok(["sync", send(w, t), "--apply"]);
   assert.deepEqual(shown(await names(w)), ["Lhotová", "Brkoslavová*"]);
   assert.match((await w.ok(["check"])).out, /^ok/);

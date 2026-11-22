@@ -13,11 +13,12 @@ import { humanDay } from "./human.ts";
 import { Tree } from "../core/tree.ts";
 import { isArchive } from "../core/mode.ts";
 import { bareHost, listConnectors, routeOf, routesOf, type Connector } from "../core/connector.ts";
-import { claimOf, loadArchives, pendingQuestions, questionHosts, rank, type ArchiveLevel, type Claim, type PendingQuestion, type Way } from "../core/terms.ts";
+import { browserRangeOf, claimOf, loadArchives, pendingQuestions, questionHosts, rank, type ArchiveLevel, type Claim, type PendingQuestion, type Way } from "../core/terms.ts";
 import { connectorFor, levelWords, tasksStanding, tasksWaitingOn, termsText, waysOffered, wokenLines } from "../core/archiveasks.ts";
 import { wakeForArchive } from "../core/archivewait.ts";
 import { archivesOverview, bareArchive, capWords, levelsOf, paceFor } from "../commands/archives.ts";
 import type { Pace } from "../core/net.ts";
+import { floorLine, floorQuestion, listWords } from "../core/floor.ts";
 
 type T = ReturnType<typeof translator>;
 
@@ -101,16 +102,25 @@ export async function decideArchive(ctx: Context, run: Run, lang: string, root: 
   // no downloader: its images through the agent's browser (Claude Code here) or by hand — never slowly through strom
   const ways: Way[] = allowed ? ["manual"] : c ? waysOffered(c, claudeHere(ctx, tree?.config), q?.way, !!(a?.browserOnly ?? q?.browserOnly)) : [...(claudeHere(ctx, tree?.config) ? (["browser"] as const) : []), "manual"];
   const now = a?.permission;
-  const choices: { label: string; way?: Way }[] = ways.map((w) => ({
+  const choices: { label: string; way?: Way; range?: boolean }[] = ways.map((w) => ({
     way: w,
     label: t(w === "slow" ? "ui.archive.way.slow" : w === "browser" ? "ui.archive.way.browser" : "ui.archive.way.manual", { seconds: secondsIn(lang, slow.minIntervalMs), cap: capWords(lang, slow.perHour) }),
   }));
   if (now) choices.push({ label: t("ui.archive.way.revoke") });
+  // through the browser, at an archive strom's list lets have a range of images (spec 132): the person's own consent
+  // to it, for this archive alone — or taken back
+  const range = now === "browser" ? browserRangeOf(ctx.env, host) : undefined;
+  if (range) choices.push({ range: true, label: a?.range ? t("ui.archive.range.off") : t("ui.archive.range.on", { max: range }) });
   // what holds now is suggested (Enter keeps it); a question nobody answered yet: 0, nothing changes
   const kept = now ? choices.findIndex((x) => x.way === now) : -1;
   const i = await ctx.choose(t("ui.archive.choose", { title }), choices, kept >= 0 ? kept : choices.length, { back: t("ui.archive.way.back") });
   if (i === undefined || (now && choices[i]!.way === now)) return false;
   const chosen = choices[i]!.way;
+  if (choices[i]!.range) {
+    if ((await run(["allow", "archive", target, "--range", ...(a?.range ? ["--revoke"] : [])], true)) !== 0) return false;
+    out(a?.range ? t("ui.archive.range.revoked", { title }) : t("ui.archive.range.granted", { title, max: range!, host: target }));
+    return true;
+  }
   if (!chosen) {
     if ((await run(["allow", "archive", target, "--revoke"], true)) !== 0) return false;
     out(t("ui.archive.revoked", { title }));
@@ -163,6 +173,40 @@ export async function decideTakeover(ctx: Context, run: Run, lang: string, q: Pe
     if (level && (await run(["allow", "archive", c.name, "--level", level], true)) !== 0) return;
     out(t("ui.archive.takeover.done", { names: `${c.manifest.title ?? c.name} (${levelWords(lang, level ?? claim)})` }));
   }
+}
+
+/**
+ * A level strom keeps stricter than strom's list of the archive's terms (core/floor.ts): what strom keeps since when
+ * and why, what the list says; kept as it is (the person's then, not asked again) or as the terms say — each the
+ * ordinary command (strom allow archive <host> --keep | --level <the list's>), the person's alone. 0 goes back. True:
+ * decided. The tasks of this research that the decision brought back are said after it.
+ */
+export async function decideFloor(ctx: Context, run: Run, lang: string, root: string | undefined, host: string): Promise<boolean> {
+  const t = translator(lang);
+  const out = (line = "") => ctx.io.stdout(line + "\n");
+  const tree = root ? Tree.open(root, ctx.env) : undefined;
+  const shared = ctx.settings.shared()?.value;
+  const n = floorQuestion(ctx.env, host, { ...(tree ? { tree } : {}), ...(shared ? { shared } : {}) });
+  if (!n) {
+    out(t("ui.archive.floor.gone"));
+    return false;
+  }
+  const level = levelWords(lang, n.floor, false, ["floor"]);
+  out("");
+  out(` ${floorLine(lang, n)}`);
+  const waiting = tree && !isArchive(tree) ? tasksWaitingOn(tree, host).map((x) => x.id) : [];
+  if (waiting.length) out(`    ${t("ui.archive.item.tasks", { ids: waiting.join(", ") })}`);
+  const i = await ctx.choose(t("ui.archive.floor.choose", { title: n.title }), [{ label: t("ui.archive.floor.keep", { level }) }, { label: t("ui.archive.floor.terms", { list: listWords(lang, n) }) }], 2, { back: t("ui.archive.way.back") });
+  if (i === undefined) return false;
+  if ((await run(["allow", "archive", host, ...(i === 0 ? ["--keep"] : ["--level", n.list])], true)) !== 0) return false;
+  out(i === 0 ? t("ui.archive.floor.kept", { title: n.title, level }) : t("ui.archive.floor.taken", { title: n.title, list: listWords(lang, n) }));
+  // what came back to the queue in this research (the command woke what the new level opens, in every research here)
+  if (i === 1 && root) {
+    const still = new Set(tasksWaitingOn(Tree.open(root, ctx.env), host).map((x) => x.id));
+    const woken = waiting.filter((id) => !still.has(id));
+    if (woken.length) out(t("ui.archive.woken", { ids: woken.join(", ") }));
+  }
+  return true;
 }
 
 /** A connector that says now an archive allows more than strom keeps: accepted, or kept as it is. */

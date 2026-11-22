@@ -299,9 +299,13 @@ register(
       }
       const topic = args[0]?.trim();
       if (topic) {
+        // census records (spec 106): their page only where the person has them on
+        const censusOff = !ctx.settings.census(ctx.hasTree() ? ctx.tree().config : undefined);
+        if (topic === "census" && censusOff)
+          throw new UsageError("census records are off (the person's switch): no census page — at a dead end a census could help with, propose them once: strom census propose --why \"…\"", { code: "census.off" });
         const page = /^[a-z]+$/u.test(topic) ? readAsset("method", `${topic}.md`) : undefined;
         if (!page) {
-          const pages = fs.readdirSync(assetPath("method")).filter((f) => f.endsWith(".md")).map((f) => f.slice(0, -3)).sort();
+          const pages = fs.readdirSync(assetPath("method")).filter((f) => f.endsWith(".md")).map((f) => f.slice(0, -3)).filter((p) => p !== "census" || !censusOff).sort();
           throw new UsageError(`no page "${topic}" in the method`, { hint: `strom guide ${pages.includes("waiting") ? "waiting" : pages[0]} — pages: ${pages.join(", ")}` });
         }
         const text = methodPage(page, undefined).trim();

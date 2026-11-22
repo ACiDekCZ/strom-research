@@ -104,3 +104,16 @@ test("strom gate test says its answer in the research's language: go on, wait un
   assert.match(await said("--lang", "de"), /^zkouska: anhalten — Woche voll \(Obergrenze: ein fester Halt, kein „trotzdem starten“\)\n$/);
   w.cleanup();
 });
+
+test("run.confirm no (spec 123) leaves the gate as it is: a run the person starts still asks “start anyway?”, a loop still stops at it", opts, async () => {
+  const w = await world([{ code: 1, say: { reason: "sezení je plné", wait: 7200 } }, { code: 2, say: { reason: "týden je pryč" } }]);
+  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true, answers: ["y"] });
+  await w.ok(["config", "set", "run.confirm", "no"], { tty: true, answers: ["a"] });
+  const asked = await w.ok(["run", "--agent", "script"], { tty: true, answers: ["n"] });
+  assert.match(asked.out, /Spustit přesto\? \(a\/n\) \[n\]/);
+  assert.match(asked.out, /nespuštěno — podmínka „Zkouška“: sezení je plné/);
+  const loop = await w.ok(["run", "--agent", "script", "--loop", "--json"]);
+  assert.equal(loop.json.stop, "gate");
+  assert.equal(loop.json.sessions.length, 0);
+  w.cleanup();
+});

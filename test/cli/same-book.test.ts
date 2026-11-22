@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { opts, program, world } from "./connectors.helpers.ts";
+import { fakeConnector } from "../helpers.ts";
 import { bookUrlKey } from "../../src/core/samebook.ts";
 
 const LINK = "https://archiv.example/d/5359/1";
@@ -82,6 +83,51 @@ test("a fetch into a copy goes on with --again and its reason, kept on the book"
   assert.deepEqual(b2.duplicates, { of: ["B0001"], reason: "the burials are bound in the same volume" });
   // asked once: the next fetch into it goes on by itself
   await w.ok(["fetch", "zkusebni", "5359", "--images", "3", "--recordset", "B2"]);
+  w.cleanup();
+  await a.close();
+});
+
+// Found live: a slip of the agent's (B… of another archive given with a book of this connector) fetched an image of one
+// archive's book into a book of another archive, which was then "the same book" as the right one. Refused before any
+// request, said where the images go; images taken back bind the book to nothing, so the slip is put right.
+test("a fetch into a book of another archive, or into a book of another book of the connector: refused before any request; a slip taken back binds nothing", opts, async () => {
+  const { w, a } = await world();
+  await w.ok(["recordset", "add", "Lhota N 1784–1820", "--kinds", "baptism"]); // B0001
+  await w.ok(["fetch", "zkusebni", "5359", "--images", "1", "--recordset", "B1"]);
+  // a book of another archive (its link on another connector's portal): refused, the book of the research named, nothing asked
+  await fakeConnector(w, "jiny-archiv");
+  await w.ok(["recordset", "add", "Лгота, matrika Z 1784–1820", "--kinds", "burial", "--url", "https://archive.example.org/kniha/77"]); // B0002
+  a.hits.length = 0;
+  const elsewhere = await w.run(["fetch", "zkusebni", "5359", "--images", "2", "--recordset", "B2"]);
+  assert.equal(elsewhere.code, 2, elsewhere.out + elsewhere.err);
+  assert.match(elsewhere.err, /B0002 is not book 5359 of zkusebni: it is a book of archive\.example\.org, connector jiny-archiv's portal, not of zkusebni's \(127\.0\.0\.1\) — nothing fetched/u);
+  assert.match(elsewhere.err, /book 5359 of zkusebni is B0001 \(1 image here\): strom fetch zkusebni 5359 --images 2 --recordset B0001/u);
+  assert.match(elsewhere.err, /B0002's own images: strom fetch jiny-archiv <book> --images 2 --recordset B0002/u);
+  assert.match(elsewhere.err, /--again "<why>"/u);
+  assert.deepEqual(a.hits, [], "no request to the archive");
+  assert.equal((await w.ok(["media", "list", "--json"])).json.media.filter((m: { recordset?: string }) => m.recordset === "B0002").length, 0);
+
+  // a book whose images came from another book of the connector: refused alike
+  a.hits.length = 0;
+  const other = await w.run(["fetch", "zkusebni", "6000", "--images", "3", "--recordset", "B1"]);
+  assert.equal(other.code, 2, other.out + other.err);
+  assert.match(other.err, /B0001 is not book 6000 of zkusebni: its images came from book 5359 of zkusebni — nothing fetched/u);
+  assert.match(other.err, /book 6000 of zkusebni is no book of the research yet: a book of its own — strom recordset add/u);
+  assert.deepEqual(a.hits, []);
+
+  // the slip as it happened live: another book's image fetched into a book with no images yet, then taken back
+  await w.ok(["recordset", "add", "Lhota O 1790–1830", "--kinds", "marriage"]); // B0003
+  await w.ok(["recordset", "add", "Lhota N 1821–1850", "--kinds", "baptism"]); // B0004
+  await w.ok(["fetch", "zkusebni", "7000", "--images", "2", "--recordset", "B4"]);
+  const slipped = (await w.ok(["media", "list", "--json"])).json.media.find((m: { recordset?: string }) => m.recordset === "B0004");
+  await w.ok(["media", "retract", slipped.id, "--reason", "an image of another book, fetched here by a slip"]);
+  // the image taken back binds B0004 to nothing: its own book is fetched into it, and book 7000 is no book of the research
+  const own = await w.run(["fetch", "zkusebni", "--images", "3", "--recordset", "B4"]);
+  assert.equal(own.code, 2, own.out + own.err);
+  assert.match(own.err, /give the book: which book of zkusebni B0004 is, strom does not know/u);
+  await w.ok(["fetch", "zkusebni", "8000", "--images", "3", "--recordset", "B4"]);
+  const list = await w.ok(["fetch", "zkusebni", "7000", "--images", "2", "--recordset", "B3"]);
+  assert.doesNotMatch(list.out + list.err, /B0004/u);
   w.cleanup();
   await a.close();
 });

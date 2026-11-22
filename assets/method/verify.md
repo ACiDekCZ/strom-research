@@ -22,3 +22,12 @@ first name) needs a second, independent reading.
   source that the research read it too (`strom source edit S… --note`), the
   facts stay; differing → a conflict with both readings. Never overwrite the
   user's transcript, never take it for proven.
+- A task verifying facts against their originals may hold the name of a
+  person's identity (`P0001.N`) beside their birth or baptism: the entry that
+  gives the date gives the name too. Compare the name in the entry with the
+  person's: the same name in Latin or another language's form ("Wenceslaus"
+  for "Václav", "Joannes" for "Jan") agrees → `strom verify done P0001.N
+  --proven --image M…`; another name, or a doubt that stays → `strom verify
+  done P0001.N --kept --reason "…"` with a conflict or the entry's form as a
+  name of its own (`strom name add … --cite S…`). The name itself is never
+  changed there; a name the user confirmed against the scan is theirs.

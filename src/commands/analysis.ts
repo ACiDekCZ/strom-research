@@ -4,7 +4,7 @@ import { actsAsArchive } from "../core/state.ts";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
-import { counted, lines, moreLine, paginate, shellArg, table, truncate } from "../cli/format.ts";
+import { LIST_PAGE_MAX, counted, lines, moreLine, narrowLine, paginate, shellArg, table, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
 import {
   LESSON_DETAIL_MAX,
@@ -50,7 +50,9 @@ import { agentDecided, childLink, citedInSupport, decidedToRecord, LINK_HOW, lin
 import { yearsOption, yearsOverlap } from "../core/years.ts";
 import { searchedAs } from "../core/evidence.ts";
 import { refuseNegativeOverUnclear } from "./readings.ts";
+import { coverageLine, searchCoverage } from "../core/coverage.ts";
 import { hypothesisPeople } from "../core/directions.ts";
+import { keepConflict } from "../core/sourceretract.ts";
 import { BIG_BRANCH, branchJoined } from "../core/kin.ts";
 
 function written(tree: Tree): string {
@@ -324,8 +326,11 @@ register(
       '  1. strom source add "…" --kind … --recordset … --locator …   (its answer names the source: S…)\n' +
       "  2. strom search add \"…\" … --result found --found <S…>\n" +
       "In one batch: the source add line first, ending #s, then search add … --found @s. A source found later is added\n" +
-      "with strom search edit <Q…> --found <S…>.",
-    args: [{ name: "question", description: 'what was looked for: "Baptisms Novák 1903–1907"', required: true }],
+      "with strom search edit <Q…> --found <S…>.\n" +
+      "A search that found nothing, or not all, is told when its --pages do not cover its --years or the years around a\n" +
+      "date of its task's people estimated from an age (ABT 1761 ± search.ageMargin, default 5) — the same at session close\n" +
+      "and task done; recorded all the same.",
+    args: [{ name: "question", description: 'what was looked for: "Baptisms Novák 1903–1907"', required: true, readAs: ["query"] }],
     options: [
       { name: "recordset", type: "string", multiple: true, value: "<B…>", description: "where (repeatable)", aliases: ["where"] },
       { name: "years", type: "string", value: "<from-to>", description: "years covered" },
@@ -357,6 +362,9 @@ register(
       const task = opts.task ? requireRecord(tree, String(opts.task), "task").id : session?.task;
       // searched in vain only once what a reader found unclear there was looked at closer
       if (result === "negative") refuseNegativeOverUnclear(tree, { recordsets, pages: opts.pages === undefined ? undefined : String(opts.pages), task }, session);
+      // the images it names against the years it had to cover (spec 131): said, never refused — before it is written,
+      // so it is not its own measure of the years its images hold
+      const coverage = searchCoverage(tree, { recordsets, scope: { ...(years ? { years } : {}), ...(opts.pages ? { pages: String(opts.pages) } : {}) }, result, task }, ctx.settings.ageMargin(tree.config));
       const s = create<Search>(
         tree,
         "search",
@@ -380,7 +388,7 @@ register(
         (id) => `+${id} search [${result}] "${truncate(args[0]!, 50)}"`,
         [...recordsets, ...findings],
       );
-      return { text: lines(written(tree), ...said), data: { search: s } };
+      return { text: lines(written(tree), ...said, ...coverage.map(coverageLine)), data: { search: s, ...(coverage.length ? { coverage } : {}) } };
     },
   },
   {
@@ -525,7 +533,9 @@ register(
         },
         { op: "search.edit", summary: `${id} ${fields.join(", ")}`, reason, targets: [...(change.recordsets ?? []), ...(change.findings ?? [])] },
       );
-      return { text: lines(written(tree), ...said), data: { search: s } };
+      // as at search add (spec 131): the images it names now against the years it had to cover, itself left out of the measure
+      const coverage = searchCoverage(tree, s, ctx.settings.ageMargin(tree.config));
+      return { text: lines(written(tree), ...said, ...coverage.map(coverageLine)), data: { search: s, ...(coverage.length ? { coverage } : {}) } };
     },
   },
   {
@@ -539,6 +549,7 @@ register(
       { name: "years", type: "string", value: "<from-to>", description: "only searches overlapping these years" },
       { name: "surname", type: "string", multiple: true, value: "<name>", description: "only searches for this surname (repeatable: any of them; diacritics optional)", aliases: ["surnames"] },
       { name: "task", type: "string", value: "<T…>", description: "only searches done for this task" },
+      { name: "full", type: "boolean", description: `every search in the text (else a page: --limit, at most ${LIST_PAGE_MAX}; --json always all)` },
     ],
     examples: ["strom searched B0001 --years 1903-1907", "strom searched Novák", "strom searched P0001", "strom searched B0001 --surname Novák --task T0001"],
     run(ctx, { args, opts }) {
@@ -586,8 +597,21 @@ register(
       const negative = hits.filter((s) => s.result === "negative").length;
       // a negative of an index is the index's: the book itself not searched in vain by it
       const ofIndex = hits.filter((s) => s.result === "negative" && s.method === "index").length;
+      // a page at most (N0988, N1000, N1006, N1012: 200 searches of a surname, 33 kB — kept in a file the agent may not
+      // read): its filters said first, the rest by --page, or all by --full; --json gives them all
+      const page = opts.full ? paginate(hits, Math.max(1, hits.length), 1) : paginate(hits, Math.min(ctx.limit, LIST_PAGE_MAX), ctx.page);
+      const command = ["strom searched", ...(q ? [shellArg(q)] : []), ...surnames.map((x) => `--surname ${shellArg(x)}`), ...(task ? [`--task ${task}`] : []), ...(typeof opts.years === "string" ? [`--years ${shellArg(opts.years)}`] : [])].join(" ");
+      const narrow =
+        page.items.length < hits.length
+          ? narrowLine(counted(hits.length, "search", "searches"), command, [opts.years === undefined && "--years <from-to>", !surnames.length && "--surname <name>", !task && "--task <T…>"], "--full")
+          : undefined;
       const text = hits.length
-        ? lines(`${counted(hits.length, "search", "searches")} for ${what}${years ? ` in ${years}` : ""} — ${negative} negative${ofIndex ? ` (${ofIndex} in an index only — not the book searched in vain)` : ""}, ${hits.length - negative} with results`, table(hits.map(searchLine)))
+        ? lines(
+            `${counted(hits.length, "search", "searches")} for ${what}${years ? ` in ${years}` : ""} — ${negative} negative${ofIndex ? ` (${ofIndex} in an index only — not the book searched in vain)` : ""}, ${hits.length - negative} with results`,
+            narrow,
+            table(page.items.map(searchLine)),
+            moreLine(page, command),
+          )
         : `nothing searched yet for ${what}${years ? ` in ${years}` : ""}`;
       return { text: lines(text, ...said), data: { searches: hits } };
     },
@@ -771,7 +795,8 @@ register(
           id,
           "conflict",
           (c) => {
-            const { taken: _t, decidedIn: _i, ...rest } = c;
+            // decided (again): a mark of review of a source deleted goes (spec 117 K1.7)
+            const { taken: _t, decidedIn: _i, review: _r, ...rest } = c;
             return { ...rest, state: "resolved", resolution, reasoning: String(opts.reasoning), decidedBy: by, ...(inApp ? { decidedIn: "app" as const } : {}), decidedAt: new Date().toISOString(), ...(side ? { taken: side } : {}), notes: [...c.notes, ...earlier, ...newer] };
           },
           {
@@ -809,6 +834,25 @@ register(
       if (c0.leftToAgent) return { text: `${id}: left to the agent already`, data: { conflict: c0 } };
       const x = update<Conflict>(tree, id, "conflict", (c) => ({ ...c, leftToAgent: new Date().toISOString() }), { op: "conflict.leave", summary: `${id} left to the agent by the user` });
       return { text: written(tree), data: { conflict: x } };
+    },
+  },
+  {
+    path: ["conflict", "keep"],
+    summary: "A decision stands though a source it stood on was deleted: its mark of review taken off (the person's own)",
+    group: "analysis",
+    tree: true,
+    writes: true,
+    person: "Whether a decision stands without the source the person deleted is the person's judgment: the Strom app or their terminal, never an agent",
+    description:
+      "A conflict that stood on a source the person deleted (strom source retract) is marked for review, its state kept.\n" +
+      "Deciding it (again) takes the mark off; for a decided one this says the decision stands as it is. Refused for an\n" +
+      "open conflict or one with no mark (conflict.notMarked). An agent may tell the person of the mark, never take it off.",
+    args: [{ name: "conflicts", description: "conflict IDs (X0001 …)", required: true, variadic: true }],
+    examples: ["strom conflict keep X0001"],
+    run(ctx, { args }) {
+      const tree = ctx.tree();
+      const kept = args.map((a) => keepConflict(tree, a).id);
+      return { text: written(tree), data: kept.length === 1 ? { conflict: kept[0]!, conflicts: kept } : { conflicts: kept } };
     },
   },
   {
@@ -896,10 +940,11 @@ register(
     group: "analysis",
     tree: true,
     writes: true,
+    description: 'The question and each claim name the people of the tree by name with the ID ("Jan Lhoták (P0001)"), never the ID alone: the user decides by reading them.',
     args: [{ name: "question", description: 'e.g. "Who was the father of Marie?"', required: true }],
     options: [
       { name: "about", type: "string", multiple: true, value: "<who>", description: "person/record concerned (repeatable)" },
-      { name: "variant", type: "string", multiple: true, value: "<A: claim>", description: 'a variant, e.g. "A: Josef from No. 12" (repeat)' },
+      { name: "variant", type: "string", multiple: true, value: "<A: claim>", description: 'a variant, e.g. "A: the son of Jan Lhoták (P0001)" — a person of the tree by name with the ID (repeat)' },
       { name: "note", type: "string", value: "<text>", description: "short note" },
     ],
     run(ctx, { args, opts }) {
@@ -960,7 +1005,7 @@ register(
     description: "A variant's letter stays one claim's (the Strom app remembers it): a claim that changes whom it would connect is a new variant.",
     args: [
       { name: "hypothesis", description: "hypothesis ID (H0001)", required: true },
-      { name: "claim", description: 'the claim, e.g. "the son of Josef from No. 12" (or "C: …" with its letter)', required: true },
+      { name: "claim", description: 'the claim, e.g. "the son of Jan Lhoták (P0001)" — a person of the tree by name with the ID (or "C: …" with its letter)', required: true },
     ],
     examples: ['strom hypothesis variant H0001 "syn Josefa z čp. 12"'],
     run(ctx, { args }) {

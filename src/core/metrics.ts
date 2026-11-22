@@ -418,6 +418,8 @@ export interface WebRequests {
   asked: Set<string>;
   /** The calls past a site's soft threshold that carry the advice (the first of them in the session). */
   advised: Set<string>;
+  /** The sites (webDomain) whose advice the session had already (once per site and session). */
+  advisedSites?: Set<string>;
   /** Per site (webDomain) the hook asked the person about: their one answer — asked once per site and session, never again. */
   answered: Map<string, WebAnswerOfPerson>;
   search: number;
@@ -506,6 +508,7 @@ export function webRequestsOf(root: string, who: { session?: string; agentSessio
   const askedMany = new Set<string>();
   const answered = new Map<string, WebAnswerOfPerson>();
   const advised = new Set<string>();
+  const advisedSites = new Set<string>();
   let search = 0;
   if (!who.session && !who.agentSession) return { hosts, domains, toolUses, asked, advised, answered, search };
   const text = journalTail(root);
@@ -522,7 +525,11 @@ export function webRequestsOf(root: string, who: { session?: string; agentSessio
     if (who.session ? r.session !== who.session : r.agentSession !== who.agentSession || !!r.session) continue;
     if (r.toolUse) toolUses.add(r.toolUse);
     if (r.toolUse && r.from === "hook") {
-      if (r.advice && r.decision === "allow") advised.add(r.toolUse);
+      if (r.advice && r.decision === "allow") {
+        advised.add(r.toolUse);
+        const at = r.domain ?? (r.host ? webDomain(r.host) : undefined);
+        if (at) advisedSites.add(at);
+      }
       // the person's one answer for the site — to the threshold's question alone (why "many"; an older strom asked for
       // the pace too: such a yes never passes the threshold): asked (none yet), then yes (it went out) or no
       const threshold = asked.has(r.toolUse) && askedMany.has(r.toolUse);
@@ -547,5 +554,5 @@ export function webRequestsOf(root: string, who: { session?: string; agentSessio
       domains.set(site, (domains.get(site) ?? 0) + 1);
     }
   }
-  return { hosts, domains, toolUses, asked, advised, answered, search };
+  return { hosts, domains, toolUses, asked, advised, advisedSites, answered, search };
 }

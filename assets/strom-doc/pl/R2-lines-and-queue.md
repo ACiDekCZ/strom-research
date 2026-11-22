@@ -75,6 +75,37 @@ Linie mają jedną kolejność i w niej przychodzi na nie praca: pierwsza linia 
 
 <!-- zdroj: research:src/core/order.ts workOrder, orderMode · src/core/queue.ts:237-240 lineBonus, :396 priority lineRank · src/commands/research.ts:215 research edit, :303 research order, :326 research move -->
 
+<a id="R2.1.5"></a>
+### R2.1.5 Przeniesienie zadań do węższej linii
+
+Linia leży wewnątrz szerszej linii, gdy jej osoba należy do szerszej (przodkowie dziadka wewnątrz przodków jego
+wnuka). Otwarte zadania szerszej linii, które dotyczą tylko osób węższej linii, można przenieść do węższej linii.
+O przeniesieniu decyduje człowiek i można je cofnąć.
+
+- **Pilnuje kod:**
+  - przenosi się tylko zadania, które podają szerszą linię jako własną, są otwarte albo czekają na człowieka i których
+    wszyscy ludzie należą do węższej linii. Zadanie bez własnej linii już teraz liczy się dla najwęższej linii
+    ([R2.1.3](#R2.1.3));
+  - nigdy zadanie, nad którym się pracuje (rozpoczęte albo trzymane przez otwartą sesję,
+    [R7.9](R7-when-the-agent-works.md#R7.9)), odłożone ani gotowe, zadanie bez ludzi ani zadanie z kimś spoza węższej
+    linii;
+  - z wstrzymanej szerszej linii nic się nie przenosi;
+  - przeniesienie to jedna operacja historii, która pamięta, skąd każde zadanie przyszło. Cofnięcie bierze ostatnie
+    przeniesienie linii i każde zadanie, które linię nadal ma, oddaje linii, z której przyszło.
+- **Granice:**
+  - przy zakładaniu linii wewnątrz szerszej: `--move-tasks` przeniesie zadania, `--keep-tasks` je zostawi; bez żadnego
+    z nich pyta się człowieka przy terminalu (proponowane jest tak). Agent, `--yes` albo przebieg bez terminala
+    zadania zostawia i mówi, ile by się przeniosło i że przeniesie je `strom research gather G…`;
+  - agent zaczyna przeniesienie tylko wtedy, gdy prosi o nie człowiek;
+  - dla przebiegu linii ([R7.10](R7-when-the-agent-works.md#R7.10)) znaczy to, że przeniesione zadania bierze jej
+    przebieg, a nie przebieg szerszej linii.
+- **Obsługa:** terminal: `strom research new … --move-tasks|--keep-tasks`, `strom research gather G…` (`--dry-run`
+  pokaże, co by się zmieniło), `strom research gather G… --undo`. Aplikacja: formularz **Nowa linia**, **Cofnij
+  przeniesienie** ([S4.3.1](S4-research-from-the-app.md#S4.3.1)).
+- **Obowiązuje od:** badanie 1.36.0
+
+<!-- zdroj: research:src/core/gather.ts widerLines (bez pozastavených a vzatých zpět), gatherable (MOVABLE open, waiting; ne doing, držené sezením, odložené, hotové, bez lidí, s někým mimo), gatherPreview, gather, lastGather, ungather; operace research.gather / research.ungather · src/commands/research.ts research new --move-tasks|--keep-tasks (dotaz u terminálu, jinak movable {count, from}), research gather [--undo] · src/core/live.ts directions/preview, POST directions moveTasks, gather/undo (409 gather.none) · help research gather, research new · dirigent:spec/126 U11 -->
+
 <a id="R2.2"></a>
 ## R2.2 Kolejka wyznacza, które zadanie przychodzi na kolej
 
@@ -105,8 +136,15 @@ rozpoczęte idzie przed wszystkimi.
   W aplikacji: pole wyszukiwania w **Kolejce** ([S4.2.1](S4-research-from-the-app.md#S4.2.1)).
 - **Od badania 1.35.0:** przy `queue.sameBook yes` między kluczami 7 i 8 idzie naprzód kolejne zadanie księgi,
   w której pracowała ostatnia sesja ([R2.2.4](#R2.2.4)).
+- **Od badania 1.36.0:** zadania próby zbiorczej weryfikacji (`strom verify bulk --try N`) dostają miejsce jak
+  zadanie **od razu** ([R2.3.1](#R2.3.1)) i weźmie je następna sesja; dwie próby po sobie idą w kolejności zlecenia,
+  starsza pierwsza ([S7.5.1](S7-reliability-and-verification.md#S7.5.1)). `strom task list --kind <rodzaj>` pokaże
+  tylko zadania jednego rodzaju pracy: `verify` (weryfikacja), `records` (metryki), `material` (materiał), `places`
+  (miejsca), `enrich` (źródła poza metrykami), `request` (zapytania), `story` (opowieści), `history` (historia),
+  `census` (spisy ludności, [R9.12](R9-archives.md#R9.12)), `other` (inne); nieznany rodzaj kończy się błędem
+  z listą rodzajów. W aplikacji rząd **Rodzaj zadania** w **Kolejce** ([S4.2.4](S4-research-from-the-app.md#S4.2.4)).
 
-<!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 · 1.33.0: research:c50f80f5 task list --all (= --state all), strom help task list -->
+<!-- zdroj: 1.36.0: research:7116bb60 src/core/taskkind.ts (TASK_KINDS, taskKind; census: research:c7b117cd), src/commands/task.ts list --kind, src/core/verify.ts verifyBulk try (priority 3, queueAt next) · CHANGELOG.cs.md 1.36.0 · research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 · 1.33.0: research:c50f80f5 task list --all (= --state all), strom help task list -->
 
 <a id="R2.2.1"></a>
 ### R2.2.1 Strategia kolejki

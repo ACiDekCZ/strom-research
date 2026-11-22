@@ -30,6 +30,8 @@ ze všech pramenů údaje, ne jak dobrý je jeden pramen ([R3.2.1](#R3.2.1)).
   **vodítko**, **vyvrácené**. Souhrn `strom stats` píše dál „jen stopy“.
 - **Od výzkumu 1.30.0:** `strom event show` a `strom event edit` vypisují údaj člověku v jazyce výzkumu
   (například „[vodítko]“); agent dostává výpis dál anglicky.
+- **Od výzkumu 1.36.0:** stupeň má i jméno osoby, kromě **Vyvrácené** (`strom cite P… S… --status`,
+  [R10.5.2](R10-people-and-hypotheses.md#R10.5.2)).
 
 <!-- zdroj: research:src/core/model.ts:36 STATUSES · assets/method/core.md:8-12 · src/cli/human.ts:138 statusName · assets/lang/cs.json ui.st.*, ui.stats.facts · src/commands/people.ts:115 wordsFor · src/core/actions.ts:629 notRetracted · app:src/ui/fact-status.ts · strings.ts factStatus · 1.26.0: src/cli/human.ts:139 STATUS, cs.json ui.st.* (commit fe59fb40) -->
 
@@ -54,17 +56,24 @@ Stupeň nesmí tvrdit víc, než dávají citace údaje. Kód to kontroluje při
   1. Pravděpodobné i Doložené potřebuje aspoň jednu citaci.
   2. Aspoň jedna citace musí být z pramene, který není slabý. Slabý je rodokmen (`--kind family-tree`), vzpomínka
      (`--kind family-memory`), autorské dílo (`--form authored`) a od výzkumu 1.28.0 rejstřík (`--kind index`).
-  3. Doložené navíc potřebuje mezi citacemi z ne-slabých pramenů aspoň jednu s primární informací
-     (`--information primary`): záznam psaný v době události někým, kdo to věděl. Informace u citace má přednost
-     před informací u pramene.
-- **Jen metodika:** kód nekontroluje, že je pramen originál (`--form original`), že ho agent přečetl sám, že záznam
-  údaj uvádí přímo, ani slepé druhé čtení ([R3.5](#R3.5)). Doložené proto projde i u opisu s primární informací
-  (u rejstříku do výzkumu 1.27.0 také).
+  3. Doložené navíc potřebuje citaci samotného původního záznamu (od výzkumu 1.29.0, viz níže).
+  4. Mezi citacemi původního záznamu musí být aspoň jedna s primární informací (`--information primary`): záznam
+     psaný v době události někým, kdo to věděl. Informace u citace má přednost před informací u pramene.
+- **Jen metodika:** kód nekontroluje, že agent záznam přečetl sám, že záznam údaj uvádí přímo, ani slepé druhé
+  čtení ([R3.5](#R3.5)).
 - **Ovládání:** terminál: `strom event add P… BIRT --date "…" --cite S… --information primary --status proven`.
   Odmítnutí řekne důvod a co místo toho (nechat Vodítko, `--status possible`, nebo `--status probable`).
 - **Platí od:** výzkum 1.0.0
+- **Od výzkumu 1.29.0:** původní záznam je pramen formy originál (`--form original`), který je záznamem (ne slabý
+  pramen, tedy ani rejstřík) a není odvolaný. Pramen, který přišel z aplikace Strom, se počítá, jen když vznikl
+  ze čtení dokumentu čtenáři výzkumu, které uživatel v aplikaci poslal do stromu (**Navrhnout do stromu…**,
+  [R8.8](R8-reading-scans.md#R8.8));
+  sama spolehlivost **Originál** z aplikace ([R3.2.1](#R3.2.1)) původní záznam nedělá. Opis, rejstřík, cizí přepis
+  ani slovo aplikace o prameni dají nejvýš Pravděpodobné; odmítnutí má kód `status.original`. Do výzkumu 1.28.0
+  prošlo Doložené u kteréhokoli ne-slabého pramene s primární informací, i u opisu; takové údaje starších výzkumů
+  jednou srovná oprava [R3.2.2](#R3.2.2).
 
-<!-- zdroj: research:src/core/evidence.ts:27 isWeak, :32 informationOf, :55-68 checkStatus · src/core/actions.ts:196-209 makeEvent, :648, :906 · src/commands/people.ts:745 · od v1.28.0 evidence.ts isWeak (kind index), checkStatus "… or an index cannot make a fact" -->
+<!-- zdroj: research:src/core/evidence.ts:27 isWeak, :32 informationOf, :55-68 checkStatus · src/core/actions.ts:196-209 makeEvent, :648, :906 · src/commands/people.ts:745 · od v1.28.0 evidence.ts isWeak (kind index), checkStatus "… or an index cannot make a fact" · 1.29.0: research:v1.35.0 src/core/evidence.ts isOriginalHere, provesIt, checkStatus (code status.original) · src/core/model.ts Source.reading · CHANGELOG.cs.md 1.29.0 -->
 
 <a id="R3.2.1"></a>
 ### R3.2.1 Pramen: forma a informace
@@ -85,6 +94,29 @@ Stupeň nesmí tvrdit víc, než dávají citace údaje. Kód to kontroluje při
   přes aplikaci nemění.
 
 <!-- zdroj: research:src/commands/sources.ts:197-198, :221, :837 · src/core/evidence.ts:40 quay · src/core/sync.ts:4660 QUAY_EVIDENCE · assets/method/recording.md:38-46 · app:strings.ts sources.quality1-3, src/ui/sources.ts:76 · 3.27.0: research:ff760309 src/core/sync.ts:1095 (zdroj aplikace a.quality), :963 citedDetails (s.quay z první citace), :4361 QUAY_EVIDENCE · app:5721b016 export QUAY citace · dirigent:test/vysledek-1111-app-spolehlivost-citace.md (round trip QUAY 2/3, sync --dry-run nic nového) -->
+
+<a id="R3.2.2"></a>
+### R3.2.2 Doložené bez původního záznamu ve starších výzkumech
+
+Výzkum založený před verzí 1.29.0 může mít Doložené údaje bez citace původního záznamu ([R3.2](#R3.2)). Jednou je
+srovná oprava podle pravidel; nic neplatí a jde vzít zpět.
+
+- **Hlídá kód:**
+  - oprava proběhne sama jednou, při prvním spuštění nové verze po záloze výzkumu;
+  - údaj bez citace původního záznamu, který jako Doložený zapsal agent, nebo hromadný zápis (import, převod starého
+    výzkumu, dávka), dostane Pravděpodobné; Možné, když ho nedrží žádný pramen, který není slabý. Důvod stojí
+    v historii údaje;
+  - údaj, který jako Doložený zapsal člověk, zůstane, jak je, a čeká na jeho posouzení: v Co čeká jako jedna položka
+    s počtem ve skupině **Jistota k prověření** („N údajů doložených uživatelem bez originálu záznamu: ponechat
+    doložené, nebo převést na pravděpodobné?“). Údaj, který člověk po posouzení ponechal, se znovu nenabízí;
+  - rozhoduje jen člověk ve svém terminálu, nikdy agent;
+  - údaj s citací původního záznamu zůstane.
+- **Ovládání:** terminál: Co čeká → **Ponechat doložené** / **Převést na pravděpodobné**;
+  `strom fixes review proven-originals keep|lower [E…]` (bez čísel údajů všechny čekající), `strom fixes show
+  proven-originals`, `strom fixes undo proven-originals`.
+- **Platí od:** výzkum 1.29.0
+
+<!-- zdroj: research:v1.35.0 src/core/provenfix.ts (PROVEN_SINCE 1.29.0, PROVEN_SETTLED, PROVEN_FIX_FILE quality/proven.json, provenFixes: by user a ne bulkWrites → left, jinak probable/possible podle isWeak) · src/commands/fixchecks.ts PROVEN_ORIGINALS (paid false, "Applied by itself once, at the first start of this strom after its backup") · src/commands/fixes.ts review proven-originals keep|lower · assets/lang/cs.json wait.group.proven, ui.waiting.proven, ui.wait.proven.keep/lower, ui.fixes.proven-originals.* · CHANGELOG.cs.md 1.29.0 -->
 
 <a id="R3.3"></a>
 ## R3.3 Pramen, nebo vodítko
@@ -223,8 +255,11 @@ otevírat.
   --folio … --image … --call-number … [--reason "…"]`, `strom source show S…`; `strom source list <text>` hledá
   i ve foliu a snímku.
 - **Platí od:** výzkum 1.31.0
+- **Od výzkumu 1.36.0:** číslo snímku, které dávají jen evidované skeny, má v souboru pro aplikaci Strom pod
+  `_STROM_IMAGE` značku `2 _STROM_DERIVED Y`. Aplikace ho pak k umístění přidá a nevystřihne z něj číslo jiného
+  snímku ([A2.6](A2-loading-a-family-tree.md#A2.6)).
 
-<!-- zdroj: research:4de28f00 src/core/model.ts Source.folio/image/callNumber, src/core/sourcefields.ts recognizeLocation, composedPage, sourceImage, sourceCallNumber, locatorOverlap · src/commands/sources.ts:117-145 (--reason jen při přepsání), :210 --call-number, :287 filtr list, :330-336 řádky find a „from its locator“, :374 locatorArg · src/gedcom/export.ts:239, :374-379, :723-728 PAGE/CALN/_STROM_* · a0751973 (N1: PAGE bez dvou čísel) · 320a7738 (--locator "") · assets/method/recording.md:25-31, reading.md:85-89 · CHANGELOG.cs.md 1.31.0 „Zápis se najde znovu“ · spec 075 P2 -->
+<!-- zdroj: research:4de28f00 src/core/model.ts Source.folio/image/callNumber, src/core/sourcefields.ts recognizeLocation, composedPage, sourceImage, sourceCallNumber, locatorOverlap · src/commands/sources.ts:117-145 (--reason jen při přepsání), :210 --call-number, :287 filtr list, :330-336 řádky find a „from its locator“, :374 locatorArg · src/gedcom/export.ts:239, :374-379, :723-728 PAGE/CALN/_STROM_* · a0751973 (N1: PAGE bez dvou čísel) · 320a7738 (--locator "") · assets/method/recording.md:25-31, reading.md:85-89 · CHANGELOG.cs.md 1.31.0 „Zápis se najde znovu“ · spec 075 P2 · 1.36.0: research:519951b3 src/gedcom/export.ts (image.derived → 2 _STROM_DERIVED Y), src/core/sourcefields.ts sourceImage derived, src/gedcom/validate.ts · app:2e68d373 src/source-location.ts composePage · CHANGELOG.cs.md 1.36.0 -->
 
 <a id="R3.4.4"></a>
 ### R3.4.4 Rozdělení starých umístění: náhled, zapíše člověk
@@ -345,6 +380,37 @@ nastavení stromu v aplikaci.
 - **Platí od:** výzkum 1.12.0, aplikace 3.9.0; čtení dokumentu čtenáři výzkumu 1.18.0
 
 <!-- zdroj: research:assets/method/verify.md:19-24 · src/core/sync.ts:220, :824, :3367 readsFor, :3870 reading, :3992 · src/core/readsync.ts:190 readingGrade · cs.json sync.verify.*, read.note.* · app:strings.ts treeSettings.transcripts/guide/evidence/evidenceDesc/notRetroactive, sources.verified -->
+
+<a id="R3.5.2"></a>
+### R3.5.2 Kdy pramen přečetl uživatel
+
+U pramene výzkum drží, kdo ho přečetl: výzkum (model sezení, čtenáři dokumentu), uživatel, nebo oba. Uživatel je
+čtenářem jen ze skutečného čtení. Pramen, který uživatel přečetl, výzkum nenabízí ke čtení znovu.
+
+- **Hlídá kód:** čtením uživatele je jen:
+  - přepis, který uživatel napsal v aplikaci nebo u něj zaškrtl **Přepis ověřen** ([R3.5.1](#R3.5.1));
+  - čtení dokumentu, které uživatel v aplikaci poslal do stromu ([R8.8](R8-reading-scans.md#R8.8));
+  - přepis výzkumu, který uživatel v aplikaci potvrdil (**Potvrdit přepis**,
+    [A3.1.3](A3-evidence-in-the-app.md#A3.1.3));
+  - přepis, který člověk napsal ručně ve svém terminálu.
+- **Hranice:**
+  - import, převod starého výzkumu, dávka, skript ani agent, kterého strom nepozná, čtenářem uživatele neudělá,
+    i když zapisují jménem uživatele. GEDCOM z jiného programu (`strom import`) dá údaje jako Vodítko;
+  - potvrzení platí pro znění přepisu, které uživatel viděl. Když výzkum přepis potom změní, potvrzení se nepočítá
+    (zůstane v historii) a potvrdit jde nové znění;
+  - potvrzení samo stupeň žádného údaje nemění. Je-li pramen původní záznam s primární informací, může na něm údaj
+    být Doložený ([R3.2](#R3.2)); jinak nejvýš Pravděpodobný;
+  - potvrdit a vzít zpět jde jen z aplikace, člověkem; agent to nesmí. Potvrdit nejde v Archivu Stromu, u pramene
+    sloučeného nebo odvolaného, bez přepisu ani u přepisu, který výzkum nečetl nebo který uživatel už přečetl.
+- **Oprava starších výzkumů:** do výzkumu 1.28.0 se za čtení uživatele počítal každý zápis jménem uživatele. Jednou
+  při prvním spuštění nové verze po záloze: pramen, který zapsal jen hromadný běh (import, převod, dávka), čtení
+  uživatele ztratí; pramen, který člověk zapsal ručně, ho podrží. Nic neplatí; `strom fixes undo readers` čtení
+  vrátí.
+- **Ovládání:** aplikace: **Potvrdit přepis** / **Zrušit potvrzení** pod přepisem pramene ([A3.1.3](A3-evidence-in-the-app.md#A3.1.3));
+  terminál: `strom fixes show readers`, `strom fixes undo readers`.
+- **Platí od:** výzkum 1.29.0, aplikace 3.25.0
+
+<!-- zdroj: research:v1.35.0 src/core/readers.ts (komentář: čtení uživatele jen app.read, Source.reading, POST /sources/confirm, read.user z terminálu; userReading jen pro aktuální transcriptMark) · src/core/readerfix.ts (READERS_SINCE 1.29.0, bulkWrites, how "earlier", undo) · src/commands/fixchecks.ts READERS (paid false) · src/core/confirm.ts confirmCheck (confirm.archive/none/merged/retracted/reader/changed), shrnutí „original … primary may make a fact proven; of anything else at most probable“ · src/commands/sources.ts source confirm (STROM_FOR_APP, ne agent: confirm.app) · src/core/import.ts (status lead) · CHANGELOG.cs.md 1.29.0 · app:v3.30.0 src/source-confirm.ts · CHANGELOG 3.25.0 -->
 
 <a id="R3.6"></a>
 ## R3.6 Negativní hledání
@@ -483,3 +549,51 @@ Vyprávění se píše z údajů pro rodinu. Co se nedoložilo, se nedomýšlí.
 - **Platí od:** výzkum 1.0.0; pozadí místa a doby 1.10.0; formát textu 1.8.0; vyprávění páru 1.23.0
 
 <!-- zdroj: research:assets/method/narrate.md (celé; formát od v1.8.0, pozadí od v1.10.0, pár od v1.23.0) · research:src/commands/story.ts --note -->
+
+<a id="R3.10"></a>
+## R3.10 Smazaný pramen se odvolá
+
+Pramen, který člověk smaže, výzkum neodstraní, ale odvolá (důvod „deleted“): zmizí z rodokmenu, který dostává
+aplikace, a `strom source restore` ho vrátí i s citacemi.
+
+- **Co odvolání udělá:**
+  - citace pramene se odeberou z údajů, jmen a rodin a uchovají se v prameni. Hodnoty údajů zůstanou;
+  - údaj, jehož stav zbylé citace neunesou jako jistý, se sníží. Hlavní citace pramene zmizí a jiná se místo ní
+    nevybere;
+  - úkol, který pracuje jen s tímto pramenem, se vzdá; úkol s dalšími místy pokračuje bez něj;
+  - rozpor, který na prameni stojí, dostane značku přezkoumání a jeho stav zůstane. Značku sundá
+    `strom conflict keep` (rozhodnutí platí) nebo nové rozhodnutí rozporu;
+  - text vyprávění se nikdy nemění; pramen jen vypadne z jeho seznamu pramenů.
+- **Obnovení** (`strom source restore`): pramen dostane zpět stejné ID a každá citace se vrátí k údaji, u kterého
+  byla (u osoby sloučené mezitím k té, do které šla), pokud údaj ještě je a pramen už necituje. Hlavní citace se
+  vrátí jen tam, kde se mezitím hlavní nestala jiná; snížený stav se vrátí jen tam, kde ho mezitím nikdo nezměnil;
+  úkoly jen tam, kde se nezměnily. Značky přezkoumání zmizí.
+- **Co výzkum řekne:**
+  - `strom source show S…` u smazaného pramene řekne, kdy ho člověk smazal a kde (v terminálu, nebo v aplikaci
+    Strom), kolik citací je v něm uloženo a jak ho vrátit;
+  - `strom source list --retracted` vypíše jen odvolané prameny: smazané (s počtem uložených citací a řádkem, jak
+    pramen vrátit), sloučené a vzaté zpět.
+- **Hlídá kód:**
+  - všechno, nebo nic: pramen, který výzkum nemá nebo už je odvolaný, a nezapíše se nic; nejvýš 50 pramenů
+    najednou; celé smazání je jedna operace historie;
+  - `--dry-run` (co by smazání vzalo, s počty) smí spustit kdokoli, i agent;
+  - bez `--dry-run` řekne ano člověk ve vlastním terminálu (Enter je ne), jinak v okně systému; když se nemá koho
+    zeptat, příkaz skončí s kódem 4. Agent pramen nikdy nesmaže, ani s potvrzením aplikace; smí smazání jen
+    navrhnout s počty z `--dry-run`;
+  - `strom source restore` odmítne pramen, který odvolaný není (`source.notRetracted`), i pramen odvolaný jinak:
+    sloučený, nebo vzatý zpět při synchronizaci (`source.notRestorable`);
+  - `strom conflict keep` odmítne otevřený rozpor i rozpor bez značky (`conflict.notMarked`). Agent smí člověku
+    značku jen oznámit, nikdy ji nesundá;
+  - smazaný pramen ani to, co na něj odkazuje, se už nevrátí s pozdějším souborem z aplikace ani importem.
+- **Hranice:**
+  - zálohou je historie výzkumu a citace uložené v prameni; plná záloha výzkumu se před smazáním nedělá;
+  - citace, kterou obnovit nejde (údaj zmizel, nebo pramen už cituje), se vypíše a zbytek se obnoví.
+- Smazání v aplikaci: [A3.1.2](A3-evidence-in-the-app.md#A3.1.2), smazání při úpravách a synchronizace:
+  [S2.6.1](S2-edits-from-the-app.md#S2.6.1), soubor rodokmenu spolu s pramenem:
+  [R11.5.6](R11-material-from-the-user.md#R11.5.6).
+- **Ovládání:** terminál: `strom source retract S… [--dry-run] [--reason "…"] [--sources-from <soubor>]`,
+  `strom source restore S…`, `strom source list --retracted`, `strom conflict keep X…`; aplikace: **Smazat
+  pramen…** přes most ([A3.1.2](A3-evidence-in-the-app.md#A3.1.2)).
+- **Platí od:** výzkum 1.36.0
+
+<!-- zdroj: research:e6bbfb40 src/core/sourceretract.ts (hlavička; DELETED, RETRACT_MOST 50, RETRACT_CONFIRM_MS 15 min, REVIEW_RETRACTED, ACTIVE open/doing/parked/waiting) · src/commands/sourceretract.ts source retract (description, agentMay --dry-run, source.agent, source.retract-changed, requireHumanYes), source restore (description, source.notRetracted, source.notRestorable), ui.source.restore.skipped · src/commands/analysis.ts conflict keep (conflict.notMarked, agent jen říká) · src/commands/sources.ts source list --retracted, source show RETRACTED … the person puts it back · src/core/sync.ts withholdDeleted (spec 117 J6) · assets/lang/cs.json ui.consent.retract, ui.source.retract.would · CHANGELOG.cs.md 1.36.0 · spec 117 K1.1–K1.7, J3 (záloha = historie + citace v prameni) -->

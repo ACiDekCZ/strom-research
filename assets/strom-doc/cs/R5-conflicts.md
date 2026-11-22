@@ -198,6 +198,8 @@ kde výzkum běží. Aplikace otevře výzkum v terminálu a ten se zeptá na po
     důvodu, 0 = nic nerozhodnout)**). Bez důvodu se zapíše „vybráno v aplikaci Strom“;
   - **Co čeká** nabízí volby slovy aplikace: **Ponechat hodnotu z aplikace**, **Převzít hodnotu výzkumu** (v archivu
     **Převzít hodnotu Archivu Stromu**), **Nechat otevřený**.
+- **Od výzkumu 1.36.0:** při **Spouštění agenta z aplikace Strom: bez potvrzení** začne **Nechat na agentovi** bez
+  dotazu ([S4.5.5](S4-research-from-the-app.md#S4.5.5)).
 
 <!-- zdroj: research:src/core/waiting.ts:127 TERMINAL_ONLY, :443-449 · src/cli/menu-waiting.ts:486-513 decideConflictHere · src/cli/menu-links.ts:510-561 decideConflict, pickClaim · src/commands/links.ts:235-246 · src/core/live.ts:2063 decide.link · src/core/stromapp.ts APP_DECIDES_CONFLICTS="3.11.0" · app:v3.21.2 strings.ts research.knows, research.conflicts, research.conflictTag, research.decide, research.leaveToAgent, conflict.*, cardDensity.cardConflict · ui/person-research-ui.ts:139-150, :178-210 · ui/conflict-decide-ui.ts · research-decide.ts:55 canDecideInApp · 1.26.0: research:cs.json ui.wait.conflict.take.*, ui.link.conflict.whyMaybe, ui.link.conflict.inApp (commit 1189532f) · app:src/research-conflict-card.ts conflictCardView (agent u rozporu z úpravy) -->
 

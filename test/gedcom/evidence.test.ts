@@ -56,23 +56,25 @@ test("the status may not claim more than the evidence gives", opts, async () => 
   w.cleanup();
 });
 
-test("a status asked of a name or a family says it is a fact's only — not a bare unknown option, in a batch too and in the research language (N0191)", opts, async () => {
+test("a status asked of a family, or of a name by a command that takes none, says whose it is — not a bare unknown option, in a batch too and in the research language (N0191); a name takes one (spec 066 P5)", opts, async () => {
   const w = await world();
   await w.ok(["person", "add", "Marie /Svobodová/", "--sex", "F"]); // P2
-  const said = /unknown option --status for strom name add\n→ a status is a fact's \(E…\) only, never a name's or a family's: strom cite E… S… --status probable\|proven, strom event edit E… --status …/;
-  const name = await w.run(["name", "add", "P1", "Josef /Nowak/", "--cite", "S3", "--status", "proven"], { env: { STROM_LANG: "en" } });
-  assert.equal(name.code, 2);
-  assert.match(name.err, said);
+  const said = /unknown option --status for strom family edit\n→ a status is a fact's \(E…\) or a name's \(P…\), never a family's: strom cite E…\|P… S… --status probable\|proven, strom event edit E… --status …/;
+  // a name: its status, on the record read in the original
+  await w.ok(["name", "add", "P1", "Josef /Nowak/", "--cite", "S3", "--status", "proven"], { env: { STROM_LANG: "en" } });
+  const p1 = Tree.open(w.cwd, w.env).get<Person>("P0001")!;
+  assert.equal(p1.names.find((n) => n.surname === "Nowak")?.status, "proven");
   // (family add takes one: the marriage's)
   await w.ok(["family", "add", "--partner", "P1", "--partner", "P2"]);
   const family = await w.run(["family", "edit", "F1", "--status", "probable"], { env: { STROM_LANG: "en" } });
-  assert.match(family.err, /unknown option --status for strom family edit\n→ a status is a fact's \(E…\) only/);
-  const batch = await w.run(["batch", 'name add P2 "Marie /Svobodová/" --kind birth --status probable'], { env: { STROM_LANG: "en" } });
-  assert.match(batch.err, /line 1 \(name add\): unknown option --status[\s\S]*→ a status is a fact's \(E…\) only/);
-  assert.match((await w.run(["name", "add", "P1", "Josef /Nowak/", "--status", "proven"], { env: { STROM_LANG: "cs" } })).err, /neznámá volba --status u strom name add\n→ jistota \(--status\) patří jen k údaji \(E…\)/);
-  const j = await w.run(["name", "add", "P1", "Josef /Nowak/", "--status", "proven", "--json"], { env: { STROM_LANG: "cs" } });
+  assert.equal(family.code, 2);
+  assert.match(family.err, said);
+  const batch = await w.run(["batch", "family edit F1 --status probable"], { env: { STROM_LANG: "en" } });
+  assert.match(batch.err, /line 1 \(family edit\): unknown option --status[\s\S]*→ a status is a fact's \(E…\) or a name's \(P…\), never a family's/);
+  assert.match((await w.run(["family", "edit", "F1", "--status", "proven"], { env: { STROM_LANG: "cs" } })).err, /neznámá volba --status u strom family edit\n→ jistota \(--status\) patří k údaji \(E…\) nebo ke jménu \(P…\), nikdy k rodině/);
+  const j = await w.run(["family", "edit", "F1", "--status", "proven", "--json"], { env: { STROM_LANG: "cs" } });
   assert.equal(j.json.code, "option.unknown");
-  assert.match(j.json.hint, /a status is a fact's \(E…\) only/);
+  assert.match(j.json.hint, /a status is a fact's \(E…\) or a name's \(P…\)/);
   // another unknown option of theirs: the options as ever
   assert.doesNotMatch((await w.run(["name", "add", "P1", "Josef /Nowak/", "--bogus", "x"], { env: { STROM_LANG: "en" } })).err, /a fact's/);
   w.cleanup();

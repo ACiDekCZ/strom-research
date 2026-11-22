@@ -14,7 +14,7 @@ const opts = { skip: !hasGit };
 async function world(): Promise<World> {
   const w = new World();
   await w.withTree();
-  await w.ok(["research", "new", "Předci", "--new-person", "Antonín /Víšek/", "--sex", "M"]); // P1
+  await w.ok(["research", "new", "Předci", "--new-person", "Antonín /Brdíšek/", "--sex", "M"]); // P1
   await w.ok(["person", "add", "Markéta", "--sex", "F"]); // P2, surname unknown
   await w.ok(["family", "add", "--partner", "P1", "--partner", "P2"]); // F1
   await w.ok(["source", "add", "Křest Františka 1862", "--kind", "baptism", "--information", "primary"]); // S1
@@ -29,18 +29,19 @@ test("name add: the maiden name a record gives completes the name; variants keep
   assert.equal(p.names.length, 1, "the name without a surname is completed, not kept beside it");
   assert.deepEqual(p.names[0].citations, [{ source: "S0001", locator: "pag. 228", quote: "Margaretha, Tochter nach Johann Ružička", information: "secondary" }]);
   assert.equal((await w.run(["name", "add", "P2", "Markéta /Růžičková/", "--kind", "birth"])).code, 2, "the same name again needs a record");
-  await w.ok(["name", "add", "Markéta Růžičková", "Markéta /Víšková/", "--kind", "married"]);
+  await w.ok(["name", "add", "Markéta Růžičková", "Markéta /Brdíšková/", "--kind", "married"]);
   p = (await w.ok(["person", "show", "P2", "--json"])).json.person;
-  assert.deepEqual(p.names.map((n: any) => `${n.surname}:${n.kind}`), ["Růžičková:birth", "Víšková:married"]);
+  assert.deepEqual(p.names.map((n: any) => `${n.surname}:${n.kind}`), ["Růžičková:birth", "Brdíšková:married"]);
   const show = (await w.ok(["person", "show", "P2"])).out;
   assert.match(show, /^P0002 Markéta Růžičková/);
-  assert.match(show, /names\n  Markéta Růžičková \(birth\)  ← S0001 pag. 228 \(secondary\)\n  Markéta Víšková \(married\)/);
-  assert.equal((await w.run(["name", "primary", "P2", "Marie /Víšková/"])).code, 2, "only a name the person has can be the one shown");
+  // a name cited with no status: probable on the research's record (spec 066 P5)
+  assert.match(show, /names\n  Markéta Růžičková \(birth\) \[probable\]  ← S0001 pag. 228 \(secondary\)\n  Markéta Brdíšková \(married\)/);
+  assert.equal((await w.run(["name", "primary", "P2", "Marie /Brdíšková/"])).code, 2, "only a name the person has can be the one shown");
   // the same words are one name: a weaker record's name becomes an alias with its citation, not a second entry
   await w.ok(["source", "add", "Křest 1862", "--kind", "baptism"]); // S2
-  await w.ok(["name", "add", "P2", "Markéta /Víšková/", "--kind", "alias", "--cite", "S2"]);
+  await w.ok(["name", "add", "P2", "Markéta /Brdíšková/", "--kind", "alias", "--cite", "S2"]);
   p = (await w.ok(["person", "show", "P2", "--json"])).json.person;
-  assert.deepEqual(p.names.map((n: any) => `${n.surname}:${n.kind}:${(n.citations ?? []).length}`), ["Růžičková:birth:1", "Víšková:alias:1"]);
+  assert.deepEqual(p.names.map((n: any) => `${n.surname}:${n.kind}:${(n.citations ?? []).length}`), ["Růžičková:birth:1", "Brdíšková:alias:1"]);
   assert.match((await w.ok(["check"])).out, /^ok/, "a name changing its kind is no loss");
   assert.equal((await w.run(["name", "add", "P2", "X /Y/", "--kind", "maiden"])).code, 2);
   w.cleanup();
@@ -62,24 +63,26 @@ test("a record naming parents: the person's name and the family itself carry the
   await w.ok(["family", "child", "F2", "P6", "--cite", "S1", "--locator", "pag. 228"]);
   const f2 = (await w.ok(["family", "show", "F2", "--json"])).json.family;
   assert.deepEqual([f2.children.length, f2.citations.filter((c: any) => c.locator === "pag. 228").length], [3, 1]);
-  assert.match((await w.ok(["cite", "P1", "S1", "--locator", "pag. 228"])).out, /P0001 Antonín \/Víšek\/ ← S0001/);
-  assert.equal((await w.run(["cite", "P1", "S1", "--status", "proven"])).code, 2, "a name has no status");
+  assert.match((await w.ok(["cite", "P1", "S1", "--locator", "pag. 228"])).out, /P0001 Antonín \/Brdíšek\/ ← S0001/);
+  // a name's status as a fact's (spec 066 P5): proven on the original record read, primary information
+  await w.ok(["cite", "P1", "S1", "--locator", "pag. 229", "--status", "proven"]);
+  assert.equal((await w.ok(["person", "show", "P1", "--json"])).json.person.names[0].status, "proven");
   assert.equal((await w.run(["family", "add", "--partner", "P3", "--age", "husband:30"])).code, 2, "an age needs the marriage");
   const src = (await w.ok(["source", "show", "S1"])).out;
   assert.match(src, /P0003 name Šimon Ševčík \(pag. 228\)/);
   assert.match(src, /F0002 the family \(pag. 228\)/);
-  assert.match(src, /P0001 name Antonín Víšek \(pag. 228\)/);
+  assert.match(src, /P0001 name Antonín Brdíšek \(pag. 228\)/);
   assert.match((await w.ok(["check"])).out, /^ok/);
 
   await w.ok(["name", "add", "P4", "Magdalena /Ševčíková/", "--kind", "birth"]);
-  await w.ok(["name", "add", "P4", "Magdalena /Víšková/", "--kind", "married"]);
+  await w.ok(["name", "add", "P4", "Magdalena /Brdíšková/", "--kind", "married"]);
   // two facts of one entry, each on its own words
   await w.ok(["event", "add", "P4", "birth", "--date", "1862", "--cite", "S1", "--locator", "pag. 228", "--quote", "Magdalena Ševčíková"]);
   await w.ok(["event", "add", "P5", "birth", "--date", "1864", "--cite", "S1", "--locator", "pag. 228", "--quote", "Анна"]);
   await w.ok(["export", "gedcom"]);
   const ged = fs.readFileSync(path.join(w.cwd, "output", "tree.ged"), "utf8");
   assert.match(ged, /1 NAME Šimon \/Ševčík\/\n2 SOUR @S0001@\n3 PAGE pag. 228\n3 QUAY 2\n/);
-  assert.match(ged, /1 NAME Magdalena \/Ševčíková\/\n2 TYPE birth\n1 NAME Magdalena \/Víšková\/\n2 TYPE married\n/);
+  assert.match(ged, /1 NAME Magdalena \/Ševčíková\/\n2 TYPE birth\n1 NAME Magdalena \/Brdíšková\/\n2 TYPE married\n/);
   // in the order of every file (spec 095 K1.1): the citation of the higher QUAY first
   assert.match(ged, /0 @F0002@ FAM\n1 HUSB @P0003@\n1 CHIL @P0004@\n1 CHIL @P0005@\n1 CHIL @P0006@\n1 SOUR @S0001@\n2 PAGE pag. 229\n2 QUAY 3\n1 SOUR @S0001@\n2 PAGE pag. 228\n2 QUAY 2\n/);
   assert.deepEqual(validateGedcom(ged).filter((f) => f.level === "error"), []);
@@ -98,14 +101,14 @@ test("a record naming parents: the person's name and the family itself carry the
 
 test("person edit: sex and the spelling of the name; changing what is known needs a reason", opts, async () => {
   const w = await world();
-  await w.ok(["person", "add", "Jakub /Višek/"]); // P3, sex unknown
+  await w.ok(["person", "add", "Jakub /Brdišek/"]); // P3, sex unknown
   assert.match((await w.ok(["person", "edit", "P3", "--sex", "M"])).out, /P0003 sex M/);
   assert.equal((await w.run(["person", "edit", "P3", "--sex", "F"])).code, 2, "M → F needs a reason");
   await w.ok(["cite", "P3", "S1"]);
-  assert.equal((await w.run(["person", "edit", "P3", "--name", "Jakub /Víšek/"])).code, 2, "another name needs a reason");
-  await w.ok(["person", "edit", "P3", "--name", "Jakub /Víšek/", "--reason", "misread: the register has Víšek"]);
+  assert.equal((await w.run(["person", "edit", "P3", "--name", "Jakub /Brdíšek/"])).code, 2, "another name needs a reason");
+  await w.ok(["person", "edit", "P3", "--name", "Jakub /Brdíšek/", "--reason", "misread: the register has Brdíšek"]);
   const p = (await w.ok(["person", "show", "P3", "--json"])).json.person;
-  assert.deepEqual([p.names[0].surname, p.names[0].citations.length, p.sex], ["Víšek", 1, "M"]);
+  assert.deepEqual([p.names[0].surname, p.names[0].citations.length, p.sex], ["Brdíšek", 1, "M"]);
   assert.equal((await w.run(["person", "edit", "P3"])).code, 2, "nothing to change");
   w.cleanup();
 });
@@ -115,7 +118,7 @@ test("diacritics and scripts: names, roles and ages as a Czech, German or Ukrain
   // a name in Cyrillic is found by its words; Czech words without háčky find Czech names
   await w.ok(["person", "add", "Іван /Шевчук/", "--sex", "M"]); // P3
   assert.match((await w.ok(["person", "list", "шевчук"])).out, /P0003\s+Іван Шевчук/);
-  assert.match((await w.ok(["person", "list", "visek"])).out, /P0001\s+Antonín Víšek/);
+  assert.match((await w.ok(["person", "list", "brdisek"])).out, /P0001\s+Antonín Brdíšek/);
   assert.equal((await w.ok(["person", "show", "Іван Шевчук", "--json"])).json.person.id, "P0003");
   // roles in the words of the record
   const chr = await w.ok(["event", "add", "P1", "CHR", "--date", "1812", "--with", "kmotr:Franz Dvořáček", "--with", "svědek:Jan Novák", "--with", "Hebamme:M. Anna Bejček", "--with", "oddávající:Alois Wolf", "--json"]);
@@ -154,13 +157,13 @@ test("records are stored composed; file paths as they are", opts, async () => {
 
 test("a description is not a name: a stillborn child keeps an empty given name, the record's words go to the facts", opts, async () => {
   const w = await world();
-  for (const name of ["(mrtvě narozený) /Víšek/", "(mrtvě narozený) /Víšek/".normalize("NFD"), "N.N. /Víšek/", "N/A /Víšek/", "Totgeboren /Víšek/", "[syn] /Víšek/"]) {
+  for (const name of ["(mrtvě narozený) /Brdíšek/", "(mrtvě narozený) /Brdíšek/".normalize("NFD"), "N.N. /Brdíšek/", "N/A /Brdíšek/", "Totgeboren /Brdíšek/", "[syn] /Brdíšek/"]) {
     const r = await w.run(["person", "add", name, "--sex", "M"]);
     assert.equal(r.code, 2, name);
     assert.match(r.err, /not a name/);
   }
-  assert.match((await w.run(["person", "add", "(mrtvě narozený) /Víšek/"])).err, /"\/Víšek\/" with an empty given name.*--age stillborn/s);
-  await w.ok(["person", "add", "/Víšek/", "--sex", "M"]); // P3
+  assert.match((await w.run(["person", "add", "(mrtvě narozený) /Brdíšek/"])).err, /"\/Brdíšek\/" with an empty given name.*--age stillborn/s);
+  await w.ok(["person", "add", "/Brdíšek/", "--sex", "M"]); // P3
   await w.ok(["event", "add", "P3", "DEAT", "--date", "11 JAN 1889", "--age", "mrtvě narozený"]);
   assert.match((await w.ok(["person", "show", "P3"])).out, /DEAT\s+11 JAN 1889/);
   // names in any script still pass; a description cannot come in through name add or person edit either
@@ -188,7 +191,7 @@ test("names: a slash inside a name is refused with a way to write it; the GEDCOM
   for (const args of [
     ["person", "add", "Anna /⟨K/Č⟩emenská/", "--sex", "F"],
     ["name", "add", "P2", "Markéta /Ružičková/Růžičková/"],
-    ["person", "edit", "P1", "--name", "Antonín /Víšek", "--reason", "x"],
+    ["person", "edit", "P1", "--name", "Antonín /Brdíšek", "--reason", "x"],
   ]) {
     const r = await w.run(args);
     assert.equal(r.code, 2, args.join(" "));

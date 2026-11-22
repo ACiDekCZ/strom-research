@@ -61,6 +61,7 @@ import { applyReaders, readersDone, undoReaders, type ReaderFix, type ReaderKept
 import { answerProven, applyProven, provenDone, provenToReview, undoProven, type ProvenFix, type ProvenLeft } from "../core/provenfix.ts";
 import { applyOrigins, originsDone, undoOrigins, type OriginMark } from "../core/originfix.ts";
 import { applyVerify, undoVerify, verifyDone, type VerifyItem } from "../core/verify.ts";
+import { applyNameStatus, nameStatusDone, undoNameStatus, type NameStatusFix } from "../core/namestatusfix.ts";
 import { townAnswers } from "../core/streets.ts";
 import { eventKey } from "../cli/human.ts";
 import type { TreeConfig } from "../core/model.ts";
@@ -382,6 +383,20 @@ const REWRITERS: Record<string, Rewriter> = {
     askUndo: "Drop the tasks of verification the fix queued that nobody started?",
     fixed: (key, n, records) => `Fix ${key}: ${n} facts citing their original queued to be verified against it, in ${records} tasks`,
     undone: (key, n, left) => `Fix ${key}: undone, ${n} tasks of verification nobody started dropped${left ? `, ${left} at work or done left` : ""}`,
+  },
+  "name-status": {
+    // one name made probable: whose, the name, the records of the research's that name the person so
+    example: (t, item) => {
+      const r = item as NameStatusFix;
+      return t("ui.fixes.name-status.example", { person: r.person, name: r.name.replace(/\//g, "").replace(/\s+/g, " ").trim(), sources: r.sources.join(", "), to: t("ui.st.probable") });
+    },
+    apply: (tree, items, config) => applyNameStatus(tree, items as NameStatusFix[], VERSION, config),
+    done: (tree) => nameStatusDone(tree).length,
+    undo: (tree, config) => undoNameStatus(tree, config),
+    ask: "Make probable the names with no status that a record of the research's names (never proven, never the user's own)?",
+    askUndo: "Take the status the fix gave the names off again?",
+    fixed: (key, n, records) => `Fix ${key}: ${n} names a record of the research's names made probable, in ${records} records`,
+    undone: (key, n, left) => `Fix ${key}: undone, the status taken off ${n} names${left ? `, ${left} changed since left` : ""}`,
   },
 };
 
@@ -951,8 +966,15 @@ register(
       "itself once, as readers: one task of verification per person (a marriage per family), after the lines' work — only\n" +
       "people linked to the tree, off side branches, not living; no fact changes (the agent ends each with strom verify\n" +
       "done). Not in an archive. One operation, one commit; strom fixes undo verify-originals drops the tasks nobody started.\n" +
+      "name-status — before strom 1.36.0 a name had no status: a record naming the person was cited by the name and said\n" +
+      "nothing of how sure it is. Set right by itself once, as readers: a name with no status citing a record of the\n" +
+      "research's (QUAY 2 or 3: an original, or a copy of primary information; no index, no compiled work) becomes probable —\n" +
+      "never proven (only a reading of the original says that: strom cite P… S… --status proven), never a name the user\n" +
+      "confirmed against the scan or wrote, never on a citation an import brought (the family tree's source, the import\n" +
+      "that gave the name, a source of the Strom app the research never read). Set right in an archive too, never shown there.\n" +
+      "One operation, one commit; strom fixes undo name-status takes the status off each name still as the fix left it.\n" +
       SET_RIGHT_HELP,
-    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes show app-shapes", "strom fixes show street-places", "strom fixes show edit-decisions", "strom fixes show woken-waits", "strom fixes show readers", "strom fixes show proven-originals", "strom fixes show origins", "strom fixes show verify-originals", "strom fixes --json"],
+    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes show app-shapes", "strom fixes show street-places", "strom fixes show edit-decisions", "strom fixes show woken-waits", "strom fixes show readers", "strom fixes show proven-originals", "strom fixes show origins", "strom fixes show verify-originals", "strom fixes show name-status", "strom fixes --json"],
     run: (ctx: Context) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);
@@ -1008,7 +1030,7 @@ register(
       "again by the real time they took.\n" +
       "participant-names, app-shapes and street-places read nothing: set right as shown (strom fixes show <check>), all or none, in one\n" +
       "operation and one commit, free, also in an archive; strom fixes undo <check> puts it back. So do edit-decisions and\n" +
-      "woken-waits and readers, never in an archive (an agent's work); readers, proven-originals, origins and verify-originals are set right by themselves once,\n" +
+      "woken-waits and readers, never in an archive (an agent's work); readers, proven-originals, origins, verify-originals and name-status are set right by themselves once,\n" +
       "run again only after strom fixes undo or reopen.\n" +
       SET_RIGHT_HELP,
     args: [{ name: "check", description: "the check (default: each that waits)" }],
@@ -1112,7 +1134,7 @@ register(
   },
   {
     path: ["fixes", "undo"],
-    summary: "Put back what a check that rewrites set right (participant-names, app-shapes, street-places, edit-decisions, woken-waits, readers, proven-originals, origins, verify-originals): as it was before the fix (the person's own)",
+    summary: "Put back what a check that rewrites set right (participant-names, app-shapes, street-places, edit-decisions, woken-waits, readers, proven-originals, origins, verify-originals, name-status): as it was before the fix (the person's own)",
     group: "history",
     tree: true,
     person: "Putting a fix back is the person's own decision, at their own terminal: never done by an agent",
@@ -1122,11 +1144,11 @@ register(
       "(street-places); each disagreement closed again as the agent decided it (edit-decisions); each task back in the\n" +
       "queue as the images woke it (woken-waits); each source read by the user again (readers); each fact proven again\n" +
       "(proven-originals); each mark of where a value came from taken off (origins); each task of verification nobody started\n" +
-      "dropped (verify-originals) — where it is still as the fix left it; one\n" +
+      "dropped (verify-originals); each name's status taken off (name-status) — where it is still as the fix left it; one\n" +
       "changed since is left as it is and counted. One step of the history (one operation, one commit); the fix is then left as it is\n" +
-      "(strom fixes reopen asks again). Also in an archive (edit-decisions, woken-waits, readers, origins and verify-originals not).",
+      "(strom fixes reopen asks again). Also in an archive (edit-decisions, woken-waits, readers, origins, verify-originals and name-status not).",
     args: [{ name: "check", description: "the check, e.g. participant-names", required: true }],
-    examples: ["strom fixes undo participant-names", "strom fixes undo app-shapes", "strom fixes undo street-places", "strom fixes undo edit-decisions", "strom fixes undo readers", "strom fixes undo proven-originals", "strom fixes undo origins", "strom fixes undo verify-originals"],
+    examples: ["strom fixes undo participant-names", "strom fixes undo app-shapes", "strom fixes undo street-places", "strom fixes undo edit-decisions", "strom fixes undo readers", "strom fixes undo proven-originals", "strom fixes undo origins", "strom fixes undo verify-originals", "strom fixes undo name-status"],
     run: (ctx: Context, { args }) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);

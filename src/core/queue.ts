@@ -32,8 +32,9 @@
 // is kept for the turn: it is counted from the sessions.
 // The tasks of verification against the originals (core/verify.ts, core/verifyfacts.ts): the sweep's (verify:auto) and
 // the person's bulk one (verify:bulk, a family tree's leads' search too) come after the lines' work, whatever the
-// strategy, but after VERIFY_EVERY − 1
-// sessions since the last one on them one comes forward, the nearest ancestor first; never in a loop (each fact once,
+// strategy (a bulk one's try first, as the person's "verify": queueAt next — two tries in the order they were made),
+// but after VERIFY_EVERY − 1 sessions since the last one on them one comes forward, the nearest ancestor first; never
+// in a loop (each fact once,
 // its task done when every fact of it has its result). The person's "verify" of a person, a family or a fact
 // (verify:asked, verify:search) comes first (queueAt next), like strom task order next. One whose originals have no
 // image here waits for the download as any work that reads records.
@@ -42,7 +43,7 @@ import type { OffLine, Research, Session, Strategy, Task } from "./model.ts";
 import { parentsOf } from "./people.ts";
 import { taskRecordsets } from "./frontier.ts";
 import { now, type Tree } from "./tree.ts";
-import { aboutPeople, directionOf, scopes } from "./directions.ts";
+import { aboutPeople, effectiveDirection, scopes } from "./directions.ts";
 import { workOrder } from "./order.ts";
 import { offTree } from "./kin.ts";
 import { forStory } from "./stories.ts";
@@ -53,9 +54,10 @@ import type { PendingQuestion } from "./terms.ts";
 import { asleepHosts, asleepOn, type Asleep } from "./leftalone.ts";
 import { forHistory, HISTORY_PLACES_ORIGIN, historyHeld, historyOrder, historyTurn, type HistoryTurn } from "./pastevents.ts";
 import { Settings } from "./config.ts";
+import { censusHidden } from "./census.ts";
 import { personQueued, placesFirst } from "./placeid.ts";
 import { branchModeOf, placer, readOffline, type Placed } from "./offline.ts";
-import { readsOriginals, VERIFY_EVERY, verifiesInTurn, verifyLacksImages } from "./verifyfacts.ts";
+import { isBulkTry, readsOriginals, VERIFY_EVERY, verifiesInTurn, verifyLacksImages } from "./verifyfacts.ts";
 import { booksOfTask } from "./books.ts";
 
 export const LEVEL_ORDER: Record<string, number> = { intake: 0, locate: 1, link: 2, verify: 3, enrich: 4, request: 5, narrate: 6 };
@@ -171,7 +173,7 @@ export function goesAhead(tree: Tree): (t: Task) => boolean {
     const r = get();
     if (ownTurn(t, r.ended)) return false;
     const p = r.placeOf(t);
-    if (r.stopped.has(directionOf(tree, t, r.all) ?? p.research ?? "")) return false;
+    if (r.stopped.has(effectiveDirection(tree, t, r.all) ?? p.research ?? "")) return false;
     if (p.off) {
       const mode = branchModeOf(r.choices, r.offLine, p.branch).mode;
       if (mode === "last" || mode === "never") return false;
@@ -258,7 +260,8 @@ export function ancestorLines(tree: Tree, focus: string, max = 50): Map<string, 
 export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced", opts: { storyTurn?: boolean; awake?: boolean; history?: boolean | "only"; turn?: HistoryTurn; offLine?: OffLine; sameBook?: boolean } = {}): Ranked[] {
   const today = now().slice(0, 10);
   const researches = tree.list<Research>("research");
-  // a direction the user paused or ended: its tasks wait (one at work goes on)
+  // a direction the user paused or ended: its tasks wait (one at work goes on) — those of an ended line within an
+  // active one count toward the narrowest active line their people are in (core/directions.ts effectiveDirection)
   const stopped = new Set(researches.filter((r) => r.state !== "active").map((r) => r.id));
   const all = scopes(tree);
   // where each task stands among the lines: its own, the one it helps, or off them (core/offline.ts)
@@ -288,9 +291,11 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     return p.off ? branchModeOf(choices, offLine, p.branch).mode : undefined;
   };
   // a task that helps a line waits with it while it is paused or ended; the person's own turn takes one off the lines
+  // census records off (spec 106): their tasks held, back by themselves once on (core/census.ts)
+  const censusHide = censusHidden(settings.census(tree.config), today);
   const waits = (t: Task) =>
     t.state !== "doing" &&
-    ((stopped.size > 0 && stopped.has(directionOf(tree, t, all) ?? placing(t).research ?? "")) || off(t) || !!decision(t) || !!asleep(t) || (modeOf(t) === "never" && !own(t)));
+    (censusHide(t) || (stopped.size > 0 && stopped.has(effectiveDirection(tree, t, all) ?? placing(t).research ?? "")) || off(t) || !!decision(t) || !!asleep(t) || (modeOf(t) === "never" && !own(t)));
   // the tasks of history: only where asked for, and not while the experiment is off, in an archive, or held by another tree
   let held: ((t: Task) => string | undefined) | undefined;
   const history = (t: Task) => {
@@ -311,7 +316,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   /** The nearest ancestor a task is about: its generation and line. */
   const place = (t: Task) => {
     // a task of no research of its own: the direction its people are in (directions.ts), as the menu and the app say
-    const map = linesOf(t.research ?? directionOf(tree, t, all));
+    const map = linesOf(effectiveDirection(tree, t, all));
     // a family's task: its partners' (a couple's story)
     const found = [...t.subject, ...aboutPeople(tree, t.subject)].map((s) => map?.get(s)).filter((x): x is { gen: number; line: string } => !!x);
     return found.sort((a, b) => a.gen - b.gen)[0];
@@ -382,6 +387,11 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
           .sort((a, b) => a.gen - b.gen || a.t.created.localeCompare(b.t.created) || a.t.id.localeCompare(b.t.id, undefined, { numeric: true }))[0]?.t.id
       : undefined;
 
+  // the tries of a bulk verification (verify bulk --try): one block among the person's "next" choices, at the time of
+  // the latest try — within it the tries in the order they were made, the older one's tasks first (each "next" else
+  // the latest chosen first)
+  const bulkTry = (t: Task) => !forHistory(t) && isBulkTry(t) && own(t) === "next";
+  const triesAt = open.filter(bulkTry).reduce((m, t) => (t.queueAt!.at > m ? t.queueAt!.at : m), "");
   const rows = open.map((t) => {
     const hist = forHistory(t);
     const p = hist ? {} : placing(t);
@@ -458,7 +468,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
       recent ? `its line had ${recent} of the last ${RECENT} sessions` : undefined,
       tried ? `tried ${tried}×` : undefined,
     ].filter((x): x is string => !!x);
-    const lineOwn = hist ? undefined : (directionOf(tree, t, all) ?? p.research);
+    const lineOwn = hist ? undefined : (effectiveDirection(tree, t, all) ?? p.research);
     const reason: Reason | undefined = mine
       ? { kind: "own", do: mine }
       : lineOwn && stopped.has(lineOwn)
@@ -480,7 +490,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
       ...(ahead || verifyNow ? { turn: true as const } : {}),
       ...(inBook ? { sameBook: sameBook!.book } : {}),
     };
-    return { task: t, why, storyTurn, extra, own: mine === "next" ? -1 : mine === "last" ? 1 : 0, nextAt: mine === "next" ? t.queueAt!.at : "", offLine: offRank, doing: t.state === "doing" ? 0 : 1, hist: !hist ? 0 : t.id === turnTask ? -1 : 1, horder: hist ? order(t) : 0, first: first || placesAsked ? 0 : 1, blocked: blocked ? 1 : 0, inBook: inBook ? 0 : 1, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen, lineRank: lineAt ?? working.length };
+    return { task: t, why, storyTurn, extra, own: mine === "next" ? -1 : mine === "last" ? 1 : 0, nextAt: mine === "next" ? (bulkTry(t) ? triesAt : t.queueAt!.at) : "", tryAt: mine === "next" && bulkTry(t) ? t.queueAt!.at : "", offLine: offRank, doing: t.state === "doing" ? 0 : 1, hist: !hist ? 0 : t.id === turnTask ? -1 : 1, horder: hist ? order(t) : 0, first: first || placesAsked ? 0 : 1, blocked: blocked ? 1 : 0, inBook: inBook ? 0 : 1, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen, lineRank: lineAt ?? working.length };
   });
   const cmp = (a: (typeof rows)[number], b: (typeof rows)[number]) =>
         a.doing - b.doing ||
@@ -488,6 +498,8 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
         // next" goes next), last after everything
         a.own - b.own ||
         b.nextAt.localeCompare(a.nextAt) ||
+        // two tries of a bulk verification: the older one's tasks first
+        a.tryAt.localeCompare(b.tryAt) ||
         // the tasks of history after everything — but at history's turn its first one before all — the needed one first
         a.hist - b.hist ||
         a.horder - b.horder ||

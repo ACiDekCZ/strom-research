@@ -8,12 +8,18 @@
 // the store of originals (otherResearch). Only then do the source images of the same content and their excerpts go too
 // (a source loses the image, never its text). What a task held lets the file go as when it is hidden. The history
 // (git) keeps the record; the bytes stay only in a backup or a pack made before.
+//
+// A family tree's file too (spec 117 K2.1–K2.3): deleted as the material is — unless a source made of it stands
+// (blockedBy, 409 material.source-live): then only with that source deleted in the same step (retractSources,
+// core/sourceretract.ts), one confirmation over both. Everything is checked first, the sources deleted, the files taken
+// back, written — and only then do the bytes go (R7: the caller removes them after its commit).
 
 import fs from "node:fs";
 import path from "node:path";
 import { UsageError } from "./errors.ts";
 import type { Input, Media, Person, Source, Task } from "./model.ts";
-import { filesAsked, letGo, live, materialFile, materialPersons, MATERIAL_MOST_EDIT } from "./material.ts";
+import { filesAsked, isTreeFile, letGo, live, materialFile, materialPersons, MATERIAL_MOST_EDIT } from "./material.ts";
+import { deletedSource, retractImpacts, retractSources, type SourceImpacts } from "./sourceretract.ts";
 import { mediaRecords } from "./mediaindex.ts";
 import { update } from "./records.ts";
 import { sha256, signRecord, verifyRecord } from "./seal.ts";
@@ -48,6 +54,8 @@ export interface DeleteImpact {
   bytes: "deleted" | "kept";
   keptWhy?: "sameAs" | "otherResearch";
   sameAs?: string[];
+  /** A family tree's file: the sources made of it that stand — it is deleted only with them (spec 117 K2.2). */
+  blockedBy?: string[];
 }
 
 export interface Deleted {
@@ -60,6 +68,11 @@ export interface Deleted {
   unlinked: { source: string; file: string }[];
   /** The sources that lost images of a content deleted (and their excerpts on them). */
   images: { source: string; images: string[] }[];
+  /** The sources deleted with the files (retractSources), and what each took. */
+  retracted?: string[];
+  sourceImpacts?: SourceImpacts[];
+  /** The bytes of the files deleted, removed from the disk: by the caller, after its commit (R7). */
+  removeBytes: () => void;
 }
 
 const ACTIVE: readonly Task["state"][] = ["open", "doing", "parked", "waiting"];
@@ -67,7 +80,7 @@ const ACTIVE: readonly Task["state"][] = ["open", "doing", "parked", "waiting"];
 /** The files asked to be deleted, as they are now: 1–500 files of the material, else refused before anything. */
 function deleteAsked(tree: Tree, ids: string[]): Input[] {
   if (ids.length > DELETE_MOST_FILES) throw new UsageError(`at most ${DELETE_MOST_FILES} files at once`, { code: "material.body", params: { most: String(DELETE_MOST_FILES) }, hint: "strom help input delete" });
-  return filesAsked(tree, ids);
+  return filesAsked(tree, ids, { trees: true });
 }
 
 /** The contents of a file: its own, and its working copy's (the picture the app shows of it). */
@@ -172,6 +185,8 @@ function impactOf(tree: Tree, idx: Index, i: Input, asked: Set<string>, others: 
     .map((t) => t.id)
     .sort();
   const keptWhy = sameAs.length ? "sameAs" : others(shas) ? "otherResearch" : undefined;
+  // a family tree's file a source standing was made of (source.input, input.source): never deleted without it (K2.2)
+  const blockedBy = isTreeFile(i) ? idx.sources.filter((s) => s.input === i.id || i.source === s.id).map((s) => s.id).sort() : [];
   return {
     id: i.id,
     name: i.name,
@@ -184,6 +199,7 @@ function impactOf(tree: Tree, idx: Index, i: Input, asked: Set<string>, others: 
     bytes: keptWhy ? "kept" : "deleted",
     ...(keptWhy ? { keptWhy } : {}),
     ...(sameAs.length ? { sameAs } : {}),
+    ...(blockedBy.length ? { blockedBy } : {}),
   };
 }
 
@@ -200,12 +216,54 @@ export function deleteImpacts(tree: Tree, _shared: string | undefined, ids: stri
 }
 
 /**
- * The files deleted for good, as deleteImpacts says (checked whole first: nothing is written when one is refused).
- * The caller holds the tree lock and commits; a dry run of the tree deletes nothing on the disk.
+ * The sources standing that a family tree's file was made of and that are not deleted with it: refused, 409
+ * material.source-live {sources} (spec 117 K2.2) — the person deletes the source with the file (retractSources).
  */
-export function deleteMaterial(tree: Tree, shared: string | undefined, ids: string[], by: string): Deleted {
+export function refuseLiveSources(impacts: DeleteImpact[], retracting: string[] = []): void {
+  const with_ = new Set(retracting);
+  const live = [...new Set(impacts.flatMap((i) => i.blockedBy ?? []))].filter((s) => !with_.has(s)).sort();
+  if (live.length)
+    throw new UsageError(`a source of the research was made of the file and stands (${live.join(", ")}): the file goes only with it — nothing deleted`, {
+      code: "material.source-live",
+      params: { sources: live.join(",") },
+      hint: `the person deletes the source with it: strom input delete <I…> --retract-sources ${live.join(",")}`,
+    });
+}
+
+/**
+ * The sources asked to be deleted with the files: only those made of them (blockedBy) — any other is deleted on its
+ * own (strom source retract), never by deleting a file: refused before anything, material.body.
+ */
+export function checkRetractWith(impacts: DeleteImpact[], retracting: string[]): void {
+  const of = new Set(impacts.flatMap((i) => i.blockedBy ?? []));
+  const other = retracting.filter((s) => !of.has(s));
+  if (other.length)
+    throw new UsageError(`not a source made of the files given (${other.join(", ")}): only those are deleted with them — nothing deleted`, {
+      code: "material.body",
+      params: { sources: other.join(",") },
+      hint: "strom input delete <I…> --dry-run — impacts[].blockedBy; another source: strom source retract (the person's)",
+    });
+}
+
+/** What deleting the sources with the files would take (strom input delete --retract-sources --dry-run): nothing written. */
+export function deleteSourceImpacts(tree: Tree, sources: string[]): SourceImpacts[] {
+  return sources.length ? retractImpacts(tree, sources) : [];
+}
+
+/**
+ * The files deleted for good, as deleteImpacts says (checked whole first: nothing is written when one is refused) —
+ * with the sources given (`retractSources`) deleted first (spec 117 K2.2): a family tree's file with a source standing
+ * that is not among them refused (material.source-live). The caller holds the tree lock, commits, and only then
+ * removes the bytes (`removeBytes`, R7); a dry run of the tree deletes nothing on the disk.
+ */
+export function deleteMaterial(tree: Tree, shared: string | undefined, ids: string[], by: string, how: { retractSources?: string[]; via?: "bridge" | "terminal" } = {}): Deleted {
   const files = deleteAsked(tree, ids);
   const impacts = deleteImpacts(tree, shared, ids);
+  const asked = how.retractSources ?? [];
+  checkRetractWith(impacts, asked);
+  refuseLiveSources(impacts, asked);
+  // the sources first, checked whole by core/sourceretract.ts (unknown, deleted already: refused before anything)
+  const retracted = asked.length ? retractSources(tree, asked, how.via ? { via: how.via } : {}) : undefined;
   const at = new Date().toISOString();
   const why = by === "app" || by === "user" ? "deleted for good by the user" : `deleted for good (${by})`;
   const gone: string[] = [];
@@ -225,9 +283,10 @@ export function deleteMaterial(tree: Tree, shared: string | undefined, ids: stri
       }),
       { op: "input.delete", summary: `${i.id} deleted for good ("${i.name.slice(0, 50)}")${impact.bytes === "kept" ? `, its content kept (${impact.keptWhy})` : ""}`, reason: why },
     );
-    // a source made of it keeps its text and citations: only its link to the file goes
+    // a source made of it keeps its text and citations: only its link to the file goes — a source the person deleted
+    // too (R8: restored, it is without the file)
     for (const s of tree.list<Source>("source")) {
-      if (s.retracted || s.input !== i.id) continue;
+      if (s.input !== i.id || (s.retracted && !deletedSource(s))) continue;
       update<Source>(
         tree,
         s.id,
@@ -273,12 +332,27 @@ export function deleteMaterial(tree: Tree, shared: string | undefined, ids: stri
       update<Media>(tree, id, "media", (x) => ({ ...x, retracted: { at, reason: "deleted" } }), { op: "media.retract", summary: `${id} retracted: its file deleted for good`, reason: why });
   }
   const tasks = letGo(tree, files.map((i) => i.id), "deleted");
-  if (!tree.dryRun) removeBytes(tree, shared, files.filter((i) => gone.includes(i.id)), [...images].map((id) => tree.get<Media>(id)!).filter(Boolean));
-  return { files: files.map((i) => i.id), deleted: files.map((i) => i.id), impacts, tasks, unlinked, images: lostImages };
+  const goFiles = files.filter((i) => gone.includes(i.id));
+  const goImages = [...images].map((id) => tree.get<Media>(id)!).filter(Boolean);
+  // the research's own files go with the commit (its history keeps them: a write that fails puts them back)
+  if (!tree.dryRun) removeBytes(tree, shared, goFiles, goImages, "own");
+  return {
+    files: files.map((i) => i.id),
+    deleted: files.map((i) => i.id),
+    impacts,
+    tasks,
+    unlinked,
+    images: lostImages,
+    ...(retracted ? { retracted: retracted.retracted, sourceImpacts: retracted.impacts } : {}),
+    removeBytes: () => {
+      if (!tree.dryRun) removeBytes(tree, shared, goFiles, goImages, "rest");
+    },
+  };
 }
 
 /** The files on the disk: the original (shared store or inputs/), its working copy, the images of it, their previews. */
-function removeBytes(tree: Tree, shared: string | undefined, files: Input[], images: Media[]): void {
+/** The bytes removed: the research's own (inputs/, kept by its history: removed before the commit, committed with it) or the rest (the shared store, previews: after it, R7). */
+function removeBytes(tree: Tree, shared: string | undefined, files: Input[], images: Media[], which: "own" | "rest"): void {
   const paths = new Set<string>();
   const shas = new Set<string>();
   // never a path that leaves its folder (a record says where its file is)
@@ -287,14 +361,18 @@ function removeBytes(tree: Tree, shared: string | undefined, files: Input[], ima
   };
   for (const i of files) {
     const own = i.file ? materialFile(tree, shared, i) : undefined;
-    if (own) within(i.file!.startsWith("inputs/") ? path.join(tree.root, "inputs") : shared!, own);
+    const inTree = i.file?.startsWith("inputs/") ?? false;
+    if (own && inTree === (which === "own")) within(inTree ? path.join(tree.root, "inputs") : shared!, own);
+    if (which === "own") continue;
     if (shared && i.working) within(shared, path.join(shared, workingRel(shared, i.working)));
     for (const s of shasOf(i)) shas.add(s);
   }
-  if (shared) for (const m of images) within(shared, path.join(shared, m.file));
+  if (shared && which === "rest") for (const m of images) within(shared, path.join(shared, m.file));
   for (const sha of shas) for (const px of THUMB_SIZES) paths.add(thumbPath(tree.root, sha, px));
   for (const p of paths) {
     try {
+      // the research's own: what a command that fails afterwards puts back (its rollback), as any file it wrote
+      if (which === "own") tree.remember(p);
       fs.rmSync(p, { force: true });
     } catch {
       // a file that cannot be removed now (held by another program): its record is gone, strom tidy finds it later
@@ -304,29 +382,39 @@ function removeBytes(tree: Tree, shared: string | undefined, files: Input[], ima
 
 const CONFIRM_KIND = "material.delete";
 
-/** The mark of a list of impacts (what the person saw): its hash. */
-const markOf = (impacts: DeleteImpact[]): string => sha256(JSON.stringify(canonicalize(impacts))).slice(0, 32);
+/** The sources deleted with the files and what they take (spec 117 K2.2): one confirmation over both. */
+export interface WithSources {
+  sources: string[];
+  impacts: SourceImpacts[];
+}
+
+/** The mark of a list of impacts (what the person saw): its hash — with the sources' impacts when they go with the files. */
+const markOf = (impacts: DeleteImpact[], sources?: WithSources): string =>
+  sha256(JSON.stringify(canonicalize(sources?.sources.length ? { impacts, sourceImpacts: sources.impacts } : impacts))).slice(0, 32);
+/** What the signature is over: the files, the mark, when — and the sources deleted with them. */
+const signed = (files: string[], mark: string, at: number, sources?: WithSources) => ({ files, impacts: mark, at, ...(sources?.sources.length ? { sources: sources.sources } : {}) });
 
 /**
  * The bridge's confirmation of a dry run (POST /material/delete {dryRun: true}): signed with the research's seal key
- * over the files, the impacts the person was shown and when — "<ms>.<mark>.<signature>". Only a strom of this computer
- * makes one; an agent of the research has no key.
+ * over the files, the impacts the person was shown and when — "<ms>.<mark>.<signature>"; with the sources deleted with
+ * them (retractSources), over those and their impacts too. Only a strom of this computer makes one; an agent of the
+ * research has no key.
  */
-export function deleteConfirm(key: Buffer, files: string[], impacts: DeleteImpact[], at = Date.now()): string {
-  const mark = markOf(impacts);
-  return `${at}.${mark}.${signRecord(key, CONFIRM_KIND, { files, impacts: mark, at })}`;
+export function deleteConfirm(key: Buffer, files: string[], impacts: DeleteImpact[], at = Date.now(), sources?: WithSources): string {
+  const mark = markOf(impacts, sources);
+  return `${at}.${mark}.${signRecord(key, CONFIRM_KIND, signed(files, mark, at, sources))}`;
 }
 
 /**
  * A confirmation checked against the impacts now: `ok`; `changed` — signed, but the research changed since the person
  * saw it (material.delete-changed); `invalid` — none, not signed here, or older than 15 minutes (material.body).
  */
-export function checkDeleteConfirm(key: Buffer | undefined, files: string[], impacts: DeleteImpact[], token: unknown, now = Date.now()): "ok" | "changed" | "invalid" {
+export function checkDeleteConfirm(key: Buffer | undefined, files: string[], impacts: DeleteImpact[], token: unknown, now = Date.now(), sources?: WithSources): "ok" | "changed" | "invalid" {
   if (!key || typeof token !== "string" || token.length > 200) return "invalid";
   const m = /^(\d{1,15})\.([0-9a-f]{32})\.([0-9a-f]{64})$/u.exec(token);
   if (!m) return "invalid";
   const at = Number(m[1]);
   if (!(at <= now + 60_000 && now - at <= DELETE_CONFIRM_MS)) return "invalid";
-  if (!verifyRecord(key, CONFIRM_KIND, { files, impacts: m[2], at }, m[3])) return "invalid";
-  return m[2] === markOf(impacts) ? "ok" : "changed";
+  if (!verifyRecord(key, CONFIRM_KIND, signed(files, m[2]!, at, sources), m[3])) return "invalid";
+  return m[2] === markOf(impacts, sources) ? "ok" : "changed";
 }

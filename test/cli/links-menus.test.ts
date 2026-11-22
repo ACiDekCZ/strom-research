@@ -432,6 +432,8 @@ test("strom-research://new with family trees here already (an empty Strom app): 
   // through its bridge, nothing set up
   w.env.STROM_APP_DIRS = path.join(w.dir, "Applications");
   fs.mkdirSync(path.join(w.env.STROM_APP_DIRS, "Google Chrome.app"), { recursive: true });
+  // as on Linux too (its command): never the computer's own browsers
+  fs.writeFileSync(path.join(w.env.STROM_APP_DIRS, "google-chrome"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
   const root = w.treeDir("Novákovi");
   try {
     const opened = await w.run(["link", "open", link], { tty: true, answers: [key("Novákovi"), "", "", ""] });

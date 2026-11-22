@@ -28,7 +28,8 @@ const LEVELS: Record<string, string[]> = {
 /** Options a task hardly uses (another route, a reader's tuning): left out — strom help <command> has them. */
 const RARE: Record<string, string[]> = {
   "search add": ["by"],
-  "task add": ["research", "anyway"],
+  // --census: a census task only while census records are on (the method's census page names it, spec 106)
+  "task add": ["research", "anyway", "census"],
   "media view": ["scale", "max", "grey", "png", "image", "whole"],
   read: ["context", "batch", "model", "minutes", "max"],
   // a book the research has already: the refusal says --again where it applies; --status and --stop: the method and the brief name them;
@@ -159,8 +160,8 @@ export function commandSheet(level: string | undefined, extra: { connectors?: Sh
     // the mistakes that cost a turn most (N0180–N0188): words of one value not quoted, several values after one
     // option, a batch file changed by the shell (refused: only strom changes files from there)
     '  values with spaces in quotes (--note "two words"); a repeatable option once per value (--found S0001 --found S0002); a batch file in notes/: change it with your file-editing tool, not sed',
-    // a status asked of a name or a family, proven with no primary information (N0190, N0191): refused, a turn lost
-    ...(RECORDS.has(level!) ? ["  --status is a fact's (E…) only, never a name's or a family's; proven only with a record of the time read directly (--information primary), else probable"] : []),
+    // a status asked of a family, proven with no primary information (N0190, N0191): refused, a turn lost
+    ...(RECORDS.has(level!) ? ["  --status is a fact's (E…) or a name's (P…), never a family's; proven only with a record of the time read directly (--information primary), else probable"] : []),
     ...(cite ? [cite] : []),
     ...defs.flatMap((d) =>
       // every connector of the task's archives one strom fetch refuses whole: no fetch line to try, only why

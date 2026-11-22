@@ -90,6 +90,11 @@ Photos of documents from the phone (taken on the page or picked from the gallery
 chosen tree as one batch. A note and a person can be added to the batch. **Hand over to research** closes the batch,
 and the research makes tasks to sort it out, the same as with **Add materials…** ([S4](S4-research-from-the-app.md)).
 
+- **From research 1.36.0:** the tasks to sort it out are created only with the research's setting **The agent goes
+  through files sent to the research by itself** switched on ([R11.6](R11-material-from-the-user.md#R11.6));
+  otherwise the photos wait in Materials, not sorted yet, and they can be sorted in the app on a computer (**Sort
+  with the agent…**, [A3.5.8](A3-evidence-in-the-app.md#A3.5.8)).
+
 - **Limits:** photos are saved unchanged, in full resolution and outside the tree's history. A file the research
   already has is not sent again ("already in the research, not sent"). One photo may have at most 500 MB. Where the
   computer cannot convert the HEIC format, the page accepts only JPEG. A batch nobody hands over is handed over by

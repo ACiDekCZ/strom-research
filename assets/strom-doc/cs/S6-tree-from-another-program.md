@@ -75,6 +75,11 @@ na kartičce ve stromu a ověření údajů podle originálů popisuje [S7](S7-r
   kartička ukáže nejslabší z údajů jméno, narození, úmrtí, [S7.2](S7-reliability-and-verification.md#S7.2)).
 - **Od aplikace 3.26.0:** dvě plné tečky u **Doloženo** dostane údaj, u kterého se při ověření výzkumem shodli dva
   čtenáři záznamu; kartička ve stromu má jednu značku místo dřívějších dvou voleb.
+- **Od aplikace 3.31.0 s výzkumem 1.36.0:** jméno z rodokmenu už nezůstává **Z rodokmenu** napořád: výzkum mu dá
+  stupeň podle zápisů, které ho dokládají, a jde ho ověřit i potvrdit podle skenu
+  ([S7.10](S7-reliability-and-verification.md#S7.10), [R10.5.2](R10-people-and-hypotheses.md#R10.5.2)). Když už
+  žádný údaj osoby není jen z rodokmenu, řádek u osoby říká „Údaje osoby přišly z {program} (soubor {datum}, načteno
+  {datum}); žádný už není jen z rodokmenu.“
 - **Platí od:** aplikace 3.26.0, výzkum 1.30.0
 
 <!-- zdroj: app:7b0471f8 src/reliability.ts (pořadí human, proven, probable, possible, import, lead, none; tečky, ✓ a rámeček, ne barva; feature origin; bez záznamu o importu žádné Z rodokmenu; readers z _STROM_CHECKED, noSource nekrmeno) · src/ui/fact-status.ts · src/ui/person-reliability-ui.ts · src/settings.ts display.reliabilityCard (ON) · src/ui/card-signals-ui.ts (signál status, výchozí zapnuto) · index.html settings-group-card · strings.ts reliability.settingCard, cardDensity.cardStatus, settings.groupCard · app:669c08f0 src/reliability.ts userTreeOrigin (_STROM_ORIGIN tree) -->

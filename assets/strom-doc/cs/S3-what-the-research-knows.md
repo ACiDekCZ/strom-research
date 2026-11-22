@@ -70,8 +70,12 @@ počet, např. „2 rozpory“.
 - **Ovládání:** aplikace: nabídka osoby → **Výzkum → Co ví výzkum**.
 - **Platí od:** aplikace 3.4.0
 - **Od aplikace 3.22.0:** v podmenu **Výzkum** jsou nahoře linie, ve kterých osoba je.
+- **Od aplikace 3.31.0:** **Co ví výzkum** je v podmenu **Výzkum** s počtem vždy, když výzkum o osobě něco ví, i když
+  blok signálů nad nabídkou (rozpory, otázka) vede do stejného dialogu. Dosud tam v takovém případě chyběl. Když by
+  byl **Co ví výzkum** jedinou položkou **Výzkum** (bez podmenu, například na telefonu), hned vedle signálu se
+  neopakuje.
 
-<!-- zdroj: app:src/ui/person-research-ui.ts:140-150 personResearchKnows, markResearchConflicts · src/ui/context-menu.ts personSection · src/ui/card-signals-ui.ts · src/card-signals.ts:171-194 · src/ui/view-links-ui.ts:326 · src/renderer.ts:5479 · src/ui/research-edge-ui.ts:205, :364 · src/ui/conflict-panel-ui.ts:274 · src/ui/research-ui.ts:2119 researchLinkAvailable · HEAD context-menu.ts personInLineItems (spec 038 §5.1) -->
+<!-- zdroj: app:src/ui/person-research-ui.ts:140-150 personResearchKnows, markResearchConflicts · src/ui/context-menu.ts personSection · src/ui/card-signals-ui.ts · src/card-signals.ts:171-194 · src/ui/view-links-ui.ts:326 · src/renderer.ts:5479 · src/ui/research-edge-ui.ts:205, :364 · src/ui/conflict-panel-ui.ts:274 · src/ui/research-ui.ts:2119 researchLinkAvailable · HEAD context-menu.ts personInLineItems (spec 038 §5.1) · 3.31.0: app 04185a08 src/ui/context-menu.ts personResearchKnows vždy, researchRowsBesideSignals (jediná položka vedle signálu se neopakuje) · SPEC.md 1120-app-117-smazani (Přibaleno) -->
 
 <a id="S3.3"></a>
 ## S3.3 Nad osobou ukazuje, kde strom končí a co dál
@@ -140,6 +144,30 @@ a jak se rozhoduje, popisuje [R5.6](R5-conflicts.md#R5.6). Rozhodnutí stranou z
   rozhoduje se ve výzkumu.“ (dosud vždy „Tady se rozcházejí prameny; rozhoduje se ve výzkumu.“).
 
 <!-- zdroj: app:src/ui/person-research-ui.ts showPersonResearchDialog (Rozpory), activeResearchNoAgent · research:src/gedcom/export.ts:760-805 · HEAD person-research-ui.ts conflictFromEdit, strings.ts conflict.editOnly · HEAD research-decide.ts conflictFromEdit -->
+
+<a id="S3.4.1"></a>
+### S3.4.1 Pramen odvolán – přezkoumat
+
+Rozpor, který stál na prameni smazaném ve výzkumu ([R3.10](R3-verification-and-citation.md#R3.10)), má vedle
+stavu štítek **přezkoumat**. Ve sloupci **Pramen** stojí u hodnoty „pramen odvolán“. Otevřený rozpor nese větu
+„Pramen jedné z hodnot byl odvolán; rozpor čeká na přezkoumání.“
+
+- Rozhodnutý rozpor se značkou se ukáže jako karta, ne jako řádek „rozhodnuto: …“, s větou „Rozhodnutí stálo i na
+  odvolaném prameni; čeká na přezkoumání.“ a dvěma volbami:
+  - **Rozhodnutí platí:** značku sundá přes most (jako `strom conflict keep`); rozhodnutí zůstane, jak je;
+  - **Rozhodnout znovu ve výzkumu:** otevře rozhodnutí ve výzkumu jako **Rozhodnout ve výzkumu**
+    ([R5.6](R5-conflicts.md#R5.6)); nové rozhodnutí značku sundá také.
+- Značka je vidět v **Co ví výzkum**, na kartě rozporu se stranami, v panelu u pole v úpravě osoby a v bublině
+  Tabulky. Rozpor se sám neuzavře.
+- **Hranice:**
+  - **Rozhodnutí platí** je jen s výzkumem, který smazání pramene umí, a s běžícím mostem. U výzkumu jen ke čtení
+    řekne „Výzkum jde jen číst; rozhodnutí tu potvrdit nejde.“;
+  - **Rozhodnout znovu ve výzkumu** jen tam, kde jde otevřít výzkum ([S3.2](#S3.2)), a jen u osoby z výzkumu.
+- **Ovládání:** aplikace: **Co ví výzkum** → **Rozpory** → **Rozhodnutí platí** / **Rozhodnout znovu ve výzkumu**;
+  terminál: `strom conflict keep X…`.
+- **Platí od:** aplikace 3.31.0 s výzkumem 1.36.0
+
+<!-- zdroj: app:801189d6 src/ui/person-research-ui.ts conflictUnderReview, reviewTagHtml, researchConflictReviewCardHtml (keepOn = conflictKeepOffered, canDecide = researchLinkAvailable + personResearchRef), keepResearchConflict · src/source-retract.ts conflictKeepOffered, keepConflict (/conflict/keep) · src/ui/conflict-decide-ui.ts, conflict-panel-ui.ts, table-view/table-research-bubble.ts · strings.ts research.review.* · research:e6bbfb40 src/commands/analysis.ts conflict keep · spec 117 §8 -->
 
 <a id="S3.5"></a>
 ## S3.5 Hypotézy

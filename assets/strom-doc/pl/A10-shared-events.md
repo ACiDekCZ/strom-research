@@ -44,7 +44,13 @@ wszystkich kopiach takie same, a zmiana dowolnej kopii dotyczy wszystkich.
     u wszystkich N osób…** (potwierdzenie wymienia osoby, u których wydarzenie zniknie). Jedno i drugie można cofnąć
     przez **Cofnij**.
 - **Obowiązuje od:** aplikacja 3.28.0
+- **Od badania 1.36.0:** gospodarstwo domowe ze spisu ludności zapisane przez badanie
+  ([R9.12.3](R9-archives.md#R9.12.3)) przychodzi jako jedno wspólne wydarzenie **Spis ludności**. Rola to stosunek do
+  głowy gospodarstwa, jak zapisało go badanie (głowa gospodarstwa domowego, żona, syn…), wiek każda osoba ma własny,
+  a ludzie z arkusza spoza drzewa są w notatce. Pokazuje się przy każdej jego osobie i na **Osi czasu**
+  ([A10.2](#A10.2), [A6.3](A6-views.md#A6.3)) (aplikacja 3.31.0).
 
+<!-- zdroj: research:8dba2e52 src/core/household.ts (CENS, _STROM_SHARE + _ROLE, společná NOTE) · app:6edc7dc7 src/__tests__/census-bridge.test.ts (parser domácnosti) · app:80d6358c e2e/research-census.spec.ts (domácnost u osoby a na Časové ose linie) · app:cc6f3104 src/timeline-chart.ts · CHANGELOG.cs.md 3.31.0 · dirigent:spec/106 K3.1, K3.4 -->
 <!-- zdroj: app:80c2ffb9 src/events.ts SHAREABLE_EVENT_TYPES (census, residence, emigration, immigration, military, naturalization, custom), SHARED_EVENT_COMMON_FIELDS (type, customLabel, date, place, address, note, sourceIds, citationQuay) · src/types.ts LifeEvent.shareId, shareRole · src/shared-events.ts, src/shared-event-editor.ts · src/ui/shared-event-ui.ts LARGE_HOUSEHOLD 7, SHOWN 5, openSharedRowMenu, openSharedDeleteMenu, sharedTakeOut, sharedDeleteAll · strings.ts events.sharedWith, sharedWithHint, sharedBanner, sharedCol*, sharedRoleDefault, sharedRoleOther, sharedRolePlaceholder, sharedShowMore, sharedShowLess, sharedOpenPerson, sharedSeparate(Hint), sharedRemove(Hint), sharedSeparateSelf, sharedDeleteSelf(Hint), sharedDeleteAll(Title, Lead), undoHint, sharedTypeLocked(Hint), sharedSaved, sharedSaveRefused, personDelete deleteShared · spec 085 K1.1–K1.3 · dirigent:prace/1113-app-sdilena-udalost Výsledek -->
 
 <a id="A10.1.1"></a>

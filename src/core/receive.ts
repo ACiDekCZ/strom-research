@@ -7,16 +7,18 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import http from "node:http";
-import { spawn, type ChildProcess } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import type { Env } from "./paths.ts";
 import { withoutAgentMarks } from "./which.ts";
 import { Tree } from "./tree.ts";
+import { readTree } from "./readtree.ts";
 import { Settings } from "./config.ts";
 import { ui } from "../cli/ui.ts";
 import { DISK_FULL, EXIT, isDiskFull, StromError } from "./errors.ts";
-import { freeBytes, knownOriginal, originalMax, ORIGINAL_RESERVE } from "./originals.ts";
-import { batchRoom, noteBatch, openBatch } from "./batches.ts";
-import { stromLauncher } from "./self.ts";
+import { freeBytes, knownOriginal, originalMax, originalProblem, originalType, ORIGINAL_RESERVE } from "./originals.ts";
+import { batchPath, batchRoom, noteBatch, openBatch } from "./batches.ts";
+import { spawnRun, type RunStrom } from "./warmwriter.ts";
+import { enqueue, queueTag, type QueueJob } from "./mediaqueue.ts";
 import { foldText } from "./text.ts";
 import type { Input, Source } from "./model.ts";
 import { parseImageList } from "./media.ts";
@@ -75,6 +77,18 @@ export function langOf(root: string, env: Env): string {
   }
 }
 
+/** How long the app waits before it sends again what a file another program held stopped (seconds). */
+export const HELD_RETRY = 10;
+/**
+ * A file another program held or that could not be read as it was written (media.held, fs.held — an antivirus, a sync
+ * or backup tool): the sentence in the research's language (`error`), English (`text`), code media.held, never the
+ * file's path; answered 503 with `retry`, the queue written again by the bridge.
+ */
+export function heldSaid(lang: string): { error: string; code: string; text: string; retry: number } {
+  return { error: ui(lang, "ui.media.held"), code: "media.held", text: ui("en", "ui.media.held"), retry: HELD_RETRY };
+}
+const isHeld = (data: { code?: unknown }) => data.code === "media.held" || data.code === "fs.held";
+
 /** Too large, no room: the sentence in the research's language (`error`), English (`text`) and the code. */
 function said(lang: string, key: "ui.media.large" | "ui.media.full", params: Record<string, string> = {}): { error: string; code: string; text: string; params?: Record<string, string> } {
   return { error: ui(lang, key, params), code: key === "ui.media.large" ? "media.large" : "media.full", text: ui("en", key, params), ...(Object.keys(params).length ? { params } : {}) };
@@ -94,6 +108,10 @@ export interface Receiver {
   /** The tree's last commit after a write (the bridge's answers; none: not said). */
   head?(): string;
   safely(req: http.IncomingMessage, res: http.ServerResponse, fn: () => void): void;
+  /** How it runs a strom of its own (the bridge: its warm writer); none: a strom started for each. */
+  run?: RunStrom;
+  /** A file it queued (Prefer: respond-async): its job, for the writer of the queue (the bridge's). */
+  queued?(job: QueueJob): void;
 }
 
 /** What came with a file, checked by the server already. */
@@ -119,15 +137,32 @@ export interface Incoming {
   phone?: boolean;
   /** To be read at once (X-Strom-Read): an input with no intake task. */
   read?: boolean;
+  /**
+   * Answered once it is checked and queued (Prefer: respond-async, a file of a batch or of people only): 202, written
+   * later by the bridge's writer of the queue (Receiver.queued) — with who sent it.
+   */
+  async?: { origin?: string | undefined; app?: string | undefined };
 }
 
 /** Answered with JSON — 503 is only "busy, send it again": always with when (Retry-After). */
-export function replyJson(res: http.ServerResponse, code: number, body: Record<string, unknown>): void {
-  if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(code === 503 ? { "Retry-After": "30" } : {}) }).end(JSON.stringify(body));
+export function replyJson(res: http.ServerResponse, code: number, body: Record<string, unknown>, headers: Record<string, string> = {}): void {
+  if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(code === 503 ? { "Retry-After": String(typeof body.retry === "number" ? body.retry : 30) } : {}), ...headers }).end(JSON.stringify(body));
 }
 
-/** A strom of its own, its output read. */
-const spawnPiped = (command: string, argv: string[], cwd: string, env: Env) => spawn(command, argv, { cwd, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+/** Whether a file begins as a ZIP does (a batch's ZIP queued: checked as it comes, unpacked as it is written). */
+function zipHead(file: string): boolean {
+  const b = Buffer.alloc(4);
+  const fd = fs.openSync(file, "r");
+  try {
+    fs.readSync(fd, b, 0, 4, 0);
+  } finally {
+    fs.closeSync(fd);
+  }
+  return b[0] === 0x50 && b[1] === 0x4b && (b[2] === 0x03 || b[2] === 0x05);
+}
+
+/** How a server runs a strom of its own as the person's: its warm writer (the bridge's), else a strom started for it. */
+const runOf = (r: Receiver): RunStrom => r.run ?? spawnRun(r.root, forApp(r.env, r.root), (c) => r.track(c));
 
 /** Receive a file whose sender and headers were checked (see the top of this file). */
 export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: http.ServerResponse, f: Incoming): void {
@@ -143,7 +178,8 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
   // a NUL never reaches a program's argument (the file would wait in .incoming for nothing): refused before it is read
   if ([name, note, region, batch, where, f.source, f.task, ...f.persons, ...(f.families ?? [])].some((v) => typeof v === "string" && v.includes("\0")))
     return refuse(400, refusal("a NUL in a header", "media.bad-header", { header: "X-Strom-Name" }));
-  const tree = Tree.open(r.root, r.env);
+  // only read here (what the research has of it): a strom of its own writes
+  const tree = readTree(r.root, r.env);
   const settings = new Settings(r.env, {});
   const shared = settings.shared()?.value;
   // not set up (no shared folder): sending again does not help — /status says accepts.media null
@@ -165,7 +201,8 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
   const known = zip || f.task ? undefined : knownOriginal(tree, shared, sha);
   const onSource = !batch && !!f.source && known?.kind === "media" && !tree.get<Source>(f.source)?.media?.includes(known.id);
   if (known && !onSource) {
-    if (open) noteBatch(r.root, open, { known: known.id });
+    // (queued files of the batch: said among what became of them as the batch is closed — its files)
+    if (open) noteBatch(r.root, open, { known: known.id, ...(f.async && batch ? { taken: { sha, ...(where ? { path: where } : {}), batch, known: known.id } } : {}) });
     // an input of the people, said of again — people it lacks, a note it has not got: added by a strom of its own
     // (found live: the app said "Sent" while the research took nothing)
     const had = known.kind === "input" && !batch ? tree.get<Input>(known.id) : undefined;
@@ -178,19 +215,8 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
     };
     if (!more || f.read) return refuse(200, { known: known.id, kind: known.kind, ...(batch ? { batch } : {}), ...unchanged() });
     req.resume();
-    const { command, args } = stromLauncher();
-    const child = spawn(command, [...args, "input", "amend", known.id, ...f.persons.flatMap((p) => ["--person", p]), ...(f.families ?? []).flatMap((x) => ["--family", x]), ...(note ? [`--note=${note}`] : []), "--json"], {
-      cwd: r.root,
-      env: forApp(r.env, r.root),
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
-    r.track(child);
-    let stdout = "";
-    child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
-    child.stderr.resume();
-    child.on("error", () => reply(200, { known: known.id, kind: known.kind, ...unchanged() }));
-    child.on("close", (code) => {
+    runOf(r)(["input", "amend", known.id, ...f.persons.flatMap((p) => ["--person", p]), ...(f.families ?? []).flatMap((x) => ["--family", x]), ...(note ? [`--note=${note}`] : []), "--json"], ({ code, stdout, error }) => {
+      if (error) return reply(200, { known: known.id, kind: known.kind, ...unchanged() });
       let data: { added?: unknown; task?: unknown } = {};
       try {
         data = JSON.parse(stdout) as typeof data;
@@ -259,10 +285,40 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
         reply(409, refusal("the file is not the one its address names (its SHA-256 differs) — send it again", "media.sha-differs", { sha }));
         return;
       }
+      // queued (Prefer: respond-async): what can be told now is told now — a kind of file it does not take, a file cut
+      // short — the rest written by the bridge's writer of the queue, as strom media original would
+      if (f.async && r.queued) {
+        const type = zip ? (zipHead(part) ? true : undefined) : originalType(part, batch ? path.basename(where ?? name) : name);
+        if (!type) {
+          drop();
+          return reply(415, refusal(`${name}: not a kind of file the research takes`, "media.type", { name }));
+        }
+        const problem = type === true ? undefined : originalProblem(part, type.mime);
+        if (problem) {
+          drop();
+          return reply(422, refusal(`${name}: ${problem.text} — not taken; send it again`, problem.code, { name, ...problem.params }));
+        }
+        let job: QueueJob;
+        try {
+          job = enqueue(r.root, part, {
+            sha, name, persons: f.persons,
+            ...(f.families?.length ? { families: f.families } : {}),
+            ...(note ? { note } : {}),
+            ...(batch ? { batch, path: where ?? batchPath(name) ?? name, ...(zip ? { zip: true } : {}) } : {}),
+            client: { ...(f.async.origin ? { origin: f.async.origin } : {}), ...(f.async.app ? { app: f.async.app } : {}) },
+            bytes: size,
+          }, queueTag(tree.config.id)).job;
+        } catch (e) {
+          drop();
+          r.note(`an original was not queued: ${errorText(e)}`);
+          return isDiskFull(e) ? reply(507, said(tree.lang, "ui.media.full")) : reply(500, refusal(errorText(e), "media.failed"));
+        }
+        r.queued(job);
+        return replyJson(res, 202, { sha, bytes: size, queued: true, ...(batch ? { batch } : {}) }, { "Preference-Applied": "respond-async" });
+      }
       // taken by a strom of its own: its lock, its log and its commit
-      const { command, args } = stromLauncher();
       const argv = [
-        ...args, "media", "original", part, "--sha", sha, `--name=${name}`,
+        "media", "original", part, "--sha", sha, `--name=${name}`,
         ...f.persons.flatMap((p) => ["--person", p]),
         ...(f.families ?? []).flatMap((x) => ["--family", x]),
         ...(f.source ? ["--source", f.source] : []),
@@ -276,24 +332,12 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
         ...(f.read ? ["--read"] : []),
         "--json",
       ];
-      let child: ReturnType<typeof spawnPiped>;
-      try {
-        child = spawnPiped(command, argv, r.root, forApp(r.env, r.root));
-      } catch (e) {
-        // not started at all (an argument it cannot take): the part goes at once, never left for the tidying
-        drop();
-        return reply(500, refusal(errorText(e), "media.failed"));
-      }
-      r.track(child);
-      let stdout = "";
-      let stderr = "";
-      child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
-      child.stderr.on("data", (d: Buffer) => (stderr += d.toString("utf8")));
-      child.on("error", (e) => {
-        drop();
-        reply(500, refusal(errorText(e), "media.failed"));
-      });
-      child.on("close", (code) => {
+      runOf(r)(argv, ({ code, stdout, stderr, error }) => {
+        if (error) {
+          // not started at all (an argument it cannot take): the part goes at once, never left for the tidying
+          drop();
+          return reply(500, refusal(errorText(error), "media.failed"));
+        }
         let data: Record<string, unknown> = {};
         try {
           data = JSON.parse(stdout) as Record<string, unknown>;
@@ -310,6 +354,8 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
         r.note(`an original was not taken (exit ${code}): ${why}`);
         // the research busy (another strom holding it longer than a writer waits): the app sends it again later
         if (code === EXIT.locked) return reply(503, { ...refusal(why, "research.busy"), retry: 30 });
+        // a file another program held for a moment (an antivirus): the app sends it again in a while
+        if (isHeld(data)) return reply(503, heldSaid(tree.lang));
         // no room on the disk: said in the research's language, never its inner path (found on Mac: "the disk is full: …")
         if (data.code === DISK_FULL || isDiskFull(why)) return reply(507, diskFullSaid(tree.lang, fullWhere(data, r.root)));
         // the task waits no more (answered meanwhile in the terminal)
@@ -342,15 +388,8 @@ const closing = new Set<string>();
  * refusal (400, its code) — 409 for a research nobody researches (archive, agent.missing).
  */
 export function stromBy(r: Receiver, argv: string[], reply: (code: number, body: Record<string, unknown>) => void): void {
-  const { command, args } = stromLauncher();
-  const child = spawn(command, [...args, ...argv, "--json"], { cwd: r.root, env: forApp(r.env, r.root), stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
-  r.track(child);
-  let stdout = "";
-  let stderr = "";
-  child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
-  child.stderr.on("data", (d: Buffer) => (stderr += d.toString("utf8")));
-  child.on("error", (e) => reply(500, refusal(errorText(e), "phone.failed")));
-  child.on("close", (code) => {
+  runOf(r)([...argv, "--json"], ({ code, stdout, stderr, error }) => {
+    if (error) return reply(500, refusal(errorText(error), "phone.failed"));
     let data: Record<string, unknown> = {};
     try {
       data = JSON.parse(stdout) as Record<string, unknown>;
@@ -374,24 +413,9 @@ export function closeBatchBy(r: Receiver, id: string, extra: string[], reply: (c
   const key = `${r.root}\0${id}`;
   if (closing.has(key)) return reply(202, { pending: true, batch: id });
   closing.add(key);
-  const { command, args } = stromLauncher();
-  const child = spawn(command, [...args, "input", "batch", "done", id, ...extra, "--json"], {
-    cwd: r.root,
-    env: forApp(r.env, r.root),
-    stdio: ["ignore", "pipe", "pipe"],
-    windowsHide: true,
-  });
-  r.track(child);
-  let stdout = "";
-  let stderr = "";
-  child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
-  child.stderr.on("data", (d: Buffer) => (stderr += d.toString("utf8")));
-  child.on("error", (e) => {
+  runOf(r)(["input", "batch", "done", id, ...extra, "--json"], ({ code, stdout, stderr, error }) => {
     closing.delete(key);
-    reply(500, { ...refusal(errorText(e), "media.failed"), batch: id });
-  });
-  child.on("close", (code) => {
-    closing.delete(key);
+    if (error) return reply(500, { ...refusal(errorText(error), "media.failed"), batch: id });
     let data: Record<string, unknown> = {};
     try {
       data = JSON.parse(stdout) as Record<string, unknown>;
@@ -405,6 +429,8 @@ export function closeBatchBy(r: Receiver, id: string, extra: string[], reply: (c
     const why = String(data.message ?? stderr.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? "the batch was not closed");
     r.note(`the batch ${id} was not closed (exit ${code}): ${why}`);
     if (code === EXIT.locked) return reply(503, { ...refusal(why, "research.busy"), retry: 30, batch: id });
+    // a queued file another program held (an antivirus; found on Windows: EBUSY and its path): closed again in a while
+    if (isHeld(data)) return reply(503, { ...heldSaid(langOf(r.root, r.env)), batch: id });
     if (data.code === DISK_FULL || isDiskFull(why)) return reply(507, { ...diskFullSaid(langOf(r.root, r.env), fullWhere(data, r.root)), batch: id });
     reply(/no batch/.test(why) ? 404 : 400, { ...refusalOf(why, data, /no batch/.test(why) ? "batch.none" : "media.refused"), batch: id });
   });

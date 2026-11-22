@@ -55,7 +55,8 @@ test("a tree of 1.26 (its web hooks without the browser's) gets Claude in Chrome
   await w.ok(["chat", "--print", "--where", "terminal", "--agent", "claude"]);
   const after = (readJsonFile(settings) as { hooks: Groups }).hooks;
   assert.ok(after.PreToolUse!.some((g) => g.matcher === CHROME_HOOK_MATCHER), "before each tool of the browser");
-  for (const ev of ["PostToolUse", "PostToolUseFailure"]) assert.ok(after[ev]!.some((g) => g.matcher === CHROME_NAVIGATE), `${ev}: after its navigate`);
+  assert.ok(after.PostToolUse!.some((g) => g.matcher === CHROME_NAVIGATE), "PostToolUse: after its navigate");
+  assert.ok(after.PostToolUseFailure!.some((g) => g.matcher === CHROME_HOOK_MATCHER), "PostToolUseFailure: after any of its tools failed");
   assert.equal(fs.readFileSync(local, "utf8"), own, "the person's own settings and hooks: never strom's to write");
   w.cleanup();
 });

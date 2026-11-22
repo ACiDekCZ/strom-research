@@ -11,10 +11,13 @@
 //     a book still to be found (a place in words beside the book of the trail): no folder.
 //
 // The files of a folder are numbered by their names (the number the portal's viewer counts; a copy's suffix a file
-// manager added aside, "33 2.jpg"); named otherwise (a screenshot's time, a download's own name), by their order when
-// there are as many as images missing — never a file named by a number alone (B0408: "1.jpg" is image 1, not the 33
-// missing); else nothing is taken and it is said what is needed. A file is taken once it has settled (not written for SETTLE_MS): a large scan
-// being copied is never taken half.
+// manager added aside, "33 2.jpg") — only a number the name gives unambiguously (personNumbers: one number, or one
+// zero-padded counter among others; two numbers and no counter: not known); named with no number (a screenshot's date
+// and time, a name with none), by their order when there are as many as images missing — never when any file of the
+// batch has a number of its own (B0408: "1.jpg" is image 1, not the 33 missing); else nothing is taken and it is said
+// what is needed. A folder is taken once the whole batch has settled (folderBusy): no file written for SETTLE_MS, no
+// browser's download still running in it (.crdownload, .part, Safari's .download) — a large scan being copied, a batch
+// half downloaded, is never taken half.
 //
 // The folder of a book the tasks still need, with no task waiting on it (spec 105 K1.4: "one download serves them
 // all"): its images are taken by the numbers in their names alone (never by their order: nothing says which images they
@@ -25,7 +28,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Media, RecordSet, Repository, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
-import { collectFiles, copyless, IMAGE_FILE_EXT, imageNumbers, inboxFolderFor, namedByNumber, numberInName, parseImageList } from "./media.ts";
+import { collectFiles, copyless, IMAGE_FILE_EXT, inboxFolderFor, numberInName, parseImageList } from "./media.ts";
 import { waitKindOf } from "./waitkind.ts";
 import { booksOfTask, needsBooks, waitTarget } from "./books.ts";
 import { imageFileTimesOf } from "./knownterms.ts";
@@ -100,14 +103,72 @@ export function folderFiles(dir: string): string[] {
   return files.sort((a, b) => path.basename(a).localeCompare(path.basename(b), undefined, { numeric: true }) || a.localeCompare(b));
 }
 
-/** The files of a folder still being written (changed less than SETTLE_MS ago). */
+/** The files of a folder still being written (changed less than SETTLE_MS ago; empty, a browser's placeholder). */
 export function unsettled(files: string[], now = Date.now()): string[] {
   return files.filter((f) => {
     try {
-      return now - fs.statSync(f).mtimeMs < SETTLE_MS;
+      const st = fs.statSync(f);
+      return now - st.mtimeMs < SETTLE_MS || (st.size === 0 && now - st.mtimeMs < STALLED_MS);
     } catch {
       return true;
     }
+  });
+}
+
+/** A browser's download not finished yet: Chrome's .crdownload, Firefox's .part, Safari's .download (a folder), a .tmp. */
+export const DOWNLOADING = /\.(?:crdownload|part|partial|download|tmp)$/iu;
+
+/** A download not written to for this long has stopped (a browser's failed or paused download): not waited for. */
+export const STALLED_MS = 60_000;
+
+/**
+ * The downloads a browser is still writing into a folder (DOWNLOADING; Safari's is a folder, its file inside): those
+ * written to within STALLED_MS — one stopped long ago holds nothing back. Their names.
+ */
+export function downloadsIn(dir: string, now = Date.now()): string[] {
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return [];
+  }
+  return names.filter((name) => {
+    if (!DOWNLOADING.test(name.normalize("NFC"))) return false;
+    const p = path.join(dir, name);
+    try {
+      let at = fs.statSync(p).mtimeMs;
+      // a bundle (Safari): what is written is inside it
+      if (fs.statSync(p).isDirectory()) for (const f of collectFiles([p])) at = Math.max(at, fs.statSync(f).mtimeMs);
+      return now - at < STALLED_MS;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/**
+ * How many things of a folder are still being written: its files not settled and the browser's downloads running in
+ * it (B0408: a batch half downloaded is never taken — the first file settled while the rest still came). 0: taken.
+ */
+export function folderBusy(dir: string, files: string[], now = Date.now()): number {
+  return unsettled(files, now).length + downloadsIn(dir, now).length;
+}
+
+/**
+ * The image number each file's name gives unambiguously (B0408): a copy's suffix aside (copyless), one group of digits
+ * ("33", "IMG_0057", "snímek 8"), else the one zero-padded counter of three digits at least among other numbers (a
+ * portal's "…_00141_sign-4411.jpg"); two numbers and no such counter ("1784 33", a screenshot's date and time "2026-11-04
+ * 10.07"): not known.
+ */
+export function personNumbers(files: string[]): (number | undefined)[] {
+  return files.map((f) => {
+    const groups = copyless(f).match(/\p{Nd}+/gu) ?? [];
+    const digits = groups.map((g) => (/^[0-9]+$/u.test(g) ? g : undefined));
+    if (digits.some((g) => g === undefined)) return undefined; // digits of another script: not read as a number
+    if (digits.length === 1) return Number(digits[0]);
+    // a counter of three digits at least (a date's "04", a time's "07" are no counter)
+    const padded = digits.filter((g) => g!.length > 2 && g!.startsWith("0"));
+    return padded.length === 1 ? Number(padded[0]) : undefined;
   });
 }
 
@@ -160,7 +221,7 @@ export function bookFolders(tree: Tree): BookFolder[] {
  * taken, and what the files need is said.
  */
 export function numberBookFiles(files: string[], recordset: string, times?: number): BookNumbered {
-  const all = imageNumbers(files).map((n, i) => (n === undefined || !times || path.extname(files[i]!).toLowerCase() !== ".jp2" ? n : n % times === 0 ? n / times : undefined));
+  const all = personNumbers(files).map((n, i) => (n === undefined || !times || path.extname(files[i]!).toLowerCase() !== ".jp2" ? n : n % times === 0 ? n / times : undefined));
   const named = files.map((file, i) => ({ file, n: all[i] })).filter((x): x is { file: string; n: number } => x.n !== undefined && x.n > 0);
   const left = files.length - named.length;
   if (named.length) return { files: named.map((x) => x.file), numbers: named.map((x) => x.n), by: "names", left };
@@ -182,18 +243,19 @@ export type Numbered =
   | { problem: string; code: "inbox.unnamed" | "inbox.count"; params: Record<string, string> };
 
 /**
- * The image number of each file: by the names when they say one each (and, of images asked for, at least one of those);
- * else by their order onto the images still missing when there are as many files and none is named by a number alone
- * (B0408: "1.jpg" of a task waiting for 33 was taken for 33 — a number a person named is never overruled by the order;
- * a portal's own name or a screenshot's date and time is); else why not. `times`: a portal's .jp2 counted back
- * (numberBookFiles).
+ * The image number of each file: by the names when they say one each, unambiguously (personNumbers; and, of images
+ * asked for, at least one of those); else by their order onto the images still missing when there are as many files
+ * and no file of them has a number of its own in its name (B0408: "1.jpg" of a task waiting for 33 was taken for 33 —
+ * a number in a name is never overruled by the order, a portal's own "kniha-00090.jpg" neither; a screenshot's date and
+ * time, a name with no number is); else why not. `times`: a portal's .jp2 counted back (numberBookFiles).
  */
 export function numberFiles(files: string[], want: number[] | undefined, have: ReadonlySet<number>, recordset: string, times?: number): Numbered {
-  const names = imageNumbers(files).map((n, i) => (n === undefined || !times || path.extname(files[i]!).toLowerCase() !== ".jp2" ? n : n % times === 0 ? n / times : undefined));
+  const own = personNumbers(files);
+  const names = own.map((n, i) => (n === undefined || !times || path.extname(files[i]!).toLowerCase() !== ".jp2" ? n : n % times === 0 ? n / times : undefined));
   const named = names.every((n): n is number => n !== undefined && n > 0);
   if (named && (!want?.length || names.some((n) => want.includes(n!)))) return { numbers: names as number[], by: "names" };
   const missing = (want ?? []).filter((n) => !have.has(n));
-  if (want?.length && missing.length && files.length === missing.length && !files.some(namedByNumber)) return { numbers: missing, by: "order" };
+  if (want?.length && missing.length && files.length === missing.length && own.every((n) => n === undefined)) return { numbers: missing, by: "order" };
   const said = names.filter((n): n is number => n !== undefined);
   if (!want?.length)
     return {
@@ -313,4 +375,74 @@ export function numbersForTask(count: number, o: { image?: number | undefined; n
   }
   if (o.missing.length === count) return { numbers: [...o.missing], by: "order" };
   return { code: "waiting.image-unknown", missing: o.missing.length ? [...o.missing] : [...want] };
+}
+
+/** The name a file of the inbox is set aside under (commands/media.ts takeFiles): its name, then what it is. */
+const ASIDE = /^(.+)\.(same-as|other-than)-(M\p{N}+)$/u;
+
+/**
+ * A file of a book's folder of the inbox set aside, not taken (B0408, B0374) — a question for the user until it is
+ * answered (strom media aside): `same`, the same file as the image `media` (registered under another number); `other`,
+ * another scan than `media`, image `image` registered already.
+ */
+export interface AsideFile {
+  folder: string;
+  /** Its name as it lies in the folder now. */
+  file: string;
+  /** Its path. */
+  path: string;
+  /** The name it was saved under. */
+  name: string;
+  recordset: string;
+  /** The image number it was saved for (its name's). */
+  image?: number;
+  kind: "same" | "other";
+  media: string;
+  /** When it was saved (the file's time). */
+  at: string;
+}
+
+/**
+ * The files set aside in the folders of the research's books (only of a book of this research: the inbox is every
+ * research's), newest first — derived from the files themselves, nothing written: a file taken away is no question.
+ */
+export function asideFiles(tree: Tree, shared: string | undefined): AsideFile[] {
+  if (!shared) return [];
+  const inbox = path.join(shared, "inbox");
+  let folders: string[];
+  try {
+    folders = fs.readdirSync(inbox);
+  } catch {
+    return [];
+  }
+  const books = new Map(tree.list<RecordSet>("recordset").filter((b) => !b.retracted && !b.mergedInto).map((b) => [inboxFolderFor(b).normalize("NFC"), b.id]));
+  const out: AsideFile[] = [];
+  for (const folder of folders) {
+    const recordset = books.get(folder.normalize("NFC"));
+    if (!recordset) continue;
+    let names: string[];
+    try {
+      names = fs.readdirSync(path.join(inbox, folder));
+    } catch {
+      continue;
+    }
+    for (const file of names) {
+      const m = ASIDE.exec(file.normalize("NFC"));
+      if (!m) continue;
+      const media = tree.get<Media>(m[3]!);
+      if (!media || media.retracted) continue;
+      const p = path.join(inbox, folder, file);
+      let at: string;
+      try {
+        const st = fs.statSync(p);
+        if (!st.isFile()) continue;
+        at = st.mtime.toISOString();
+      } catch {
+        continue;
+      }
+      const image = personNumbers([m[1]!])[0];
+      out.push({ folder, file, path: p, name: m[1]!, recordset, ...(image !== undefined ? { image } : {}), kind: m[2] === "same-as" ? "same" : "other", media: media.id, at });
+    }
+  }
+  return out.sort((a, b) => b.at.localeCompare(a.at) || a.file.localeCompare(b.file));
 }

@@ -24,6 +24,7 @@ import { settingsHidden } from "./oldsettings.ts";
 import type { Op, Tree } from "./tree.ts";
 import { NeedsConsentError, StromError } from "./errors.ts";
 import { counted } from "../cli/format.ts";
+import { giveNotesBack, guard, notesTakenOffByApp } from "./guard.ts";
 
 /** What changed since HEAD, with the committed versions — shared by verify and guard. */
 export interface Snapshot {
@@ -50,7 +51,8 @@ export function isHistoryPath(p: string): boolean {
 
 export function snapshot(tree: Tree): Snapshot {
   if (!git.hasHead(tree.root)) return { changes: [], head: new Map(), leftovers: [] };
-  const all = git.changes(tree.root, SEALED_PATHS);
+  // (under the lock: kept for the index of the files' hashes, which needs it in the same hold)
+  const all = git.changes(tree.root, SEALED_PATHS, tree.holdsLock);
   const head = git.showFiles(tree.root, "HEAD", all.map((c) => c.path));
   const leftovers = all.filter((c) => leftoverOf(tree.root, c, head.get(c.path))).map((c) => c.path);
   const changes = leftovers.length ? all.filter((c) => !leftovers.includes(c.path)) : all;
@@ -664,10 +666,32 @@ export function writableUnasked(tree: Tree): boolean {
     const snap = snapshot(tree);
     // what an interrupted write left in git's index: out of it first, or no write (its commit would hold it)
     if (settleLeftovers(tree, snap) !== undefined) return false;
-    return !verifyFast(tree, snap).findings.some((f) => f.level === "error");
+    // a commit unasked takes what lies in the folder: never what the check of a write refuses (found: a write of 1.35.0
+    // the check refused, its note lost by the commit of a fix of a newer strom at its first start — settleNotesBack first)
+    return !verifyFast(tree, snap).findings.some((f) => f.level === "error") && !guard(tree, snap).some((f) => f.level === "error");
   } catch {
     return false;
   }
+}
+
+/**
+ * At the first start of a strom and at a bridge's start: the notes of the material a send of the Strom app took off with
+ * no reason (core/guard.ts notesTakenOffByApp) given back and what waited with them committed — a research such a send
+ * left refusing every write is whole again before anybody writes. Skipped as the fixes are (somebody at work, another
+ * computer's seal, something else wrong, a dry run). How many records.
+ */
+export function settleNotesBack(tree: Tree, quiet: (t: Tree) => boolean): number {
+  if (tree.dryRun || !tree.key || !quiet(tree)) return 0;
+  let n = 0;
+  tree.atomically(() => {
+    if (!notesTakenOffByApp(tree, snapshot(tree)).length) return;
+    const lost = giveNotesBack(tree, snapshot(tree));
+    // something else wrong besides: given back no more (left as it was), said by strom check
+    if (!writableUnasked(tree)) return void tree.rollback();
+    tree.commit(`Notes of the material given back: a send of the Strom app had taken ${counted(lost, "note")} off`);
+    n = lost;
+  });
+  return n;
 }
 
 /**

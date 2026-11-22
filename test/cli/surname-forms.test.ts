@@ -11,7 +11,7 @@ const opts = { skip: !hasGit };
 test("surname forms: a woman's form and the man's, in Czech, Polish and Cyrillic; nothing else", () => {
   const yes: [string, string][] = [
     ["Novák", "Nováková"],
-    ["Víšek", "Víšková"],
+    ["Brdíšek", "Brdíšková"],
     ["Němec", "Němcová"],
     ["Svoboda", "Svobodová"],
     ["Novotný", "Novotná"],
@@ -28,7 +28,7 @@ test("surname forms: a woman's form and the man's, in Czech, Polish and Cyrillic
   }
   for (const [a, b] of [["Novák", "Novotný"], ["Kala", "Kalina"], ["Hora", "Horák"], ["", "Novák"], ["Svoboda", "Svobodník"]] as [string, string][])
     assert.ok(!sameFamilyName(a, b), `${a} ≁ ${b}`);
-  assert.ok(surnameForms("Víšková").has("visek"));
+  assert.ok(surnameForms("Brdíšková").has("brdisek"));
 });
 
 test("a search under the woman's form shows in the man's brief and searched P…, and the other way", opts, async () => {

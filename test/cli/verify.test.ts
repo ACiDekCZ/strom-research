@@ -414,12 +414,54 @@ test("K3.1–K3.3: the bulk verification — the person's (an agent only a dry r
     assert.deepEqual([first.people, first.tasks.length, first.left], [1, 2, 1], JSON.stringify(first));
     const made = first.tasks.map((id: string) => open(w).get<Task>(id)!);
     assert.deepEqual(made.map((t: Task) => t.subject[0]).sort(), ["F0001", "P0002"]);
-    assert.ok(made.every((t: Task) => t.origin === "verify:bulk" && (t.priority ?? 0) <= 1), "low priority, in turn after the lines' work");
+    // K7.1: a try first in the queue, as the person's "verify" of a person — said so, and whether the research works now
+    assert.ok(made.every((t: Task) => t.origin === "verify:bulk" && t.queueAt?.do === "next"), "a try: first in the queue");
+    assert.deepEqual([first.first, first.working], [true, false], JSON.stringify(first));
+    const queue = (await w.ok(["task", "list", "--json"])).json;
+    const ids = (queue.tasks ?? queue.items ?? queue).map((t: { id: string }) => t.id);
+    assert.deepEqual(ids.slice(0, 2).sort(), [...first.tasks].sort(), `the try's tasks first in the queue: ${ids.join(", ")}`);
     const rest = (await w.ok(["verify", "bulk", "--scope", "tree", "--json"], { tty: true })).json;
     assert.deepEqual([rest.people, rest.tasks.length], [1, 1], "what the try took is not doubled");
     assert.equal(open(w).get<Task>(rest.tasks[0])!.subject[0], "P0004");
+    // the rest of a scope (no try): after the lines' work as before (K6.3)
+    const after = open(w).get<Task>(rest.tasks[0])!;
+    assert.ok(after.queueAt === undefined && (after.priority ?? 0) <= 1 && rest.first === false, "the rest: low priority, in turn after the lines' work");
+    const later = (await w.ok(["task", "list", "--json"])).json;
+    const order = (later.tasks ?? later.items ?? later).map((t: { id: string }) => t.id);
+    assert.ok(order.indexOf(rest.tasks[0]) > order.indexOf(first.tasks[0]), `the rest after the try: ${order.join(", ")}`);
+    // K7.4: the queue by the kind of the work — every verification, nothing else
+    const verify = (await w.ok(["task", "list", "--kind", "verify", "--json"])).json;
+    const vids = (verify.tasks ?? verify.items ?? verify).map((t: { id: string }) => t.id).sort();
+    assert.deepEqual(vids, [...first.tasks, ...rest.tasks].sort(), JSON.stringify(verify));
+    const wrong = await w.run(["task", "list", "--kind", "download", "--json"]);
+    assert.notEqual(wrong.code, 0);
+    assert.match(wrong.out + wrong.err, /no kind of work download: verify, records/u, "the kinds said");
     assert.ok(!tasks(w, "verify:bulk").some((t) => t.where.includes(f.evaBirth)));
     assert.equal(tasks(w, "verify:bulk").flatMap((t) => t.where).length, 4);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("K7.1: two tries of the bulk verification one after another — the older one's tasks first, both before the other work; the person's own 'next' as before (the latest first)", opts, async () => {
+  const { w } = await lhotaci();
+  try {
+    const queue = async () => {
+      const q = (await w.ok(["task", "list", "--json"])).json;
+      return (q.tasks ?? q.items ?? q).map((t: { id: string }) => t.id) as string[];
+    };
+    const one = (await w.ok(["verify", "bulk", "--scope", "tree", "--try", "1", "--json"], { tty: true })).json;
+    const two = (await w.ok(["verify", "bulk", "--scope", "tree", "--try", "1", "--json"], { tty: true })).json;
+    assert.deepEqual([one.tasks.length, two.tasks.length, two.first], [2, 1, true], JSON.stringify([one, two]));
+    let ids = await queue();
+    const tryOf = (id: string) => (one.tasks.includes(id) ? 1 : two.tasks.includes(id) ? 2 : 0);
+    assert.deepEqual(ids.slice(0, 3).map(tryOf), [1, 1, 2], `both tries first, the older one's tasks first: ${ids.join(", ")}`);
+    // the person's own "next" after them: first, before both tries (the latest chosen first, as before)
+    const own = (await w.ok(["task", "add", "Křest Marie Lhotové", "--level", "link", "--where", "fara Lhota", "--why", "rodiče", "--done-when", "zápis", "--about", "P3", "--anyway", "--json"])).json.task.id as string;
+    await w.ok(["task", "order", own, "--next"]);
+    ids = await queue();
+    assert.equal(ids[0], own, ids.join(", "));
+    assert.deepEqual(ids.slice(1, 4).map(tryOf), [1, 1, 2], `then the tries in their order: ${ids.join(", ")}`);
   } finally {
     w.cleanup();
   }

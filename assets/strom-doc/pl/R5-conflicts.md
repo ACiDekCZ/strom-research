@@ -214,6 +214,8 @@ na komputerze, na którym działa badanie. Aplikacja otwiera badanie w terminalu
     rozstrzyga; Enter: bez powodu, 0: bez rozstrzygnięcia)**). Bez powodu zapisuje się „wybrane w aplikacji Strom”;
   - **Co czeka** proponuje opcje słowami aplikacji: **Zachowanie wartości z aplikacji**, **Przyjęcie wartości
     z badania** (w archiwum **Przyjęcie wartości z Archiwum Strom**), **Pozostaw otwartą**.
+- **Od badania 1.36.0:** przy **Uruchamianie agenta z aplikacji Strom: bez potwierdzenia** **Zostaw agentowi**
+  zaczyna się bez pytania ([S4.5.5](S4-research-from-the-app.md#S4.5.5)).
 
 <!-- zdroj: research:src/core/waiting.ts:127 TERMINAL_ONLY, :443-449 · src/cli/menu-waiting.ts:486-513 decideConflictHere · src/cli/menu-links.ts:510-561 decideConflict, pickClaim · src/commands/links.ts:235-246 · src/core/live.ts:2063 decide.link · src/core/stromapp.ts APP_DECIDES_CONFLICTS="3.11.0" · app:v3.21.2 strings.ts research.knows, research.conflicts, research.conflictTag, research.decide, research.leaveToAgent, conflict.*, cardDensity.cardConflict · ui/person-research-ui.ts:139-150, :178-210 · ui/conflict-decide-ui.ts · research-decide.ts:55 canDecideInApp · 1.26.0: research:cs.json ui.wait.conflict.take.*, ui.link.conflict.whyMaybe, ui.link.conflict.inApp (commit 1189532f) · app:src/research-conflict-card.ts conflictCardView (agent u rozporu z úpravy) -->
 

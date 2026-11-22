@@ -21,12 +21,37 @@
 //                          queue does (helps: question | joins | agent | partner | branch, with research the line it
 //                          helps); one off the lines or added to a line says its branch (branch B-P…) — feature
 //                          working.helps.
+//                          Holds (spec 127, core/holdsview.ts): working lists agents working directly too (strom
+//                          started no run or conversation for them: who "<agent> working directly", from the holds of
+//                          .strom/holds); each with its session's hold {by: run|chat|agent, since, beat (its last sign
+//                          of life), until? (free by then at the latest — task.hold; none: a live process on this
+//                          computer holds it, free when it ends)} — feature task.holds; a run waiting for a restricted
+//                          archive another session uses: paused {until, reason, archive, since} and waits {archive,
+//                          since, until (it stops waiting then at the latest — archive.wait)} — feature archive.holds.
+//                          A task of the queue an open session holds: heldBy {session, who (the agent's name), by,
+//                          since, beat, until?}; one whose archive another uses now (or one waiting for it goes first):
+//                          archiveHeld {site, until, own (a session of this research), by: run|chat|agent|fetch|waiting,
+//                          session? (own), since?, beat?} — the same in GET /queue and POST /queue/<T…>.
 //                          work {gate, minutes} (features work.link, run.tasks; none in an archive or a research
 //                          waiting for its agent): before the Strom app's link work (strom-research://work?tree=…&do=loop|
-//                          tasks[&n=1..100], taken in the terminal on the person's yes — the bridge never starts an agent)
+//                          tasks[&n=1..100 | &task=T…,T… — feature work.tasks: these tasks, one session each], taken in the terminal on the person's yes — the bridge never starts an agent)
 //                          the gate the agent works alone under as the settings name it (title and what it is given),
 //                          null with none set (the loop is not started then, n tasks are), and a session's minutes
 //                          (run.minutes). busy {sessions, runs} sees a run from its start, while it waits for its gate too.
+//                          confirm: ask|no (run.confirm, the person's): whether the terminal asks before the agent starts.
+//                          Runs by line (spec 126; features run.lines, run.agents; none in an archive or a research
+//                          waiting for its agent): runs [{id (run-…), research (G…|null: the whole queue), agent,
+//                          agentName, model?, since, state: working|between|paused|finishing, paused? {until, reason
+//                          (limit|archive, else as said), since?}, session?, task? (while a session works), lastStep?
+//                          (its terminal's last step, at most 200 characters), sessions (done)}] and runsEnded [{id,
+//                          research, agent, since, ended, why: done|stopped|limit|gate|time|archive|error}] (the last 10
+//                          minutes) — both read at each ask, never part of a state kept; working[].run (the run whose
+//                          session it is); researches[].run (the run holding the line), canStart, why?
+//                          (archive|waitingAgent|noAgent|oldRun|running|paused|done|limit|empty), agent? (of its last
+//                          run); limits {maxRuns (run.parallel), running, cap: 10}; agents [{id, name, default?}] (those
+//                          strom can start here); queue[].run (the line's run that takes it; none: the whole queue's);
+//                          queueCounts.general (the whole queue's run's). The link work takes research=G…[&agent=…]:
+//                          strom run --research G… [--agent …] in a window "Strom · <tree> · <line> (G…)".
 //                          books (feature books, no gate of the app's version; none in an archive or a research waiting
 //                          for its agent; part books): the books most tasks need, to download by hand (core/books.ts) —
 //                          {settings {minTasks, minTasksOwn, minTasksDefault, sameBook: yes|no, sameBookOwn,
@@ -40,6 +65,12 @@
 //                          (strom-research://…&handoff=<uuid>) taken in the last minute — a terminal came up for it, or
 //                          what needs none was done (core/handoffs.ts) — newest first, [] with none; read at each ask,
 //                          with parts=1 too, never part of a state kept.
+//                          features: what the bridge does that the app may ask about (BRIDGE_FEATURES, bridgeFeatures:
+//                          a few only for an app of the version that reads what they need; an archive's without the
+//                          agent's). name-status (spec 066 P5) only for an app of APP_READS_NAME_STATUS, whose /tree.ged
+//                          says a name's status, confirmation and verification under NAME (2 _STROM_EID P….N): the app
+//                          offers Verify (POST /verify {fact: P….N}) and Confirm against the scan (POST /facts/confirm
+//                          {fact: P….N}) at the name of a person's identity — the confirmation in an archive too.
 //   GET <token>/status/<part>  one of those parts: {part, rev, head, …its fields as /status carries them}; 404
 //                          status.part for another name.
 //                          A queue item off the lines of a research with several (core/offline.ts) says offLine:
@@ -52,7 +83,10 @@
 //                          research}; none for a task about nobody) — feature queue.own. Each in the queue says its place
 //                          in the whole queue (pos: 1 the next, the one at work first; none for one put aside), and
 //                          queueCounts {research: {G…: n}, branch: {B-P…: n}, next, parked} counts the queue's tasks by
-//                          the same research and branch GET /queue filters by — feature queue.page. The order is strom
+//                          the same research and branch GET /queue filters by — feature queue.page; queueCounts.kind
+//                          {verify|records|material|places|enrich|request|story|history|census|other: n} (only the kinds
+//                          with a task; census apart — feature census) and each item's taskKind: the kind of the work
+//                          (core/taskkind.ts) — feature queue.kind. The order is strom
 //                          run's (core/queue.ts runOrder): one story first at a story's turn, the tasks of history by
 //                          their pace; kind: story | history says such a task (none for the research's work)
 //   GET <token>/tree.ged   the tree for the Strom app, as it is now, each entry with its image (the settings excerpts.*);
@@ -107,7 +141,8 @@
 //                          text: its lines as the user reads them, kinds: what each is about, sources: the S… each
 //                          names — only when one does; head: the change, as strom history back and the link back take
 //                          it; a return in time: kind "return", to: the change it went back to, toAt: when that was —
-//                          feature history.back)
+//                          feature history.back); run: the run (strom run, its worker run-…) whose session it was
+//                          (feature run.lines; never in an archive) — a run's start and end are no entries here
 //   GET <token>/whats-new  what is new in this strom (?lang=cs|en|de, else en): {version, lang, url, points} — the
 //                          running version's section of the changelog shipped with it; asking keeps no bridge running
 //   GET <token>/recent     what the research added in the last hours (?hours=1…168, 24 when not given): the people and
@@ -143,7 +178,10 @@
 //                          citing them named in `people` too. `left` (feature material.left): {at, sort, why:
 //                          nothing-said|nothing-new|dropped, said?} — the last sort done that took it proposed nothing
 //                          of it (from the sorts kept here; a later proposal takes it off). `sameAs` (feature
-//                          material.sameAs): the oldest other file of the same content (SHA-256)
+//                          material.sameAs): the oldest other file of the same content (SHA-256). ?trees=1 (feature
+//                          material.trees, spec 117 K2.1): the family trees' files too, kind "tree" — an input of a family
+//                          tree (GEDCOM, the app's JSON) with its bytes, never one a sync sent nor an old import without
+//                          its file; `uses.of` via input only for a source standing. Without it: as before
 //   GET <token>/material/<I…>/uses   where the research uses a file (V10): {excerpts: [{source, recordset?, page?,
 //                          sha}], sources: [{id, title}], tasks: [{id, title, state}], of (as above)}; 404 material.file
 //   POST <token>/material/assign   the people files are of ({files: [I…] | batch, add: [P…], remove: [P…]}): strom
@@ -166,6 +204,16 @@
 //                          minutes); {files, confirm} → strom input delete: {files, deleted, impacts, head}. Impacts
 //                          changed since: 409 material.delete-changed {impacts}; no confirm that holds: 400 material.body;
 //                          404 material.file, 403 material.readonly, 409 material.busy (+ Retry-After), 403 app.only.
+//                          A family tree's file (feature material.trees, spec 117 K2.1–K2.3) as any file — one a source
+//                          standing was made of (source.input, input.source) has impacts[].blockedBy [S…] and is deleted
+//                          only with it: {files, confirm} alone 409 material.source-live {sources: [S…]} (params.sources
+//                          "S…,S…"); {files, retractSources: [S…] (only of blockedBy), dryRun: true} → {files,
+//                          retractSources, dryRun, impacts, sourceImpacts (as /source/retract's impacts), confirm} —
+//                          one confirm over both; {files, retractSources, confirm} → strom input delete
+//                          --retract-sources: the sources deleted first, the files taken back, one commit, only then the
+//                          bytes (R7; a failure anywhere writes nothing): {files, deleted, retracted, impacts,
+//                          sourceImpacts, head}; changed since: 409 material.delete-changed {impacts, sourceImpacts};
+//                          a source unknown or deleted already: 404 source.unknown | 409 source.retracted {id}.
 //   POST <token>/material/sort     files sorted by readers of the research (V13, feature material.sort — only where
 //                          accepts.read is: never an archive nor a research waiting for its agent; live-sort.ts):
 //                          {ids: [I…] (1–50), text (≤ 2000 characters)} → 202 {id, state: "queued"}; sorted one at a time
@@ -194,6 +242,28 @@
 //                          files, filesDone, parts: [{id, part, state, files, filesDone?}], waiting?: {why: read.app |
 //                          limit | …, retry?}} (ended: cancelled when a part was cancelled, else done when a part is done, else failed);
 //                          POST …/<run-…>/cancel: its parts not done stopped, {id, state, cancelled}
+//   POST <token>/source/retract    a source deleted by the person (spec 117 K1.1–K1.7, R4, J7; feature source.retract),
+//                          in the app's dialog, in two steps: {sources: [S…] (1–50), dryRun: true} → {sources, dryRun:
+//                          true, impacts: [{id, title, input?, counts: {persons: 0, names, events, families, stories},
+//                          cites: [{owner, fact, event?, others, locator?, main?}], stories: [{owner, inText}], bare:
+//                          [{owner, fact, event?}], lowered: [{owner, fact, event?, from, to}] (a bare one among them),
+//                          conflicts: [{id, status, becomes: review|unchanged}], tasks: [{id, state, becomes: dropped|
+//                          narrowed, heldBy?}], files: [I…], images, more: {…}}] (200 a list at most), confirm} (nothing
+//                          written; confirm: signed by the bridge with the seal key over the sources and the impacts, 15
+//                          minutes); {sources, confirm} → strom source retract --confirm (checked again under the
+//                          tree's lock): {sources, retracted, impacts, head}. Impacts changed since: 409
+//                          source.retract-changed {impacts}; no confirm that holds, a body it cannot read, more than
+//                          50: 400 source.body; 404 source.unknown {id}; 409 source.retracted {id}; 403 source.readonly
+//                          (+ reasonCode; not sealed here: no confirm); 409 source.busy (+ Retry-After); 500
+//                          source.failed. No queue an agent could write to.
+//   POST <token>/source/restore    sources the person deleted put back ({sources: [S…] (1–50)}): strom source restore;
+//                          {restored, citations, skipped: [{source, owner, fact, event?, why: gone|already|main}],
+//                          raised, tasks, conflicts, head}. 409 source.notRetracted {id} | source.notRestorable {id,
+//                          why: merged|other}, otherwise as /source/retract.
+//   POST <token>/conflict/keep     a decided conflict marked for review (a deleted source it stood on) kept as decided
+//                          ({conflict: X…}): strom conflict keep; {conflict, head}. 404 conflict.unknown {id}, 409
+//                          conflict.notMarked {id} (open, or no mark), 400 source.body, 403 source.readonly, 409
+//                          source.busy (+ Retry-After), 500 source.failed.
 //                          Every write of the app's (these, PUT /media, /batch/<id>/done, /waiting, /group) answers
 //                          `head` after it and `parent`, the head just before it (nothing written: parent = head) —
 //                          the app takes head as its version only when parent is the head it knew
@@ -201,11 +271,13 @@
 //                          .strom/thumbs): 400 thumb.size, 404, 410 media.gone, 415 thumb.type (none of this kind here)
 //   PUT <token>/media/<sha256>   an original from the app, unchanged (the body; X-Strom-Name, -Person, -Source,
 //                          -Region, -Note): streamed to disk, its hash checked, kept outside git
-//                          (strom media original) — of a source an image, else material of people with an intake task;
+//                          (strom media original) — of a source an image, else material of people; a task for the
+//                          agent (an intake task, a task to read the scan of a source) only with intake.auto on, else
+//                          the file waits in the material: {input} or {known, added?} with no task (spec 130 K1.3);
 //                          X-Strom-Batch, -Path (and -Zip: 1, a ZIP unpacked here): one file of a batch
 //                          X-Strom-Family: F… (with commas; X-Strom-Person beside it too) — a couple's original
 //                          (spec 108 V9, accepts.media.family): material of both partners (Input.families) with an
-//                          intake task as for a person's (put aside in an archive); media.bad-header for no F…, 404
+//                          intake task as for a person's with intake.auto on (put aside in an archive); media.bad-header for no F…, 404
 //                          media.no-family {family} for a couple the research has not got; the place in the tree
 //                          (familyPhoto) a send gives it
 //                          X-Strom-Task: T… — a file for what a waiting task waits for: an input of its people
@@ -214,8 +286,30 @@
 //                          number (else the name's, else the order of those missing; a task that does not know
 //                          which images: the book's next free number, its waiting item's inbox.next), X-Strom-Replace:
 //                          1 another scan there replaced — put into its folder of the inbox and registered from there
-//   POST <token>/batch/<id>/done   the batch is whole ({name, files, person, note}): its files become sorting tasks
-//                          (a batch nobody closes is closed a day after its last file)
+//                          Prefer: respond-async (feature media.queued; a batch's file or a person's or couple's
+//                          material — never with X-Strom-Task, -Read, -Source): its kind and its end checked at once
+//                          (415 media.type, 422 media.cut-short …), then queued (core/mediaqueue.ts: the bytes in the
+//                          shared store's .incoming as *.queued, the job in .strom/media-queue, kept over the bridge's
+//                          end) and answered 202 {sha, bytes, queued: true, batch?} with Preference-Applied:
+//                          respond-async; the same file at the same place again one job. Written by the bridge's
+//                          writer (core/livequeue.ts, strom media queued — one strom at a time, the tree's lock free
+//                          between them): those of no batch a moment after (STROM_MEDIA_QUEUE_MS, 300 ms), a batch's
+//                          with its close in one commit (or after 10 s with no file of it, STROM_MEDIA_BATCH_QUIET_MS).
+//                          A file the research has is said at once as before (200 {known, kind, batch?, head, parent}).
+//                          The writes run in the bridge's warm writer (core/warmwriter.ts), a strom started for each
+//                          after it failed. Without Prefer: written before the answer, as before
+//   POST <token>/media/known   what the research has of many files at once ({shas: [SHA-256] (at most 5000)},
+//                          feature media.known): {known: {<sha>: {id, kind, mime, bytes, here} | {queued: true} |
+//                          null}}; 413 media.known-many {max}, 400 media.known-body. Read only. GET /media/<sha> of a
+//                          queued file: 404 {known: null, queued: true}
+//   POST <token>/batch/<id>/done   the batch is whole ({name, files, person, note, sort?: true|false}): with
+//                          intake.auto on its files become sorting tasks, off (the default, spec 130) they wait in the
+//                          material unsorted; sort decides for this batch alone (true on a batch closed unsorted: its
+//                          tasks made then) (a batch nobody closes is closed a day after its last file, by the
+//                          setting); its queued files written in the same commit; tasks [T…] (none: []), auto (the
+//                          setting), sort (whether this batch is sorted by tasks); `files` says what became of each file
+//                          of it [{sha, path?, input? | known? | refused?: {code, why} | zip?, added?, task?}]; 400
+//                          batch.bad-body (sort no boolean)
 //   POST <token>/waiting/<T…>   a request of a waiting task sent ({"do": "sent" | "unsent"}): strom task sent [--undo],
 //                          the user's — a fact the person gives, never an answer or a decision; the task still waits.
 //                          {"do": "answer", "text", "expect"?}: the person's answer (strom task wake --answer), kept
@@ -386,12 +480,16 @@
 //                          on — {ok, reverted: {owner, ref, parts}, head, parent}; 400 revert.invalid, 404 revert.unknown
 //                          (no such value, or not the person's), 409 revert.nothing (nothing changed to put back), 503
 //                          research.busy (feature origin). The Strom file: _STROM_ORIGIN, _STROM_WAS (APP_SHOWS_ORIGIN)
-//   POST <token>/verify {"person": "P…"} | {"family": "F…"} | {"fact": "E…"}, "dry"?: true: the user asks the facts
+//   POST <token>/verify {"person": "P…"} | {"family": "F…"} | {"fact": "E…" | "P….N"}, "dry"?: true: the user asks the facts
 //                          verified against their originals (spec 065; strom verify facts … --living), first in the
 //                          queue — {ok, task|null, state?: wait|asked|images|permission, position? (wait, asked: the
 //                          task's place in the queue), tasks?: [{task, state, position?, facts}] (not dry: every task
 //                          it touches, nearest to its turn first, the first on top), facts: [{fact, kind, how:
-//                          read|search, record?: {source, title, page?}}], estimate: {sessions, usd?}, head, parent};
+//                          read|search, record?: {source, title, page?}, with?}], estimate: {sessions, usd?}, head, parent};
+//                          the name of a person's identity (spec 066 P5, feature name-status) as a fact: fact P0012.N,
+//                          kind NAME; read together with the person's birth or baptism (BIRT, CHR, BAPM) whose
+//                          original it cites too — either asked for brings the other along, first the name, each
+//                          saying the other in with (the fact's id, P….N); facts and tasks' facts hold P….N too;
 //                          dry: nothing written, head == parent; 400 verify.invalid, 404 verify.unknown,
 //                          409 verify.archive | verify.nothing | verify.retracted, 503 research.busy (feature verify)
 //   POST <token>/verify/bulk {"scope": "line"|"lineage"|"tree", "of"?: "G…"|"P…", "order"?: "ancestors"|"weakest"|
@@ -399,21 +497,30 @@
 //                          bulk), after the lines' work; a family tree's leads too, their record looked for — {ok,
 //                          people, facts, how: {read, search} (of the facts), tasks (not dry), left, estimate, head,
 //                          parent}; 400 verify.invalid, 404 verify.unknown, 409 verify.archive | verify.nothing, 503
-//                          research.busy (feature verify.bulk)
+//                          research.busy (feature verify.bulk). Not dry: first (a try's tasks first in the queue, as
+//                          the person's "verify" — spec 065 K7.1) and working (a run or a session at work now: the app
+//                          offers the link work?do=tasks&task=<tasks> only when false — K7.2) — feature verify.tryFirst
 //   POST <token>/verify/stop {"scope"?: "all"|"bulk"}: the user stops the verification (strom verify stop [--bulk]) —
 //                          the tasks nobody started dropped, one at work goes on, their facts not queued again by
 //                          themselves — {ok, dropped, facts, head, parent}; nothing to stop: dropped 0, nothing written;
 //                          400 verify.invalid, 409 verify.archive, 503 research.busy (feature verify.stop)
-//   POST <token>/facts/confirm {"fact": "E…", "txt"?: "<its 3 _TXT>", "confirm": true|false}: the user confirms a fact
-//                          against the scan, or takes it back (strom verify confirm E… [--undo] [--txt]; an archive's
+//   POST <token>/facts/confirm {"fact": "E…" | "P….N", "txt"?: "<its 3 _TXT>", "confirm": true|false}: the user confirms a
+//                          fact against the scan, or takes it back (strom verify confirm E… [--undo] [--txt]; an archive's
 //                          too) — {ok, fact, owner, confirmed?, head, parent}; the same state again: 200, nothing written;
 //                          txt: the mark of the value the app showed (the Strom file's 3 _TXT under 2 _STROM_EID), a fact
 //                          changed since refused 409 confirm.changed (+txt: the mark now, now: {date?, place?, value?}),
 //                          nothing written; without txt as before; 400 factconfirm.invalid, 404 factconfirm.unknown, 409
 //                          factconfirm.retracted | factconfirm.merged, 503 research.busy (features facts.confirm,
-//                          facts.confirm.value). /status verify {waiting, asked, images, permission, kept, confirmed,
-//                          fix?: {at, facts, people}} (none in an archive or a research waiting for its agent). The Strom
-//                          file: 2 _STROM_EID, _STROM_CONFIRMED, _STROM_VERIFY (3 _POS), _STROM_CHECKED (APP_SHOWS_VERIFY)
+//                          facts.confirm.value). The name of a person's identity (spec 066 P5, feature name-status):
+//                          fact P0012.N (the Strom file's 2 _STROM_EID under its NAME) — {ok, fact: "P0012.N", owner:
+//                          "P0012", confirmed?, head, parent}, its status as it is, tasks of verification leave it; a name
+//                          changed since 409 confirm.changed with now: {given, surname}; 404 factconfirm.unknown (no such
+//                          person, or no name), 409 factconfirm.retracted | factconfirm.merged (the person).
+//                          /status verify {waiting, asked, images, permission, kept, confirmed,
+//                          fix?: {at, facts, people}} (none in an archive or a research waiting for its agent; the names
+//                          of people's identities counted with the facts). The Strom
+//                          file: 2 _STROM_EID, _STROM_CONFIRMED, _STROM_VERIFY (3 _POS), _STROM_CHECKED (APP_SHOWS_VERIFY;
+//                          under NAME, its 2 _STROM_EID P….N: APP_READS_NAME_STATUS, where features say name-status)
 //   POST <token>/sources/proposal {"source": "S…", "task": "T…", "take": "proposal"|"keep"|"undo", "proposed"?: "<mark>"}:
 //                          the user decides a new wording an agent proposed for a transcript they read (core/proposal.ts;
 //                          the waiting item of kind transcript carries it, with its mark): taken as theirs (read.user,
@@ -480,7 +587,13 @@
 //                          new --branch — the branch goes with the new line, its proposal answered (404 offline.none: no
 //                          such branch now, nothing made).
 //                          400 directions.body, 404 directions.person, 409 directions.exists {existing {id, name, state}}
-//                          (the same person and kind — a question: the same question — in any state)
+//                          (the same person and kind — a question: the same question — in any state). moveTasks:
+//                          true|false (feature directions.move): --move-tasks | --keep-tasks, the tasks of the wider
+//                          lines it is inside about its people only (open or waiting, no line paused) — moved: n more
+//   POST <token>/directions/preview  the same body: nothing written — {ok, inside: [the wider lines it would be inside],
+//                          move: how many of their tasks would move} (move 0: nothing to ask; feature directions.move)
+//   POST <token>/directions/<G…>/gather/undo  strom research gather G… --undo: the line's last taking given back —
+//                          {ok, back: n, head, parent}; 409 gather.none (nothing taken), 404 directions.none
 //   POST <token>/directions/<G…>  {name?, question?, limits?: {generations?: n|null, before?: y|null}, reason?}: strom
 //                          research edit (null: no limit; reason: why a paused line waits) — {direction, effect?: {said,
 //                          outside, back?}, head, parent}; effect only when a limit moved tasks (none deleted: they wait
@@ -506,7 +619,11 @@
 //   GET <token>/offline/<B-…>   one branch and all its open tasks (those not taken too): {branch, tasks: [{id, text,
 //                          pos?, person?, own?}]}; 404 offline.none, 409 directions.archive, 503 research.busy
 //   GET <token>/queue      a page of the whole queue (feature queue.page): ?from=<0…> (among the tasks the filter
-//                          leaves) &count=<1…100, 50> &branch=B-P… &research=G… &state=next|parked — {items (as /status
+//                          leaves) &count=<1…100, 50> &branch=B-P… &research=G… &state=next|parked &kind=<a kind of
+//                          core/taskkind.ts: verify, records, material, places, enrich, request, story, history, census,
+//                          other; feature queue.kind> &known=<kind>[,<kind>…] (feature census: at most 20, each [a-z.]
+//                          {1,32}; with kind=other only, else ignored): kind=other without it gives every kind past spec
+//                          065's too (census), known= keeps the kinds it names out — {items (as /status
 //                          queue[], with pos), total (what the filter leaves), from, next? (from of the next page), head};
 //                          in the order of the queue, those put aside after it without pos; an archive: none. 400
 //                          queue.query, 503 research.busy (+ Retry-After). &q=<1…100 characters> (feature queue.search):
@@ -520,6 +637,12 @@
 //   POST <token>/offline/<B-…>  {mode: occasional|last|normal|never|default} | {mode: "line", line: G…}: strom offline
 //                          set (for the branch's new tasks too) — {branch, head, parent}; 400 offline.body, 404
 //                          offline.none, 404 directions.none (the line)
+//   POST <token>/runs/stop  {run: run-…}: the run finishes the task at work and starts no next one (strom run stop) —
+//                          {ok, run: {as runs[] has it, state: finishing}}; 404 runs.unknown, 400 runs.body (feature
+//                          run.stop; the link finish?run=… finishes it at once: the agent writes down what it found)
+//   POST <token>/settings/runs  {max: 1…10}: lower — strom config set run.parallel n (the runs at work go on) — {ok,
+//                          limits}; higher: 403 runs.raise {command} (only the person raises it, in the terminal);
+//                          400 runs.max (feature run.limit)
 //   POST <token>/live      {idleMinutes: 0…10080}: strom config set live.idleMinutes (this computer's, every bridge takes
 //                          it; nothing committed) — {live: {idleMinutes, idleChoices}} as /status live says it (feature
 //                          live.idle) — or {do: "stop"}: 202 {stopping: true}, ended as strom live stop ends it (end
@@ -533,6 +656,29 @@
 //                          books.minTasks … / queue.sameBook … --for-tree ("default": config unset --for-tree) — {books
 //                          {settings} (as /status books.settings), head, parent (head when nothing changed)}; feature
 //                          books; 400 books.body, 409 directions.archive, 503 research.busy
+//   POST <token>/census    {"on": true|false} (exactly): census records as a source of this research — strom config set
+//                          census on|off --for-tree, the person's decision in the app (no window, no link) — {census
+//                          {on, held}, head, parent (head when the value holds already: nothing written)}; feature
+//                          census; 400 census.body, 409 census.archive (an archive, a research waiting for its agent),
+//                          409 seal.foreign | tree.not-downloaded, 423 locked, 503 research.busy (+ Retry-After), 507
+//                          disk.full, 500 census.failed (+ reasonCode). /status census {on, held}: always there; held —
+//                          the census tasks open or waiting kept out of the queue and What waits while it is off (one at
+//                          work not counted: its session finishes it), 0 while on, in an archive and where the research
+//                          waits for its agent
+//   POST <token>/intake    {"auto": true|false} (exactly): what the app sends gone through by the agent by itself — a
+//                          batch once whole, a file of no batch as it comes, the same file again with more said of it, a
+//                          file shown again (spec 130 K1.3) — strom config set intake.auto on|off --for-tree, the person's decision
+//                          in the app (no window, no link) — {intake {auto}, head, parent (head when the value holds
+//                          already: nothing written)}; feature intake.auto; 400 intake.body, 409 intake.archive (an
+//                          archive, a research waiting for its agent; + reasonCode), 409 seal.foreign |
+//                          tree.not-downloaded, 423 locked, 503 research.busy (+ Retry-After), 507 disk.full, 500
+//                          intake.failed. /status intake {auto}: not in an archive nor a research waiting for its agent
+//   POST <token>/books/aside  {file (as /status books.aside lists it), do: discard|take|image, image?: n} (feature
+//                          inbox.aside): strom media aside <file> --discard|--take|--image n — a file of a book's folder
+//                          of the inbox set aside, not taken (the same file as another image: only discard; another scan
+//                          than the image of its number: discard, take — it is that image, the one there withdrawn —, or
+//                          image n) — {done, added, replaced, aside (the list now), head, parent}; 400 aside.body, 404
+//                          aside.unknown {aside}, 409 aside.same | aside.taken | directions.archive, 503 research.busy
 //   POST <token>/queue/<T…>  {do: next|last|default}: strom task order --next|--last|--default (any open task; next
 //                          once, the last chosen first) — {task (as queue[]), was ({} or {own: next|last, at}: its turn
 //                          before), head, parent}; {do: restore, was: {} | {own, at}}: the turn put back exactly as it
@@ -578,10 +724,11 @@
 // new secret. Nothing is replaced on a timer.
 
 import { factIn, factNow, settleVerify, verifyCounts } from "./verify.ts";
+import { settleNameStatus } from "./namestatusfix.ts";
 import { browserState, treeBrowserArchives } from "./browserhelp.ts";
 import { opsLogsOf } from "./opslog.ts";
 import { placeOfWork } from "./workplace.ts";
-import { notDownloaded } from "./integrity.ts";
+import { notDownloaded, settleNotesBack } from "./integrity.ts";
 import fs from "node:fs";
 import zlib from "node:zlib";
 import os from "node:os";
@@ -594,14 +741,17 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { configDir, userHome, type Env } from "./paths.ts";
 import { noteTestProcess } from "./testnote.ts";
 import { newerTree, now, SEAL_FOREIGN, sealedHere, Tree, TREE_FILE, VERSION, type Op } from "./tree.ts";
+import { readTree } from "./readtree.ts";
 import { readJsonIfExists } from "./json.ts";
 import { changeLines, type ChangeKind } from "./changelog.ts";
 import { RETURN_OP } from "./timetravel.ts";
-import { directionOf, scopes, type Scope } from "./directions.ts";
+import { effectiveDirection, scopes, type Scope } from "./directions.ts";
+import { gatherPreview, lastGather } from "./gather.ts";
 import { linePeople } from "./frontier.ts";
 import { BRANCH_MODES, branchJson, branchKey, branchModeOf, branchOf, lineOf, OFFLINE_FILE, offLineJson, offLineView, placer, readOffline, type BranchView, type OfflineFile, type OffLineView, type Placed } from "./offline.ts";
 import { directionsOf, directionsRev, placesJson } from "./tablemarks.ts";
-import { ancestorGenerations, displayName } from "./people.ts";
+import { ancestorGenerations, displayName, primaryName } from "./people.ts";
+import { parseNameEid } from "./namestatus.ts";
 import { findEventOwner, sameDirection } from "./actions.ts";
 import { foundByLine, type Found } from "./found.ts";
 import { orderMode, orderNumbers, workOrder } from "./order.ts";
@@ -615,8 +765,10 @@ import { adoptedAt, notWrittenList, adoptedEmpty, adoptionWait, noteAdoptAsked, 
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { actsAsArchive, kindOf, settleWaiting, stateOf } from "./state.ts";
 import { forStory } from "./stories.ts";
-import { factMark, transcriptMark } from "./readers.ts";
-import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts";
+import { censusHeldCount, censusHidden } from "./census.ts";
+import { kindCounts, kindMatches, parseKnownKinds, parseTaskKind, TASK_KINDS, taskKind, type TaskKind } from "./taskkind.ts";
+import { factMark, nameMark, transcriptMark } from "./readers.ts";
+import { quiet, raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts";
 import { settleReaders } from "./readerfix.ts";
 import { settleProven } from "./provenfix.ts";
 import { settleHeldProposals, settleOrigins } from "./originfix.ts";
@@ -627,7 +779,8 @@ import { ui } from "../cli/ui.ts";
 import { DISK_FULL, EXIT, isDiskFull, StromError } from "./errors.ts";
 import { acquireLock, liveHolder } from "./lock.ts";
 import { checkAsked, checkEdit, material, MATERIAL_MOST_EDIT, MATERIAL_MOST_FILES, MATERIAL_MOST_PEOPLE, materialUses, peopleOf, workingCopyOf } from "./material.ts";
-import { checkDeleteConfirm, deleteConfirm, DELETE_MOST_FILES, deleteImpacts } from "./materialdelete.ts";
+import { checkDeleteConfirm, checkRetractWith, deleteConfirm, DELETE_MOST_FILES, deleteImpacts, deleteSourceImpacts, refuseLiveSources } from "./materialdelete.ts";
+import { checkRetractConfirm, keepable, restorable, RETRACT_MOST, retractConfirm, retractImpacts } from "./sourceretract.ts";
 import { cachedThumb, THUMB_SIZES } from "./thumbs.ts";
 import { checkOriginalMeta, cleanIncoming, freeBytes, knownOriginal, materialWaiting, originalMax, ORIGINAL_RESERVE, ORIGINAL_TYPES, parseRegion } from "./originals.ts";
 import { BATCH_ID, batchEstimate, batchLimits, batchPath, batchStatus, idleBatches, readBatch } from "./batches.ts";
@@ -653,8 +806,10 @@ const EXCERPT_MS = 20_000;
 const EXCERPTS_AT_ONCE = 12;
 import { anyoneAtWork, liveWorkers, otherVersionsAtWork, type Paused } from "./workers.ts";
 import { widgetTree, widgetWriter, type WidgetTree } from "./widget.ts";
-import { monthSpend, openSessions } from "./session.ts";
-import { busyIn } from "./busy.ts";
+import { lifeOf, monthSpend, openSessions } from "./session.ts";
+import type { Life } from "./holds.ts";
+import { archiveHeldOf, directAtWork, heldArchives, heldTasks, holdsStamp, holdView, waitsView, whoDirect, type ArchiveHeldView, type HeldByView, type HoldView, type WaitsView } from "./holdsview.ts";
+import { busyIn, workingNow } from "./busy.ts";
 import { effectiveState, restoredTurn, runOrder, turnWas, type Ranked } from "./queue.ts";
 import { humanTask } from "../cli/human.ts";
 import { foldText } from "./text.ts";
@@ -663,12 +818,12 @@ import { whatsNew } from "./whatsnew.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
 import { RECENT_HOURS, recentChanges, recentNow, type Recent } from "./recent.ts";
-import { APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appReadsMainCitation, appSendsUncite, appDecidesHypotheses, appOpensLinks, appShowsOrigin, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
+import { APP_READS_NAME_STATUS, APP_READS_NAME_STATUS_BETA, APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appReadsMainCitation, appReadsNameStatus, appSendsUncite, appDecidesHypotheses, appOpensLinks, appShowsOrigin, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
 import { suggestSurnames } from "./surnames.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
 import { askOf, qualityRev, readDismissed } from "./quality.ts";
-import { BOOKS_MIN_TASKS, BOOKS_MIN_TASKS_MAX, configFile, DEFAULT_RUN_MINUTES, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES, loadUserConfig, readStored, Settings } from "./config.ts";
-import { folderFiles } from "./inboxwait.ts";
+import { BOOKS_MIN_TASKS, BOOKS_MIN_TASKS_MAX, configFile, DEFAULT_RUN_MINUTES, RUN_PARALLEL_MAX, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES, loadUserConfig, readStored, Settings } from "./config.ts";
+import { asideFiles, folderFiles } from "./inboxwait.ts";
 import { gateLabel } from "./gate.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, linkText, type HandlerState } from "./links.ts";
 import { handoffsNow } from "./handoffs.ts";
@@ -677,9 +832,12 @@ import { askPhoneOn, endPhoneLater, pairCode, pairUrl, phoneConfig, phoneProbe, 
 import { qrSvg } from "./qr.ts";
 import { diskVersion, lastingLauncher, stromLauncher } from "./self.ts";
 import { watchInbox } from "./inboxwatch.ts";
+import { warmWriter } from "./warmwriter.ts";
+import { mediaQueue } from "./livequeue.ts";
+import { batchQueued, cleanQueued, queuedShas, queueTag } from "./mediaqueue.ts";
 import { closeBatchBy, committed, diskFullSaid, forApp, fullWhere, langOf, receiveOriginal, refusal, refusalOf, type Receiver } from "./receive.ts";
 import { splitMark, splitPlan, splitUndos } from "./sourcesplit.ts";
-import { ANSWER_MAX, HIDE_REASONS, OFF_LINE_CHOICES, type Family, type Media, type OffLine, type Person, type Place, type RecordSet, type Repository, type Research, type Session, type Source, type Task, type TreeConfig } from "./model.ts";
+import { ANSWER_MAX, HIDE_REASONS, OFF_LINE_CHOICES, type Family, type Media, type OffLine, type Person, type Place, type RecordSet, type Repository, type Direction, type Research, type Session, type Source, type Task, type TreeConfig } from "./model.ts";
 import { normId } from "./records.ts";
 import { confirmCheck, type ConfirmRefusal } from "./confirm.ts";
 import { answersInApp, requestTexts, waitingFor } from "./waiting.ts";
@@ -688,6 +846,9 @@ import { fileRefused } from "./taskfiles.ts";
 import { SENDABLE, waitKindOf, waitPhaseOf, type WaitKind } from "./waitkind.ts";
 import { auditOf } from "./taskaudit.ts";
 import { agentsHere } from "./apps.ts";
+import { runLimits, runsLive, runsNow, type EndedRun, type RunsNow, type RunView } from "./liveruns.ts";
+import { askRunStop, RUN_ID } from "./runstate.ts";
+import { runTakers } from "./linerun.ts";
 import { counted } from "../cli/format.ts";
 import { AppReadings, appReadSpend, readAccepts, statusReads, type ReadingsSeen } from "./live-read.ts";
 import { AppSorts } from "./live-sort.ts";
@@ -758,7 +919,7 @@ function placeOk(v: unknown): v is string {
   return typeof v === "string" && !!v.trim() && v.length <= 300 && !/[\u0000-\u001f\u007f]/u.test(v);
 }
 
-const APP_WRITES = new Set(["sync", "adopt", "media", "batch", "waiting", "group", "material", "read", "history", "experiments", "quality", "places", "directions", "offline", "queue"]);
+const APP_WRITES = new Set(["sync", "adopt", "media", "batch", "waiting", "group", "material", "read", "history", "experiments", "quality", "places", "directions", "offline", "queue", "census", "intake"]);
 /** A file refused (its error's code): what the bridge says of it. */
 const REFUSED: Record<string, keyof typeof CODES> = {
   "tree.other-research": "ui.sync.bridge.other",
@@ -796,6 +957,10 @@ function said(lang: string, key: keyof typeof CODES, params: Record<string, stri
  * - `media.refused` 400 — refused for another reason (the English sentence says why); `media.failed` 500 — went wrong
  * - `media.gone` 410 {known} — GET …?file=1: the research knows it, its file is not on this computer
  * - `research.busy` 503 (and Retry-After, `retry`) — another strom holds the research: send it again in a while
+ * - `media.held` 503 (and Retry-After, `retry` in seconds) — another program (an antivirus, a sync or backup tool) held
+ *   a file sent or queued, or it could not be read now (found on Windows: EBUSY as a batch was closed): `error` in the
+ *   research's language, `text` English, never the file's path; nothing written or lost — POST /batch/<id>/done: the
+ *   bridge writes the batch's queued files again by itself, the app closes it again after `retry`
  * - `batch.bad-id` 400 {batch}; `batch.zip-alone` 400 — a ZIP outside a batch; `batch.zip-unreadable` 400 {name}
  * - `batch.closed` 409 {batch} — the batch is closed already: send the rest as a new batch
  * - `batch.full-files` 413 {batch, files}; `batch.full-bytes` 413 {batch, gb} — the most a batch takes
@@ -1719,24 +1884,38 @@ export function tagMatches(req: Pick<http.IncomingMessage, "headers">, tag: stri
     .some((t) => t === "*" || t === tag);
 }
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete"] as const;
+/** How many hashes POST /media/known takes at once. */
+export const MEDIA_KNOWN_MAX = 5000;
+
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move"] as const;
 
 /** What only a research with its agent here does (accepts.read: none in an archive, nor where it waits for its agent). */
-const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort"]);
+const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move"]);
 const withoutAgent = (features: readonly string[]): readonly string[] => features.filter((f) => !AGENT_FEATURES.has(f));
 
 /**
  * What the bridge says it does to the app of that version: BRIDGE_FEATURES, but origin.ids only where its /tree.ged
  * carries the original IDs (the gate of the origins, the same version of the app as the file goes by) — an app that is
  * told so takes the research's file as the IDs' keeper and drops its own (found by the joint check of spec 066).
+ * name-status (spec 066 P5: a name's status, confirmation and verification — its id P….N) only where /tree.ged says
+ * them under NAME (APP_READS_NAME_STATUS, the same version of the app as the file goes by: `nameGate`, `nameBeta`);
+ * the person's in an archive too (the confirmation against the scan is theirs).
  */
-export function bridgeFeatures(settings: Settings, version?: string, gate: string | undefined = APP_SHOWS_ORIGIN, beta: string | undefined = APP_SHOWS_ORIGIN_BETA): readonly string[] {
+export function bridgeFeatures(
+  settings: Settings,
+  version?: string,
+  gate: string | undefined = APP_SHOWS_ORIGIN,
+  beta: string | undefined = APP_SHOWS_ORIGIN_BETA,
+  nameGate: string | undefined = APP_READS_NAME_STATUS,
+  nameBeta: string | undefined = APP_READS_NAME_STATUS_BETA,
+): readonly string[] {
   // spec 095: the main citation only to an app that reads it (its /tree.ged carries _STROM_MAIN), a citation removed
   // only from one whose file says it (APP_SENDS_UNCITE); the order and the codes of what is not written to every one
   const off = new Set<string>([
     ...(appShowsOrigin(settings, version, gate, beta) ? [] : ["origin.ids"]),
     ...(appReadsMainCitation(settings, version) ? [] : ["citations.main"]),
     ...(appSendsUncite(version) ? [] : ["citations.remove"]),
+    ...(appReadsNameStatus(settings, version, nameGate, nameBeta) ? [] : ["name-status"]),
   ]);
   return off.size ? BRIDGE_FEATURES.filter((f) => !off.has(f)) : BRIDGE_FEATURES;
 }
@@ -1745,14 +1924,16 @@ export function bridgeFeatures(settings: Settings, version?: string, gate: strin
  * /status with the links of the app taken in the last minute (feature handoffs, core/handoffs.ts): read at each ask,
  * never kept with what is made for a state — a link taken changes nothing of the research.
  */
-export function withHandoffs(made: string, ids: readonly string[]): string {
-  return `${made.slice(0, made.lastIndexOf("}"))},"handoffs":${JSON.stringify(ids)}}`;
+export function withHandoffs(made: string, ids: readonly string[], runs?: { runs: RunView[]; runsEnded: EndedRun[] }): string {
+  const more = runs ? `,"runs":${JSON.stringify(runs.runs)},"runsEnded":${JSON.stringify(runs.runsEnded)}` : "";
+  return `${made.slice(0, made.lastIndexOf("}"))},"handoffs":${JSON.stringify(ids)}${more}}`;
 }
 
 /** /status work: the gate the agent works alone under (its title and what it is given), none set null; a session's minutes. */
-function workOf(tree: Tree, settings: Settings): { gate: string | null; minutes: number } {
+function workOf(tree: Tree, settings: Settings): { gate: string | null; minutes: number; confirm: "ask" | "no" } {
   const spec = settings.runGate();
-  return { gate: spec ? gateLabel(settings.shared()?.value, spec) : null, minutes: settings.number("run.minutes", tree.config, DEFAULT_RUN_MINUTES) };
+  // whether the terminal asks before the agent starts from the link work (run.confirm, the person's): the app says it (spec 126)
+  return { gate: spec ? gateLabel(settings.shared()?.value, spec) : null, minutes: settings.number("run.minutes", tree.config, DEFAULT_RUN_MINUTES), confirm: settings.runConfirm() };
 }
 
 /** /status busy: how many sessions and runs work now. */
@@ -1829,7 +2010,9 @@ function rendered(tree: Tree, raws: RawCommit[]): HistoryEntry[] {
     const research = s ? sessionResearch(tree, s, s.research ? [] : (all ??= scopes(tree))) : undefined;
     // the sources each line names, for the app to open them (only when one does)
     const sources = lines.some((l) => l.sources?.length) ? { sources: lines.map((l) => l.sources ?? []) } : {};
-    return { head, at, what: saved(subject.trim(), body), text: lines.map((l) => l.text), kinds: lines.map((l) => l.kind), ...sources, ...taskOf(s), ...(research ? { research } : {}), ...returnOf(ops) };
+    // the run whose session it was (spec 126: the app's follow-up of a run); never in an archive
+    const run = tasks && s?.worker?.startsWith("run-") ? { run: s.worker } : {};
+    return { head, at, what: saved(subject.trim(), body), text: lines.map((l) => l.text), kinds: lines.map((l) => l.kind), ...sources, ...taskOf(s), ...(research ? { research } : {}), ...run, ...returnOf(ops) };
   });
 }
 
@@ -1853,6 +2036,8 @@ export interface HistoryEntry {
   sources?: string[][];
   task?: string;
   research?: string;
+  /** The run (strom run, its worker) whose session made it (spec 126). */
+  run?: string;
   /** A return in time (strom history back): `to` the change it went back to (its first 8), `toAt` when that was. */
   kind?: "return";
   to?: string;
@@ -2042,28 +2227,49 @@ function sessionOps(root: string, s: Session): Op[] {
   return ops;
 }
 
-/** Who is at work now, on which task (an agent strom started, and its open session). */
-function working(root: string, tree: Tree, all: Scope[]): { who: string; since: string; session?: string; task?: string; person?: string; family?: string; place?: string; research?: string; helps?: string; branch?: string; paused?: Paused }[] {
+/**
+ * Who is at work now, on which task: an agent strom started (a run, a conversation) and its open session, and an agent
+ * working directly (no run, no conversation of strom's) whose session strom holds alive (spec 127, core/holds.ts). Each
+ * with its session's hold (hold {by, since, beat, until?}; until none: a live process on this computer holds it, free
+ * when it ends) — feature task.holds — and a run waiting for a restricted archive another session uses, its wait
+ * (waits {archive, since, until}) beside its paused — feature archive.holds.
+ */
+function working(root: string, tree: Tree, all: Scope[]): { who: string; since: string; run?: string; session?: string; task?: string; person?: string; family?: string; place?: string; research?: string; helps?: string; branch?: string; paused?: Paused; hold?: HoldView; waits?: WaitsView }[] {
   const open = openSessions(tree);
+  const at = Date.now();
   let place: ((t: Task) => Placed) | undefined;
-  return liveWorkers(root).map((w) => {
-    const s = open.find((x) => x.worker === w.id);
+  const of = (s: Session | undefined, life?: Life) => {
     const task = s?.task ? tree.get<Task>(s.task) : undefined;
     // its own line, its task's — or the line its task helps and how, or its branch off the lines (core/offline.ts, as
     // the queue places it); a task about nobody: none
     const own = s ? sessionResearch(tree, s, all) : undefined;
     const p = s && !own && task ? (place ??= placer(tree, all))(task) : undefined;
     const research = own ?? p?.research;
+    const hold = s ? holdView(s, life ?? lifeOf(tree, s, at)) : undefined;
     return {
-      who: whoAtWork(w.label, tree.lang),
-      since: w.since,
-      ...(w.paused ? { paused: w.paused } : {}),
       ...(s ? { session: s.id, ...(s.task ? { task: task ? taskTitle(tree, task) : s.task } : {}), ...worked(tree, sessionOps(root, s), task) } : {}),
       ...(research ? { research } : {}),
       ...(p?.helps ? { helps: p.helps } : {}),
       ...(p?.branch ? { branch: p.branch } : {}),
+      ...(hold ? { hold } : {}),
+    };
+  };
+  const started = liveWorkers(root).map((w) => {
+    const waits = waitsView(w.paused);
+    // what it waits for as a word is the runs' (runs[].paused.reason), never said here
+    const { kind: _kind, ...paused } = w.paused ?? { until: "" };
+    return {
+      who: whoAtWork(w.label, tree.lang),
+      since: w.since,
+      // the run whose work it is (spec 126): a conversation has none
+      ...(w.id.startsWith("run-") ? { run: w.id } : {}),
+      ...(w.paused ? { paused } : {}),
+      ...of(open.find((x) => x.worker === w.id)),
+      ...(waits ? { waits } : {}),
     };
   });
+  const direct = directAtWork(tree, at).map(({ session: s, life }) => ({ who: whoDirect(s, tree.lang), since: life.hold?.since ?? s.started, ...of(s, life) }));
+  return [...started, ...direct];
 }
 
 /** The person and the place (L…, core/workplace.ts) an agent works on, from what its session wrote and its task. */
@@ -2076,7 +2282,7 @@ function worked(tree: Tree, ops: Op[], task: Task | undefined): { person?: strin
 function sessionResearch(tree: Tree, s: Session, all: Scope[]): string | undefined {
   if (s.research) return s.research;
   const task = s.task ? tree.get<Task>(s.task) : undefined;
-  return task ? directionOf(tree, task, all) : undefined;
+  return task ? effectiveDirection(tree, task, all) : undefined;
 }
 
 /** At most so many characters of a reason or a summary the app is sent. */
@@ -2091,8 +2297,10 @@ const DIRECTION_GENERATIONS = 12;
  * direction it belongs to), whether an agent is at work on it, why it was paused or ended and since when,
  * the ancestors known in each generation, and what its last session did.
  */
-function directions(tree: Tree, all: Scope[], queued: Task[], workingOn: (string | undefined)[], found?: Map<string, Found>): Record<string, unknown>[] {
+function directions(tree: Tree, all: Scope[], queued: Task[], workingOn: (string | undefined)[], found?: Map<string, Found>, runs?: RunsNow): Record<string, unknown>[] {
   const tasks = tree.list<Task>("task");
+  // census records off: their tasks wait for nobody (spec 106)
+  const censusHide = censusHidden(new Settings(tree.env, {}).census(tree.config));
   // each task in the one direction it belongs to — or helps (core/offline.ts)
   const line = lineOf(tree, all);
   const of = new Map(tasks.map((t) => [t.id, line(t)]));
@@ -2121,7 +2329,7 @@ function directions(tree: Tree, all: Scope[], queued: Task[], workingOn: (string
       direction: r.direction,
       focus: r.focus,
       tasks: inQueue,
-      waiting: tasks.filter((t) => t.state === "waiting" && of.get(t.id) === r.id).length,
+      waiting: tasks.filter((t) => t.state === "waiting" && of.get(t.id) === r.id && !censusHide(t)).length,
       working: workingOn.includes(r.id),
       ...(reason ? { reason: short(reason) } : {}),
       since: r.stateSince ?? (r.state === "active" ? r.created : r.updated),
@@ -2134,6 +2342,8 @@ function directions(tree: Tree, all: Scope[], queued: Task[], workingOn: (string
       created: r.created,
       ...(r.parent ? { parent: r.parent } : {}),
       ...(found?.get(r.id) ? { found: found.get(r.id) } : {}),
+      // its run, whether one can start now (and why not), the agent of its last run (spec 126, feature run.lines)
+      ...(runs ? runs.line(r, queued) : {}),
     };
   });
 }
@@ -2290,10 +2500,42 @@ interface QueueItem {
   why?: Ranked["reason"];
   /** A story to write, or a task of the history of the places: none for the research's work. */
   kind?: "story" | "history";
+  /** The kind of the task as the person sees the work (core/taskkind.ts; GET /queue?kind= filters by it) — feature queue.kind. */
+  taskKind: TaskKind;
   /** Its book (spec 105): the one it waits for, else the one its where names (core/books.ts bookOfTask). */
   book?: string;
   /** queue.sameBook: it stands before the rest as a task of the book the last session read (its ID). */
   sameBook?: string;
+  /** The run of a line that takes it (spec 126, feature run.lines): none — the whole queue's (a general run). */
+  run?: string;
+  /** An open session holds it now (spec 127 K3.1, feature task.holds): which, who, since when, its last sign, free by when. */
+  heldBy?: HeldByView;
+  /** Its archive (a restricted site) another session uses now: it waits for it (spec 127 K3.1, feature archive.holds). */
+  archiveHeld?: ArchiveHeldView;
+}
+
+/** The holds of the tasks and the archives held now, worked out once for the items of a queue. */
+interface QueueHolds {
+  tasks: Map<string, HeldByView>;
+  sites: ReturnType<typeof heldArchives>;
+  /** The run of a line that takes a task (spec 126): none — the whole queue's. */
+  runs?: (t: Task) => string | undefined;
+}
+
+function queueHolds(tree: Tree, settings: Settings, runs?: (t: Task) => string | undefined): QueueHolds {
+  return { tasks: heldTasks(tree), sites: heldArchives(tree, settings.shared()?.value), runs: runs ?? (actsAsArchive(tree) ? undefined : runTakers(tree)) };
+}
+
+/** The run of a line that takes it (run), and: held by a session (heldBy), else waiting for its archive another uses (archiveHeld). */
+function holdPart(tree: Tree, t: Task, h: QueueHolds | undefined): { run?: string; heldBy?: HeldByView; archiveHeld?: ArchiveHeldView } {
+  if (!h) return {};
+  const by_ = h.runs?.(t);
+  const run = by_ ? { run: by_ } : {};
+  const by = h.tasks.get(t.id);
+  if (by) return { ...run, heldBy: by };
+  if (t.state !== "open" && t.state !== "doing") return run;
+  const a = archiveHeldOf(tree, t, h.sites);
+  return a ? { ...run, archiveHeld: a } : run;
 }
 
 /**
@@ -2306,8 +2548,8 @@ function whereInQueue(place: (t: Task) => Placed, offLine: OffLine, file: Offlin
 }
 
 /** One task as the queue has it: ranked (in the queue: its place, its why, its own turn), else as it stands among the lines alone. */
-function queueItem(tree: Tree, place: (t: Task) => Placed, offLine: OffLine, file: OfflineFile, state: "next" | "parked", t: Task, r?: Ranked, pos?: number): QueueItem {
-  return { id: t.id, text: humanTask(tree, t.what, tree.lang), state, ...(pos ? { pos } : {}), ...personOf(t), ...whereInQueue(place, offLine, file, t, r), ...(r?.own ? { own: r.own } : {}), ...(r?.reason ? { why: r.reason } : {}), ...(forStory(t) ? { kind: "story" as const } : forHistory(t) ? { kind: "history" as const } : {}), ...bookPart(tree, t), ...(r?.sameBook ? { sameBook: r.sameBook } : {}) };
+function queueItem(tree: Tree, place: (t: Task) => Placed, offLine: OffLine, file: OfflineFile, state: "next" | "parked", t: Task, r?: Ranked, pos?: number, holds?: QueueHolds): QueueItem {
+  return { id: t.id, text: humanTask(tree, t.what, tree.lang), state, ...(pos ? { pos } : {}), ...personOf(t), ...whereInQueue(place, offLine, file, t, r), ...(r?.own ? { own: r.own } : {}), ...(r?.reason ? { why: r.reason } : {}), ...(forStory(t) ? { kind: "story" as const } : forHistory(t) ? { kind: "history" as const } : {}), taskKind: taskKind(t), ...bookPart(tree, t), ...(r?.sameBook ? { sameBook: r.sameBook } : {}), ...holdPart(tree, t, holds) };
 }
 
 function bookPart(tree: Tree, t: Task): { book?: string } {
@@ -2351,10 +2593,10 @@ function rankedNow(tree: Tree, settings: Settings, h: string): { ranked: Ranked[
 }
 
 /** The agent's queue in its order, for the user (records by their names), and how many more there are. */
-function queue(tree: Tree, ranked: Ranked[], parked: Task[], all: Scope[], offLine: OffLine): { queue: QueueItem[]; queueMore: number } {
+function queue(tree: Tree, ranked: Ranked[], parked: Task[], all: Scope[], offLine: OffLine, holds?: QueueHolds): { queue: QueueItem[]; queueMore: number } {
   const place = placer(tree, all);
   const file = readOffline(tree);
-  const shown = [...ranked.slice(0, QUEUE_NEXT).map((r, i) => queueItem(tree, place, offLine, file, "next", r.task, r, i + 1)), ...parked.slice(0, QUEUE_PARKED).map((t) => queueItem(tree, place, offLine, file, "parked", t))];
+  const shown = [...ranked.slice(0, QUEUE_NEXT).map((r, i) => queueItem(tree, place, offLine, file, "next", r.task, r, i + 1, holds)), ...parked.slice(0, QUEUE_PARKED).map((t) => queueItem(tree, place, offLine, file, "parked", t, undefined, undefined, holds))];
   return { queue: shown, queueMore: ranked.length + parked.length - shown.length };
 }
 
@@ -2363,14 +2605,27 @@ function queue(tree: Tree, ranked: Ranked[], parked: Task[], all: Scope[], offLi
  * queueCounts, feature queue.page): the same field GET /queue?research= and ?branch= filter by, counted from the queue
  * already ranked — next: all in the queue, parked: those put aside.
  */
-function queueCounts(ranked: Ranked[], parked: number, rev?: string): { research: Record<string, number>; branch: Record<string, number>; next: number; parked: number; rev?: string } {
+/**
+ * /status census (spec 106): on — the setting as it holds for this research; held — its census tasks open or waiting
+ * kept out of the queue and What waits while it is off (one at work not counted), 0 while on, in an archive and where
+ * the research waits for its agent.
+ */
+export function censusStatus(tree: Tree, settings: Settings): { on: boolean; held: number } {
+  const on = settings.census(tree.config);
+  return { on, held: actsAsArchive(tree) ? 0 : censusHeldCount(tree.list<Task>("task"), on) };
+}
+
+function queueCounts(ranked: Ranked[], parked: number, rev?: string, runs?: (t: Task) => string | undefined): { research: Record<string, number>; branch: Record<string, number>; kind: Partial<Record<TaskKind, number>>; next: number; parked: number; general?: number; rev?: string } {
   const research: Record<string, number> = {};
   const branch: Record<string, number> = {};
   for (const r of ranked) {
     if (r.research) research[r.research] = (research[r.research] ?? 0) + 1;
     if (r.branch) branch[r.branch] = (branch[r.branch] ?? 0) + 1;
   }
-  return { research, branch, next: ranked.length, parked, ...(rev ? { rev } : {}) };
+  // by the kind of the work (feature queue.kind): only the kinds with a task, the same GET /queue?kind= filters by
+  // how many the whole queue's run takes (spec 126): the tasks of the lines with a run of their own aside
+  const general = runs ? ranked.filter((r) => !runs(r.task)).length : undefined;
+  return { research, branch, kind: kindCounts(ranked.map((r) => r.task)), next: ranked.length, parked, ...(general !== undefined ? { general } : {}), ...(rev ? { rev } : {}) };
 }
 
 /** At most so many tasks in one page of GET /queue; so many when the app says none. */
@@ -2384,6 +2639,10 @@ export interface QueueAsk {
   branch?: string;
   research?: string;
   state?: "next" | "parked";
+  /** Only the tasks of this kind (feature queue.kind, core/taskkind.ts). */
+  kind?: TaskKind;
+  /** With kind other: the kinds the app knows, kept out of other (feature census; else every kind past spec 065's is other). */
+  known?: string[];
   /** What to find among them (feature queue.search): trimmed, 1…QUERY_MAX characters. */
   q?: string;
 }
@@ -2393,8 +2652,8 @@ export const QUERY_MAX = 100;
 
 /** The query of GET /queue read, or why it is none (400 queue.query). */
 export function queueAsk(q: URLSearchParams): QueueAsk | { bad: string } {
-  const shape = `?from=<0…>&count=<1…${QUEUE_PAGE_MAX}>&branch=B-P…&research=G…&state=next|parked&q=<1…${QUERY_MAX} characters> (each optional)`;
-  const known = new Set(["from", "count", "branch", "research", "state", "q", "app", "poll"]);
+  const shape = `?from=<0…>&count=<1…${QUEUE_PAGE_MAX}>&branch=B-P…&research=G…&state=next|parked&kind=${TASK_KINDS.join("|")}&known=<kind>[,<kind>…]&q=<1…${QUERY_MAX} characters> (each optional)`;
+  const known = new Set(["from", "count", "branch", "research", "state", "kind", "known", "q", "app", "poll"]);
   for (const k of q.keys()) if (!known.has(k)) return { bad: `unknown ${k}: ${shape}` };
   const int = (k: string, dflt: number, min: number, max: number): number | undefined => {
     const v = q.get(k);
@@ -2423,6 +2682,19 @@ export function queueAsk(q: URLSearchParams): QueueAsk | { bad: string } {
   if (st !== null) {
     if (st !== "next" && st !== "parked") return { bad: `state=next|parked: ${shape}` };
     ask.state = st;
+  }
+  const kd = q.get("kind");
+  if (kd !== null) {
+    const k = parseTaskKind(kd);
+    if (!k) return { bad: `kind=${TASK_KINDS.join("|")}: ${shape}` };
+    ask.kind = k;
+  }
+  // the kinds the app knows (feature census): out of other; its shape checked always, its words only with kind=other
+  const kn = q.get("known");
+  if (kn !== null) {
+    const words = parseKnownKinds(kn);
+    if (!words) return { bad: `known=<kind>[,<kind>…] (at most 20, each a-z or .): ${shape}` };
+    if (ask.kind === "other") ask.known = words;
   }
   // what to find: never said back in a refusal (nor in the log — masked)
   const find = q.get("q");
@@ -2458,12 +2730,13 @@ export function queuePage(
   const entries: Entry[] = [];
   for (const [i, r] of ranked.entries()) entries.push({ t: r.task, r, pos: i + 1, where: whereInQueue(place, offLine, file, r.task, r) });
   if (ask.state !== "next") for (const t of order.parked) entries.push({ t, where: whereInQueue(place, offLine, file, t) });
-  const left = entries.filter((e) => (!ask.branch || e.where.branch === ask.branch) && (!ask.research || e.where.research === ask.research));
+  const left = entries.filter((e) => (!ask.branch || e.where.branch === ask.branch) && (!ask.research || e.where.research === ask.research) && (!ask.kind || kindMatches(taskKind(e.t), ask.kind, ask.known)));
   // what the person searches for: among what the filters leave, in the order of the queue, then paged
   const found = ask.q === undefined ? undefined : searchQueue(tree, order, left, ask.q);
   const rows = found ? found.rows : left;
   const page = rows.slice(ask.from, ask.from + ask.count);
-  const items = page.map((e) => queueItem(tree, place, offLine, file, e.r ? "next" : "parked", e.t, e.r, e.pos));
+  const holds = page.length ? queueHolds(tree, settings) : undefined;
+  const items = page.map((e) => queueItem(tree, place, offLine, file, e.r ? "next" : "parked", e.t, e.r, e.pos, holds));
   const end = ask.from + page.length;
   const answer = { items, total: rows.length, from: ask.from, ...(end < rows.length ? { next: end } : {}), rev: order.rev };
   if (!found) return answer;
@@ -2619,7 +2892,7 @@ function queueTask(tree: Tree, settings: Settings, id: string): QueueItem | unde
   const all = scopes(tree);
   const { ranked } = rankedNow(tree, settings, head(tree.root));
   const at = ranked.findIndex((x) => x.task.id === id);
-  return queueItem(tree, placer(tree, all), settings.offLine(tree.config), readOffline(tree), t.state === "parked" ? "parked" : "next", t, ranked[at], at < 0 ? undefined : at + 1);
+  return queueItem(tree, placer(tree, all), settings.offLine(tree.config), readOffline(tree), t.state === "parked" ? "parked" : "next", t, ranked[at], at < 0 ? undefined : at + 1, queueHolds(tree, settings));
 }
 
 /** At most this many books in /status books (the rest counted in `more`). */
@@ -2644,7 +2917,8 @@ function booksSettings(tree: Tree, settings: Settings): { minTasks: number; minT
  * /status books (spec 105, feature books): the settings, and the books — each one something waits on (the app's groups
  * by book), and those offered to download (offer) — the most tasks first, at most BOOKS_LIST_MAX (more: the rest). Each
  * as strom task books --json says it, without the task IDs and the folder's path; pending: the files lying in its folder
- * not taken yet (only when any).
+ * not taken yet (only when any). aside (feature inbox.aside, only when any): the files of the books' folders set aside,
+ * not taken — a question each for the person (asideJson, POST /books/aside).
  */
 function booksStatus(tree: Tree, settings: Settings): Record<string, unknown> {
   const shared = settings.shared()?.value;
@@ -2654,7 +2928,18 @@ function booksStatus(tree: Tree, settings: Settings): Record<string, unknown> {
     const pending = shared ? folderFiles(path.join(shared, "inbox", r.folder)).length : 0;
     return { ...row, ...(pending ? { pending } : {}) };
   });
-  return { settings: booksSettings(tree, settings), list: shown, more: rows.length - shown.length };
+  const aside = asideJson(tree, settings);
+  return { settings: booksSettings(tree, settings), list: shown, more: rows.length - shown.length, ...(aside.length ? { aside } : {}) };
+}
+
+/**
+ * The files of the books' folders of the inbox set aside, not taken (B0408, B0374; feature inbox.aside), newest first:
+ * {file (as it lies in the book's folder, the key of the answer), name (the file's own name, as saved: what a person
+ * reads), recordset, image?, kind: "same" (the same file as image `media`, registered under another number) | "other"
+ * (another scan than `media`, the image of its number), media, at} — each a question for the person (POST /books/aside).
+ */
+function asideJson(tree: Tree, settings: Settings): Record<string, unknown>[] {
+  return asideFiles(tree, settings.shared()?.value).map((a) => ({ file: a.file, name: a.name, recordset: a.recordset, ...(a.image !== undefined ? { image: a.image } : {}), kind: a.kind, media: a.media, at: a.at }));
 }
 
 /** The work off the lines without its branches (the answer to POST /offline): also for a research of one line, where nothing is off them. */
@@ -2786,6 +3071,10 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
   // where the research is on this computer, and the agent that works on it (an archive: none)
   const agent = archive ? undefined : settings.agent(tree.config).value;
   const where = settings.agentWhere();
+  // the runs (spec 126, feature run.lines): their limit, the agents here, the lines' runs and which run takes each task —
+  // none in an archive or a research waiting for its agent (runs[] and runsEnded[] are read at each ask: withHandoffs)
+  const runs = archive ? undefined : runsNow(tree, settings, env);
+  const takers = runs?.taker;
   // a newer strom on disk than this bridge runs (it starts again with it in a moment): for the app to say so
   const disk = diskVersion(env);
   return {
@@ -2812,7 +3101,8 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     ...recentOf(root, env, last.head),
     persons: tree.countLive("person"),
     families: tree.count("family"),
-    researches: archive ? [] : directions(tree, all, next, atWork.filter((w) => !w.paused).map((w) => w.research), foundNow(tree, all, last.head)),
+    researches: archive ? [] : directions(tree, all, next, atWork.filter((w) => !w.paused).map((w) => w.research), foundNow(tree, all, last.head), runs),
+    ...(runs ? { limits: runs.limits, agents: runs.agents } : {}),
     // what the app may do with the lines (directions.*): none in an archive or a research waiting for its agent
     ...(archive ? {} : { caps: capsOf(tree, settings) }),
     working: atWork,
@@ -2847,6 +3137,12 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     experiments: { history: historyOn(tree, settings), regions: regionsOn(tree, settings), places: placesOn(tree, settings), historyPace: settings.historyPace(tree.config), ...kindsStatus(tree, settings) },
     // the history of the places in the stories (stories.history): on while the history is on, unless turned off
     stories: { history: settings.storyHistory(tree.config) },
+    // census records as a source (spec 106, feature census): always there — held 0 while on, in an archive and where
+    // the research waits for its agent
+    census: censusStatus(tree, settings),
+    // what the app sends gone through by the agent by itself (spec 130, feature intake.auto): off unless the person
+    // turned it on — none in an archive or a research waiting for its agent (nothing is sorted there)
+    ...(archive ? {} : { intake: { auto: settings.intakeAuto(tree.config) } }),
     // who decides the hypotheses (hypotheses.decide, feature hypotheses.decide): nobody in an archive or a research
     // waiting for its agent — no key there
     ...(archive ? {} : { hypotheses: { decide: settings.hypothesesDecide(tree.config) } }),
@@ -2862,9 +3158,9 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     // the fingerprint of every person's places among the lines (GET /directions/people places): none in an archive
     ...(archive ? {} : { directions: { rev: directionsRevAt(tree, last.head) } }),
     // an archive: nobody works on it — its tasks put aside are no queue, nothing spent (Milan's decision, 2026-10-03)
-    ...(archive ? { queue: [], queueMore: 0 } : queue(tree, ranked, order?.parked ?? [], all, settings.offLine(tree.config))),
+    ...(archive ? { queue: [], queueMore: 0 } : queue(tree, ranked, order?.parked ?? [], all, settings.offLine(tree.config), queueHolds(tree, settings, takers ?? (() => undefined)))),
     // how many tasks of the queue each line and branch has (the labels; the tasks themselves: GET /queue)
-    queueCounts: queueCounts(ranked, order?.parked.length ?? 0, order?.rev),
+    queueCounts: queueCounts(ranked, order?.parked.length ?? 0, order?.rev, takers),
     // the work off the lines of a research of several (spec 038 K7): the tree's choice, the branches, which grow
     ...(archive ? {} : offLineOf(tree, settings, all, ranked)),
     // the books the tasks need (spec 105, feature books): those waited on, those offered to download — none in an
@@ -2976,6 +3272,14 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     kids.add(child);
     child.once("exit", () => kids.delete(child));
   };
+  // the notes of the material a send of the app took off with no reason (1.35.0): given back and what waited with them
+  // committed, before anything else is written unasked — the research writable again before anybody writes
+  try {
+    const back = settleNotesBack(Tree.open(root, env), quiet);
+    if (back) noteLive(root, `notes of the material given back: ${counted(back, "file")} a send of the Strom app had taken them off`);
+  } catch (e) {
+    noteLive(root, `the notes of the material not given back now: ${errorText(e)}`);
+  }
   // an archive switched by an older strom: its tasks that wait put aside before the app asks (logged, with the reason)
   try {
     const held = settleArchive(Tree.open(root, env));
@@ -3031,6 +3335,13 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     if (done) noteLive(root, `facts to verify against their originals: ${counted(done.facts, "fact")} of ${counted(done.people, "person", "people")} queued`);
   } catch (e) {
     noteLive(root, `the facts to verify against their originals not queued now: ${errorText(e)}`);
+  }
+  // how sure a name is: the names a record of the research's names made probable once (spec 066 P5)
+  try {
+    const done = settleNameStatus(Tree.open(root, env));
+    if (done) noteLive(root, `how sure a name is: ${counted(done.changed, "name")} made probable in ${counted(done.records, "record")}`);
+  } catch (e) {
+    noteLive(root, `how sure the names are not set now: ${errorText(e)}`);
   }
   // an agent's proposals whose value proposed holds now: closed by themselves (no value written)
   try {
@@ -3140,7 +3451,11 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     }
   };
   // what receives an original or closes a batch (receive.ts, shared with the phone's server)
-  const receiver: Receiver = { root, env, note: (text) => noteLive(root, text), track, head: () => head(root), safely };
+  // what the app sent written by a strom kept warm (core/warmwriter.ts), the files it queued one commit at a time
+  // (core/livequeue.ts): the writer started with the first write, the queue taken over as the bridge listens
+  const writer = warmWriter({ root, env: forApp(env, root), note: (text) => noteLive(root, text), track });
+  const media = mediaQueue({ root, env, run: writer.run, note: (text) => noteLive(root, text) });
+  const receiver: Receiver = { root, env, note: (text) => noteLive(root, text), track, head: () => head(root), safely, run: writer.run, queued: (job) => media.queued(job) };
   // the documents the app asks to be read (live-read.ts): their queue read one at a time, each by a strom of its own
   const reads = new AppReadings({ root, env, settings: () => new Settings(env, {}), note: (text) => noteLive(root, text), safely });
   const sorts = new AppSorts({ root, env, settings: () => new Settings(env, {}), note: (text) => noteLive(root, text), safely });
@@ -3153,11 +3468,18 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       return "-";
     }
   };
+  // the shared folder whose restricted archives' holds (<shared>/net/holds) the state goes by beside the research's own
+  let holdsShared: string | undefined;
+  try {
+    holdsShared = new Settings(env, {}).shared()?.value;
+  } catch {
+    holdsShared = undefined;
+  }
   const keeper = new StatusKeeper({
     root,
     env,
     git: gitProgram() ?? "git",
-    atWork: () => JSON.stringify(liveWorkers(root)),
+    atWork: () => JSON.stringify(liveWorkers(root)) + holdsStamp(root, holdsShared),
     stateNow: () => [now().slice(0, 10), stamp(path.join(root, TREE_FILE)), stamp(configFile(env)), stamp(path.join(root, ...OFFLINE_FILE.split("/"))), historyRevs.get(root)?.rev ?? "", JSON.stringify(agentsHere(env)), diskVersion(env)?.version ?? ""].join("|"),
     known: () => historyRevKnown(root),
     inline: (version, key) => splitStatus(status(root, env, version, reads.seen), key),
@@ -3647,7 +3969,9 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     const origin = allowedOrigin(req.headers.origin);
     const version = appVersionOf(req, new Settings(env, {}));
     // what the app sends may change what /status says without a commit (a send waiting, a reading, a batch): made again
-    if (req.method !== "GET" && req.method !== "OPTIONS" && !(req.method === "POST" && what === "images")) res.once("finish", () => keeper.forget());
+    // (what only reads, though asked by POST: the images of the tree's file, what the research has of files)
+    const onlyReads = req.method === "POST" && (what === "images" || (what === "media" && sub === "known"));
+    if (req.method !== "GET" && req.method !== "OPTIONS" && !onlyReads) res.once("finish", () => keeper.forget());
     if (origin) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Vary", "Origin");
@@ -3665,14 +3989,14 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     }
     // sealed on another computer: nothing the app sends is written until the person takes it over here — said so (409
     // seal.foreign, in the research's language with the way), never "send again in a moment" (found in the audit)
-    if ((req.method === "POST" || req.method === "PUT") && t === token && origin && APP_WRITES.has(what ?? "") && !newerTree(root, env) && !sealedHere(root, env)) {
+    if ((req.method === "POST" || req.method === "PUT") && t === token && origin && !onlyReads && APP_WRITES.has(what ?? "") && !newerTree(root, env) && !sealedHere(root, env)) {
       req.resume();
       res.writeHead(409, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(sealRefusal()));
       return;
     }
     // files of the research only in iCloud: nothing the app sends is written over them (409 tree.not-downloaded, the
     // way in the research's language), never "send again in a moment"
-    const cloud = (req.method === "POST" || req.method === "PUT") && t === token && origin && APP_WRITES.has(what ?? "") ? notDownloaded(root) : [];
+    const cloud = (req.method === "POST" || req.method === "PUT") && t === token && origin && !onlyReads && APP_WRITES.has(what ?? "") ? notDownloaded(root) : [];
     if (cloud.length) {
       req.resume();
       res.writeHead(409, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(cloudRefusal(cloud)));
@@ -3695,11 +4019,24 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       return;
     }
     if (req.method === "PUT" && t === token && what === "media") {
+      // the warm writer started as the original comes (it loads while the bytes come)
+      writer.warm();
       original(req, res, origin, sub ?? "");
+      return;
+    }
+    // what the research has of many files by their hashes at once (read only)
+    if (req.method === "POST" && t === token && what === "media" && sub === "known" && !act) {
+      mediaKnown(req, res);
       return;
     }
     if (req.method === "POST" && t === token && what === "batch" && act === "done") {
       batchDone(req, res, origin, decodeURIComponent(sub ?? ""));
+      return;
+    }
+    // a decided conflict marked for review kept as decided (spec 117 J4): no decision of it — the decision stands as the
+    // person made it, only the mark of a source they deleted goes (deciding it again stays the terminal's, below)
+    if (req.method === "POST" && t === token && what === "conflict" && sub === "keep" && !act) {
+      writeFor(req, res, origin, conflictKeep());
       return;
     }
     if (req.method === "POST" && t === token && what === "conflict" && sub && !act) {
@@ -3724,9 +4061,33 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       writeFor(req, res, origin, liveWrite());
       return;
     }
+    // the runs (spec 126): one asked to stop, the limit of runs at once lowered
+    if (req.method === "POST" && t === token && what === "runs" && sub === "stop" && !act) {
+      writeFor(req, res, origin, runStopWrite());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "settings" && sub === "runs" && !act) {
+      writeFor(req, res, origin, runsLimitWrite());
+      return;
+    }
+    // census records as a source (spec 106)
+    if (req.method === "POST" && t === token && what === "census" && !sub) {
+      writeFor(req, res, origin, censusWrite());
+      return;
+    }
+    // the batches sorted by themselves (spec 130)
+    if (req.method === "POST" && t === token && what === "intake" && !sub) {
+      writeFor(req, res, origin, intakeWrite());
+      return;
+    }
     // the tree's settings of the books (spec 105)
     if (req.method === "POST" && t === token && what === "books" && !sub) {
       writeFor(req, res, origin, booksWrite());
+      return;
+    }
+    // a file of a book's folder of the inbox set aside (B0408, B0374): the person's answer which one is the image
+    if (req.method === "POST" && t === token && what === "books" && sub === "aside") {
+      writeFor(req, res, origin, asideWrite());
       return;
     }
     // work off the lines: a branch's choice, the tree's, a task's own turn — each a strom command
@@ -3748,6 +4109,11 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     }
     if (req.method === "POST" && t === token && what === "material" && sub === "delete" && !act) {
       writeFor(req, res, origin, materialDelete());
+      return;
+    }
+    // a source the person deletes, puts back; a decision kept without it (spec 117)
+    if (req.method === "POST" && t === token && what === "source" && (sub === "retract" || sub === "restore") && !act) {
+      writeFor(req, res, origin, sub === "retract" ? sourceRetract() : sourceRestore());
       return;
     }
     if (req.method === "POST" && t === token && what === "history" && sub === "hide" && !act) {
@@ -3826,10 +4192,21 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       return;
     }
     // the lines of the research: made, changed, paused / ended / resumed, put in order — each a strom command
+    // a line's last taking of tasks given back (spec 126 K2.15)
+    if (req.method === "POST" && t === token && what === "directions" && sub && act === "gather" && rest === "undo" && !tail) {
+      const id = decoded(sub).toUpperCase();
+      if (/^G\d{1,9}$/.test(id)) writeFor(req, res, origin, gatherUndo(id));
+      else {
+        req.resume();
+        res.writeHead(404, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(refusal("no such line", "directions.none", { id: sub })));
+      }
+      return;
+    }
     if (req.method === "POST" && t === token && what === "directions" && !rest) {
       const id = sub ? decoded(sub).toUpperCase() : undefined;
       if (!sub && !act) writeFor(req, res, origin, directionNew());
       else if (sub === "order" && !act) writeFor(req, res, origin, directionsOrder());
+      else if (sub === "preview" && !act) writeFor(req, res, origin, directionPreview());
       else if (id && /^G\d{1,9}$/.test(id) && !act) writeFor(req, res, origin, directionEdit(id));
       else if (id && /^G\d{1,9}$/.test(id) && act === "state") writeFor(req, res, origin, directionState(id));
       else {
@@ -3917,13 +4294,14 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         // what the research has of this content: said — or, asked for, the file itself
         const sha = (sub ?? "").toLowerCase();
         const shared = new Settings(env, {}).shared()?.value;
-        const tree = /^[0-9a-f]{64}$/.test(sha) ? Tree.open(root, env) : undefined;
+        const tree = /^[0-9a-f]{64}$/.test(sha) ? readTree(root, env) : undefined;
         // a file of the app's tree whose original is not here yet: its working copy
         const known = tree ? (knownOriginal(tree, shared, sha) ?? workingCopyOf(tree, shared, sha)) : undefined;
         const json = (code: number, body: Record<string, unknown>) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
         const thumb = new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("thumb");
         if (thumb !== null && !(THUMB_SIZES as readonly number[]).includes(Number(thumb))) json(400, refusal(`?thumb=${THUMB_SIZES.join("|")} (the longer side in pixels)`, "thumb.size"));
-        else if (!known) json(404, { known: null });
+        // queued (PUT with Prefer: respond-async), not written yet: the research has it in a moment
+        else if (!known) json(404, { known: null, ...(tree && queuedShas(root).has(sha) ? { queued: true } : {}) });
         else if (thumb !== null) giveThumb(req, res, known, sha, Number(thumb));
         else if (!/[?&]file=1(?:&|$)/.test(req.url ?? "")) json(200, { known: known.id, kind: known.kind, mime: known.mime, bytes: known.bytes, ...(known.name ? { name: known.name } : {}), here: !!known.file && fs.existsSync(known.file) });
         else if (!known.file || !fs.existsSync(known.file)) json(410, { known: known.id, ...refusal("its file is not on this computer", "media.gone", { known: known.id }) });
@@ -3953,10 +4331,12 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         const person = (q.get("person") ?? "").toUpperCase();
         const batch = q.get("batch") ?? "";
         const files = q.get("files");
+        // the family trees' files too (spec 117 K2.1): only to an app that asks, never to an older one
+        const trees = q.get("trees");
         const json = (code: number, body: unknown) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
-        if ((q.has("person") && !/^P\d{1,9}$/.test(person)) || (q.has("batch") && !BATCH_ID.test(batch)) || (files !== null && files !== "0" && files !== "1"))
-          json(400, { ...refusal("?person=P… (a person of the research), ?batch=<the batch's mark>, ?files=0 (the batches only)", "material.query") });
-        else json(200, material(Tree.open(root, env), new Settings(env, {}).shared()?.value, { ...(person ? { person } : {}), ...(batch ? { batch } : {}), ...(files === "0" ? { files: false } : {}) }));
+        if ((q.has("person") && !/^P\d{1,9}$/.test(person)) || (q.has("batch") && !BATCH_ID.test(batch)) || (files !== null && files !== "0" && files !== "1") || (trees !== null && trees !== "0" && trees !== "1"))
+          json(400, { ...refusal("?person=P… (a person of the research), ?batch=<the batch's mark>, ?files=0 (the batches only), ?trees=1 (the family trees' files too)", "material.query") });
+        else json(200, material(Tree.open(root, env), new Settings(env, {}).shared()?.value, { ...(person ? { person } : {}), ...(batch ? { batch } : {}), ...(files === "0" ? { files: false } : {}), ...(trees === "1" ? { trees: true } : {}) }));
       } else if (what === "history" && !sub) {
         // what the ancestors lived through: read in an archive too, and in a research waiting for its agent
         const tree = Tree.open(root, env);
@@ -4062,7 +4442,8 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         const lite = new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("parts") === "1";
         statusVersion = version;
         keeper.get(version).then(
-          (made) => res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(withHandoffs(lite ? made.lite : made.full, handoffsNow(root))),
+          // the runs (spec 126): read now, never kept with what was made (a run's step changes every few seconds)
+          (made) => res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(withHandoffs(lite ? made.lite : made.full, handoffsNow(root), made.runs ? runsLive(root, () => new Settings(env, {}).agent(Tree.open(root, env).config).value) : undefined)),
           (e) => failed(req, res, e),
         );
       } else if (what === "status" && sub && !act) {
@@ -4182,7 +4563,7 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     child.on("error", (e) => noteLive(root, `a send could not be written: ${errorText(e)}`));
     child.on("close", (code) => {
       clearTimeout(timer);
-      let data: { input?: string | null; changes?: Change[]; message?: string; code?: string; params?: Record<string, string>; skipped?: Skipped[]; applied?: { do: string; id: string; before?: unknown }[]; media?: MediaWritten[] } = {};
+      let data: { input?: string | null; changes?: Change[]; message?: string; code?: string; params?: Record<string, string>; skipped?: Skipped[]; applied?: { do: string; id: string; before?: unknown }[]; media?: MediaWritten[]; retracted?: string[] } = {};
       try {
         data = JSON.parse(out) as typeof data;
       } catch {
@@ -4228,6 +4609,8 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
             ...(data.skipped?.length ? { skipped: data.skipped } : {}),
             // the app's files it wrote (spec 108): each change with the place it is of and the record the file is (I…)
             ...(data.media?.length ? { media: data.media } : {}),
+            // the research's sources the person deleted in the app, deleted with the send (spec 117 K1.4)
+            ...(data.retracted?.length ? { retracted: data.retracted } : {}),
             // the sources that said they are an entry of a reading of a document (_STROM_READING): taken as the
             // research's reading, or not (why: a stable code) and so the app's own source as any
             ...(changes.some((c) => c.reading)
@@ -4513,7 +4896,8 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     let replace = false;
     let read = false;
     const zip = header("x-strom-zip") === "1";
-    const tree = Tree.open(root, env);
+    // what it is for checked on the bridge's tree to read from (written by a strom of its own)
+    const tree = readTree(root, env);
     // the header read when it failed (its value not URI-encoded too): said by its name
     let at = "X-Strom-Batch";
     try {
@@ -4576,18 +4960,73 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     }
     // a file to read: its reading shown under the name it came with now — also when the research had it already
     if (read) reads.named(sha, named);
-    receiveOriginal(receiver, req, res, { sha, name, note, persons: meta.persons, ...(meta.families ? { families: meta.families } : {}), source: meta.source, region, batch, where, zip, task: forTask, ...(image !== undefined ? { image } : {}), ...(replace ? { replace } : {}), ...(read ? { read } : {}) });
+    // answered once checked and queued (Prefer: respond-async, RFC 7240), written a moment later with what came with it:
+    // a file of a batch, or material of people or a couple — never one for a task, to read now or an image of a source,
+    // whose answer says what became of it
+    const later = /(?:^|[,;\s])respond-async(?:$|[,;\s])/i.test(header("prefer") ?? "") && !forTask && !read && !meta.source && !region;
+    const app = header("x-strom-app-version");
+    receiveOriginal(receiver, req, res, { sha, name, note, persons: meta.persons, ...(meta.families ? { families: meta.families } : {}), source: meta.source, region, batch, where, zip, task: forTask, ...(image !== undefined ? { image } : {}), ...(replace ? { replace } : {}), ...(read ? { read } : {}), ...(later ? { async: { origin, ...(app ? { app } : {}) } } : {}) });
   };
 
-  const closeBatchNow = (id: string, extra: string[], reply: (code: number, body: Record<string, unknown>) => void) => closeBatchBy(receiver, id, extra, reply);
+  // closed one at a time with the queue's writes: the batch's queued files and its close one commit
+  const closeBatchNow = (id: string, extra: string[], reply: (code: number, body: Record<string, unknown>) => void) =>
+    media.close(id, (done) =>
+      closeBatchBy(receiver, id, extra, (code, body) => {
+        reply(code, body);
+        // not closed (a file held, the research busy, …): the queue writes the batch's files again in a while
+        done(code === 200 || code === 202);
+      }),
+    );
+
+  /**
+   * What the research has of many files by their hashes (POST /media/known {shas: [...]}, at most MEDIA_KNOWN_MAX): for
+   * each {id, kind, mime, bytes, here} as GET /media/<sha> says it, {queued: true} for one the bridge queued and has not
+   * written yet, null for one it has not got. Read only, from the bridge's tree to read from; like GET /media, for the
+   * app's pages (another site's page with the secret: the secret is changed, as for any address of the bridge).
+   */
+  const mediaKnown = (req: http.IncomingMessage, res: http.ServerResponse) => {
+    const json = (code: number, body: Record<string, unknown>) => {
+      if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
+    };
+    let body = "";
+    let over = false;
+    req.on("data", (c: Buffer) => {
+      if (over) return;
+      body += c.toString("utf8");
+      // 64 hex, quotes and a comma for each: more than the most it takes is refused as it comes
+      if (body.length > MEDIA_KNOWN_MAX * 70 + 1024) over = true;
+    });
+    req.on("end", () => safely(req, res, () => {
+      if (over) return json(413, refusal(`at most ${MEDIA_KNOWN_MAX} hashes at once`, "media.known-many", { max: String(MEDIA_KNOWN_MAX) }));
+      let shas: unknown;
+      try {
+        shas = (JSON.parse(body) as { shas?: unknown }).shas;
+      } catch {
+        shas = undefined;
+      }
+      if (!Array.isArray(shas) || shas.some((x) => typeof x !== "string" || !/^[0-9a-fA-F]{64}$/.test(x))) return json(400, refusal("the body: JSON {shas: [SHA-256, …]}", "media.known-body"));
+      if (shas.length > MEDIA_KNOWN_MAX) return json(413, refusal(`at most ${MEDIA_KNOWN_MAX} hashes at once`, "media.known-many", { max: String(MEDIA_KNOWN_MAX) }));
+      const shared = new Settings(env, {}).shared()?.value;
+      const tree = readTree(root, env);
+      const queued = queuedShas(root);
+      const known: Record<string, unknown> = {};
+      for (const raw of shas as string[]) {
+        const sha = raw.toLowerCase();
+        if (sha in known) continue;
+        const k = knownOriginal(tree, shared, sha) ?? workingCopyOf(tree, shared, sha);
+        known[sha] = k ? { id: k.id, kind: k.kind, mime: k.mime, bytes: k.bytes, here: !!k.file && fs.existsSync(k.file) } : queued.has(sha) ? { queued: true } : null;
+      }
+      json(200, { known });
+    }));
+  };
 
   /** The app says a batch is whole: {name, files, person, note} — its files become sorting tasks (the note told in them). */
   const batchDone = (req: http.IncomingMessage, res: http.ServerResponse, origin: string | undefined, id: string) => {
     const reply = (code: number, body: Record<string, unknown>) => {
-      if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(code === 503 ? { "Retry-After": "30" } : {}) }).end(JSON.stringify(body));
+      if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(code === 503 ? { "Retry-After": String(typeof body.retry === "number" ? body.retry : 30) } : {}) }).end(JSON.stringify(body));
     };
     if (!origin) return reply(403, refusal("only the Strom app may close a batch", "app.only"));
-    if (!BATCH_ID.test(id) || !readBatch(root, id)) {
+    if (!BATCH_ID.test(id) || (!readBatch(root, id) && !batchQueued(root, id))) {
       req.resume();
       return reply(404, { ...refusal(`no batch ${id.slice(0, 64)} here`, "batch.none", { batch: id.slice(0, 64) }), batch: id });
     }
@@ -4596,18 +5035,21 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       if (body.length < 8192) body += c.toString("utf8");
     });
     req.on("end", () => safely(req, res, () => {
-      let said: { name?: unknown; files?: unknown; person?: unknown; note?: unknown } = {};
+      let said: { name?: unknown; files?: unknown; person?: unknown; note?: unknown; sort?: unknown } = {};
       try {
         said = body.trim() ? (JSON.parse(body) as typeof said) : {};
       } catch {
-        return reply(400, { ...refusal("the body: JSON {name, files, person}", "batch.bad-body"), batch: id });
+        return reply(400, { ...refusal("the body: JSON {name, files, person, note, sort}", "batch.bad-body"), batch: id });
       }
+      // this batch sorted (or not) whatever intake.auto says: the app's choice for it (spec 130)
+      if (said.sort !== undefined && typeof said.sort !== "boolean") return reply(400, { ...refusal("sort: true or false", "batch.bad-body"), batch: id });
       const persons = (Array.isArray(said.person) ? said.person : said.person ? [said.person] : []).map((p) => String(p).trim().toUpperCase()).filter((p) => /^P\d{1,9}$/.test(p));
       const extra = [
         ...(typeof said.name === "string" && said.name.trim() ? [`--name=${said.name.trim().slice(0, 120)}`] : []),
         ...persons.flatMap((p) => ["--person", p]),
         ...(Number.isInteger(said.files) && (said.files as number) > 0 ? ["--expected", String(said.files)] : []),
         ...(typeof said.note === "string" && said.note.trim() ? [`--note=${said.note.trim().slice(0, 500)}`] : []),
+        ...(said.sort === true ? ["--sort"] : said.sort === false ? ["--no-sort"] : []),
       ];
       closeBatchNow(id, extra, reply);
     }));
@@ -4848,12 +5290,15 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
    * {files, confirm}: the impacts again, the same as signed, written by strom input delete --confirm (which checks it once
    * more under the tree's lock). Refused: 400 material.body (no confirm that holds, a body it cannot read), 404
    * material.file, 409 material.delete-changed {impacts} (the research changed since the person saw the list), 403
-   * material.readonly, 409 material.busy (+ Retry-After).
+   * material.readonly, 409 material.busy (+ Retry-After). A family tree's file a source standing was made of (spec 117
+   * K2.2): only with that source deleted first (retractSources, one confirm over both: impacts and sourceImpacts), else
+   * 409 material.source-live {sources}.
    */
   const materialDelete = (): AppWrite => {
     let ids: string[] = [];
+    let with_: string[] = [];
     const bad = (why: string) => ({ code: 400, body: refusal(why, "material.body") });
-    const changed = (impacts: unknown) => ({ code: 409, body: { ...refusal("the files would take other things with them than the list said: look at it again", "material.delete-changed"), impacts } });
+    const changed = (impacts: unknown, sourceImpacts?: unknown) => ({ code: 409, body: { ...refusal("the files would take other things with them than the list said: look at it again", "material.delete-changed"), impacts, ...(sourceImpacts ? { sourceImpacts } : {}) } });
     return {
       what: "the material: delete",
       codes: MATERIAL_CODES,
@@ -4865,6 +5310,9 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         const dry = body.dryRun === true;
         if (!dry && body.dryRun !== undefined && body.dryRun !== false) return bad("dryRun: true, or a confirm");
         if (!dry && typeof body.confirm !== "string") return bad("confirm: what the dry run answered (dryRun: true first)");
+        // the sources made of a family tree's file, deleted with it (spec 117 K2.2): none, or 1–50 of them
+        const given = body.retractSources === undefined || (Array.isArray(body.retractSources) && !body.retractSources.length) ? [] : sourceList(body.retractSources);
+        if (!given) return bad(`retractSources: 1 to ${RETRACT_MOST} IDs of sources (S…) made of the files`);
         const shared = new Settings(env, {}).shared()?.value;
         let impacts;
         try {
@@ -4872,35 +5320,205 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         } catch (e) {
           return refusedAsked(e);
         }
+        let sourceImpacts;
+        try {
+          checkRetractWith(impacts, given);
+          sourceImpacts = deleteSourceImpacts(tree, given);
+        } catch (e) {
+          if (e instanceof StromError && e.code === "material.body") return bad(e.message);
+          return sourceAsked(e);
+        }
         if (!writableHere()) return { code: 403, body: refusal("nothing can be written into the research on this computer", "material.readonly") };
         const key = tree.key;
         if (!key) return { code: 403, body: refusal("the research is not sealed on this computer", "material.readonly") };
         const asked = impacts.map((i) => i.id);
-        if (dry) return { code: 200, body: { files: asked, dryRun: true, impacts, confirm: deleteConfirm(key, asked, impacts) } };
-        const said = checkDeleteConfirm(key, asked, impacts, body.confirm);
-        if (said === "changed") return changed(impacts);
+        const sources = sourceImpacts.map((s) => s.id);
+        const both = sources.length ? { sources, impacts: sourceImpacts } : undefined;
+        if (dry) return { code: 200, body: { files: asked, ...(both ? { retractSources: sources } : {}), dryRun: true, impacts, ...(both ? { sourceImpacts } : {}), confirm: deleteConfirm(key, asked, impacts, Date.now(), both) } };
+        // a source standing made of a file and not deleted with it: never the file alone (the confirm aside)
+        try {
+          refuseLiveSources(impacts, sources);
+        } catch (e) {
+          return refusedAsked(e);
+        }
+        const said = checkDeleteConfirm(key, asked, impacts, body.confirm, Date.now(), both);
+        if (said === "changed") return changed(impacts, both ? sourceImpacts : undefined);
         if (said !== "ok") return bad("confirm: none that holds (signed by this bridge, at most 15 minutes old) — dryRun: true again");
         ids = asked;
+        with_ = sources;
         this.stdin = ids.join("\n");
-        return { args: ["input", "delete", "--files-from", "-", `--confirm=${String(body.confirm)}`] };
+        return { args: ["input", "delete", "--files-from", "-", ...(sources.length ? [`--retract-sources=${sources.join(",")}`] : []), `--confirm=${String(body.confirm)}`] };
       },
       done(_tree, data, head) {
-        return { files: Array.isArray(data.files) ? data.files : ids, deleted: Array.isArray(data.deleted) ? data.deleted : [], impacts: data.impacts ?? [], head };
+        return {
+          files: Array.isArray(data.files) ? data.files : ids,
+          deleted: Array.isArray(data.deleted) ? data.deleted : [],
+          ...(with_.length ? { retracted: Array.isArray(data.retracted) ? data.retracted : [] } : {}),
+          impacts: data.impacts ?? [],
+          ...(with_.length ? { sourceImpacts: data.sourceImpacts ?? [] } : {}),
+          head,
+        };
       },
-      refused(tree, code, why) {
+      refused(tree, code, why, data) {
         if (code === "material.delete-changed") {
           let impacts: unknown = [];
+          let sourceImpacts: unknown;
           try {
             impacts = deleteImpacts(tree, new Settings(env, {}).shared()?.value, ids);
           } catch {
             // the files are gone meanwhile: the list is empty
           }
-          return changed(impacts);
+          if (with_.length)
+            try {
+              sourceImpacts = deleteSourceImpacts(tree, with_);
+            } catch {
+              // a source gone or deleted meanwhile: no list
+              sourceImpacts = [];
+            }
+          return changed(impacts, sourceImpacts);
+        }
+        if (code === "material.source-live") {
+          const params = (data.params as Record<string, unknown> | undefined) ?? {};
+          const sources = String(params.sources ?? "").split(",").filter(Boolean);
+          return { code: 409, body: { ...refusal(why, code, { sources: sources.join(",") }), sources } };
+        }
+        if (code.startsWith("source.")) {
+          const r = sourceRefused(code, why, (data.params as Record<string, unknown> | undefined) ?? {});
+          if (r) return r;
         }
         if (code === "material.body") return { code: 400, body: refusal(why, code) };
         if (code === "material.file") return { code: 404, body: refusal(why, code) };
         if (code === "fs.no-permission" || code === "fs.sandboxed" || code === "git.unwritable" || code === "needs-consent") return { code: 403, body: { ...refusal(why, "material.readonly"), reasonCode: code } };
         return undefined;
+      },
+    };
+  };
+  /**
+   * A source deleted by the person, put back, a decision kept without it (POST /source/retract | /source/restore,
+   * POST /conflict/keep; spec 117) — the person's in the app, never a queue an agent could write to. Retract in two steps
+   * as /material/delete: {sources, dryRun: true} answered here without a write, with the impacts and the bridge's
+   * confirmation of them (signed with the seal key, 15 minutes); {sources, confirm}: written by strom source retract
+   * --confirm, which checks it once more under the tree's lock. Refused: 400 source.body, 404 source.unknown |
+   * conflict.unknown {id}, 409 source.retracted | source.notRetracted | source.notRestorable | conflict.notMarked {id},
+   * 409 source.retract-changed {impacts}, 403 source.readonly, 409 source.busy (+ Retry-After), 500 source.failed.
+   */
+  const SOURCE_CODES = { badBody: "source.body", busy: "source.busy", failed: "source.failed" };
+  const sourceStatus: Record<string, number> = {
+    "source.body": 400,
+    "source.unknown": 404,
+    "conflict.unknown": 404,
+    "source.retracted": 409,
+    "source.notRetracted": 409,
+    "source.notRestorable": 409,
+    "conflict.notMarked": 409,
+  };
+  const sourceRefused = (code: string, why: string, params: Record<string, unknown> = {}): { code: number; body: Record<string, unknown> } | undefined => {
+    if (sourceStatus[code]) return { code: sourceStatus[code]!, body: refusal(why, code, Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)]))) };
+    if (code === "fs.no-permission" || code === "fs.sandboxed" || code === "git.unwritable" || code === "needs-consent" || code === "seal.other-key") return { code: 403, body: { ...refusal(why, "source.readonly"), reasonCode: code } };
+    return undefined;
+  };
+  const sourceAsked = (e: unknown) => {
+    if (e instanceof StromError && e.code && sourceStatus[e.code]) return sourceRefused(e.code, e.message, e.params ?? {})!;
+    throw e;
+  };
+  const readonly = (why: string) => ({ code: 403, body: refusal(why, "source.readonly") });
+  const sourceList = (v: unknown): string[] | undefined => (Array.isArray(v) && v.length && v.length <= RETRACT_MOST && v.every((x) => typeof x === "string" && x.length <= 40) ? (v as string[]) : undefined);
+  const sourceRetract = (): AppWrite => {
+    let ids: string[] = [];
+    const bad = (why: string) => ({ code: 400, body: refusal(why, "source.body") });
+    const changed = (impacts: unknown) => ({ code: 409, body: { ...refusal("deleting the source would take other things with it than the list said: look at it again", "source.retract-changed"), impacts } });
+    return {
+      what: "a source deleted",
+      codes: SOURCE_CODES,
+      max: 64 * 1024,
+      ask(tree, body) {
+        const sources = sourceList(body.sources);
+        if (!sources) return bad(`sources: 1 to ${RETRACT_MOST} IDs of sources (S…)`);
+        const dry = body.dryRun === true;
+        if (!dry && body.dryRun !== undefined && body.dryRun !== false) return bad("dryRun: true, or a confirm");
+        if (!dry && typeof body.confirm !== "string") return bad("confirm: what the dry run answered (dryRun: true first)");
+        let impacts;
+        try {
+          impacts = retractImpacts(tree, sources);
+        } catch (e) {
+          return sourceAsked(e);
+        }
+        if (!writableHere()) return readonly("nothing can be written into the research on this computer");
+        const key = tree.key;
+        if (!key) return readonly("the research is not sealed on this computer");
+        const asked = impacts.map((i) => i.id);
+        if (dry) return { code: 200, body: { sources: asked, dryRun: true, impacts, confirm: retractConfirm(key, asked, impacts) } };
+        const said = checkRetractConfirm(key, asked, impacts, body.confirm);
+        if (said === "changed") return changed(impacts);
+        if (said !== "ok") return bad("confirm: none that holds (signed by this bridge, at most 15 minutes old) — dryRun: true again");
+        ids = asked;
+        this.stdin = ids.join("\n");
+        return { args: ["source", "retract", "--sources-from", "-", `--confirm=${String(body.confirm)}`] };
+      },
+      done(_tree, data, head) {
+        return { sources: Array.isArray(data.sources) ? data.sources : ids, retracted: Array.isArray(data.retracted) ? data.retracted : [], impacts: data.impacts ?? [], head };
+      },
+      refused(tree, code, why, data) {
+        if (code === "source.retract-changed") {
+          let impacts: unknown = [];
+          try {
+            impacts = retractImpacts(tree, ids);
+          } catch {
+            // a source gone or deleted meanwhile: no list
+          }
+          return changed(impacts);
+        }
+        return sourceRefused(code, why, (data.params as Record<string, unknown> | undefined) ?? {});
+      },
+    };
+  };
+  const sourceRestore = (): AppWrite => {
+    let ids: string[] = [];
+    return {
+      what: "a source put back",
+      codes: SOURCE_CODES,
+      max: 16 * 1024,
+      ask(tree, body) {
+        const sources = sourceList(body.sources);
+        if (!sources) return { code: 400, body: refusal(`sources: 1 to ${RETRACT_MOST} IDs of sources (S…)`, "source.body") };
+        try {
+          ids = restorable(tree, sources).map((s) => s.id);
+        } catch (e) {
+          return sourceAsked(e);
+        }
+        if (!writableHere()) return readonly("nothing can be written into the research on this computer");
+        this.stdin = ids.join("\n");
+        return { args: ["source", "restore", "--sources-from", "-"] };
+      },
+      done(_tree, data, head) {
+        const { commit: _commit, ...got } = data;
+        return { ...got, restored: Array.isArray(data.restored) ? data.restored : ids, head };
+      },
+      refused(_tree, code, why, data) {
+        return sourceRefused(code, why, (data.params as Record<string, unknown> | undefined) ?? {});
+      },
+    };
+  };
+  const conflictKeep = (): AppWrite => {
+    let id = "";
+    return {
+      what: "a decision kept without a deleted source",
+      codes: SOURCE_CODES,
+      ask(tree, body) {
+        if (typeof body.conflict !== "string" || !body.conflict.trim() || body.conflict.length > 40) return { code: 400, body: refusal("conflict: the conflict's ID (X…)", "source.body") };
+        try {
+          id = keepable(tree, body.conflict).id;
+        } catch (e) {
+          return sourceAsked(e);
+        }
+        if (!writableHere()) return readonly("nothing can be written into the research on this computer");
+        return { args: ["conflict", "keep", id] };
+      },
+      done(_tree, data, head) {
+        return { conflict: typeof data.conflict === "string" ? data.conflict : id, head };
+      },
+      refused(_tree, code, why, data) {
+        return sourceRefused(code, why, (data.params as Record<string, unknown> | undefined) ?? {});
       },
     };
   };
@@ -5679,31 +6297,97 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
    * `branch` (B-P…: a line made for a branch off the lines, What waits proposed one): strom research new --branch — the
    * branch goes with the new line, the proposal answered; no such branch now: 404 offline.none, nothing made.
    */
+  /** The body of a new line checked (POST /directions and its preview): what is wrong as the answer, else the person. */
+  const newLineOf = (tree: Tree, body: Record<string, unknown>): { code: number; body: Record<string, unknown> } | { p: Person; key?: string } => {
+    const known = ["person", "direction", "name", "question", "limits", "note", "branch", "moveTasks"];
+    if (Object.keys(body).some((k) => !known.includes(k))) return badDirection(`the body: ${known.join(", ")}`);
+    const { person, direction, name, question, limits, note, branch, moveTasks } = body;
+    if (typeof person !== "string" || !/^P\d{1,9}$/i.test(person)) return badDirection("person: the ID of a person (P…)");
+    if (direction !== "ancestors" && direction !== "descendants" && direction !== "question") return badDirection("direction: ancestors, descendants or question");
+    if (name !== undefined && !textOk(name, 200)) return badDirection("name: a text of at most 200 characters");
+    if (direction === "question" ? !textOk(question, 1000) : question !== undefined) return badDirection(direction === "question" ? "question: the question (at most 1000 characters)" : "question: only for a question");
+    const badLimits = limitsOf(limits, false);
+    if (badLimits) return badDirection(badLimits);
+    if (note !== undefined && !textOk(note, 20_000)) return badDirection("note: a text of at most 20000 characters");
+    if (moveTasks !== undefined && typeof moveTasks !== "boolean") return badDirection("moveTasks: true or false");
+    const key = branch === undefined ? undefined : branchKey(branch);
+    if (branch !== undefined && (typeof branch !== "string" || branch.length > 40 || !key)) return badDirection("branch: B-P…");
+    if (actsAsArchive(tree)) return directionsArchive(tree);
+    if (key && !branchOf(tree, new Settings(env, {}), key)) return noBranch(key);
+    const p = tree.get<Person>(person.toUpperCase());
+    if (!p || p.type !== "person" || p.retracted) return { code: 404, body: refusal(`no person ${person}`, "directions.person", { id: person }) };
+    const same = sameDirection(tree.list<Research>("research"), p.id, direction, question as string | undefined);
+    if (same) return { code: 409, body: { ...refusal(`the line "${same.name}" is there already`, "directions.exists", { id: same.id }), existing: { id: same.id, name: same.name, state: same.state } } };
+    return { p, ...(key ? { key } : {}) };
+  };
+
+  /**
+   * What a new line would take from the wider lines it would be inside (POST /directions/preview, spec 126 K2.15):
+   * the same body as POST /directions, nothing written — {inside: [G…], move: n}; move 0: nothing to ask.
+   */
+  const directionPreview = (): AppWrite => ({
+    what: "a new line's preview",
+    codes: DIRECTION_CODES,
+    busyStatus: 503,
+    ask(tree, body) {
+      const ok = newLineOf(tree, body);
+      if ("code" in ok) return ok;
+      const l = (body.limits ?? {}) as { generations?: number; before?: number };
+      const limits = { ...(l.generations ? { generations: l.generations } : {}), ...(l.before ? { before: l.before } : {}) };
+      const preview = gatherPreview(tree, {
+        focus: ok.p.id,
+        direction: body.direction as Direction,
+        ...(Object.keys(limits).length ? { limits } : {}),
+        ...(typeof body.question === "string" ? { question: body.question.normalize("NFC").trim() } : {}),
+      });
+      return { code: 200, body: { ok: true, ...preview } };
+    },
+    done: (_tree, data) => data,
+    refused: (_tree, code, why, data) => directionRefused(code, why, data),
+  });
+
+  /**
+   * A line's last taking of tasks given back (POST /directions/<G…>/gather/undo, spec 126 K2.15): strom research gather
+   * G… --undo — {ok: true, back: n}; nothing to give back: 409 gather.none.
+   */
+  const gatherUndo = (id: string): AppWrite => {
+    let before = "";
+    return {
+      what: `the tasks taken by ${id}`,
+      codes: DIRECTION_CODES,
+      busyStatus: 503,
+      ask(tree) {
+        if (actsAsArchive(tree)) return directionsArchive(tree);
+        const r = tree.get<Research>(id);
+        if (!r || r.type !== "research") return { code: 404, body: refusal(`no line ${id}`, "directions.none", { id }) };
+        if (!lastGather(tree, id)) return { code: 409, body: refusal(`${id} has taken no tasks to give back`, "gather.none", { id }) };
+        before = head(root);
+        return { args: ["research", "gather", id, "--undo"] };
+      },
+      done(_tree, data, h) {
+        const back = Array.isArray(data.returned) ? data.returned.length : 0;
+        return { ok: true, back, head: h, parent: before };
+      },
+      refused(_tree, code, why, data) {
+        if (code === "gather.none") return { code: 409, body: refusal(why, "gather.none", { id }) };
+        return directionRefused(code, why, data);
+      },
+    };
+  };
+
   const directionNew = (): AppWrite => {
     let before = "";
+    let withMove = false;
     return {
       what: "a new line",
       codes: DIRECTION_CODES,
       busyStatus: 503,
       ask(tree, body) {
-        const known = ["person", "direction", "name", "question", "limits", "note", "branch"];
-        if (Object.keys(body).some((k) => !known.includes(k))) return badDirection(`the body: ${known.join(", ")}`);
-        const { person, direction, name, question, limits, note, branch } = body;
-        if (typeof person !== "string" || !/^P\d{1,9}$/i.test(person)) return badDirection("person: the ID of a person (P…)");
-        if (direction !== "ancestors" && direction !== "descendants" && direction !== "question") return badDirection("direction: ancestors, descendants or question");
-        if (name !== undefined && !textOk(name, 200)) return badDirection("name: a text of at most 200 characters");
-        if (direction === "question" ? !textOk(question, 1000) : question !== undefined) return badDirection(direction === "question" ? "question: the question (at most 1000 characters)" : "question: only for a question");
-        const badLimits = limitsOf(limits, false);
-        if (badLimits) return badDirection(badLimits);
-        if (note !== undefined && !textOk(note, 20_000)) return badDirection("note: a text of at most 20000 characters");
-        const key = branch === undefined ? undefined : branchKey(branch);
-        if (branch !== undefined && (typeof branch !== "string" || branch.length > 40 || !key)) return badDirection("branch: B-P…");
-        if (actsAsArchive(tree)) return directionsArchive(tree);
-        if (key && !branchOf(tree, new Settings(env, {}), key)) return noBranch(key);
-        const p = tree.get<Person>(person.toUpperCase());
-        if (!p || p.type !== "person" || p.retracted) return { code: 404, body: refusal(`no person ${person}`, "directions.person", { id: person }) };
-        const same = sameDirection(tree.list<Research>("research"), p.id, direction, question as string | undefined);
-        if (same) return { code: 409, body: { ...refusal(`the line "${same.name}" is there already`, "directions.exists", { id: same.id }), existing: { id: same.id, name: same.name, state: same.state } } };
+        const ok = newLineOf(tree, body);
+        if ("code" in ok) return ok;
+        const { p, key } = ok;
+        const { direction, name, question, limits, note, moveTasks } = body as { direction: string; name?: string; question?: string; limits?: unknown; note?: string; moveTasks?: boolean };
+        withMove = moveTasks !== undefined;
         before = head(root);
         const l = (limits ?? {}) as { generations?: number; before?: number };
         // no name: one in the research's language, as the menu makes it
@@ -5715,6 +6399,8 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
             ...(l.generations ? ["--generations", String(l.generations)] : []),
             ...(l.before ? ["--before", String(l.before)] : []),
             ...(key ? ["--branch", key] : []),
+            // the tasks of the wider lines it is inside about its people only (spec 126 K2.15): the app asked the person
+            ...(moveTasks === true ? ["--move-tasks"] : moveTasks === false ? ["--keep-tasks"] : []),
             "--", title,
           ],
           ...(note !== undefined
@@ -5726,8 +6412,11 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         };
       },
       done(tree, data, h) {
-        const id = ((data.first ?? data) as { research?: { id?: string } }).research?.id ?? "";
-        return { direction: directionNow(tree, id) ?? null, head: h, parent: before };
+        const made = (data.first ?? data) as { research?: { id?: string }; moved?: unknown };
+        const id = made.research?.id ?? "";
+        // how many tasks moved to it (spec 126 K2.15): with moveTasks only
+        const moved = withMove ? { moved: Array.isArray(made.moved) ? made.moved.length : 0 } : {};
+        return { direction: directionNow(tree, id) ?? null, ...moved, head: h, parent: before };
       },
       refused(_tree, code, why, data) {
         return directionRefused(code, why, data);
@@ -5963,12 +6652,159 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   };
 
   /**
+   * Census records as a source of this research (POST /census {"on": true|false}, exactly; spec 106): strom config set
+   * census on|off --for-tree, in the app's environment — the person's decision there, turned on or off at once (no
+   * window, no link). As it is already: 200, nothing written, head = parent. {census: {on, held}, head, parent} (held
+   * counted after the write). 400 census.body; not in an archive nor a research waiting for its agent (409
+   * census.archive, reasonCode: its state).
+   */
+  const censusWrite = (): AppWrite => {
+    let before = "";
+    return {
+      what: "census records",
+      codes: { badBody: "census.body", busy: "research.busy", failed: "census.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body);
+        if (keys.length !== 1 || keys[0] !== "on" || typeof body.on !== "boolean") return { code: 400, body: refusal(`the body: {"on": true} or {"on": false}`, "census.body") };
+        if (actsAsArchive(tree)) return { code: 409, body: { ...refusal("nobody researches here: census records are not looked for", "census.archive"), reasonCode: stateOf(tree) } };
+        before = head(root);
+        const settings = new Settings(env, {});
+        if (settings.census(tree.config) === body.on) return { code: 200, body: { census: censusStatus(tree, settings), head: before, parent: before } };
+        return { args: ["config", "set", "census", body.on ? "on" : "off", "--for-tree"] };
+      },
+      done(tree, _data, h) {
+        const now = Tree.open(tree.root, env);
+        return { census: censusStatus(now, new Settings(env, {})), head: h, parent: before };
+      },
+      refused(tree, code, why) {
+        if (code === "archive" || code === "agent.missing") return { code: 409, body: { ...refusal(why, "census.archive"), reasonCode: stateOf(tree) } };
+        return undefined;
+      },
+    };
+  };
+
+  /**
+   * The batches the app sends sorted by the agent by themselves once whole (POST /intake {"auto": true|false}, exactly;
+   * spec 130): strom config set intake.auto on|off --for-tree, in the app's environment — the person's decision there,
+   * turned on or off at once (no window, no link). As it is already: 200, nothing written, head = parent. {intake: {auto},
+   * head, parent}. 400 intake.body; not in an archive nor a research waiting for its agent (409 intake.archive,
+   * reasonCode: its state).
+   */
+  const intakeWrite = (): AppWrite => {
+    let before = "";
+    return {
+      what: "the batches sorted by themselves",
+      codes: { badBody: "intake.body", busy: "research.busy", failed: "intake.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body);
+        if (keys.length !== 1 || keys[0] !== "auto" || typeof body.auto !== "boolean") return { code: 400, body: refusal(`the body: {"auto": true} or {"auto": false}`, "intake.body") };
+        if (actsAsArchive(tree)) return { code: 409, body: { ...refusal("nobody researches here: no batch is sorted", "intake.archive"), reasonCode: stateOf(tree) } };
+        before = head(root);
+        if (new Settings(env, {}).intakeAuto(tree.config) === body.auto) return { code: 200, body: { intake: { auto: body.auto }, head: before, parent: before } };
+        return { args: ["config", "set", "intake.auto", body.auto ? "on" : "off", "--for-tree"] };
+      },
+      done(tree, _data, h) {
+        const now = Tree.open(tree.root, env);
+        return { intake: { auto: new Settings(env, {}).intakeAuto(now.config) }, head: h, parent: before };
+      },
+      refused(tree, code, why) {
+        if (code === "archive" || code === "agent.missing") return { code: 409, body: { ...refusal(why, "intake.archive"), reasonCode: stateOf(tree) } };
+        return undefined;
+      },
+    };
+  };
+
+  /**
+   * The person's answer to a file of the inbox set aside (POST /books/aside {file, do: "discard" | "take" | "image",
+   * image?: n}; feature inbox.aside): strom media aside <file> --discard | --take | --image n — the same file as another
+   * image: only discard (409 aside.same); another scan: discard (the image stays, the file into the system's trash),
+   * take (it is the image of its number: the one there withdrawn, a cited one stays beside it), image n (it is image n,
+   * not taken yet; 409 aside.taken). {aside: [the list now], done, added, replaced, head, parent}; 404 aside.unknown (no
+   * such file set aside: answered already). Not in an archive nor a research waiting for its agent (409 directions.archive).
+   */
+  const asideWrite = (): AppWrite => {
+    let before = "";
+    return {
+      what: "a file of the inbox set aside",
+      codes: { badBody: "aside.body", busy: "research.busy", failed: "aside.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const { file, do: act, image } = body;
+        const ok =
+          typeof file === "string" && file.length > 0 && file.length < 1024 && !/[\\/]/u.test(file) &&
+          (act === "discard" || act === "take" || (act === "image" && typeof image === "number" && Number.isInteger(image) && image >= 1)) &&
+          Object.keys(body).every((k) => k === "file" || k === "do" || (k === "image" && act === "image"));
+        if (!ok) return { code: 400, body: refusal(`the body: {"file": "<as books.aside lists it>", "do": "discard" | "take" | "image", "image"?: n}`, "aside.body") };
+        if (actsAsArchive(tree)) return directionsArchive(tree);
+        before = head(root);
+        return { args: ["media", "aside", file as string, act === "image" ? `--image=${image as number}` : `--${act as string}`] };
+      },
+      done(tree, data, h) {
+        return { ...data, aside: asideJson(tree, new Settings(env, {})), head: h, parent: before };
+      },
+      refused(tree, code, why) {
+        if (code === "aside.unknown") return { code: 404, body: { ...refusal(why, code), aside: asideJson(tree, new Settings(env, {})) } };
+        if (code === "aside.same" || code === "aside.taken") return { code: 409, body: refusal(why, code) };
+        return undefined;
+      },
+    };
+  };
+
+  /**
    * The bridge itself (POST /live): {"idleMinutes": n} — strom config set live.idleMinutes n (this computer's, every
    * tree's bridge; nothing of the research committed; as it is already: 200, nothing written) — or {"do": "stop"}: ended
    * as strom live stop ends it (the end event says by: "app"), once what the app sent is written — but its address kept,
    * so the bridge started again (strom live start, the link live&do=start, the research opened from the app) is where the
    * app looks; new work in the tree never brings it back (only an end when idle does). An archive too: no agent in it.
    */
+  /**
+   * A run asked to stop (POST /runs/stop {"run": "<id>"}, spec 126, feature run.stop): it finishes the task at work and
+   * starts no next one (strom run stop <id>) — {ok: true, run: {…, state: "finishing"}}; no such run alive: 404
+   * runs.unknown. Nothing in data/ is written: the run reads the stop between its sessions and while it waits.
+   */
+  const runStopWrite = (): AppWrite => ({
+    what: "a run's stop",
+    codes: { badBody: "runs.body", busy: "research.busy", failed: "runs.failed" },
+    busyStatus: 503,
+    ask(tree, body) {
+      const id = body.run;
+      if (Object.keys(body).length !== 1 || typeof id !== "string" || !RUN_ID.test(id)) return { code: 400, body: refusal(`the body: {"run": "run-…"}`, "runs.body") };
+      if (!liveWorkers(root).some((w) => w.id === id)) return { code: 404, body: refusal(`no run ${id} at work`, "runs.unknown", { run: id }) };
+      askRunStop(root, id, "stop", "app");
+      noteLive(root, `${id}: asked to stop in the Strom app`);
+      const own = () => new Settings(env, {}).agent(tree.config).value;
+      const run = runsLive(root, own).runs.find((r) => r.id === id);
+      return { code: 200, body: { ok: true, run: run ?? null } };
+    },
+    done: (_tree, data) => data,
+    refused: () => undefined,
+  });
+
+  /**
+   * The limit of runs at once (POST /settings/runs {"max": n}, spec 126, feature run.limit): lowered by the app at once
+   * (strom config set run.parallel n; the runs at work go on) — {ok: true, limits}; raised only by the person in the
+   * terminal (each run spends the subscription): 403 runs.raise {command}; outside 1–10: 400 runs.max.
+   */
+  const runsLimitWrite = (): AppWrite => ({
+    what: "the limit of runs",
+    codes: { badBody: "runs.max", busy: "research.busy", failed: "runs.failed" },
+    busyStatus: 503,
+    ask(_tree, body) {
+      const n = body.max;
+      if (Object.keys(body).length !== 1 || typeof n !== "number" || !Number.isInteger(n) || n < 1 || n > RUN_PARALLEL_MAX)
+        return { code: 400, body: refusal(`the body: {"max": 1…${RUN_PARALLEL_MAX}}`, "runs.max") };
+      const limits = runLimits(root, new Settings(env, {}));
+      const command = `strom config set run.parallel ${n}`;
+      if (n > limits.maxRuns) return { code: 403, body: { ...refusal(`more runs at once only by the person in the terminal: ${command}`, "runs.raise", { max: String(n) }), command } };
+      if (n === limits.maxRuns) return { code: 200, body: { ok: true, limits } };
+      return { args: ["config", "set", "run.parallel", String(n)] };
+    },
+    done: () => ({ ok: true, limits: runLimits(root, new Settings(env, {})) }),
+    refused: () => undefined,
+  });
+
   const liveWrite = (): AppWrite => ({
     what: "the bridge's idle time",
     codes: { badBody: "live.body", busy: "research.busy", failed: "live.failed" },
@@ -6293,12 +7129,14 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         const keys = Object.keys(body).filter((k) => k !== "dry");
         const key = keys[0];
         const v = key ? body[key] : undefined;
-        const shape: Record<string, RegExp> = { person: /^P\d{1,9}$/iu, family: /^F\d{1,9}$/iu, fact: /^E\d{1,9}$/iu };
+        // a fact: E…, or the name of a person's identity (P….N, spec 066 P5)
+        const shape: Record<string, RegExp> = { person: /^P\d{1,9}$/iu, family: /^F\d{1,9}$/iu, fact: /^(?:E\d{1,9}|P\d{1,9}\.N)$/iu };
         if (keys.length !== 1 || !shape[key!] || typeof v !== "string" || !shape[key!]!.test(v.trim()) || (body.dry !== undefined && typeof body.dry !== "boolean"))
-          return { code: 400, body: refusal(`the body: {"person": "P…"} | {"family": "F…"} | {"fact": "E…"}, "dry"?: true`, "verify.invalid") };
+          return { code: 400, body: refusal(`the body: {"person": "P…"} | {"family": "F…"} | {"fact": "E…" | "P….N"}, "dry"?: true`, "verify.invalid") };
         const no = noVerify(tree);
         if (no) return no;
-        const id = normId(v.trim());
+        const named = key === "fact" ? parseNameEid(v) : undefined;
+        const id = named ? `${named}.N` : normId(v.trim());
         if (key !== "fact") {
           const r = tree.get<Person | Family>(id);
           if (!r || r.type !== key) return { code: 404, body: refusal(`no ${key} ${id}`, "verify.unknown") };
@@ -6320,8 +7158,9 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   /**
    * The person's bulk verification (POST /verify/bulk {scope: line|lineage|tree, of?, order?, try?, budget?, dry?}):
    * strom verify bulk, after the lines' work — a family tree's leads too, their record looked for (Dotazy 2 of the
-   * app, 3). {ok, people, facts, how: {read, search}, tasks, left, estimate: {sessions, usd?}, head, parent};
-   * dry: no tasks, head == parent. 400 verify.invalid, 404 verify.unknown, 409 verify.archive | verify.nothing, 503
+   * app, 3). {ok, people, facts, how: {read, search}, tasks, first, working, left, estimate: {sessions, usd?}, head,
+   * parent}; first: a try's tasks first in the queue (K7.1), working: a run or a session at work now (K7.2) — feature
+   * verify.tryFirst; dry: no tasks (nor first, working), head == parent. 400 verify.invalid, 404 verify.unknown, 409 verify.archive | verify.nothing, 503
    * research.busy.
    */
   const verifyBulkWrite = (): AppWrite => {
@@ -6361,9 +7200,11 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
           ],
         };
       },
-      done(_tree, data, h) {
-        const { people, facts, how, tasks, left, estimate } = data;
-        return { ok: true, people, facts, how, ...(dry ? {} : { tasks: tasks ?? [] }), left, estimate, head: dry ? before : h, parent: before };
+      done(tree, data, h) {
+        const { people, facts, how, tasks, left, estimate, first } = data;
+        // a try (feature verify.tryFirst): first says its tasks stand first in the queue, working whether the research
+        // works now (a run, a session) — the app offers to work on them now only when it does not (spec 065 K7.2)
+        return { ok: true, people, facts, how, ...(dry ? {} : { tasks: tasks ?? [], first: first === true, working: workingNow(tree) }), left, estimate, head: dry ? before : h, parent: before };
       },
       refused: (_tree, code, why) => verifyRefused(code, why),
     };
@@ -6405,8 +7246,10 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
    */
   const factConfirmWrite = (): AppWrite => {
     let before = "";
-    // 409 confirm.changed: the mark now (txt) and what the fact says now (date, place, value), for the app to show again
-    const changed = (why: string, params: Record<string, string>) => {
+    // 409 confirm.changed: the mark now (txt) and what the fact says now (date, place, value; a name: given, surname),
+    // for the app to show again — a part it does not have left out
+    const changed = (why: string, all: Record<string, string | undefined>) => {
+      const params = Object.fromEntries(Object.entries(all).filter((e): e is [string, string] => typeof e[1] === "string" && e[1] !== "undefined"));
       const { txt, fact: _f, ...now } = params;
       return { code: 409, body: { ...refusal(why, "confirm.changed", params), ...(txt ? { txt } : {}), now } };
     };
@@ -6417,11 +7260,17 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       ask(tree, body) {
         const keys = Object.keys(body).sort().join(",");
         const { fact, confirm, txt } = body;
-        if ((keys !== "confirm,fact" && keys !== "confirm,fact,txt") || typeof fact !== "string" || !/^E\d{1,9}$/iu.test(fact.trim()) || typeof confirm !== "boolean" || (txt !== undefined && (typeof txt !== "string" || !/^[0-9a-f]{16}$/iu.test(txt))))
-          return { code: 400, body: refusal(`the body: {"fact": "E…", "txt"?: "<the fact's 3 _TXT under 2 _STROM_EID>", "confirm": true | false}`, "factconfirm.invalid") };
-        const id = normId(fact.trim());
+        // a fact (E…) or the name of a person's identity (P….N, spec 066 P5: the Strom file's 2 _STROM_EID under NAME)
+        const person = typeof fact === "string" && /^\s*P\d{1,9}\.N\s*$/iu.test(fact) ? parseNameEid(fact) : undefined;
+        if ((keys !== "confirm,fact" && keys !== "confirm,fact,txt") || typeof fact !== "string" || (!person && !/^E\d{1,9}$/iu.test(fact.trim())) || typeof confirm !== "boolean" || (txt !== undefined && (typeof txt !== "string" || !/^[0-9a-f]{16}$/iu.test(txt))))
+          return { code: 400, body: refusal(`the body: {"fact": "E…" | "P….N", "txt"?: "<its 3 _TXT under 2 _STROM_EID>", "confirm": true | false}`, "factconfirm.invalid") };
+        const id = person ? `${person}.N` : normId(fact.trim());
         // the value the person saw (an older file, ?stale=1) is what is confirmed: changed since, refused before anything
-        if (typeof txt === "string") {
+        if (typeof txt === "string" && person) {
+          const p = tree.get<Person>(person);
+          const name = p && p.type === "person" && !p.retracted && !p.mergedInto && p.names.length ? primaryName(p) : undefined;
+          if (name && nameMark(name) !== txt.toLowerCase()) return changed(`the name of ${person} changed since the app showed it: confirm what it says now`, { fact: id, txt: nameMark(name), given: name.given, surname: name.surname });
+        } else if (typeof txt === "string") {
           const event = factIn(tree, id);
           if (event && factMark(event) !== txt.toLowerCase()) return changed(`${id} changed since the app showed it: confirm what it says now`, { fact: id, txt: factMark(event), ...factNow(event) });
         }
@@ -6565,6 +7414,11 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   /** A write of the app's the research cannot take as asked (checkAsked): its code, the HTTP status the app reads it by. */
   const refusedAsked = (e: unknown): { code: number; body: Record<string, unknown> } => {
     if (!(e instanceof StromError) || !e.code) throw e;
+    // a family tree's file a source standing was made of (spec 117 K2.2): the sources as a list too
+    if (e.code === "material.source-live") {
+      const sources = String(e.params?.sources ?? "").split(",").filter(Boolean);
+      return { code: 409, body: { ...refusal(e.message, e.code, e.params ?? {}), sources } };
+    }
     return { code: e.code === "material.body" || e.code === "material.date" ? 400 : 404, body: refusal(e.message, e.code, e.params ?? {}) };
   };
   /** Whether the research can be written here at all: its history, its records, its locks. */
@@ -7024,7 +7878,11 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         }
         live = { port, token, pid: process.pid, url: `http://127.0.0.1:${port}/${token}`, started: new Date().toISOString(), version: VERSION };
         writeLive(root, live);
+        // its address kept as soon as it says it is there (a bridge killed right after its start is brought back at it)
         writeLast(root, { port, token, pid: process.pid, started: live.started });
+        // the files a bridge before left queued taken over; the warm writer starts with the first write of the app's
+        // (a bridge that only answers reads starts no strom of its own and writes nothing into the research)
+        media.takeOver();
         return undefined;
       });
       if (meanwhile || !live) {
@@ -7088,9 +7946,11 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       let atWorkNow: ReturnType<typeof working> = [];
       const atWork = (h: string) => {
         const present = liveWorkers(root);
-        const key = `${h}\n${JSON.stringify(present)}`;
+        // and the holds (spec 127): an agent working directly, its sign of life, a restricted archive held or waited for
+        const holds = holdsStamp(root, holdsShared);
+        const key = `${h}\n${JSON.stringify(present)}\n${holds}`;
         if (key !== atWorkKey) {
-          if (!present.length) atWorkNow = [];
+          if (!present.length && !holds) atWorkNow = [];
           else {
             const tree = Tree.open(root, env);
             atWorkNow = working(root, tree, scopes(tree));
@@ -7158,8 +8018,9 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       let renewing = false;
       // something the app sent written now: its body coming, a strom of the bridge's writing it (a send, an adoption, an
       // original, a batch, the person's answer)
-      const writesNow = () => incoming > 0 || writing !== undefined || adopting || kids.size > 0;
-      const busy = () => writesNow() || retryAt !== undefined || tidying;
+      // (the queue's writer and the warm writer at work too; files queued and not written yet keep it from renewing)
+      const writesNow = () => incoming > 0 || writing !== undefined || adopting || kids.size > 0 || media.writing() || writer.busy();
+      const busy = () => writesNow() || retryAt !== undefined || tidying || media.pending() > 0;
       // the order kept on a thread of its own (core/livetidy-worker.ts): seconds on a large research, the bridge answers
       // meanwhile; a thread that cannot start: kept here, as before
       let tidying = false;
@@ -7403,6 +8264,9 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
           const shared = new Settings(env, {}).shared()?.value;
           const gone = shared ? cleanIncoming(shared) : 0;
           if (gone) noteLive(root, `${counted(gone, "upload")} cut short a day ago removed (media/.incoming)`);
+          // this research's queued files no job names any more (never another research's, never one a job waits for)
+          const orphans = shared ? safe("the queue's files", () => cleanQueued(shared, root, queueTag(readTree(root, env).config.id))) ?? 0 : 0;
+          if (orphans) noteLive(root, `${counted(orphans, "queued file")} no job names removed (media/.incoming)`);
         }
         // what strom keeps beside the research in order, once a day (a tree tidied once; never while a send is written)
         if (Date.now() - tidied > Number(env.STROM_TIDY_MS ?? 24 * 3600_000) && !busy()) {
@@ -7528,6 +8392,9 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         endWork();
         keeper.end();
         inbox.end();
+        // the queue's files wait for the next bridge; the warm writer ends once what it writes is written
+        media.end();
+        writer.end();
         if (stopWaits) safe("the stop's wait", () => fs.rmSync(liveBusyFile(root), { force: true }));
         safe("the widget", () => widget?.end(reason === "gone"));
         send("end", { reason, ...(back === undefined ? {} : { back }), ...(by ? { by } : {}), at: new Date().toISOString() });

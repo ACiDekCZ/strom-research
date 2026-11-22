@@ -81,6 +81,56 @@ test("the link work: parsed with fixed values only — do loop|tasks, n 1–100 
     assert.throws(() => parseLink(bad), LinkError, bad);
 });
 
+test("the link work, the tasks named (spec 065 K7.2): IDs only, with do=tasks alone, never with n, each once, at most 100", () => {
+  const id = "0b3f7c2e-5a41-4c8e-9d21-7e6f5a4b3c2d";
+  assert.deepEqual(parseLink(`strom-research://work?tree=${id}&do=tasks&task=T0003,t7,T0003`), { action: "work", tree: id, do: "tasks", task: "T0003,T7" });
+  const link = parseLink(`strom-research://work?tree=${id}&do=tasks&task=T0003,T0007`);
+  const again = parseLink(linkText(link as Exclude<typeof link, { action: "menu" }>));
+  assert.deepEqual(again, link, "said again as a link: the same tasks");
+  const many = Array.from({ length: 101 }, (_, i) => `T${i + 1}`).join(",");
+  for (const bad of [
+    `strom-research://work?tree=${id}&do=loop&task=T0003`,
+    `strom-research://work?tree=${id}&do=tasks&n=2&task=T0003`,
+    `strom-research://work?tree=${id}&do=tasks&task=`,
+    `strom-research://work?tree=${id}&do=tasks&task=P0003`,
+    `strom-research://work?tree=${id}&do=tasks&task=T0003,,T0004`,
+    `strom-research://work?tree=${id}&do=tasks&task=T0003;rm`,
+    `strom-research://work?tree=${id}&do=tasks&task=Zápis`,
+    `strom-research://work?tree=${id}&do=tasks&task=Т0003`,
+    `strom-research://work?tree=${id}&do=tasks&task=${many}`,
+  ])
+    assert.throws(() => parseLink(bad), LinkError, bad);
+});
+
+test("the link work, the tasks named: shown in the link's order, those no longer open left out; yes runs exactly them, one session each", opts, async () => {
+  const w = await world();
+  try {
+    await w.ok(["task", "done", "T2", "--result", "nalezeno"]);
+    const link = `strom-research://work?tree=${w.id}&do=tasks&task=T5,T2,T3`;
+    const enter = await w.run(["link", "open", link], { tty: true, answers: [""] });
+    assert.match(enter.out, /Aplikace Strom žádá: samostatná práce agenta na úkolech z aplikace Strom, úkolů: 2/u, enter.out);
+    const listed = [...enter.out.matchAll(/^ {2,3}\d\. (.+)$/gmu)].map((m) => m[1]);
+    assert.deepEqual(listed, ["Zápis 5 v Lhotě", "Zápis 3 v Lhotě"], enter.out);
+    assert.match(enter.out, /Úkoly z odkazu, které už nečekají \(hotové, vzaté zpět nebo je má jiný\), vynechány: 1\./u, enter.out);
+    assert.match(enter.out, /Každý úkol jedno sezení \(2 sezení\), pak konec/u, enter.out);
+    assert.doesNotMatch(enter.out, PERSON);
+    assert.match(enter.out, /Pokračovat\? \(a\/n\) \[n\]/u, "no by default");
+    assert.equal(sessions(w), 0, "Enter: no");
+    const yes = await w.run(["link", "open", link], { tty: true, answers: ["a"] });
+    assert.equal(yes.code, 0, yes.out + yes.err);
+    assert.equal(sessions(w), 2, yes.out + yes.err);
+    for (const t of ["T5", "T3"]) assert.equal((await w.ok(["task", "show", t, "--json"])).json.task.state, "done", t);
+    assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "open", "nothing else of the queue taken");
+    // none of them open any more: said, nothing started, nothing asked
+    const none = await w.run(["link", "open", link], { tty: true, answers: ["a"] });
+    assert.match(none.out, /Žádný z úkolů odkazu už nečeká\. Nic se nespustilo\./u, none.out);
+    assert.doesNotMatch(none.out, /\(a\/n\)/u);
+    assert.equal(sessions(w), 2);
+  } finally {
+    w.cleanup();
+  }
+});
+
 test("the link work, n tasks: the first tasks in the run's order, n, the time and no gate shown; Enter and no start nothing, yes runs --tasks n here", opts, async () => {
   const w = await world();
   try {

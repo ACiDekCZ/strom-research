@@ -119,7 +119,7 @@ test("brief: a lesson of a family goes with a task that names its names, a look-
   // the material an intake task takes in names the family
   const file = path.join(w.home, "pameti.txt");
   fs.writeFileSync(file, "Paměti: rod Hrabálek z Hájku, mlynáři.\n".normalize("NFD"));
-  await w.ok(["intake", file]);
+  await w.ok(["intake", file, "--sort"]);
   const intake = (await w.ok(["task", "list", "--json"])).json.tasks.find((t: any) => t.level === "intake");
   assert.match(await known(intake.id), /Rod Hrabálek z Hájku/u);
   w.cleanup();
@@ -223,7 +223,7 @@ test("brief: the commands of the task's level, every option and limit from the r
   // the mistakes that cost a turn most, said once; a command's own, after it
   assert.match(sheet, /^ {2}values with spaces in quotes \(--note "two words"\); a repeatable option once per value \(--found S0001 --found S0002\); a batch file in notes\/: change it with your file-editing tool, not sed$/m);
   // a status: a fact's only, proven only with primary information (N0190, N0191)
-  assert.match(sheet, /^ {2}--status is a fact's \(E…\) only, never a name's or a family's; proven only with a record of the time read directly \(--information primary\), else probable$/m);
+  assert.match(sheet, /^ {2}--status is a fact's \(E…\) or a name's \(P…\), never a family's; proven only with a record of the time read directly \(--information primary\), else probable$/m);
   assert.match(sheet, /--note <text ≤500> — found: in this order — strom source add … → strom search add … --result found --found <S…> \(in a batch source add … #s, then --found @s\)$/m);
   // every line names a command and only its options
   for (const line of sheet.split("\n").slice(1).filter((l) => l.trim().startsWith("strom "))) {
@@ -256,7 +256,7 @@ test("brief: what the method used to fetch separately is in it — the task's no
   // a small text file of the user: its words in the brief, as strom input show gives them
   const file = path.join(w.home, "vzpominky.txt");
   fs.writeFileSync(file, "Děda Jan Novák byl mlynář v Lhotě.\n");
-  await w.ok(["intake", file]);
+  await w.ok(["intake", file, "--sort"]);
   await w.ok(["input", "amend", "I1", "--person", "P0001", "--note", "od tety"]);
   const task = (await w.ok(["task", "list", "--json"])).json.tasks.find((t: any) => t.level === "intake");
   const material = section((await w.ok(["brief", task.id])).out, "## The material");

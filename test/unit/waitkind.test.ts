@@ -6,8 +6,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { officeIn, waitGroupOf, waitKindOf, waitPhaseOf } from "../../src/core/waitkind.ts";
 import { addressesPerson } from "../../src/core/impersonal.ts";
-import { humanTask } from "../../src/cli/human.ts";
-import type { AnyRecord, Person, RecordSet, Repository, Task } from "../../src/core/model.ts";
+import { humanClaim, humanTask } from "../../src/cli/human.ts";
+import type { AnyRecord, Family, Person, RecordSet, Repository, Task } from "../../src/core/model.ts";
 import type { Tree } from "../../src/core/tree.ts";
 
 const NOW = "2026-10-01T10:00:00.000Z";
@@ -197,6 +197,49 @@ test("a task's words as written: a person's ID after their name only bracketed, 
   assert.equal(humanTask(tree, strom.normalize("NFD"), "cs").normalize("NFC"), strom, "decomposed");
   assert.equal(humanTask(tree, "Křest Иван Петров [P0300]", "cs"), "Křest Иван Петров [P0300]", "another script");
   assert.equal(humanTask(tree, "Rozebrat soubor [P0208]", "cs", { asWritten: true }), "Rozebrat soubor Václav Schaniel [P0208]", "no name before it: named once");
+});
+
+test("a hypothesis's words for the person: the people and families it names by ID by their names with the ID; a name before the ID kept as written", () => {
+  const person = (id: string, given: string, surname: string): Person => ({ id, type: "person", created: NOW, updated: NOW, names: [{ given, surname }], sex: "M", facts: [], notes: [] }) as unknown as Person;
+  const family = (id: string, partners: string[]): Family => ({ id, type: "family", created: NOW, updated: NOW, partners, children: [], facts: [], notes: [] }) as unknown as Family;
+  const tree = fakeTree([person("P0118", "Antonín", "Lhoták"), person("P0119", "Žofie", "Lhotová"), person("P0300", "Иван", "Петров"), person("P0301", "Марія", "Шевчук"), family("F0012", ["P0118", "P0119"]), family("F0013", ["P0300", "P0301"])]);
+  for (const f of [(s: string) => s, (s: string) => s.normalize("NFD")]) {
+    const said = (s: string) => humanClaim(tree, f(s)).normalize("NFC");
+    assert.equal(said("Ano, syn P0118 a P0119."), "Ano, syn Antonín Lhoták (P0118) a Žofie Lhotová (P0119).");
+    assert.equal(said("dítě rodiny F0012"), "dítě rodiny Antonín Lhoták + Žofie Lhotová (F0012)", "a family by its partners");
+    // a name before the ID: never said twice, the ID in round brackets whatever the agent wrote
+    assert.equal(said("syn Antonína Lhotáka P0118"), "syn Antonína Lhotáka (P0118)", "declined");
+    assert.equal(said("syn Antonína Lhotáka [P0118]"), "syn Antonína Lhotáka (P0118)");
+    assert.equal(said("syn Antonína Lhotáka (P0118)"), "syn Antonína Lhotáka (P0118)", "as asked of the agent: as it is");
+    assert.equal(said("syn [P0118]"), "syn Antonín Lhoták (P0118)", "brackets of the ID alone: the name in their place");
+    assert.equal(said("(syn P0118)"), "(syn Antonín Lhoták (P0118))", "a bracket of the text kept");
+    assert.equal(said("Křest Ивана P0300"), "Křest Ивана (P0300)", "another script");
+    // the partners' names before a family's ID: never said twice either
+    assert.equal(said("dítě Antonín + Žofie F0012"), "dítě Antonín + Žofie (F0012)", "a family after its partners' given names");
+    assert.equal(said("dítě Antonína Lhotáka a Žofie Lhotové [F0012]"), "dítě Antonína Lhotáka a Žofie Lhotové (F0012)", "declined, in brackets");
+    assert.equal(said("син Иван + Марія F0013"), "син Иван + Марія (F0013)", "another script");
+    assert.equal(said("dítě Antonína F0012"), "dítě Antonína Antonín Lhoták + Žofie Lhotová (F0012)", "one partner named: the family's names, none lost");
+    assert.equal(said("syn P0999 nebo P0118x"), "syn P0999 nebo P0118x", "an ID the research has not, and no ID: as written");
+    assert.equal(said("čP0118 a S0001"), "čP0118 a S0001", "glued to a letter, and a source: as written");
+  }
+});
+
+test("partners sharing a surname: one partner's name before the family's ID never names the other; a family's ID in brackets stays in one pair", () => {
+  const person = (id: string, given: string, surname: string): Person => ({ id, type: "person", created: NOW, updated: NOW, names: [{ given, surname }], sex: "M", facts: [], notes: [] }) as unknown as Person;
+  const family = (id: string, partners: string[]): Family => ({ id, type: "family", created: NOW, updated: NOW, partners, children: [], facts: [], notes: [] }) as unknown as Family;
+  const tree = fakeTree([person("P0401", "Jan", "Lhoták"), person("P0402", "Anna", "Lhotáková"), person("P0403", "Иван", "Петров"), person("P0404", "Марія", "Петрова"), family("F0040", ["P0401", "P0402"]), family("F0041", ["P0403", "P0404"])]);
+  for (const f of [(s: string) => s, (s: string) => s.normalize("NFD")]) {
+    const said = (s: string) => humanClaim(tree, f(s)).normalize("NFC");
+    assert.equal(said("syn Jana Lhotáka F0040"), "syn Jana Lhotáka Jan Lhoták + Anna Lhotáková (F0040)", "the other partner never lost");
+    assert.equal(said("dítě Anny Lhotákové F0040"), "dítě Anny Lhotákové Jan Lhoták + Anna Lhotáková (F0040)");
+    assert.equal(said("syn Ивана Петрова F0041"), "syn Ивана Петрова Иван Петров + Марія Петрова (F0041)", "another script");
+    assert.equal(said("dítě Jana Lhotáka a Anny Lhotákové F0040"), "dítě Jana Lhotáka a Anny Lhotákové (F0040)", "both named: as written");
+    assert.equal(said("dítě Jan + Anna F0040"), "dítě Jan + Anna (F0040)");
+    const task = (s: string) => humanTask(tree, f(s), "cs", { asWritten: true }).normalize("NFC");
+    assert.equal(task("dítě Jana Lhotáka a Anny Lhotákové [F0040]"), "dítě Jana Lhotáka a Anny Lhotákové [F0040]", "never [[F0040]]");
+    assert.equal(task("dítě Jana Lhotáka a Anny Lhotákové F0040"), "dítě Jana Lhotáka a Anny Lhotákové [F0040]");
+    assert.equal(task("dítě Ивана и Марії [F0041]"), "dítě Ивана и Марії [F0041]", "another script");
+  }
 });
 
 test("a text that addresses the person or speaks as the agent: clear cases in Czech, German, English — names and records never", () => {

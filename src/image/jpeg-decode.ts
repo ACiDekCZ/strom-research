@@ -187,8 +187,10 @@ interface Scan {
   al: number;
 }
 
-function decodeScan(data: Uint8Array, start: number, frame: Frame, scan: Scan, restartInterval: number): number {
+function decodeScan(data: Uint8Array, start: number, frame: Frame, scan: Scan, restartInterval: number, dcOnly: boolean): number {
   const r = new BitReader(data, start);
+  // only the DC of each block wanted (1/8 of the size): a progressive scan of AC coefficients is not decoded at all
+  if (dcOnly && frame.progressive && scan.ss > 0) return r.end();
   const { ss, se, ah, al } = scan;
   const single = scan.components.length === 1;
   let eobrun = 0;
@@ -203,6 +205,22 @@ function decodeScan(data: Uint8Array, start: number, frame: Frame, scan: Scan, r
       const t = decodeHuffman(r, c.dcTable!);
       c.pred += t === 0 ? 0 : extend(r.read(t), t);
       coefs[off] = c.pred;
+      if (dcOnly) {
+        // the AC coefficients read past (their codes say how many bits), never kept
+        for (let k = 1; k < 64; ) {
+          const rs = decodeHuffman(r, c.acTable!);
+          const s = rs & 15;
+          const run = rs >> 4;
+          if (s === 0) {
+            if (run < 15) break;
+            k += 16;
+            continue;
+          }
+          k += run + 1;
+          r.read(s);
+        }
+        return;
+      }
       for (let k = 1; k < 64; ) {
         const rs = decodeHuffman(r, c.acTable!);
         const s = rs & 15;
@@ -288,7 +306,8 @@ function decodeScan(data: Uint8Array, start: number, frame: Frame, scan: Scan, r
     }
   };
 
-  const blockOffset = (c: Component, row: number, col: number) => 64 * (row * c.stride + col);
+  const per = dcOnly ? 1 : 64;
+  const blockOffset = (c: Component, row: number, col: number) => per * (row * c.stride + col);
 
   let mcus: number;
   let next: (i: number) => void;
@@ -324,36 +343,67 @@ const COS = (() => {
   return t;
 })();
 
-function idct(block: Float64Array, tmp: Float64Array, out: Uint8Array, outOff: number, outStride: number): void {
-  // rows: tmp[y][x] = Σu C(u) F(y,u) cos(...)
+/**
+ * The inverse DCT made smaller (n × n samples of a block, n = 8, 4, 2): each sample the mean of the 8/n × 8/n it stands
+ * for — of the cosines, so exactly the mean of the full block's samples (before rounding).
+ */
+const COS_OF: Record<number, Float64Array> = {};
+function cosOf(n: number): Float64Array {
+  const had = COS_OF[n];
+  if (had) return had;
+  const s = 8 / n;
+  const t = new Float64Array(n * 8);
+  for (let i = 0; i < n; i++)
+    for (let u = 0; u < 8; u++) {
+      let m = 0;
+      for (let x = i * s; x < (i + 1) * s; x++) m += COS[x * 8 + u]!;
+      t[i * 8 + u] = m / s;
+    }
+  return (COS_OF[n] = t);
+}
+
+function idct(block: Float64Array, tmp: Float64Array, out: Uint8Array, outOff: number, outStride: number, n: number, T: Float64Array): void {
+  // rows: tmp[v][i] = Σu T(i, u) F(v, u)
   for (let y = 0; y < 8; y++) {
     const r = y * 8;
     let zero = true;
     for (let u = 1; u < 8; u++) if (block[r + u] !== 0) zero = false;
     if (zero) {
-      const dc = block[r]! * COS[0]!;
-      for (let x = 0; x < 8; x++) tmp[r + x] = dc;
+      const dc = block[r]! * T[0]!;
+      for (let x = 0; x < n; x++) tmp[r + x] = dc;
       continue;
     }
-    for (let x = 0; x < 8; x++) {
+    for (let x = 0; x < n; x++) {
       let s = 0;
-      for (let u = 0; u < 8; u++) s += COS[x * 8 + u]! * block[r + u]!;
+      for (let u = 0; u < 8; u++) s += T[x * 8 + u]! * block[r + u]!;
       tmp[r + x] = s;
     }
   }
-  for (let x = 0; x < 8; x++)
-    for (let y = 0; y < 8; y++) {
+  for (let x = 0; x < n; x++)
+    for (let y = 0; y < n; y++) {
       let s = 0;
-      for (let v = 0; v < 8; v++) s += COS[y * 8 + v]! * tmp[v * 8 + x]!;
+      for (let v = 0; v < 8; v++) s += T[y * 8 + v]! * tmp[v * 8 + x]!;
       const val = Math.round(s + 128);
       out[outOff + y * outStride + x] = val < 0 ? 0 : val > 255 ? 255 : val;
     }
 }
 
-/** Samples of one component, at its own resolution (padded to whole blocks). */
-function componentSamples(c: Component, quant: Int32Array): { data: Uint8Array; width: number } {
-  const width = c.stride * 8;
-  const rows = (c.coefs.length / 64 / c.stride) * 8;
+/** Samples of one component, at its own resolution made smaller by `reduce` (padded to whole blocks). */
+function componentSamples(c: Component, quant: Int32Array, reduce: number): { data: Uint8Array; width: number } {
+  const n = 8 / reduce;
+  const width = c.stride * n;
+  if (n === 1) {
+    // the DC alone (kept alone, one per block): the mean of the block
+    const out = new Uint8Array(c.coefs.length);
+    const k = quant[0]! / 8;
+    for (let b = 0; b < c.coefs.length; b++) {
+      const val = Math.round(c.coefs[b]! * k + 128);
+      out[b] = val < 0 ? 0 : val > 255 ? 255 : val;
+    }
+    return { data: out, width };
+  }
+  const T = cosOf(n);
+  const rows = (c.coefs.length / 64 / c.stride) * n;
   const out = new Uint8Array(width * rows);
   const block = new Float64Array(64);
   const tmp = new Float64Array(64);
@@ -363,14 +413,26 @@ function componentSamples(c: Component, quant: Int32Array): { data: Uint8Array; 
     for (let i = 0; i < 64; i++) block[i] = c.coefs[off + i]! * quant[i]!;
     const row = Math.floor(b / c.stride);
     const col = b % c.stride;
-    idct(block, tmp, out, row * 8 * width + col * 8, width);
+    idct(block, tmp, out, row * n * width + col * n, width, n, T);
   }
   return { data: out, width };
 }
 
 const clamp = (v: number) => (v < 0 ? 0 : v > 255 ? 255 : Math.round(v));
 
-export function decodeJpeg(bytes: Uint8Array): RawImage {
+export interface JpegDecodeOptions {
+  /**
+   * Decoded at 1/2, 1/4 or 1/8 of its size (as libjpeg's scale_denom): each 8 × 8 block gives 4 × 4, 2 × 2 or 1
+   * sample, the mean of what it holds — a large scan looked at small without its whole picture made first (at 1/8 only
+   * the DC of each block is decoded). The size is the full one divided, rounded up.
+   */
+  reduce?: 1 | 2 | 4 | 8;
+}
+
+export function decodeJpeg(bytes: Uint8Array, o: JpegDecodeOptions = {}): RawImage {
+  const reduce = o.reduce ?? 1;
+  if (![1, 2, 4, 8].includes(reduce)) throw new JpegError(`reduce ${reduce}: 1, 2, 4 or 8`);
+  const dcOnly = reduce === 8;
   if (bytes[0] !== 0xff || bytes[1] !== 0xd8) throw new JpegError("not a JPEG file");
   const quant: Int32Array[] = [];
   const dcTables: Huffman[] = [];
@@ -442,7 +504,7 @@ export function decodeJpeg(bytes: Uint8Array): RawImage {
           c.blocksPerLine = Math.ceil(Math.ceil((width * c.h) / hmax) / 8);
           c.blocksPerColumn = Math.ceil(Math.ceil((height * c.v) / vmax) / 8);
           c.stride = mcusPerLine * c.h;
-          c.coefs = new Int16Array(64 * c.stride * mcusPerColumn * c.v);
+          c.coefs = new Int16Array((dcOnly ? 1 : 64) * c.stride * mcusPerColumn * c.v);
         }
         frame = { progressive: marker === 0xc2, width, height, hmax, vmax, mcusPerLine, mcusPerColumn, components: comps };
         break;
@@ -491,7 +553,7 @@ export function decodeJpeg(bytes: Uint8Array): RawImage {
         }
         const p = seg + 1 + n * 2;
         const scan: Scan = { components: comps, ss: bytes[p]!, se: bytes[p + 1]!, ah: bytes[p + 2]! >> 4, al: bytes[p + 2]! & 15 };
-        pos = decodeScan(bytes, end, frame, scan, restartInterval);
+        pos = decodeScan(bytes, end, frame, scan, restartInterval, dcOnly);
         continue;
       }
       default:
@@ -502,11 +564,13 @@ export function decodeJpeg(bytes: Uint8Array): RawImage {
   if (!frame) throw new JpegError("no image in the JPEG file");
 
   // Samples per component, then upsampling and colour conversion.
-  const { width, height, hmax, vmax, components } = frame;
+  const { hmax, vmax, components } = frame;
+  const width = Math.ceil(frame.width / reduce);
+  const height = Math.ceil(frame.height / reduce);
   const planes = components.map((c) => {
     const q = quant[c.tq];
     if (!q) throw new JpegError(`missing quantization table ${c.tq}`);
-    return { c, ...componentSamples(c, q) };
+    return { c, ...componentSamples(c, q, reduce) };
   });
   // Subsampled components are interpolated between sample centres (libjpeg's
   // "fancy" upsampling), not repeated: no colour blocks along strokes.

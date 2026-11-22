@@ -78,8 +78,13 @@ durchsuchte Quelle oder den Abschnitt **Über der Person**. Offene Widersprüche
 - **Bedienung:** App: Angebot der Person → **Forschung → Was die Forschung weiß**.
 - **Gilt seit:** App 3.4.0
 - **Ab App 3.22.0:** im Untermenü **Forschung** stehen oben die Linien, in denen die Person ist.
+- **Ab App 3.31.0:** **Was die Forschung weiß** steht im Untermenü **Forschung** mit der Zahl immer, wenn die
+  Forschung über die Person etwas weiß, auch wenn der Block der Signale über dem Angebot (Widersprüche, eine Frage)
+  in denselben Dialog führt. Bisher fehlte der Eintrag dort in einem solchen Fall. Wäre **Was die Forschung weiß**
+  der einzige Eintrag von **Forschung** (ohne Untermenü, zum Beispiel auf dem Telefon), wird er direkt neben dem
+  Signal nicht wiederholt.
 
-<!-- zdroj: app:src/ui/person-research-ui.ts:140-150 personResearchKnows, markResearchConflicts · src/ui/context-menu.ts personSection · src/ui/card-signals-ui.ts · src/card-signals.ts:171-194 · src/ui/view-links-ui.ts:326 · src/renderer.ts:5479 · src/ui/research-edge-ui.ts:205, :364 · src/ui/conflict-panel-ui.ts:274 · src/ui/research-ui.ts:2119 researchLinkAvailable · HEAD context-menu.ts personInLineItems (spec 038 §5.1) -->
+<!-- zdroj: app:src/ui/person-research-ui.ts:140-150 personResearchKnows, markResearchConflicts · src/ui/context-menu.ts personSection · src/ui/card-signals-ui.ts · src/card-signals.ts:171-194 · src/ui/view-links-ui.ts:326 · src/renderer.ts:5479 · src/ui/research-edge-ui.ts:205, :364 · src/ui/conflict-panel-ui.ts:274 · src/ui/research-ui.ts:2119 researchLinkAvailable · HEAD context-menu.ts personInLineItems (spec 038 §5.1) · 3.31.0: app 04185a08 src/ui/context-menu.ts personResearchKnows vždy, researchRowsBesideSignals (jediná položka vedle signálu se neopakuje) · SPEC.md 1120-app-117-smazani (Přibaleno) -->
 
 <a id="S3.3"></a>
 ## S3.3 Über der Person zeigt, wo der Stammbaum endet und was weiter geschieht
@@ -156,6 +161,35 @@ Quellenbetrachter öffnen. Was ein Widerspruch ist, wo er zu sehen ist und wie e
   sich die Quellen; entschieden wird in der Forschung.“).
 
 <!-- zdroj: app:src/ui/person-research-ui.ts showPersonResearchDialog (Rozpory), activeResearchNoAgent · research:src/gedcom/export.ts:760-805 · HEAD person-research-ui.ts conflictFromEdit, strings.ts conflict.editOnly · HEAD research-decide.ts conflictFromEdit -->
+
+<a id="S3.4.1"></a>
+### S3.4.1 Quelle zurückgezogen – prüfen
+
+Ein Widerspruch, der auf einer in der Forschung gelöschten Quelle stand
+([R3.10](R3-verification-and-citation.md#R3.10)), hat neben dem Status das Etikett **prüfen**. In der Spalte
+**Quelle** steht beim Wert „Quelle zurückgezogen“. Ein offener Widerspruch trägt den Satz „Die Quelle eines der
+Werte wurde zurückgezogen; der Widerspruch wartet auf Prüfung.“
+
+- Ein entschiedener Widerspruch mit Marke wird als Karte gezeigt, nicht als Zeile „entschieden: …“, mit dem Satz
+  „Die Entscheidung stützte sich auch auf die zurückgezogene Quelle; sie wartet auf Prüfung.“ und zwei Wahlen:
+  - **Entscheidung gilt:** nimmt die Marke über die Brücke ab (wie `strom conflict keep`); die Entscheidung bleibt,
+    wie sie ist;
+  - **In der Forschung neu entscheiden:** öffnet die Entscheidung in der Forschung wie **In der Forschung
+    entscheiden** ([R5.6](R5-conflicts.md#R5.6)); eine neue Entscheidung nimmt die Marke ebenfalls ab.
+- Die Marke ist sichtbar in **Was die Forschung weiß**, auf der Karte des Widerspruchs mit den Seiten, im Panel an
+  einem Feld in der Bearbeitung der Person und in der Blase der Tabelle. Der Widerspruch schließt sich nicht von
+  selbst.
+- **Grenzen:**
+  - **Entscheidung gilt** gibt es nur mit einer Forschung, die das Löschen von Quellen kann, und mit laufender
+    Brücke. Bei einer Forschung nur zum Lesen sagt es „Die Forschung lässt sich nur lesen; die Entscheidung lässt
+    sich hier nicht bestätigen.“;
+  - **In der Forschung neu entscheiden** nur dort, wo sich die Forschung öffnen lässt ([S3.2](#S3.2)), und nur bei
+    einer Person aus der Forschung.
+- **Bedienung:** App: **Was die Forschung weiß** → **Widersprüche** → **Entscheidung gilt** / **In der Forschung neu
+  entscheiden**; Terminal: `strom conflict keep X…`.
+- **Gilt seit:** App 3.31.0 mit Forschung 1.36.0
+
+<!-- zdroj: app:801189d6 src/ui/person-research-ui.ts conflictUnderReview, reviewTagHtml, researchConflictReviewCardHtml (keepOn = conflictKeepOffered, canDecide = researchLinkAvailable + personResearchRef), keepResearchConflict · src/source-retract.ts conflictKeepOffered, keepConflict (/conflict/keep) · src/ui/conflict-decide-ui.ts, conflict-panel-ui.ts, table-view/table-research-bubble.ts · strings.ts research.review.* · research:e6bbfb40 src/commands/analysis.ts conflict keep · spec 117 §8 -->
 
 <a id="S3.5"></a>
 ## S3.5 Hypothesen

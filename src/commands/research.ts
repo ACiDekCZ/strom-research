@@ -16,13 +16,14 @@ import { REVIEW_SCOPES, type Person, type Research, type Session, type Task } fr
 import { ancestorGenerations, displayName, label, lifespan, parentsOf, resolvePerson } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { now, type Tree } from "../core/tree.ts";
-import { scopes } from "../core/directions.ts";
+import { directionOf, scopes } from "../core/directions.ts";
 import { answerBranch, branchOf, lineOf } from "../core/offline.ts";
 import { arranged, moved, orderNumbers, workOrder, writeOrder, type Move } from "../core/order.ts";
 import { otherKind, otherKindHint, update } from "../core/records.ts";
 import { detectAgent, isAgent } from "../core/which.ts";
 import { actsAsArchive, refuseInArchive } from "../core/state.ts";
 import { costPartial, sessionCost } from "../core/session.ts";
+import { gather, gatherable, ungather } from "../core/gather.ts";
 
 function int(v: unknown, name: string): number | undefined {
   if (v === undefined) return undefined;
@@ -83,7 +84,11 @@ register(
     writes: true,
     description:
       "The focus person must exist (--person) or is created (--new-person). What the user remembers is\n" +
-      "recorded as leads, never as proven facts.",
+      "recorded as leads, never as proven facts. A line inside a wider one (its person in that line): the\n" +
+      "wider line's open tasks about the new line's people only can move to it — --move-tasks moves them,\n" +
+      "--keep-tasks leaves them; neither: a person at a terminal is asked (yes suggested), an agent, --yes or\n" +
+      "no terminal leaves them and is told how many and that strom research gather G… moves them. --json:\n" +
+      "movable {count, from} and moved.",
     args: [{ name: "name", description: 'research name, e.g. "Ancestors of Jan Novák"', required: true }],
     options: [
       { name: "person", type: "string", value: "<who>", description: "focus person (ID or name)" },
@@ -98,17 +103,20 @@ register(
       { name: "priority", type: "string", value: "1-5", description: "priority among researches (default 3)" },
       { name: "note", type: "string", value: "<text>", description: "what the user told you (short)" },
       { name: "branch", type: "string", value: "<B-…>", description: "a line for a branch off the lines (strom offline list): its tasks go with the new line" },
+      { name: "move-tasks", type: "boolean", description: "inside a wider line: move its open tasks about this line's people only here" },
+      { name: "keep-tasks", type: "boolean", description: "inside a wider line: leave its tasks there, nothing asked" },
     ],
     examples: [
       'strom research new "Předci Jana Nováka" --new-person "Jan /Novák/" --sex M --born "ABT 1905" --born-place "Týnec nad Labem"',
       'strom research new "Linie Svobodová" --person P0003 --generations 5',
       'strom research new "Kdo byl otec Marie?" --person "Marie Nováková" --direction question --question "Who was her father?"',
     ],
-    run(ctx: Context, { args, opts }) {
+    async run(ctx: Context, { args, opts }) {
       const tree = ctx.tree();
       // a direction is the agent's work: refused where nobody researches (an archive, a research waiting for its agent)
       refuseInArchive(tree, "strom research new", detectAgent(ctx.env) ?? ctx.settings.agent(tree.config).value);
       if (!opts.person === !opts["new-person"]) throw new UsageError("give exactly one of --person <who> or --new-person <name>");
+      if (opts["move-tasks"] && opts["keep-tasks"]) throw new UsageError("give at most one of --move-tasks or --keep-tasks");
       let focus: Person;
       if (opts["new-person"]) {
         checkStreetPlace(tree, opts["born-place"] as string | undefined, undefined, "--born-place");
@@ -135,14 +143,36 @@ register(
       });
       // the branch goes with the new line; the proposal answered
       if (branch) answerBranch(tree, branch, "create", r.id);
+      // inside a wider line: its own open tasks about this line's people only — moved, asked, or said how
+      const movable = tree.dryRun ? { tasks: [], from: [] } : gatherable(tree, r);
+      let moved: string[] = [];
+      let left: string | undefined;
+      if (movable.tasks.length && !opts["keep-tasks"]) {
+        const ask = !opts["move-tasks"] && ctx.interactive && !isAgent(ctx.env);
+        const names = movable.from.map((g) => ui(tree.lang, "ui.research.gather.line", { name: tree.get<Research>(g)?.name ?? g })).join(", ");
+        const yes =
+          !!opts["move-tasks"] || (ask && (await ctx.confirm(ui(tree.lang, movable.from.length > 1 ? "ui.research.gather.ask.many" : "ui.research.gather.ask", { from: names, n: movable.tasks.length }), true)));
+        if (yes) moved = gather(tree, r).moved;
+        else if (!ask)
+          left = `${movable.tasks.length} open task${movable.tasks.length === 1 ? "" : "s"} of ${movable.from.join(", ")} ${movable.tasks.length === 1 ? "is" : "are"} about this line's people only and ${movable.tasks.length === 1 ? "stays" : "stay"} there; when the user wants ${movable.tasks.length === 1 ? "it" : "them"} here: strom research gather ${r.id}`;
+      }
       const text = lines(
         ...tree.written.map((o) => o.summary),
+        left,
         "",
         tree.count("input") === 0
           ? `next   strom intake --text "<what the user told you about ${displayName(focus)} and the family>"`
           : `next   strom session start`,
       );
-      return { text, data: { research: r, focus, ...(branch ? { branch: branch.id } : {}) } };
+      return {
+        text,
+        data: {
+          research: r,
+          focus,
+          ...(branch ? { branch: branch.id } : {}),
+          ...(movable.tasks.length ? { movable: { count: movable.tasks.length, from: movable.from }, moved } : {}),
+        },
+      };
     },
   },
   {
@@ -179,7 +209,9 @@ register(
     description:
       "The user's decision about where the research goes (an agent runs it when the user asks). Nothing is\n" +
       "deleted: the direction's tasks stay as they are, out of the queue while it is paused or done; a session\n" +
-      "at work on one of them goes on. strom research resume brings them back.",
+      "at work on one of them goes on. strom research resume brings them back. A direction ended within a\n" +
+      "wider one at work: its tasks about that one's people count toward the narrowest direction at work\n" +
+      "(nothing changed on them, so resumed it has them back); a paused direction's tasks wait.",
     args: [{ name: "research", description: "ID (G0001) or part of the name", required: true }],
     options: act === "resume" ? [] : [{ name: "reason", type: "string" as const, value: "<text>", description: "why (kept as a note of the research)" }],
     examples: act === "pause" ? ['strom research pause G0001 --reason "the family asked to wait"'] : act === "resume" ? ["strom research resume G0001"] : ["strom research done G0001"],
@@ -202,12 +234,16 @@ register(
       });
       const created = act === "resume" ? applyFrontier(tree, next) : [];
       const n = waiting(r.id);
+      // ended within a wider line at work: its tasks about that line's people go on there (counted, nothing written)
+      const moved = act === "done" ? movedOn(tree, r.id) : new Map<string, number>();
+      const on = [...moved].map(([g, k]) => `${k} → ${g}`).join(", ");
       return {
         text: lines(
           ...tree.written.map((o) => o.summary),
           act === "resume" ? `its tasks are back in the queue: ${n}` : `its tasks wait out of the queue: ${n} → strom research resume ${r.id}`,
+          on ? `its tasks about the people of a line at work go on in the narrowest one (nothing changed on them; resumed, they are its own again): ${on}` : undefined,
         ),
-        data: { research: next, changed: true, tasks: n, created },
+        data: { research: next, changed: true, tasks: n, created, ...(moved.size ? { movedOn: Object.fromEntries(moved) } : {}) },
       };
     },
   })),
@@ -356,6 +392,42 @@ register(
         const order = writeOrder(tree, ids.map((id) => byId.get(id)!), { op: "research.order", targets: [r.id], summary: `${r.id} moved: ${ids.indexOf(r.id) + 1}. of ${ids.length}` });
         return orderResult(tree, order, []);
       });
+    },
+  },
+  {
+    path: ["research", "gather"],
+    summary: "Move into a line the open tasks of the wider lines it is inside that are about its people only; --undo gives them back",
+    group: "research",
+    tree: true,
+    writes: true,
+    description:
+      "A line is inside a wider one when its person is in that one's scope (the ancestors of a grandfather inside\n" +
+      "those of his grandson). The tasks moved: those of the wider lines (not a paused one) that name it as their\n" +
+      "research, open or waiting for the user, and are about people all in this line's scope. Never one at work\n" +
+      "(doing, or held by an open session), put aside or finished, one about nobody or about anybody outside it;\n" +
+      "a task of no line of its own counts toward the narrowest line already. One operation of the history, which\n" +
+      "keeps where each came from: --undo gives the line's last move back, each task that still has the line to\n" +
+      "the line it came from. The user's decision (an agent runs it when the user asks; strom research new says\n" +
+      "how many would move).",
+    args: [{ name: "research", description: "the line inside: ID (G0002) or part of the name", required: true }],
+    options: [{ name: "undo", type: "boolean", description: "give the line's last move back" }],
+    examples: ["strom research gather G0002", "strom research gather G0002 --undo"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      refuseLines(ctx, tree, "strom research gather");
+      const r = resolveResearch(tree, args[0]!);
+      if (opts.undo) {
+        const back = ungather(tree, r);
+        if (!back.returned.length)
+          return {
+            text: back.found ? `nothing to give back: none of the tasks ${r.id} took has it any more` : `nothing to give back: ${r.id} took no tasks of a wider line`,
+            data: { research: r.id, returned: [], to: [] },
+          };
+        return { text: lines(...tree.written.map((o) => o.summary)), data: { research: r.id, returned: back.returned, to: back.to } };
+      }
+      const done = gather(tree, r);
+      if (!done.moved.length) return { text: `nothing to move: no open task of a line ${r.id} is inside is about its people only`, data: { research: r.id, moved: [], from: [] } };
+      return { text: lines(...tree.written.map((o) => o.summary), `back: strom research gather ${r.id} --undo`), data: { research: r.id, moved: done.moved, from: done.from } };
     },
   },
   {
@@ -604,6 +676,19 @@ function coveredLines(tree: Tree, research: Research, lang: string, human = fals
       out.push(ui(lang, "ui.review.covered", { name, task: t.id, state: ui(lang, `ui.review.state.${t.state}` as UIKey) + (why ? `: ${why}` : ""), what: t.what }));
       if (t.state === "parked") out.push(ui(lang, human ? "ui.review.wake.human" : "ui.review.wake", { task: t.id }));
     } else if (item.exhausted?.length) out.push(ui(lang, "ui.review.exhausted", { name, tasks: item.exhausted.join(", ") }));
+  }
+  return out;
+}
+
+/** The open tasks of an ended line that count toward an active line now (core/directions.ts effectiveDirection): how many to each. */
+function movedOn(tree: Tree, id: string): Map<string, number> {
+  const all = scopes(tree);
+  const line = lineOf(tree, all);
+  const out = new Map<string, number>();
+  for (const t of tree.list<Task>("task")) {
+    if (!["open", "parked", "waiting", "doing"].includes(t.state) || directionOf(tree, t, all) !== id) continue;
+    const to = line(t);
+    if (to && to !== id) out.set(to, (out.get(to) ?? 0) + 1);
   }
   return out;
 }

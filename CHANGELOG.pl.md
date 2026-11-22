@@ -5,6 +5,142 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.36.0
+
+*22.11.2026 · współpracuje z aplikacją Strom 3.31.0.*
+
+- **Próba zbiorczej weryfikacji od razu:** zadania próby zbiorczej weryfikacji (`strom verify bulk --try`) stoją na
+  początku kolejki – weźmie je następna sesja – a aplikacja Strom pozwala przerobić je od razu, każde zadanie w jednej
+  sesji, przez link wskazujący zadania. Każde zadanie kolejki ma swój rodzaj pracy (weryfikacja, wpisy, materiał,
+  miejsca, historie…): `strom task list --kind`, a aplikacja Strom filtruje według niego.
+- **Skany zapisywane ręcznie, bezpieczniej:** numer skanu jest brany z nazwy pliku tylko wtedy, gdy nazwa mówi go
+  jednoznacznie (kopia menedżera plików „33 2.jpg” to skan 33; nazwa z dwiema liczbami i bez licznika nie dostaje
+  żadnego); pliki partii są numerowane według kolejności tylko wtedy, gdy żaden nie ma liczby w nazwie; folder jest
+  przejmowany dopiero po pobraniu całej partii (.crdownload lub .part obok go wstrzymuje). Plik będący tym samym skanem
+  co inny skan nigdy nie jest usuwany: zostaje odłożony obok i jest to powiedziane. Plik zapisany pod numerem już zarejestrowanego skanu, pokazujący inną stronę (inny
+  kształt lub inne pismo), nie zastępuje już skanu: zostaje odłożony obok, a pytanie o niego pojawia się w „Co czeka” i
+  w aplikacji Strom – zachować skan, przyjąć nowy plik jako ten skan albo nadać mu własny numer (`strom media aside`).
+  Ostrzejsza kopia jest przejmowana tylko wtedy, gdy na pewno jest tym samym skanem – porównywane jest pismo, nie
+  drukowany formularz; gdy nie da się tego rozstrzygnąć, plik również zostaje odłożony i pojawia się pytanie o niego.
+- **Agent z aplikacji Strom bez potwierdzenia:** ustawienie tego komputera `run.confirm` (Ustawienia → 1 → „Uruchamianie
+  agenta z aplikacji Strom”): `ask` – domyślnie, jak dotąd – albo `no`, a to, o co prosi aplikacja Strom i co tylko
+  uruchamia agenta w ramach subskrypcji lub kredytu AI (rozmowa, zadanie, praca nad kolejką, sprzeczność pozostawiona
+  agentowi, ustalanie miejsc – przy kilku partiach miejsc pyta się tylko o liczbę, a Enter uruchamia co najmniej jedną),
+  uruchamia się od razu; jedna linia w terminalu mówi o tym i gdzie pytanie włącza się z powrotem. Nadal pytane są:
+  pytanie z ceną w pieniądzach, zgody, usuwanie, wysłanie prośby, warunek samodzielnej pracy i każde polecenie agenta.
+  Pytanie wyłącza tylko człowiek, nigdy agent.
+- **Usuwanie źródła:** źródło można usunąć w badaniu – `strom source retract` w terminalu lub usunięciem źródła w
+  aplikacji Strom, tylko przez osobę, nigdy przez agenta (może je jedynie zaproponować, z tym, co według `--dry-run` by
+  zabrało). Wartości zostają; jego cytaty są zdejmowane z danych i przechowywane w źródle, dana może stać się mniej
+  pewna, zadanie oparte tylko na nim zostaje porzucone, a rozstrzygnięta sprzeczność, która na nim stała, zostaje
+  oznaczona do sprawdzenia (`strom conflict keep` zachowuje rozstrzygnięcie). To, co zabierze, jest mówione wcześniej i
+  osoba to potwierdza; źródło można przywrócić wraz z cytatami (`strom source restore` lub cofnięcie w aplikacji Strom).
+  Źródło usunięte w aplikacji Strom podczas edycji drzewa jest usuwane w badaniu przy następnym wysłaniu – tylko przy
+  wysłaniu całego drzewa przez osobę; w przeciwnym razie Zmiany mówią, dlaczego nie. Usunięte źródło nie wraca już z
+  późniejszym plikiem ani importem. W terminalu `strom source show` mówi, że źródło jest usunięte, kiedy i co je
+  przywraca, a `strom source list --retracted` wypisuje usunięte źródła.
+- **Spisy ludności:** badanie może używać spisów ludności jako źródła – gospodarstwo domowe w jednym roku pokazuje, kto
+  mieszkał razem i skąd kto pochodził. Wyłączone, dopóki osoba ich nie włączy, w ustawieniach badania („Spisy ludności
+  w tym badaniu”) lub w aplikacji Strom; agent może to tylko raz zaproponować. Gospodarstwo jest zapisywane wszystkim
+  jego członkom w drzewie naraz (`strom census add`): pokrewieństwo z głową rodziny, wiek, data, miejsce i dom oraz
+  cytat arkusza jednakowo u każdego; osoby spoza drzewa tylko w notatce. Pokrewieństwo jest przejmowane tak, jak piszą
+  je formularze spisu („głowa rodziny”, „żona głowy rodziny” i ich odpowiedniki po angielsku, czesku i niemiecku).
+- **Imiona i nazwiska – jak pewne i po ślubie:** imię i nazwisko osoby cytuje się jak daną, także z tym, jak jest
+  pewne: agent cytuje je tak, jak podaje je przeczytany wpis (`strom cite P… S… --status`, `name add --status`,
+  `person add --name-status`; udokumentowane tylko według oryginału wpisu), a imiona i nazwiska, które starsze badanie
+  cytowało z wpisów, raz same stają się prawdopodobne (nigdy udokumentowane; to, które osoba wpisała lub potwierdziła,
+  zostaje; `strom fixes undo name-status` je przywraca). Aplikacja Strom, która to pokazuje, pozwala sprawdzić je razem
+  z wpisem urodzenia i potwierdza je według skanu jak daną. U kobiety zamężnej kilka razy obecne nazwisko to nazwisko po ostatnim ślubie – nazwisko męża
+  z najpóźniejszego ślubu, także w formie żeńskiej; nazwisko wybrane w aplikacji Strom jako obecne jest przejmowane i
+  obowiązuje, dopóki nie zostanie wybrane ponownie. Plik dla aplikacji Strom podaje nazwiska po ślubie na końcu, obecne
+  na samym końcu, więc także starsza aplikacja Strom pokaże właściwe.
+- **Kilku agentów i kilka badań naraz, bez kolizji, i mniej straconych kroków w długich przebiegach:**
+  każda sesja trzyma swoje zadanie, dopóki jej agent daje znaki
+  życia – zadanie trzymane przez innego agenta zostaje przy nim, a zadanie agenta, który umilkł, zostaje przejęte po
+  `task.hold` (to, co zapisał, zostaje, zadanie wraca do kolejki). Z archiwum, które ogranicza dostęp automatyczny
+  (tempo człowieka, tylko przeglądarka, godzinny limit narzędzia pobierającego), korzysta naraz tylko jedna sesja ze
+  wszystkich badań ze wspólnym folderem: zadanie z niego czeka, dopóki korzysta z niego inna sesja, a w tym czasie idzie
+  inna praca; praca samodzielna, której zostały tylko takie zadania, czeka na archiwum najwyżej `archive.wait`, a na
+  komputerze działa naraz tylko jedno zbiorcze pobieranie skanów z takiego archiwum, następne czeka w kolejce za nim.
+  Podczas czekania archiwum nie dostaje żadnych zapytań. Menu pokazuje też agentów pracujących bezpośrednio, a aplikacja
+  Strom dowiaduje się, kto trzyma zadanie lub archiwum, od kiedy i najpóźniej do kiedy. Czasy są ustawieniami tego
+  komputera: `task.hold`, `archive.hold` (trzymanie archiwum bez zapytań do niego) i `archive.wait`, każde domyślnie 30
+  minut, od 5 minut do 24 godzin. Każda linia może mieć własny przebieg agenta: `strom run --research G…` (w menu przez
+  wybór linii, przebieg we własnym oknie nazwanym od linii) bierze zadania tej linii, drugi przebieg tej samej linii
+  zostaje odrzucony, a praca nad całą kolejką pomija linie z własnym przebiegiem; w jednym badaniu pracuje naraz
+  najwyżej `run.parallel` przebiegów (domyślnie 3, zwiększyć może tylko człowiek) – zużycie subskrypcji się sumuje. Nowa
+  linia wewnątrz innej proponuje przejęcie otwartych zadań o swoich osobach (`strom research gather`). Aplikacja Strom
+  widzi każdy przebieg, uruchamia i zatrzymuje je według linii (`strom run stop`); przebiegi na jednym komputerze dzielą
+  limit subskrypcji, plany przeglądarki, strony witryny i czytelników skanów.
+  Zasady agenta mówią, by pracował we własnej karcie przeglądarki; po karcie spoza jego grupy albo stronie, która nie
+  odpowiada, od razu dostaje, co robić (nowa karta; praca w przeglądarce odłożona dopiero po drugim przekroczeniu
+  czasu). Długi tekst `strom readings` lub `strom searched` kończy się przy około 20 kB wierszem, jak go zawęzić, oraz
+  `--full` dla całości (`--json` pozostaje cały; `strom searched` ma strony jak inne listy). Partia z błędnymi wierszami
+  mówi też, których wierszy nie sprawdzono, bo zależą od błędnego. Opcje, które agenci zgadują i które znaczą dokładnie
+  inną, są przyjmowane i podawane w wierszu (`strom recordset list --parish` jako `--place`, `strom media list --image
+  5` jako `--images 5-5`, `strom readings --recordset`, `strom search add --query`); `strom person list --surname`
+  znajduje nazwisko z jego formami jak `strom query --surname`. Zapis bramki oznacza czekanie, przez które przebieg
+  uruchomiony przez osobę przeszedł dalej (`pace`). Każdy przebieg zapisuje, dlaczego się zakończył
+  (`.strom/runs/<przebieg>.end.json`: te same powody, które pokazuje aplikacja Strom, sesje, koszt, ostatnie i następne
+  zadanie).
+- **Drobne poprawki:** Zakres skanów przez przeglądarkę agenta: archiwum z listy stroma może dostać zakres skanów naraz (najwyżej 20, skan po skanie w tempie człowieka, z zatrzymaniem przy pierwszym sprawdzeniu lub odmowie archiwum; kolejny zakres z tego archiwum dopiero po ręcznym zapisaniu pozostałych skanów), każde archiwum tylko za własną zgodą człowieka (`strom allow archive <archiwum> --range` lub w menu); na razie nie ma go żadne archiwum. Zdjęcia z aplikacji Strom docierają znacznie szybciej: wysyłanie zdjęć lub paczki plików z
+  aplikacji Strom do dużego badania nie odczytuje już przy każdym pliku wszystkich wpisów skanów badania: to, co badanie
+  już ma, jest wyszukiwane w indeksie skrótów plików (w `.strom/cache`, odbudowywanym samoczynnie, gdy go brak lub jest
+  nieaktualny), a most zapisuje to, co wysyła aplikacja, jednym stale działającym procesem strom zamiast uruchamiać nowy
+  dla każdego pliku. Nowsza aplikacja Strom przekazuje całą paczkę naraz: każdy plik jest sprawdzany i potwierdzany
+  zaraz po nadejściu, a paczka zapisywana przy zamknięciu – jeden zapis, jedna przebudowa pliku drzewa i jedno
+  powiadomienie aplikacji – a pracujący agent dostaje się do badania między częściami. Starsza aplikacja Strom wysyła
+  jak dotąd, tylko szybciej. Plik paczki, który przy jej zamykaniu zajmuje inny program (antywirus, synchronizacja lub
+  kopia zapasowa), nie jest już błędem: nic nie ginie, aplikacja Strom chwilę czeka i dowiaduje się dlaczego, a badanie
+  samo zapisuje pliki paczki chwilę później. Paczka zamknięta bez porządkowania, której pliki uporządkowano w aplikacji
+  Strom, nie pozostaje już w menu aplikacji „nieuporządkowana”: plik, przez który porządkowanie przeszło do końca,
+  liczy się jako uporządkowany – także w badaniu uporządkowanym tak wcześniej, bez żadnej zmiany w nim.
+  Aplikacja Strom pokazuje w Materiałach zaimportowane pliki drzewa
+  genealogicznego (GEDCOM, JSON aplikacji) i usuwa je na stałe jak każdy plik materiałów; ten, z którego powstało
+  źródło, tylko razem z tym źródłem, w jednym kroku z jednym potwierdzeniem (`strom input delete … --retract-sources`).
+  Osoby odłączonej od pliku materiału (Przypisz w aplikacji Strom, `strom input assign --remove`) sortowanie przez
+  agenta już do niego nie dołącza; po ponownym dodaniu plik znów do niej należy.
+  Archiwum, które strom trzyma surowiej, niż mówi jego własna lista warunków archiwów (konektor lub
+  wpis w badaniu raz tak je odczytał), nie wyłącza już tam po cichu przeglądarki agenta: `strom doctor`, `strom run` i
+  `strom allow archive` mówią, od kiedy, dlaczego i co mówi lista, Co czeka i aplikacja Strom pytają osobę raz, czy
+  zachować poziom, czy przyjąć warunki archiwum (`strom allow archive <host> --keep` lub `--level <poziom>`), po czym do
+  kolejki wracają tylko zadania, które nowy poziom otwiera; tam, gdzie osoba zezwoliła na archiwum „przez przeglądarkę”,
+  sprawdzenie strony kieruje agenta do jego przeglądarki zamiast do zgody, która już obowiązuje; przed konektorem lub
+  archiwum zapisanym surowiej niż lista strom ostrzega; zadanie wydzielone przez `strom task audit --fix` nazywa skany
+  księgi jej tytułem, bez ID i czasownika; `strom task wait --images` podane ponownie dla tej samej księgi łączy jej
+  skany (inna księga jest odrzucana: jedna księga na zadanie); dwie próby zbiorczej weryfikacji po sobie idą w
+  kolejności zlecenia, starsza pierwsza; warunek limitów subskrypcji odczytuje je w sekundę lub dwie, bez przeglądania
+  rozmów zapisanych na komputerze; w aplikacji Strom każdy przypis drzewa genealogicznego znów pokazuje własny wiersz
+  drzewa (odnośnik utworzony przez import pozostaje na boku), a numer skanu znany tylko z zarejestrowanych skanów jest
+  tak oznaczony, by aplikacja dodała go do lokalizacji, nie wycinając z niej numeru innego skanu. `strom pack` i `strom
+  trees remove` nazywają skany z archiwów skanami (które idą razem, które są pominięte), a kopia zapasowa przed
+  usunięciem mówi, że zawiera rodzinne zdjęcia i oryginały.
+  W terminalu pytanie i warianty hipotezy nazywają osoby i rodziny podane identyfikatorem imieniem z identyfikatorem
+  (w Co czeka i gdy aplikacja Strom prosi o rozstrzygnięcie), a agent też tak je pisze; imię zapisane przed
+  identyfikatorem – osoby lub partnerów rodziny – nigdy nie powtarza się.
+  Przebiegi obok siebie w jednym drzewie („uruchomić kolejnego obok niego”, rozmowa obok przebiegu): przebieg, którego
+  następne zadanie tuż przed rozpoczęciem wziął inny, kontynuuje następnym wolnym zadaniem zamiast kończyć cały
+  przebieg; żadne zadanie nie jest brane dwa razy.
+  Linia zakończona wewnątrz szerszej, która trwa, nie zostawia już swoich zadań czekających na zawsze: liczą się do
+  najwęższej trwającej linii, do której należą ich osoby (w zadaniach nic się nie zmienia, więc wznowiona linia ma je
+  z powrotem); zadania wstrzymanej linii czekają jak dotąd.
+  Plik wysłany do badania nie uruchamia już sam agenta, także w badaniu założonym wcześniej: ani paczka z aplikacji
+  Strom lub z telefonu, ani pojedynczy plik czy skan źródła z aplikacji, ani materiały dodane w menu (tam pada pytanie,
+  czy agent ma je przejrzeć). Pliki czekają w Materiałach, aż zostaną uporządkowane ręcznie lub przez porządkowanie
+  agentem; samodzielne przeglądanie włącza dla badania tylko osoba (`strom config set intake.auto on --for-tree`,
+  Ustawienia → 1 lub ustawienia badania w aplikacji Strom). Już założone zadania zostają.
+  Gdy przeszukane skany księgi nie obejmują lat wokół daty znanej tylko z wieku (urodzony około 1761 według wieku przy
+  śmierci), agent dowiaduje się, których lat brakuje i gdzie księga ciągnie się dalej, zanim „nie znaleziono” zostanie
+  przyjęte – ile lat w każdą stronę, określa ustawienie badania `search.ageMargin` (domyślnie 5).
+  Rozmowa o linii z aplikacji Strom jest przy zakończonej linii odrzucana jednym zdaniem – nic nie jest pytane ani
+  uruchamiane. Skan innej księgi nie trafia już przez pomyłkę do księgi: `strom fetch` odrzuca księgę, której skany
+  przyszły z innej księgi konektora, albo księgę z portalu innego konektora, i mówi, która to księga; wycofany skan
+  nie wiąże księgi z niczym.
+  Wysyłka z aplikacji Strom nie usuwa już notatki pliku materiału, którego aplikacja nigdy nie miała w swoim drzewie:
+  taka wysyłka zatrzymywała każdy kolejny zapis badania (przyjęcie sortowania w aplikacji mówiło tylko „exit 1”);
+  otwarcie aplikacji Strom lub kolejny zapis przywraca notatkę i zapisuje to, co czekało. Zapis aplikacji Strom odrzucony przez kontrolę badania
+  nie zostawia niczego, a aplikacja dowiaduje się dlaczego.
+
 ## 1.35.0
 
 *19.11.2026 · współpracuje z aplikacją Strom 3.30.0.*

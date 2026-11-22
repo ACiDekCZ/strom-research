@@ -20,10 +20,21 @@ const opts = { skip: !hasGit || process.platform === "win32" };
 const TOKEN = "UHJlbm9zLXN0cm9tdS16LXNhZmFyaS0wMDAwMDAwMQ";
 const ORIGIN = { Origin: "https://beta.stromapp.info" };
 
-/** Browsers as installed on a Mac, in a folder of the test's own. */
+/** A browser's command on Linux (core/chromium.ts), by its folder on a Mac — none for Safari. */
+const LINUX_COMMAND: Record<string, string> = { "Google Chrome.app": "google-chrome", "Microsoft Edge.app": "microsoft-edge", "Firefox.app": "firefox", "Brave Browser.app": "brave-browser" };
+
+/**
+ * Browsers installed, in a folder of the test's own (STROM_APP_DIRS): as on a Mac (their .app folders) and as on Linux
+ * (their commands) alike, so strom finds the same ones on either — never the computer's own (a runner has Chrome, Edge
+ * and Firefox of its own).
+ */
 function browsers(w: World, ...apps: string[]): string {
   const dir = path.join(w.dir, "Applications");
-  for (const a of apps) fs.mkdirSync(path.join(dir, a), { recursive: true });
+  for (const a of apps) {
+    fs.mkdirSync(path.join(dir, a), { recursive: true });
+    const cmd = LINUX_COMMAND[a];
+    if (cmd) fs.writeFileSync(path.join(dir, cmd), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  }
   return dir;
 }
 
@@ -274,6 +285,9 @@ test("a tree from Safari into a research an older strom made for it (its handove
   await w.run(["live", "stop"], { cwd: root });
   // the line of the app 3.9.1 in Safari: the tree moves — into that research
   w.env.STROM_ADOPT_WAIT_MS = "60000";
+  // the word of the permission after 4 s of the app not heard from: the test's first ask comes well before it even under
+  // the whole suite's load (300 ms did not), and the tree is handed over only once those 4 s went by after it
+  w.env.STROM_ADOPT_HINT_MS = "4000";
   w.env.STROM_FROM_BROWSER = "safari";
   w.env.STROM_FROM_FILE = "strom-prenos-UHJlbm9z.json";
   const file = transferFile(w, "strom-prenos-UHJlbm9z.json");
@@ -291,6 +305,8 @@ test("a tree from Safari into a research an older strom made for it (its handove
   try {
     assert.ok(url, "the bridge of that research waits");
     assert.equal(((await (await fetch(`${url}/adopt`, { headers: ORIGIN })).json()) as { token: string }).token, TOKEN);
+    // the app asked: the time of the word of the permission goes by (and the terminal's look after it) — nothing said
+    await new Promise((r) => setTimeout(r, 5000));
     const ged = ["0 HEAD", "1 SOUR STROM", "1 CHAR UTF-8", "0 @I1@ INDI", "1 NAME Karel /Novák/", "1 SEX M", "0 @I2@ INDI", "1 NAME Marie /Nováková/", "1 SEX F", "0 @F1@ FAM", "1 HUSB @I1@", "1 WIFE @I2@", "0 TRLR", ""].join("\n");
     assert.equal((await fetch(`${url}/adopt`, { method: "POST", body: ged, headers: { ...ORIGIN, "Content-Type": "text/plain; charset=utf-8" } })).status, 200);
     const r = await flow;

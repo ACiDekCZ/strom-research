@@ -144,7 +144,8 @@ test("claude-usage --cap: reads what the agent said when fresh (no /usage), stop
   // /usage: the week at 30 % — only when asked
   const reset = new Date(Math.ceil((Date.now() + 4 * 86_400_000) / 3_600_000) * 3_600_000);
   const resetText = `${reset.toLocaleString("en-US", { month: "short", timeZone: "UTC" })} ${reset.getUTCDate()} at ${reset.getUTCHours() % 12 || 12}${reset.getUTCHours() < 12 ? "am" : "pm"} (UTC)`;
-  fs.writeFileSync(path.join(bin, "claude"), `#!/bin/sh\necho asked >> "${asked}"\ncat <<'X'\nCurrent session: 10% used · resets ${resetText}\nCurrent week (all models): 30% used · resets ${resetText}\nX\n`, { mode: 0o755 });
+  // (get_usage unknown, as to an older Claude Code: /usage is what it reads here)
+  fs.writeFileSync(path.join(bin, "claude"), `#!/bin/sh\n[ "$2" = "--input-format" ] && exit 1\necho asked >> "${asked}"\ncat <<'X'\nCurrent session: 10% used · resets ${resetText}\nCurrent week (all models): 30% used · resets ${resetText}\nX\n`, { mode: 0o755 });
   const gate = path.join(w.home, "shared", "plugins", "gates", "claude-usage", "gate.ts");
   const run = (args: string[], limits?: unknown) => {
     const r = spawnSync(process.execPath, [gate, ...args], {
@@ -314,5 +315,20 @@ test("before setup: a cap is checked all the same, and nothing of the gates is p
   await w.ok(["setup", "--yes"]);
   assert.ok(fs.existsSync(path.join(w.home, "shared", "plugins", "gates", "claude-usage", "gate.json")));
   assert.match((await w.ok(["gate", "list"])).out, /claude-usage ◀ run\.gate \(claude-usage 15\)/);
+  w.cleanup();
+});
+
+test("a run the person started, asked again for its cap alone: a wait recorded as it said, then go, marked pace (only its hard stop counts); a run by itself never so", unix, async () => {
+  const w = await capWorld([
+    { code: 0, say: { reason: "týden 60 %", watch: WATCH } },
+    { code: 1, say: { reason: "tempo: týden 70 %", wait: 3600, watch: WATCH } },
+  ]);
+  const r = await w.ok(["run", "--agent", "claude", "--max", "2", "--json"], { env: { FAKE_WEEK: "0.6" } });
+  assert.equal(r.json.sessions.length, 2, r.err);
+  const log = fs.readFileSync(path.join(w.cwd, ".strom", "gate.log"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  assert.deepEqual(log.map((l) => [l.verdict, l.then, l.pace]), [
+    ["go", "go", undefined],
+    ["wait", "go", true],
+  ]);
   w.cleanup();
 });

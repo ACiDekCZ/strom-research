@@ -5,6 +5,158 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.36.0
+
+*22.11.2026 · gehört zur Strom-App 3.31.0.*
+
+- **Ein Versuch der Sammelprüfung sofort:** Die Aufgaben eines Versuchs der Sammelprüfung (`strom verify bulk --try`)
+  stehen am Anfang der Warteschlange – die nächste Sitzung nimmt sie –, und die Strom-App lässt sie sofort bearbeiten,
+  eine Sitzung je Aufgabe, über einen Link, der die Aufgaben nennt. Jede Aufgabe der Warteschlange hat ihre Art der
+  Arbeit (Prüfen, Einträge, Material, Orte, Geschichten …): `strom task list --kind`, und die Strom-App filtert danach.
+- **Von Hand gespeicherte Bilder, sicherer:** Die Nummer eines Bildes wird dem Dateinamen nur entnommen, wenn der Name
+  sie eindeutig sagt (die Kopie eines Dateimanagers „33 2.jpg“ ist Bild 33; ein Name mit zwei Zahlen und ohne Zähler
+  bekommt keine); die Dateien eines Stapels werden nur dann nach ihrer Reihenfolge nummeriert, wenn keine eine Zahl im
+  Namen hat; ein Ordner wird erst übernommen, wenn sein Stapel fertig heruntergeladen ist (ein .crdownload oder .part
+  daneben hält ihn zurück). Eine Datei, die derselbe Scan wie ein anderes Bild ist, wird nie gelöscht: Sie wird daneben
+  beiseitegelegt, und das wird gesagt. Eine Datei, unter der Nummer eines schon erfassten Bildes
+  gespeichert, die eine andere Seite zeigt (andere Form oder andere Handschrift), ersetzt das Bild nicht mehr: Sie wird
+  daneben beiseitegelegt und unter „Was wartet“ und in der Strom-App erfragt – das Bild behalten, die neue Datei als
+  dieses Bild nehmen oder ihr eine eigene Nummer geben (`strom media aside`). Eine schärfere Kopie wird nur übernommen,
+  wenn sie sicher derselbe Scan ist – verglichen wird die Handschrift, nicht das vorgedruckte Formular; lässt sich das
+  nicht entscheiden, wird die Datei ebenfalls beiseitegelegt und erfragt.
+- **Der Agent aus der Strom-App ohne Rückfrage:** eine Einstellung dieses Computers, `run.confirm` (Einstellungen → 1 →
+  „Agent aus der Strom-App starten“): `ask` – der Standard, wie bisher – oder `no`, und worum die Strom-App bittet und
+  was nur den Agenten auf das Abonnement oder KI-Guthaben startet (ein Gespräch, eine Aufgabe, die Arbeit an der
+  Warteschlange, ein dem Agenten überlassener Widerspruch, die Bestimmung der Orte – bei mehreren Stapeln von Orten wird
+  nur nach der Anzahl gefragt, und Enter startet mindestens einen), startet sofort; eine Zeile im Terminal sagt es und
+  wo die Rückfrage wieder eingeschaltet wird. Weiter gefragt wird: eine Frage mit einem Preis in Geld, Zustimmungen,
+  Löschen, das Absenden einer Anfrage, die Bedingung der Alleinarbeit und jeder Befehl eines Agenten. Die Rückfrage
+  schaltet nur der Mensch ab, nie ein Agent.
+- **Eine Quelle löschen:** Eine Quelle lässt sich in der Forschung löschen – `strom source retract` im Terminal oder
+  durch Löschen der Quelle in der Strom-App, nur durch die Person, nie durch einen Agenten (er darf es nur vorschlagen,
+  mit dem, was es laut `--dry-run` mitnähme). Die Werte bleiben; ihre Zitate werden von den Angaben genommen und in der
+  Quelle aufbewahrt, eine Angabe kann weniger sicher werden, eine Aufgabe, die nur auf ihr beruht, wird aufgegeben,
+  und ein entschiedener Widerspruch, der auf ihr beruhte, wird zur Prüfung markiert (`strom conflict keep` behält die
+  Entscheidung bei). Was es mitnimmt, wird vorher gesagt und von der Person bestätigt; die Quelle lässt sich mit ihren
+  Zitaten wiederherstellen (`strom source restore` oder „Rückgängig“ in der Strom-App). Eine in der Strom-App beim
+  Bearbeiten des Stammbaums gelöschte Quelle wird in der Forschung mit dem nächsten Senden gelöscht – nur beim Senden
+  des ganzen Stammbaums durch die Person; sonst sagen die Änderungen, warum nicht. Eine gelöschte Quelle kommt mit
+  keiner späteren Datei und keinem Import zurück. Im Terminal sagt `strom source show`, dass eine Quelle gelöscht ist,
+  wann und was sie zurückholt, und `strom source list --retracted` listet die gelöschten auf.
+- **Volkszählungen:** Eine Forschung darf Volkszählungen als Quelle nutzen – ein Haushalt in einem Jahr zeigt, wer
+  zusammen wohnte und woher jemand kam. Aus, bis die Person sie einschaltet, in den Einstellungen der Forschung
+  („Volkszählungen in dieser Forschung“) oder in der Strom-App; der Agent darf es nur einmal vorschlagen. Ein Haushalt
+  wird für alle seine Mitglieder im Stammbaum auf einmal erfasst (`strom census add`): die Beziehung zum
+  Haushaltungsvorstand, das Alter, Datum, Ort und Haus und das Zitat des Bogens bei jedem gleich; Personen außerhalb des
+  Stammbaums nur in der Notiz. Die Beziehung wird so übernommen, wie die Zählbögen sie schreiben
+  („Haushaltungsvorstand“, „Ehefrau des Haushaltungsvorstandes“ und ihre Wörter auf Englisch, Tschechisch und Polnisch).
+- **Namen – wie sicher und nach einer Heirat:** Der Name einer Person wird wie eine Angabe zitiert, auch damit, wie
+  sicher er ist: Der Agent zitiert den Namen so, wie ihn der gelesene Eintrag gibt (`strom cite P… S… --status`,
+  `name add --status`, `person add --name-status`; belegt nur nach dem Originaleintrag), und die Namen, die eine ältere
+  Forschung aus ihren Einträgen zitierte, werden einmal von selbst wahrscheinlich (nie belegt; ein Name, den die Person
+  schrieb oder bestätigte, bleibt; `strom fixes undo name-status` nimmt es zurück). Die Strom-App, die es zeigt, lässt
+  den Namen zusammen mit dem Geburtseintrag prüfen und bestätigt ihn nach dem Scan wie eine Angabe. Bei einer mehrmals verheirateten Frau ist der jetzige Name der nach der letzten Heirat –
+  der Nachname des Ehemanns der spätesten Hochzeit, auch in der weiblichen Form; ein in der Strom-App als jetziger
+  gewählter Name wird übernommen und bleibt es, bis neu gewählt wird. Die Datei für die Strom-App gibt die Namen nach
+  einer Heirat zuletzt, den jetzigen ganz zuletzt, sodass auch eine ältere Strom-App den richtigen zeigt.
+- **Mehrere Agenten und Forschungen zugleich, ohne sich in die Quere zu kommen, und weniger verlorene Schritte in langen Läufen:**
+  Jede Sitzung hält ihre Aufgabe,
+  solange ihr Agent Lebenszeichen gibt – eine Aufgabe, die ein anderer Agent hält, bleibt ihm, und die eines verstummten
+  Agenten wird nach `task.hold` übernommen (was er geschrieben hat, bleibt, die Aufgabe kehrt in die Warteschlange
+  zurück). Ein Archiv, das den automatischen Zugriff einschränkt (das Tempo eines Menschen, nur der Browser, das
+  Stundenlimit eines Downloaders), nutzt jeweils nur eine Sitzung aller Forschungen mit gemeinsamem Ordner: Eine Aufgabe
+  darauf wartet, solange eine andere Sitzung es nutzt, und inzwischen geht andere Arbeit weiter; die selbstständige
+  Arbeit, der nur solche Aufgaben bleiben, wartet höchstens `archive.wait` auf das Archiv, und auf einem Computer läuft
+  jeweils nur ein Massendownload von Bildern aus einem solchen Archiv, der nächste wartet dahinter. Während des Wartens
+  wird beim Archiv nichts angefragt. Das Menü nennt auch die Agenten, die direkt arbeiten, und die Strom-App erfährt,
+  wer eine Aufgabe oder ein Archiv hält, seit wann und spätestens bis wann. Die Zeiten sind Einstellungen dieses
+  Computers: `task.hold`, `archive.hold` (ein Archiv gehalten ohne Anfrage daran) und `archive.wait`, jeweils
+  standardmäßig 30 Minuten, von 5 Minuten bis 24 Stunden. Jede Linie kann einen eigenen Lauf des Agenten haben: `strom
+  run --research G…` (im Menü durch Wahl der Linie, der Lauf dann in einem eigenen Fenster mit dem Namen der Linie)
+  nimmt die Aufgaben dieser Linie, ein zweiter Lauf derselben Linie wird abgelehnt, und die Arbeit an der ganzen
+  Warteschlange lässt Linien mit eigenem Lauf aus; in einer Forschung arbeiten höchstens `run.parallel` Läufe zugleich
+  (standardmäßig 3, erhöhen darf nur der Mensch) – der Verbrauch des Abos addiert sich. Eine neue Linie innerhalb einer
+  anderen bietet an, die offenen Aufgaben zu ihren Personen zu übernehmen (`strom research gather`). Die Strom-App
+  zeigt jeden Lauf und startet und stoppt sie nach Linien (`strom run stop`); Läufe auf einem Rechner teilen sich das
+  Limit des Abos, die Pläne des Browsers, die Seiten einer Website und die Leser der Scans.
+  Die Regeln des Agenten sagen, in einem eigenen Browser-Tab zu arbeiten; nach einem Tab außerhalb seiner Gruppe oder
+  einer Seite, die nicht antwortet, folgt sofort, was zu tun ist (ein neuer Tab; die Arbeit im Browser wird erst nach
+  einer zweiten Zeitüberschreitung zurückgestellt). Ein langer Text von `strom readings` oder `strom searched` endet bei
+  etwa 20 kB mit einer Zeile, wie er sich eingrenzen lässt, und `--full` für alles (`--json` bleibt vollständig; `strom
+  searched` hat Seiten wie die anderen Listen). Ein Stapel mit fehlerhaften Zeilen sagt auch, welche Zeilen nicht
+  geprüft wurden, weil sie von einer fehlerhaften abhängen. Optionen, die Agenten raten und die genau eine andere
+  bedeuten, werden übernommen und in einer Zeile genannt (`strom recordset list --parish` als `--place`, `strom media list
+  --image 5` als `--images 5-5`, `strom readings --recordset`, `strom search add --query`); `strom person list
+  --surname` findet einen Nachnamen mit seinen Formen wie `strom query --surname`. Das Protokoll der Schranke markiert
+  ein Warten, über das ein von der Person gestarteter Lauf hinwegging (`pace`). Jeder Lauf hält fest, warum er endete
+  (`.strom/runs/<Lauf>.end.json`: dieselben Gründe, die die Strom-App zeigt, Sitzungen, Kosten, letzte und nächste
+  Aufgabe).
+- **Kleinere Korrekturen:** Ein Bereich von Aufnahmen über den Browser des Agenten: ein Archiv in Stroms Liste kann einen Bereich von Aufnahmen auf einmal bekommen (höchstens 20, Aufnahme für Aufnahme im Tempo eines Menschen, angehalten bei der ersten Prüfung oder Ablehnung des Archivs; ein weiterer Bereich dieses Archivs erst, wenn die übrigen Aufnahmen von Hand gespeichert sind), jedes Archiv nur mit der eigenen Zustimmung des Menschen (`strom allow archive <Archiv> --range` oder im Menü); noch hat ihn kein Archiv. Fotos aus der Strom-App kommen viel schneller an: Beim Senden von Fotos oder eines Stapels
+  von Dateien aus der Strom-App an eine große Forschung werden nicht mehr für jede Datei alle Bildeinträge der Forschung
+  gelesen: Was die Forschung schon hat, wird in einem Verzeichnis der Prüfsummen der Dateien nachgeschlagen (in
+  `.strom/cache`, das sich selbst neu aufbaut, wenn es fehlt oder veraltet ist), und die Brücke schreibt, was die App
+  sendet, über einen weiterlaufenden Strom-Prozess, statt für jede Datei einen neuen zu starten. Eine neuere Strom-App
+  übergibt einen ganzen Stapel auf einmal: Jede Datei wird geprüft und bestätigt, sobald sie ankommt, und der Stapel
+  wird beim Abschließen geschrieben – ein Speichern, ein Neuaufbau der Stammbaumdatei und eine Mitteilung an die App –,
+  während ein arbeitender Agent zwischen den Teilen an die Forschung kommt. Eine ältere Strom-App sendet wie bisher, nur
+  schneller. Eine Datei eines Stapels, die beim Abschließen ein anderes Programm hält (Virenschutz, Synchronisierung
+  oder Sicherung), ist kein Fehler mehr: nichts geht verloren, die Strom-App wartet kurz und erfährt warum, und die
+  Forschung schreibt die Dateien des Stapels kurz darauf von selbst. Ein ohne Sortieren abgeschlossener Stapel, dessen
+  Dateien in der Strom-App sortiert wurden („Mit dem Agenten sortieren…“), bleibt im Menü der App nicht mehr
+  „unsortiert“: eine Datei, die eine Sortierung bis zum Ende durchlaufen hat, zählt als sortiert – auch in einer so
+  früher sortierten Forschung, ohne dass sich darin etwas ändert.
+  Die Strom-App zeigt die importierten Stammbaumdateien (GEDCOM, JSON der
+  App) im Material und löscht sie endgültig wie jede Datei des Materials; eine, aus der eine Quelle entstand, nur
+  zusammen mit dieser Quelle, in einem Schritt mit einer Bestätigung (`strom input delete … --retract-sources`).
+  Eine von einer Datei des Materials entfernte Person (Zuordnen in der Strom-App, `strom input assign --remove`) wird
+  beim Sortieren durch den Agenten nicht wieder zugeordnet; wieder hinzugefügt, gehört die Datei wieder zu ihr.
+  Ein Archiv, das strom strenger hält, als seine eigene Liste der Archivbedingungen sagt (ein
+  Downloader oder ein Eintrag der Recherche hat sie einmal so gelesen), schaltet den Browser des Agenten dort nicht mehr
+  stillschweigend ab: `strom doctor`, `strom run` und `strom allow archive` sagen, seit wann, warum und was die Liste
+  sagt, Was wartet und die Strom-App fragen die Person einmal, ob die Stufe bleibt oder die Bedingungen des Archivs
+  gelten (`strom allow archive <host> --keep` oder `--level <Stufe>`), danach kehren nur die Aufgaben zurück, die die
+  neue Stufe öffnet; wo die Person ein Archiv „über den Browser“ erlaubt hat, verweist die Prüfung einer Seite dort den
+  Agenten auf seinen Browser statt auf die bereits erteilte Erlaubnis; vor einem Downloader oder Archiv, das strenger
+  als die Liste eingetragen ist, wird gewarnt; eine mit `strom task audit --fix` abgetrennte Aufgabe nennt die Bilder
+  des Buchs mit dessen Titel, ohne ID und Verb; `strom task wait --images` erneut für dasselbe Buch angegeben, fügt
+  dessen Bilder zusammen (ein anderes Buch wird abgelehnt: ein Buch je Aufgabe); zwei Versuche der Sammelprüfung
+  nacheinander kommen in der Reihenfolge, in der sie angefordert wurden, der ältere zuerst; die Bedingung der Abo-Limits
+  liest sie in ein, zwei Sekunden, ohne die auf dem Computer gespeicherten Unterhaltungen zu durchsuchen; in der
+  Strom-App zeigt jede Quellenangabe eines Stammbaums wieder ihre eigene Zeile des Stammbaums (ein Verweis, den ein
+  Import angelegt hat, bleibt außen vor), und eine nur aus den erfassten Scans bekannte Bildnummer ist als solche
+  gekennzeichnet, sodass die App sie zur Fundstelle hinzufügt, ohne die Nummer eines anderen Bildes daraus zu entfernen.
+  `strom pack` und `strom trees remove` nennen die Scans der Archive als Scans (welche mitgehen, welche weggelassen
+  werden), und die Sicherung vor dem Entfernen sagt, dass sie die Fotos und Originale der Familie enthält.
+  Im Terminal nennen die Frage und die Varianten einer Hypothese die Personen und Familien, die sie mit ihrer ID angeben,
+  mit Namen und ID (unter „Was wartet“ und wenn die Strom-App um eine Entscheidung bittet), und der Agent schreibt sie
+  auch so; ein vor der ID geschriebener Name – einer Person oder der Partner einer Familie – wird nie doppelt genannt.
+  Läufe nebeneinander in einem Stammbaum („einen weiteren daneben starten“, eine Unterhaltung neben einem Lauf): ein
+  Lauf, dessen nächste Aufgabe kurz vor dem Beginn ein anderer übernommen hat, macht mit der nächsten freien Aufgabe
+  weiter, statt den ganzen Lauf zu beenden; keine Aufgabe wird zweimal übernommen.
+  Eine Linie, die innerhalb einer weiteren, noch laufenden beendet wurde, lässt ihre Aufgaben nicht mehr für immer
+  warten: Sie zählen zur engsten laufenden Linie, zu der ihre Personen gehören (an den Aufgaben ändert sich nichts,
+  eine wieder gestartete Linie hat sie also zurück); die Aufgaben einer pausierten Linie warten wie bisher.
+  Eine an die Forschung gesendete Datei setzt den Agenten nicht mehr von selbst in Gang, auch nicht in einer früher
+  begonnenen Forschung: weder ein Stapel aus der Strom-App oder vom Telefon noch eine einzelne Datei oder der Scan
+  einer Quelle aus der App noch im Menü hinzugefügtes Material (dort wird gefragt, ob der Agent es durchsieht). Die
+  Dateien warten im Material, bis sie von Hand oder mit „Mit dem Agenten sortieren…“ sortiert werden; das
+  selbstständige Durchsehen schaltet nur die Person für eine Forschung ein (`strom config set intake.auto on
+  --for-tree`, Einstellungen → 1 oder die Einstellungen der Forschung in der Strom-App). Bereits angelegte Aufgaben
+  bleiben.
+  Decken die durchsuchten Bilder eines Buches die Jahre um ein nur aus dem Alter bekanntes Datum nicht ab (geboren um
+  1761 nach dem Alter beim Tod), erfährt der Agent, welche Jahre fehlen und wo das Buch weitergeht, bevor man sich auf
+  „nicht gefunden“ verlässt – wie viele Jahre zu jeder Seite, bestimmt die Einstellung der Forschung `search.ageMargin`
+  (Standard 5).
+  Ein Gespräch über eine Linie aus der Strom-App wird bei einer beendeten Linie mit einem Satz abgelehnt – nichts wird
+  gefragt oder gestartet. Ein Bild eines anderen Buches wird nicht mehr versehentlich in ein Buch geholt: `strom
+  fetch` lehnt ein Buch ab, dessen Bilder aus einem anderen Buch des Konnektors kamen, oder ein Buch vom Portal eines
+  anderen Konnektors, und sagt, welches Buch es ist; ein zurückgenommenes Bild bindet das Buch an nichts.
+  Eine Sendung der Strom-App nimmt die Notiz einer Datei des Materials, die die App nie in ihrem Stammbaum hatte,
+  nicht mehr weg: eine solche Sendung hielt jedes weitere Schreiben der Forschung an (das Übernehmen der Sortierung in
+  der App meldete nur „exit 1“); das Öffnen der Strom-App oder das nächste Schreiben gibt die Notiz zurück und
+  schreibt, was wartete. Ein Schreiben
+  der Strom-App, das die Prüfung der Forschung ablehnt, hinterlässt nichts, und die App erfährt den Grund.
+
 ## 1.35.0
 
 *19.11.2026 · gehört zur Strom-App 3.30.0.*

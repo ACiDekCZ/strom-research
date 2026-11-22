@@ -20,6 +20,7 @@ The procedure in brief:
    itself once all of them are in the research ([R9.6](#R9.6)).
 5. **Decision:** the table and the course of a task are in [R9.8](#R9.8), a person's steps in [R9.9](#R9.9) and
    examples in [R9.10](#R9.10).
+6. **Census records:** an optional source that only a person switches on; since research 1.36.0 ([R9.12](#R9.12)).
 
 > **Note: where exactly the agent's browser applies.** strom watches the agent's browser with **Claude Code** and
 > the **Claude in Chrome** extension, in the Claude app's built-in browser
@@ -657,3 +658,230 @@ The levels and limits are from the list of archives of the research 1.27.0, Digi
 - **Since:** research 1.35.0
 
 <!-- zdroj: research:465c54ea assets/archives.json blha-recherche.brandenburg.de (restricted, browserOnly, terms robots.txt, quoteFrom reply, replied 2026-11-18, robots Disallow / zrušeno odpovědí pro jednotlivé snímky, nejvýš 2 požadavky, imagesFrom blha-digi.brandenburg.de, scope: nikdy prohledávání databáze ani celá kniha, adresa prohlížeče snímek nejmenuje, citace „BLHA, Rep. 5KB Nr. <n>“; bez wholeBook), blha-digi.brandenburg.de (restricted, IIIF, po jednom), blha.brandenburg.de (unknown, pace 10 s) · src/core/net.ts HUMAN_PACE 10 s · src/commands/archives.ts paceFor · src/core/terms.ts allows (browserOnly + restricted) · src/core/books.ts downloadOf (bez údaje range) · CHANGELOG.cs.md 1.35.0 (BLHA podle odpovědi z 18. 11. 2026) · commit d013df1c -->
+
+<a id="R9.12"></a>
+## R9.12 Census records as a source
+
+A census records one household in one year: who lived in the house, their relation to the head, age or year of
+birth, often birthplace, home municipality and occupation. The research uses census records only once a person
+switches them on for the research.
+
+- **Enforced by the code:**
+  - the setting `census` (**Census records in this research**) is off by default. An unset setting means off, also for
+    researches started earlier;
+  - the setting applies to all researches on this computer, or with `--for-tree` to one only. The research's value
+    wins both ways (on and off). The terminal menu and the Strom app write the research's value. No environment
+    variable or command flag changes the setting;
+  - only a person switches it on: in the menu, in their own terminal, or with the switch in the Strom app
+    ([S4.4.10](S4-research-from-the-app.md#S4.4.10)). When the agent starts the switch in a conversation, a system
+    window asks the person. With no window (the agent working on its own) strom refuses and tells the agent to propose
+    census records ([R9.12.1](#R9.12.1)). Anyone may switch them off, with no question;
+  - on: census tasks can be created (`strom task add … --census <year>[:<house>]`), and with them the agent gets the
+    method page on census records and the list of census records strom knows ([R9.12.2](#R9.12.2));
+  - off: a census task cannot be created (the refusal says how to propose census records), strom does not give the
+    page `strom guide census`, and census tasks are set aside ([R9.12.4](#R9.12.4)). Census events already recorded
+    stay;
+  - the Strom archive has no such setting in the menu. The bridge refuses it in the Strom archive and in a research
+    waiting for an agent.
+- **Why:** registers record single events. A census shows a whole household in one year, where the family moved and
+  where each person came from, which the registers often do not tell. Most archives only display census records, so
+  the sheets are mostly supplied by a person as screenshots.
+- **Controls:** terminal: the menu **Settings** → **Language, agent, model, what the agent may do alone, stories… (the
+  setup)** → **Census records in this research: …**. First a sentence on what census records give, then the question
+  **Switch census records on for this research?** or **Switch census records off for this research? Their tasks are
+  set aside and come back when switched on again.** (Enter = nothing changes). The command `strom config set census
+  on|off [--for-tree]`; `strom config where` shows the value in force. App: [S4.4.10](S4-research-from-the-app.md#S4.4.10).
+- **Since:** research 1.36.0, app 3.31.0
+
+<!-- zdroj: research:c7b117cd src/core/config.ts SETTINGS census (env "", tree: true, off|on), censusSwitch (strom.json oběma směry, jinak config uživatele; nenastaveno = off) · src/commands/setup.ts censusDecision (requireHuman: terminál člověka; agent → okno systému, bez okna NeedsConsentError s návodem census propose; STROM_FOR_APP bez okna; vypnutí bez dotazu), effective census off · src/commands/tasks.ts censusOrigin (--census <rok>[:<dům>], census.off s návodem) · src/commands/meta.ts guide census (census.off) · src/brief/brief.ts (podmínka census / census-off) · src/core/live.ts POST /census (409 census.archive) · research:5a73905e src/cli/menu-settings.ts censusLabel, censusStep (ui.settings.census.about, .on, .off; --for-tree; jen mimo archiv) · cs.json ui.settings.census* · assets/method/census.md (úvod) · test/cli/census.test.ts · CHANGELOG.cs.md 1.36.0 „Sčítání lidu“ · dirigent:spec/106-vyzkum-scitani-lidu Proč, K1.1–K1.4, rozhodnutí 19. 11. a 20. 11. M2 -->
+
+<a id="R9.12.1"></a>
+### R9.12.1 Proposal to switch census records on
+
+With census records off, the agent may propose them to the person, once per research.
+
+- **Enforced by the code:**
+  - `strom census propose --why "…" [--person P…]` creates one item of What waits ([R6.2](R6-awaiting-action.md#R6.2))
+    in the research language: “Census records could help this research: … They can be switched on in the settings of
+    this research.” (with a person “Census records could help with …: …”). It waits for the decision: census records
+    switched on, or not;
+  - strom refuses a second proposal, however the first ended (done, dropped, refused). With census records on it
+    refuses every proposal;
+  - `--why` is one or two sentences in the research language, at most 600 characters, and must not address the
+    person;
+  - switching census records on closes the proposal (“Census records switched on”). With census records on, an open
+    proposal is shown nowhere;
+  - the summary of the session in which the proposal was made says so: “Census records proposed to be switched on
+    (T…).”;
+  - the proposal is a task of type **Other**, not a census task.
+- **Method only:** a proposal only at a dead end where a census would help: a person's origin unknown, a gap between
+  register events. After proposing, the agent goes on without census records and does not ask again.
+- **Controls:** app: **Awaiting action**. Terminal: the menu What waits; switching on in [R9.12](#R9.12).
+- **Since:** research 1.36.0
+
+<!-- zdroj: research:5a73905e src/commands/census.ts census propose (census.on, census.proposed, census.addresses, --why max 600, state waiting, wait kind other, origin census:propose) · src/core/census.ts censusProposal, censusHidden · src/commands/setup.ts closeCensusProposal (census.propose.done) · src/commands/session.ts censusSummary (census.propose.session) · src/core/taskkind.ts (census:propose → other) · assets/method/core.md „Census records are off“ · cs.json census.propose.* · dirigent:spec/106 rozhodnutí 20. 11. M1 -->
+
+<a id="R9.12.2"></a>
+### R9.12.2 When and where the agent looks for census records
+
+A census task is one household in one year and house. Where to look tells the agent the list of archives that comes
+with the research.
+
+- **Enforced by the code:**
+  - the brief of a census task (only with census records on) lists the census records from the list of archives:
+    years, area, name index, how a household is searched for, and the way for strom. The level and terms of the
+    archive hold as for every record ([R9.1](#R9.1)), and the way is never milder than the archive's level;
+  - census records in the list of archives (research 1.36.0):
+
+| Archive | Years | Area | Search | Way |
+|---|---|---|---|---|
+| Moravian Land Archive (Acta Publica) | 1857, 1869, 1880, 1890, 1900, 1910, 1921 | South Moravia and Vysočina | municipality, street; no name index | by hand: a person saves the sheet ([R9.10.1](#R9.10.1)) |
+| State Regional Archive in Třeboň (DigiArchiv) | as MZA | South Bohemia | municipality | by hand |
+| East Bohemian archives (ARON) | as MZA | East Bohemia | municipality; no name index | the agent itself |
+| FamilySearch | as MZA | selected places | municipality | a link and a task for the person only |
+| Prague City Archives | 1869, 1880, 1890 | Prague | – | by hand |
+| MyHeritage | 1900, 1910, 1921 | Czechia | name (name index) | by hand |
+| Brno City Archives | 1850, 1857, 1870, 1880, 1890, 1900, 1921 | Brno | name, house (name index) | slowly, one record at a time |
+| Ostrava City Archives | not given | Ostrava | – | slowly, one record at a time |
+
+- **Method only:**
+  - **when:** a person's origin unknown (baptism not found where they lived), a gap between register events (a move,
+    children who died elsewhere, a second marriage), or a house known from a baptism, marriage or burial in a year
+    near a census year;
+  - only people the tree leads to (nothing off the tree), never the living. One task per household, year and house,
+    never per person;
+  - **where:** the census of the municipality and year in the archive's catalogue with one search, never by stepping
+    through numbers. In it the house by its number; where there is a name index, search by name and check the house
+    number. Never step through house numbers or look for people the tree does not need;
+  - an archive that only displays census records: the task waits for a person, with the address of the
+    municipality's census and what to save (“municipality, year, house number: the whole sheet, both sides”), or for
+    the images of a book ([R9.6](#R9.6)). A sheet larger than one screen comes in parts;
+  - not found (the municipality's census lost, the house missing, the family elsewhere): a negative search with what
+    exactly was gone through, and the agent does not come back to it.
+- **Controls:** terminal: `strom task add … --census <year>:<house>`, `strom task wait T… --kind web --url <address>`
+  `--on "…"` or `--images B…:<numbers>`, `strom search add … --result negative`.
+- **Since:** research 1.36.0
+
+<!-- zdroj: research:5a73905e assets/archives.json census (years, area, nameIndex, search, how, says, checked 2026-11-04 až 2026-11-20: mza.cz by-hand, digi.ceskearchivy.cz by-hand, aron.vychodoceskearchivy.cz agent, familysearch.org link, digi.ahmp.cz by-hand, myheritage.com by-hand, digiarchiv.brno.cz slow, badatelna.ostrava.cz slow bez let), censusDays · src/core/census.ts censusHoldings · src/brief/brief.ts (oddíl census jen pro úkol sčítání při zapnutí) · src/core/assets.ts methodFor (census.md) · test/unit/known-terms.test.ts (how nikdy mírnější než úroveň) · assets/method/census.md „When“, „Where“ · dirigent:spec/106 K2.1–K2.4 -->
+
+<a id="R9.12.3"></a>
+### R9.12.3 A household: one shared event
+
+`strom census add` records one sheet (one house, one household) at once. In the Strom app the household is one shared
+event **Census** ([A10.1](A10-shared-events.md#A10.1)).
+
+- **Enforced by the code:**
+  - each member of the household who is a person of the tree gets a census event with their relation to the head and
+    age as on the sheet. Date, place, house, note and the sheet's citation are the same on all copies. A single member
+    from the tree gets a plain census of the person, with the relation in the note;
+  - people on the sheet who are not in the tree (servants, inmates, lodgers) are only in the household's note; no
+    person is created for them. Nothing else is recorded: the year and place of birth from the sheet are not a birth;
+  - **date:** a year alone means that year's census reference day where strom knows it: in Czechia 31 Oct 1857,
+    31 Dec 1869, 1880, 1890, 1900 and 1910, and 15 Feb 1921. Otherwise the year stays. A full date wins;
+  - **place** is a municipality or a place record, never a street or house number. The house is written as the sheet
+    gives it (“14”, “Dlouhá 12”);
+  - **relation:** the fixed words (head of household, wife, husband, son, daughter, father, mother, father-in-law,
+    mother-in-law, son-in-law, daughter-in-law, grandson, granddaughter, brother, sister, stepson, stepdaughter,
+    foster child, relative, servant, farmhand, maid, lodger, inmate, retired farmer, apprentice, journeyman) are
+    recognised in English, Czech, German and Polish and written in the word of the research language. Any other
+    relation stays as written;
+  - the relation as the forms and readings of a sheet give it: “přednosta [domácnosti]”, “hlava rodiny”,
+    “Haushaltungsvorstand”, “głowa rodziny” and “head of the household” are head of household. Words after a relation
+    that say only whom it is to (“manželka přednosty”, “son of the head”, “Tochter des Haushaltungsvorstandes”, “v
+    domácnosti”) are cut off. Of a list with commas, head of household holds where it is among them; otherwise the
+    whole stays;
+  - **refused:** a member who is not a person of the tree (or is merged or retracted), a person given twice, a member
+    with no relation, a person who is likely living, two heads of household, and a household already recorded (same
+    year, municipality and house);
+  - **warned:** other people of the tree in the same house and year (another household of the house, or the same one
+    recorded twice); a census of the same year elsewhere (a move, or two people taken for one);
+  - the copies stay one event: a common field corrected on one copy (`strom event edit`, `strom cite`,
+    `strom note edit|retract|restore`, `strom event main`) and a correction proposal accepted on one copy apply to all.
+    Age, relation, verification and a person's confirmation are each copy's own; the research status goes to all
+    copies only when asked for (`--status`). Nothing that belongs to one copy goes into the common note;
+  - a household can be recorded also with census records off: the command records a sheet supplied, it searches for
+    nothing.
+- **Method only:**
+  - read the sheet like a register entry, the whole household and the head of the house; record it once. Each year is
+    a household of its own, never merged;
+  - **a clue, not proof:** a year or place of birth, home municipality and occupation from a census never replace a
+    birth or baptism. They lead to the register: a task to find the parish of the birthplace. Where the census and
+    the register disagree, a note or hypothesis is made; a fact from the register is not changed because of a census;
+  - **renumbered houses:** know the house also by its neighbours and names, not by its number alone; say any
+    uncertainty in the note.
+- **Controls:** terminal: `strom census add --source S… --date <year|day> --place <municipality|L…> --house <no.>`
+  `--member P…:<relation>:<age> … [--others "…"] [--note "…"] [--locator "…"] [--transcript "…"]`. App: the household
+  at each person and on the **Timeline** ([A10.2](A10-shared-events.md#A10.2), [A6.3](A6-views.md#A6.3)). An example
+  (made up): `strom census add --source S0004 --date 1890 --place L0007 --house 14`
+  `--member P0002:"head of the household":41 --member P0003:"wife of the head":36 --others "farmhand, 19"`
+  records Jan Horák as head of household (41) and Marie Horáková as wife (36), both as of 31 Dec 1890.
+- **Since:** research 1.36.0, app 3.31.0
+
+<!-- zdroj: research:8dba2e52 src/commands/household.ts census add (--source, --date, --place, --house, --member, --others, --note, --locator, --transcript/--quote, --information, --status, --country; sameHouse, elsewhere) · src/core/household.ts addHousehold (census.member.none, record.none, merged/retracted, census.member.twice, census.living, relace chybí, census.head.twice, domácnost už zapsaná; jeden člen bez share id, vztah do poznámky; others jen v poznámce), parseMember, alignCopies · src/gedcom/export.ts (2 NOTE bez řádků kopie) · src/commands/people.ts alignCopies u note edit/retract/restore, cite, event edit, event main · research:ece404b9 src/core/origin.ts (přijatý návrh na všechny kopie), censusDay jedna tabulka · research:5a73905e assets/archives.json censusDays CZ · research:d2bef48e src/core/household.ts householdRoleOf, src/core/phrases.ts HOUSEHOLD_ROLES, HOUSEHOLD_ROLES_ALSO, HOUSEHOLD_OF_HEAD · test/cli/census-household.test.ts, census-reader.test.ts · assets/method/census.md „Reading and recording“ · CHANGELOG.cs.md 1.36.0 · dirigent:spec/106 K3.1–K3.3 · dirigent:prace/1120-vyzkum-106-scitani Výsledek (census add i při vypnutí, stav jen výslovně) -->
+
+<a id="R9.12.4"></a>
+### R9.12.4 Census records off: tasks set aside
+
+Switching census records off sets census tasks aside, it does not delete them. Once switched on, they come back by
+themselves.
+
+- **Enforced by the code:**
+  - with census records off, census tasks that are open or waiting (also for images) are out of the queue, its
+    counts, What waits and the status for the app. Nothing is written or deleted: setting aside follows from the
+    setting;
+  - a task a session is working on right now is not set aside: the session finishes it. If it stays unfinished, it is
+    open again and from then on set aside. The agent is told so when the session closes;
+  - a task a person put off until later stays put off as before. Done and dropped tasks do not change;
+  - `strom task list` says how many census tasks are set aside; `strom task list --kind census` shows them marked
+    “held: census off”. For a task set aside that is started by its number (`strom session start T…`), the agent is
+    told the task is set aside, to close the session and take another task;
+  - the settings menu shows at the setting e.g. “off, 3 census tasks set aside” and after switching off the sentence
+    “Set aside: 3 census tasks. They come back when this is switched on.”
+- **Controls:** terminal: the setting in [R9.12](#R9.12), `strom task list --kind census`. App: the switch
+  [S4.4.10](S4-research-from-the-app.md#S4.4.10) with the sentence on tasks set aside.
+- **Since:** research 1.36.0
+
+<!-- zdroj: research:c7b117cd src/core/census.ts censusHeld (open, parked do uplynulého dne, waiting; nikdy doing ani parked člověkem), censusHidden, censusHeldCount · src/core/queue.ts rankTasks censusHide · src/core/waiting.ts (Co čeká) · src/core/live.ts censusStatus (/status.census {on, held}) · src/commands/tasks.ts task list (censusHeldNow, „held: census off“, --kind census) · src/commands/session.ts censusLine, censusCloseLine · research:5a73905e src/cli/menu-settings.ts censusLabel (ui.settings.census.held), censusStep (ui.settings.census.back) · test/cli/census.test.ts (M3) · dirigent:spec/106 K1.3, rozhodnutí 20. 11. M3 -->
+
+<a id="R9.13"></a>
+## R9.13 A restricted archive: one session at a time
+
+An archive that restricts automated access is used by only one session at a time of all the researches with the
+shared folder on the computer. The archive thus does not block access, and one worker goes at the full allowed pace
+instead of several workers sharing the pace.
+
+- **A restricted archive:** the archive's terms want a person's pace or the browser alone, a person gave the
+  permission “slowly” or “through the browser” ([R9.2](#R9.2)), or the archive's downloader has an hourly cap.
+  A refusal by the archive (401, 403, 429) does not make an archive restricted: the archive is left alone for a while
+  as before. The archive is recognised by the domain of its website.
+- **Enforced by the code:**
+  - a task whose books lie only on a restricted archive takes the archive too when the task is claimed. The session
+    holds the archive; an agent that only strays onto the archive claims it with its first request;
+  - holding the archive ends with the session, with the session lapsing ([R7.9](R7-when-the-agent-works.md#R7.9)),
+    or after `archive.hold` (default 30 min) without a request to the archive, even while the session goes on.
+    Whoever only reads downloaded scans thus releases the archive;
+  - a task on an archive that another session holds is left out for now and other work is taken (“left out: the
+    archive … restricts automated access and another session uses it now”). An agent's request to such an archive is
+    refused;
+  - working alone left only with such tasks waits at most `archive.wait` (default 30 min). Nothing is sent to the
+    archive while it waits. Then the run ends with the reason “nothing else to do — the tasks left need the archive …,
+    which another session used through the whole wait”;
+  - `strom session start T…` on a task of an occupied archive is refused with one sentence: “the archive … is used
+    now by another research (since 9:10, last request 9:40); free by 10:10 at the latest.” In the same research the
+    session's number stands in place of “another research”;
+  - whoever waits for the archive stands in a queue; after the release the one who has waited longest goes first.
+    A session that let the archive go does not claim it again at once when someone is waiting for it.
+- **Bulk download:** on the computer only one bulk download of images from a restricted archive runs at a time
+  (`strom fetch`). Another one joins a queue (“queued behind …”) and waits by itself at most `archive.wait`; then it
+  ends with a time to try again. The download holds the archive too, so the agents of other researches skip it.
+  Unrestricted archives do not change: their pace is still watched only by the request limiter.
+- **Limits:** holding says not how fast the download goes, only who downloads; the archive's pace does not change. An
+  older strom beside this one does not hold archives and keeps only to the pace.
+- **In the app:** who uses an archive and which archive the work waits for is shown by the Research overview
+  ([S4.1](S4-research-from-the-app.md#S4.1), [S4.2](S4-research-from-the-app.md#S4.2)).
+- **Controls:** terminal: `strom config set archive.hold <minutes>`, `strom config set archive.wait <minutes>` (e.g.
+  `45m`, `2h`; 5 min to 24 h, applies to this computer); the menu shows “The work on its own waits for the archive …
+  (at most until …).”
+- **Since:** research 1.36.0
+
+<!-- zdroj: research:10894288, 9408c7ea, 41dcd8eb src/core/archiveholds.ts (hlavička; restrictedLevel: browserOnly, permission slow|browser, allows(…).human; ne forbidden/refused; cappedConnector policy.pace.perHour; siteOf webDomain; siteLife: proces, sezení, archive.hold; PRIORITY_MS 2 min; joinQueue, releaseSite; BULK) · src/commands/connectors.ts:1443-1448 (help fetch), :3085-3190 holdArchive (fetch obrázků čeká ve frontě ≤ archive.wait, ostatní exit 7 data.held) · src/commands/session.ts:985-997, :1355-1389 (stop archive) · src/core/errors.ts:142 archive.held(.own) · src/core/config.ts:336-337 archive.hold, archive.wait · cs.json ui.run.skip.archive, ui.run.archive.wait, ui.run.stop.archive, ui.error.archive.held(.own), ui.menu.working.archive · CHANGELOG.cs.md 1.36.0 · dirigent:spec/127 K2.1–K2.5, K5.1, rozhodnutí 21. 11. (1)–(3), navrh-rezervace.md kap. 5 -->

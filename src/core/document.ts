@@ -998,7 +998,7 @@ function pairByName(mine: DocPerson[], theirs: DocPerson[]): Map<number, number>
  * and order (given name, surname), the events by type and order (date, place). Where they differ is a variant of the
  * entry; an entry only one of them has differs whole. of: each blind entry (its index) → the first one's it was held against.
  */
-export function compareReadings(first: DocEntry[], blind: DocEntry[]): { agree: "same" | "differ"; entries: DocEntry[]; of: Map<number, string> } {
+export function compareReadings(first: DocEntry[], blind: DocEntry[], o: { transcriptOnly?: boolean } = {}): { agree: "same" | "differ"; entries: DocEntry[]; of: Map<number, string> } {
   let all = true;
   const pairs = pairEntries(first, blind);
   const of = new Map<number, string>();
@@ -1011,6 +1011,9 @@ export function compareReadings(first: DocEntry[], blind: DocEntry[]): { agree: 
     if (!b) variants.push({ field: "entry", at: e.id, other: "" });
     else {
       for (const d of wordDiff(e.transcript, b.transcript)) variants.push({ field: "transcript", ...d });
+    }
+    // a reading service read one of the two (core/readprovider.ts: the transcript alone): only the transcripts compared
+    if (b && !o.transcriptOnly) {
       const groups = (ps: DocPerson[]) => {
         const m = new Map<string, DocPerson[]>();
         for (const p of ps) m.set(p.role, [...(m.get(p.role) ?? []), p]);
@@ -1253,6 +1256,10 @@ export interface ReadReport {
   /** When its reader began and ended (none of a report before strom kept them). */
   began?: string;
   ended?: string;
+  /** Read by a reading service (core/readprovider.ts): the transcript alone, its lines beside the report. None: an agent. */
+  kind?: "service";
+  /** What a service's reading cost in the credits of the person's account with it. */
+  credits?: number;
 }
 
 /** Who reads, as asked for one reader (each field left out: as the research reads — its settings). */
@@ -1278,6 +1285,10 @@ export interface ReaderWho {
   state?: ReaderState;
   /** done: the seconds it took to read, from its first page begun to its last ended (none of a reading before strom kept when). */
   secs?: number;
+  /** A reading service read (core/readprovider.ts: the transcript alone); none: an agent. */
+  kind?: "service";
+  /** The credits of the person's account with the service it cost. */
+  credits?: number;
 }
 
 export const READER_STATES = ["queued", "reading", "done", "failed"] as const;
@@ -1420,6 +1431,16 @@ export function reportPath(root: string, id: string, n: number): string {
   return path.join(root, "notes", "readings", `${id}-${n}.md`);
 }
 
+/** The lines a reading service read, with where they stand, beside its report: notes/readings/<id>-<n>.lines.json. */
+export function linesPath(root: string, id: string, n: number): string {
+  return linesPathOf(reportPath(root, id, n));
+}
+
+/** The file of a report's lines beside it (<report>.md → <report>.lines.json). */
+export function linesPathOf(report: string): string {
+  return report.replace(/\.md$/u, "") + ".lines.json";
+}
+
 export function resultPath(root: string, id: string): string {
   return path.join(root, "notes", "readings", `${id}.json`);
 }
@@ -1481,7 +1502,8 @@ export interface ReadResult {
   incomplete?: number[];
   persons?: string[];
   note?: string;
-  cost?: { amount: number; currency: "USD"; partial?: true };
+  /** credits: what reading services cost in the credits of the person's accounts with them (none: no service read). */
+  cost?: { amount: number; currency: "USD"; partial?: true; credits?: number };
   error?: string;
   failure?: ReadFailure;
 }
@@ -1593,7 +1615,8 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
   let blind: ReadResult["blind"];
   if (blindRan && s.readers > 1 && firstRead) {
     const blindEntries = entriesOf(blinds, true);
-    const c = compareReadings(entries, blindEntries);
+    // a reading service read one of them (the transcript alone, no people): only their transcripts held against each other
+    const c = compareReadings(entries, blindEntries, { transcriptOnly: [...firsts, ...blinds].some((r) => r?.kind === "service") });
     entries = c.entries;
     agree = c.agree;
     if (blindEntries.length)
@@ -1620,7 +1643,9 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
   const ran = (firsts.some(said) ? 1 : 0) + (blinds.some(said) ? 1 : 0);
   const who = whoRead(s, [firsts, blinds], (rs) => rs.some(said), s.state === "reading" || s.state === "queued");
   const usd = s.reports.reduce((n, r) => n + (r.usd ?? 0), 0);
-  const partial = s.reports.some((r) => r.outcome !== undefined && (r.usd === undefined || r.partial));
+  // a service says what it cost in its own credits, not in dollars: no reason to say the dollars are "at least"
+  const partial = s.reports.some((r) => r.outcome !== undefined && ((r.usd === undefined && r.credits === undefined) || r.partial));
+  const credits = s.reports.some((r) => r.credits !== undefined) ? Math.round(s.reports.reduce((n, r) => n + (r.credits ?? 0), 0) * 100) / 100 : undefined;
   return {
     id: s.id,
     state: s.state,
@@ -1641,7 +1666,7 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
     ...(incomplete.length ? { incomplete: [...new Set(incomplete)].sort((a, b) => a - b) } : {}),
     ...(s.persons?.length ? { persons: s.persons } : {}),
     ...(s.note ? { note: s.note } : {}),
-    ...(usd || s.reports.some((r) => r.usd !== undefined) ? { cost: { amount: Math.round(usd * 100) / 100, currency: "USD" as const, ...(partial ? { partial: true as const } : {}) } } : {}),
+    ...(usd || s.reports.some((r) => r.usd !== undefined) || credits !== undefined ? { cost: { amount: Math.round(usd * 100) / 100, currency: "USD" as const, ...(partial ? { partial: true as const } : {}), ...(credits !== undefined ? { credits } : {}) } } : {}),
     ...(s.error ? { error: s.error } : {}),
     ...(s.failure ? { failure: s.failure } : {}),
   };
@@ -1702,7 +1727,11 @@ function whoRead(s: ReadState, reports: (ReadReport | undefined)[][], read: (rs:
     const effort = r ? r.effort : asked?.effort;
     const state = readerState(s, reports[i]!, read, atWork);
     const secs = state === "done" ? readerSecs(reports[i]!) : undefined;
-    out.push({ agent, ...(model ? { model } : {}), ...(effort ? { effort } : {}), ...(ended && !read(reports[i]!) ? { ran: false as const } : {}), ...(state ? { state } : {}), ...(secs !== undefined ? { secs } : {}) });
+    // a reading service: said so, and the credits of its account it cost
+    const service = r ? r.kind === "service" : false;
+    const mine = reports[i]!.filter((x): x is ReadReport => !!x && x.credits !== undefined);
+    const credits = mine.length ? Math.round(mine.reduce((n, x) => n + x.credits!, 0) * 100) / 100 : undefined;
+    out.push({ agent, ...(model ? { model } : {}), ...(effort ? { effort } : {}), ...(ended && !read(reports[i]!) ? { ran: false as const } : {}), ...(state ? { state } : {}), ...(secs !== undefined ? { secs } : {}), ...(service ? { kind: "service" as const } : {}), ...(credits !== undefined ? { credits } : {}) });
   }
   return out;
 }

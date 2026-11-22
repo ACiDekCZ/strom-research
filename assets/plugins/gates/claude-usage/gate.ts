@@ -1,6 +1,6 @@
 // A strom gate (interface 1): let the research work alone while the Claude
-// subscription has room. It asks Claude Code itself (`claude -p /usage`, the
-// plan's limits as the server reports them) and answers strom:
+// subscription has room. It asks Claude Code itself for the plan's limits as
+// the server reports them (see "Two ways to ask" below) and answers strom:
 //   exit 0  go on           exit 1  wait (JSON "until": when to ask again)
 //   exit 2  stop the run    — one line of JSON on stdout says why.
 //
@@ -34,7 +34,17 @@
 // session of every run, and no "start anyway" goes past it; a session at work
 // is asked to finish when the week reaches 99 %. What the agent said of its
 // limits in this run (STROM_AGENT_LIMITS, at most 15 minutes old) is read
-// instead of asking `claude -p /usage`.
+// instead of asking Claude Code.
+//
+// Two ways to ask. First the SDK's control request get_usage with
+// skip_behaviors (one line of JSON on stdin of `claude -p --input-format
+// stream-json`): the plan's limits alone, in a second or two, no model called.
+// `claude -p /usage` adds to them, always, what contributed to the usage — read
+// from every conversation kept on the computer in the last 7 days, which took
+// over a minute on a busy computer (2026-11-03: 75 s). When get_usage is not
+// read (an older Claude Code that does not know it, an error, no answer in
+// GET_MS, no week's limit in it, no limits at all: an API key or no login),
+// `claude -p /usage` is asked as before; it also says which of the two it is.
 //
 // What `claude -p /usage` says is not always read: an answer without the
 // week's line, an exit status, no answer in time. It asks again (ATTEMPTS, a
@@ -49,7 +59,7 @@ import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 
 const DAY = 86_400_000;
-/** What the agent said of its limits counts for this long; older: `claude -p /usage` is asked. */
+/** What the agent said of its limits counts for this long; older: Claude Code is asked. */
 const FRESH_MS = 15 * 60_000;
 /** Under a cap, a session at work is asked to finish at the cap — at most at this much of the week. */
 const FINISH_AT = 0.99;
@@ -79,6 +89,13 @@ const lang = (process.env.STROM_LANG ?? "en").slice(0, 2);
  */
 const ATTEMPTS = 3;
 const ASK_MS = 180_000;
+/**
+ * get_usage answers in a second or two; past this `claude -p /usage` is asked, with the rest of BUDGET_MS (tests give a
+ * shorter one: CLAUDE_USAGE_GET_MS).
+ */
+const GET_MS = /^\d+$/.test(process.env.CLAUDE_USAGE_GET_MS ?? "") ? Number(process.env.CLAUDE_USAGE_GET_MS) : 30_000;
+/** The id of the gate's control request, found again in Claude Code's answer. */
+const REQUEST_ID = "strom-gate-usage";
 /** The pause between two askings (tests give a shorter one: CLAUDE_USAGE_RETRY_MS). */
 const RETRY_MS = /^\d+$/.test(process.env.CLAUDE_USAGE_RETRY_MS ?? "") ? Number(process.env.CLAUDE_USAGE_RETRY_MS) : 30_000;
 /** All the askings within this, inside the gate's timeout (gate.json: 660 s). */
@@ -245,11 +262,11 @@ let session: Use | undefined;
 let week: Use | undefined;
 
 // ── what the agent said in this run, when it is fresh ───────────────────────
-const said = fromAgent(process.env.STROM_AGENT_LIMITS);
+const began = Date.now();
+const said = fromAgent(process.env.STROM_AGENT_LIMITS) ?? getUsage(GET_MS);
 if (said) ({ session, week } = said);
 else {
-  // ── what Claude Code says: asked again when it cannot be read, then a wait — never a stop for one answer ─────
-  const began = Date.now();
+  // ── what `claude -p /usage` says: asked again when it cannot be read, then a wait — never a stop for one answer ─
   let detail = "";
   let tries = 0;
   for (;;) {
@@ -273,19 +290,19 @@ else {
     if (tries >= ATTEMPTS || BUDGET_MS - (Date.now() - began) < RETRY_MS + ASK_MS / 2) break;
     sleep(RETRY_MS);
   }
-  if (!week) answer(1, say("unreadWait", { tries, detail, min: UNREAD_WAIT / 60_000 }), new Date(Date.now() + UNREAD_WAIT));
+  if (!week) answer(1, say("unreadWait", { tries, detail, min: UNREAD_WAIT / 60_000 }), new Date(nowMs() + UNREAD_WAIT));
 }
 if (!week) answer(2, say("unread", { detail: say("noweek") }));
 // the week's line without its reset: nothing used yet goes (a new week), else what it says is not read
 if (!week.resets) {
   if (week.used === 0) answer(0, say("unused"));
-  answer(1, say("unreadWait", { tries: 1, detail: say("noweek"), min: UNREAD_WAIT / 60_000 }), new Date(Date.now() + UNREAD_WAIT));
+  answer(1, say("unreadWait", { tries: 1, detail: say("noweek"), min: UNREAD_WAIT / 60_000 }), new Date(nowMs() + UNREAD_WAIT));
 }
 // the cap first: the user's own hard stop, whatever the pace
 if (cap !== undefined && week.used >= cap)
   answer(2, say("cap", { used: Math.floor(week.used), cap, resets: week.resets.toLocaleString(lang, { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" }) }), undefined, true);
 
-const now = Date.now();
+const now = nowMs();
 const resets = week.resets.getTime();
 const start = resets - WEEK;
 const gone = Math.max(0, Math.min(100, ((now - start) / WEEK) * 100));
@@ -338,6 +355,52 @@ const tail =
 answer(1, head(false, true) + tail, new Date(Math.max(at, now + 5 * 60_000)));
 
 /**
+ * The plan's limits by the control request get_usage (skip_behaviors: the limits alone, nothing read of the
+ * conversations kept on the computer), or nothing — then `claude -p /usage` is asked, which also tells an API key and
+ * a Claude Code not logged in (get_usage says only that there are no limits) and says why it was not read.
+ */
+function getUsage(timeout: number): { session?: Use; week: Use } | undefined {
+  const request = { type: "control_request", request_id: REQUEST_ID, request: { subtype: "get_usage", skip_behaviors: true } };
+  const r = spawnSync("claude", ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"], {
+    encoding: "utf8",
+    input: JSON.stringify(request) + "\n",
+    timeout: Math.max(100, timeout),
+    shell: process.platform === "win32",
+    windowsHide: true,
+    stdio: ["pipe", "pipe", "ignore"],
+  });
+  if (r.error || r.status !== 0) return undefined;
+  for (const raw of (r.stdout ?? "").split(/\r?\n/)) {
+    if (!raw.includes(REQUEST_ID)) continue;
+    let line: unknown;
+    try {
+      line = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    const res = (line as { type?: unknown; response?: { subtype?: unknown; request_id?: unknown; response?: unknown } })?.response;
+    if ((line as { type?: unknown }).type !== "control_response" || res?.request_id !== REQUEST_ID) continue;
+    // an older Claude Code: "Unsupported control request subtype"
+    if (res.subtype !== "success") return undefined;
+    const said = res.response as { rate_limits_available?: unknown; rate_limits?: Record<string, unknown> | null } | undefined;
+    if (said?.rate_limits_available !== true || !said.rate_limits) return undefined;
+    // utilization 0–100, resets_at an ISO moment (none: a window not begun)
+    const of = (kind: string): Use | undefined => {
+      const l = said.rate_limits![kind] as { utilization?: unknown; resets_at?: unknown } | null | undefined;
+      if (!l || typeof l.utilization !== "number" || !Number.isFinite(l.utilization)) return undefined;
+      const at = typeof l.resets_at === "string" ? new Date(l.resets_at) : undefined;
+      return { used: l.utilization, ...(at && !Number.isNaN(at.getTime()) ? { resets: at } : {}) };
+    };
+    const week = of("seven_day");
+    // as from /usage: the week's line without its reset is read only when nothing is used yet
+    if (!week || (!week.resets && week.used !== 0)) return undefined;
+    const session = of("five_hour");
+    return { week, ...(session ? { session } : {}) };
+  }
+  return undefined;
+}
+
+/**
  * `claude -p /usage` once: the session's and the week's use, an API key's answer, or why it was not read — with the
  * first line it said (shortened, no e-mail address), so the gate's log says what Claude Code answered.
  */
@@ -385,6 +448,20 @@ function loggedIn(): boolean | undefined {
   }
 }
 
+/**
+ * What time it is now: the computer's clock. A test fixes it (STROM_GATE_NOW: an ISO moment or epoch milliseconds), so
+ * the week gone, the resets and the waits it answers are exact; strom never sets it. How long an asking takes is
+ * measured on the computer's clock always.
+ */
+function nowMs(): number {
+  const fixed = process.env.STROM_GATE_NOW;
+  if (fixed) {
+    const at = /^\d+$/.test(fixed) ? Number(fixed) : Date.parse(fixed);
+    if (Number.isFinite(at)) return at;
+  }
+  return Date.now();
+}
+
 /** Waits here (the gate is one short program: nothing else to do meanwhile). */
 function sleep(ms: number): void {
   if (ms > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -406,7 +483,7 @@ function hold(resets: number | undefined): void {
   if (!HOLD) return;
   try {
     if (resets === undefined) fs.rmSync(HOLD, { force: true });
-    else fs.writeFileSync(HOLD, JSON.stringify({ week: new Date(resets).toISOString(), since: new Date().toISOString() }) + "\n");
+    else fs.writeFileSync(HOLD, JSON.stringify({ week: new Date(resets).toISOString(), since: new Date(nowMs()).toISOString() }) + "\n");
   } catch {
     // a folder it may not write here: it asks as if for the first time
   }
@@ -437,7 +514,7 @@ function fromAgent(json: string | undefined): { session?: Use; week: Use } | und
     if (!l || typeof l.used !== "number" || !Number.isFinite(l.used) || typeof l.at !== "string") return undefined;
     const at = Date.parse(l.at);
     const resets = typeof l.resetsAt === "string" ? new Date(l.resetsAt) : undefined;
-    if (Number.isNaN(at) || Date.now() - at > FRESH_MS || !resets || Number.isNaN(resets.getTime()) || resets.getTime() <= Date.now()) return undefined;
+    if (Number.isNaN(at) || nowMs() - at > FRESH_MS || !resets || Number.isNaN(resets.getTime()) || resets.getTime() <= nowMs()) return undefined;
     return { used: l.used * 100, resets };
   };
   const week = of("seven_day");
@@ -461,20 +538,21 @@ function resetAt(s: string): Date | undefined {
   const zone = m[6]!;
   if (!m[1]) {
     // a time alone: today's in the zone, else tomorrow's
-    const [y, mo, d] = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()).split("-").map(Number) as [number, number, number];
+    const [y, mo, d] = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(nowMs())).split("-").map(Number) as [number, number, number];
     for (const add of [0, 1]) {
       const guess = Date.UTC(y, mo - 1, d + add, hour, minute);
       const at = guess - offsetMs(guess, zone);
-      if (at > Date.now()) return new Date(at);
+      if (at > nowMs()) return new Date(at);
     }
     return undefined;
   }
   const month = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(m[1].toLowerCase());
   if (month < 0) return undefined;
-  for (const year of [new Date().getUTCFullYear(), new Date().getUTCFullYear() + 1]) {
+  const thisYear = new Date(nowMs()).getUTCFullYear();
+  for (const year of [thisYear, thisYear + 1]) {
     const guess = Date.UTC(year, month, Number(m[2]), hour, minute);
     const at = guess - offsetMs(guess, zone);
-    if (at > Date.now() - DAY) return new Date(at);
+    if (at > nowMs() - DAY) return new Date(at);
   }
   return undefined;
 }

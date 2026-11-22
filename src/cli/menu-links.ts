@@ -9,13 +9,15 @@ import path from "node:path";
 import type { Context } from "./context.ts";
 import { outOfAnswers, translator, type Run } from "./menu-parts.ts";
 import { askPaths, directionTasks, offerChat, setDirection } from "./menu-research.ts";
-import { humanCost, humanDay, humanTask, humanWhen } from "./human.ts";
+import { humanClaim, humanCost, humanDay, humanTask, humanWhen, whoSaid } from "./human.ts";
 import { lines, truncate } from "./format.ts";
 import { isArchive } from "../core/mode.ts";
 import type { UIKey } from "./ui.ts";
 import { actsAsArchive, kindOf, type Kind } from "../core/state.ts";
 import { Tree } from "../core/tree.ts";
-import { DEFAULT_RUN_MINUTES, readStored } from "../core/config.ts";
+import { DEFAULT_RUN_MINUTES, DEFAULT_RUN_PARALLEL, readStored } from "../core/config.ts";
+import { lineRunFilter, runRefusal } from "../core/linerun.ts";
+import { runsAtWork } from "../core/workers.ts";
 import { choosePace } from "../commands/setup.ts";
 import type { Conflict, Family, Hypothesis, HypothesisVariant, HypothesisWrote, Person, Research, Session, Source, Task, VariantLink } from "../core/model.ts";
 import { costPartial, monthSpend, sessionCost } from "../core/session.ts";
@@ -48,13 +50,15 @@ import { normId } from "../core/records.ts";
 import { settledClaim } from "../core/labels.ts";
 import { sideOf, sideText, sidesOf } from "../core/conflicts.ts";
 import { PROFILES } from "../agents/profiles.ts";
+import { isAgent } from "../core/which.ts";
 import { foldText, safeFolderName } from "../core/text.ts";
 import { StromError } from "../core/errors.ts";
 import { forgetTree } from "../commands/trees.ts";
 import { archiveQuestions } from "../core/archiveasks.ts";
 import { questionHosts } from "../core/terms.ts";
 import { bareHost, listConnectors } from "../core/connector.ts";
-import { decideArchive } from "./menu-archives.ts";
+import { decideArchive, decideFloor } from "./menu-archives.ts";
+import { floorQuestion } from "../core/floor.ts";
 import { bareArchive } from "../commands/archives.ts";
 import { inboxOf, requestFile, sameGroup } from "../core/waiting.ts";
 import { SENDABLE, waitGroupOf, waitKindOf } from "../core/waitkind.ts";
@@ -76,6 +80,27 @@ export async function asks(ctx: Context, lang: string, root: string, what: strin
   const name = Tree.open(root, ctx.env).config.name;
   ctx.io.stdout(lines(translator(lang)("ui.link.asks", { what, name }), note, "") + "\n");
   return ctx.confirm(translator(lang)("ui.link.go"), suggested);
+}
+
+/**
+ * What the Strom app asks that starts the agent on the subscription or AI credit (ui.link.cost): asked as `asks` does,
+ * or — the person's standing yes, run.confirm no (spec 123) — started at once with one line saying so and where the
+ * question is turned on again. Still asked: a question that says a price in money (`priced`), an agent's or a script's
+ * own command (only the person in their terminal), and all the rest (consents, deletions, the gate of strom run).
+ */
+export async function asksToStart(ctx: Context, lang: string, root: string, what: string, note?: string, suggested = true, priced = false): Promise<boolean> {
+  if (!startsUnasked(ctx, priced)) return asks(ctx, lang, root, what, note, suggested);
+  const name = Tree.open(root, ctx.env).config.name;
+  ctx.io.stdout(translator(lang)("ui.link.noconfirm", { what: what.trim().replace(/[.:]$/u, ""), name }) + "\n");
+  return true;
+}
+
+/**
+ * Whether asksToStart starts without its question (run.confirm no, a person in their terminal, no price in money): what
+ * the link starts right after it is then not asked yes or no again — the line said it starts.
+ */
+export function startsUnasked(ctx: Context, priced = false): boolean {
+  return !priced && ctx.settings.runConfirm() === "no" && ctx.interactive && !isAgent(ctx.env);
 }
 
 const out = (ctx: Context, line: string) => ctx.io.stdout(line + "\n");
@@ -164,7 +189,7 @@ export async function openTask(ctx: Context, run: Run, lang: string, root: strin
   }
   const usd = taskEstimate(tree, task);
   const note = lines(usd ? t("ui.link.open.estimate", { from: humanCost(usd[0], lang), to: humanCost(usd[1], lang) }) : t("ui.link.open.estimate.none"), t("ui.link.cost"));
-  if (!(await asks(ctx, lang, root, t("ui.link.what.task.open.chat", { agent, what: shown }), note, false))) return false;
+  if (!(await asksToStart(ctx, lang, root, t("ui.link.what.task.open.chat", { agent, what: shown }), note, false, !!usd))) return false;
   return (await run(["chat", "--task", task.id])) === 0;
 }
 
@@ -187,7 +212,7 @@ export async function waitingDo(ctx: Context, run: Run, lang: string, root: stri
     if (menu) return (await run(["chat", "--task", task.id])) === 0;
     const more = sameGroup(tree, task, ctx.settings.shared()?.value).length;
     const said = `${t("ui.link.what.task.chat", { agent, what: shown })}${more ? t("ui.link.what.task.chat.more", { n: more }) : ""}`;
-    if (!(await asks(ctx, lang, root, said, t("ui.link.cost")))) return false;
+    if (!(await asksToStart(ctx, lang, root, said, t("ui.link.cost")))) return false;
     return (await run(["chat", "--task", task.id])) === 0;
   }
   if (what === "note") {
@@ -246,6 +271,9 @@ export async function archiveAsked(ctx: Context, run: Run, lang: string, root: s
   const tree = Tree.open(root, ctx.env);
   if (isArchive(tree)) return stop(ctx, t("ui.link.archive.none"));
   const q = archiveQuestions(tree).find((p) => p.kind === "permission" && questionHosts(p).includes(host));
+  // a level strom keeps stricter than strom's list of the archive's terms (the app shows it as the archive's item)
+  const shared = ctx.settings.shared()?.value;
+  if (!q && floorQuestion(ctx.env, host, { tree, ...(shared ? { shared } : {}) })) return decideFloor(ctx, run, lang, root, host);
   // a question that waits, a downloader here, or an archive of strom's list only a person's browser goes to that the
   // agent's browser would help at (the app's Permission… at what waits for its images, no downloader needed)
   const known = q ? true : listConnectors(ctx.settings.shared()?.value, ctx.env).some((c) => c.manifest.hosts.map(bareHost).includes(host)) || !!bareArchive(ctx, host);
@@ -421,9 +449,9 @@ export async function placeSearch(ctx: Context, run: Run, lang: string, root: st
  * place with &place=L…): the queue said here — how many places, in how many sessions by area, one session's estimate
  * and the whole queue's, the gate of the runs and the limit of a session, what goes to searches — and on the person's
  * yes the place queued (when it is not), the task of identification on top of the queue, then sessions started now if
- * wanted: one batch, one session (asked yes or no); more, how many of them (placesSessions), run one after another by
- * strom run --places (Ctrl-C after the session at work; the places left stay queued). The bridge never starts it
- * (403 places.link).
+ * wanted: one batch, one session (asked yes or no; at once under run.confirm no); more, how many of them (placesSessions,
+ * Enter at least one), run one after another by strom run --places (Ctrl-C after the session at work; the places left
+ * stay queued). The bridge never starts it (403 places.link).
  */
 export async function placesRun(ctx: Context, run: Run, lang: string, root: string, id?: string): Promise<boolean> {
   const t = translator(lang);
@@ -452,17 +480,21 @@ export async function placesRun(ctx: Context, run: Run, lang: string, root: stri
     t("ui.link.cost"),
   );
   const what = p ? t("ui.link.what.places.one", { place: placeLabel(p, lang) }) : t("ui.link.what.places");
-  if (!(await asks(ctx, lang, root, what, note, false))) return false;
+  // a price in money said (sessions measured here): asked whatever run.confirm says
+  const priced = !!est.session.usd || (batches > 1 && !!est.queue?.usd);
+  const unasked = startsUnasked(ctx, priced);
+  if (!(await asksToStart(ctx, lang, root, what, note, false, priced))) return false;
   // the place queued by the person (a place queued already, the whole queue: shown, its task kept with it)
   if ((await run(p && !inQueue ? ["place", "queue", p.id] : ["place", "queue"], true)) !== 0) return false;
   const queued = Tree.open(root, ctx.env);
   const task = queued.list<Task>("task").find((x) => x.origin === PLACES_IDENTIFY_ORIGIN && (x.state === "open" || x.state === "doing"));
   out(ctx, t("ui.link.places.done"));
   if (!task || task.state === "doing") return true;
-  // one batch: one session, asked as it was; more: how many now, each count with its estimate
+  // one batch: one session, asked as it was — started at once where the line said so (run.confirm no, spec 123); more:
+  // how many now, each count with its estimate (a choice, not a yes: Enter starts at least one)
   const now = queueView(queued).batches;
   if (now <= 1) {
-    if (!(await ctx.confirm(t("ui.link.places.now"), false))) return true;
+    if (!unasked && !(await ctx.confirm(t("ui.link.places.now"), false))) return true;
     return (await run(["run", "--task", task.id])) === 0;
   }
   const count = await placesSessions(ctx, t, lang, queued, now);
@@ -482,19 +514,49 @@ const WORK_LIST = 5;
  * n tasks or for as long as there is work, the time of a session, the gate (asked once for n tasks, before each
  * session of the loop) — and on the person's yes (no by default) strom run --tasks n or strom run --loop in this
  * terminal (Ctrl-C asks the session at work to finish and stops). The loop goes only under a gate: none set, it is not
- * started — n tasks instead or the gate picked as in the settings, or nothing. The bridge never starts it.
+ * started — n tasks instead or the gate picked as in the settings, or nothing. The bridge never starts it. The tasks the
+ * link names (do=tasks&task=T…,T…: the app's "work on them now", spec 065 K7.2): those still open and held by nobody,
+ * one session each in the link's order (strom run --task), the rest said left out; none left: nothing started.
  */
-export async function workRun(ctx: Context, run: Run, lang: string, root: string, what: (typeof LINK_WORK_DOS)[number], n?: number): Promise<boolean> {
+export async function workRun(ctx: Context, run: Run, lang: string, root: string, what: (typeof LINK_WORK_DOS)[number], n?: number, picked?: string[], byLine?: { research: string; agent?: string }): Promise<boolean> {
   const t = translator(lang);
   const tree = Tree.open(root, ctx.env);
-  // its sessions are strom run's: the agent's CLI not here said before anything else
-  if (!(await agentCliHere(ctx, run, lang, tree))) return false;
-  // a run or a session at work already (the app's state may be older than the click): nothing more started
-  const busy = busyIn(tree);
-  if (busy.runs || busy.sessions.length) return stop(ctx, t("ui.link.work.busy", { runs: busy.runs, sessions: busy.sessions.length }));
-  // the queue as strom run takes it: a story now and then, history by its pace, the one put next first, without what others hold
+  const max = ctx.settings.number("run.parallel", undefined, DEFAULT_RUN_PARALLEL);
+  let line: Research | undefined;
+  if (byLine) {
+    // a run of one line (spec 126): the line, the agent the app chose, and a refusal (the limit of runs, the line held,
+    // a run of an older strom) said in one sentence — nothing started
+    const r = tree.get<Research>(byLine.research);
+    if (!r || r.type !== "research" || r.retracted) return stop(ctx, t("ui.link.direction.none", { id: byLine.research }));
+    if (r.state !== "active") return stop(ctx, t("ui.link.work.line.state", { name: r.name, state: t(r.state === "paused" ? "ui.link.work.line.paused" : "ui.link.work.line.done") }));
+    if (byLine.agent && !agentsHere(ctx.env).some((a) => a.id === byLine.agent && a.cli && PROFILES[a.id])) return stop(ctx, t("ui.link.work.agent", { agent: PROFILES[byLine.agent]?.name ?? byLine.agent }));
+    if (!byLine.agent && !(await agentCliHere(ctx, run, lang, tree))) return false;
+    const refused = runRefusal(root, { research: r.id, max });
+    if (refused?.code === "run.line.older") return stop(ctx, t("ui.link.work.older", { name: r.name }));
+    if (refused?.code === "run.line.held") {
+      const since = String(refused.params?.since ?? "");
+      return stop(ctx, t("ui.run.line.held", { name: r.name, since: since ? new Date(since).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" }) : "–" }));
+    }
+    if (refused) return stop(ctx, t("ui.link.work.cap", { running: runsAtWork(root).length, max }));
+    line = r;
+  } else {
+    // its sessions are strom run's: the agent's CLI not here said before anything else
+    if (!(await agentCliHere(ctx, run, lang, tree))) return false;
+    // a run of the whole queue or a session of none of the lines' runs at work already (the app's state may be older
+    // than the click): nothing more started; the runs of lines beside it count only against the limit of runs
+    const busy = busyIn(tree);
+    const lineRuns = new Set(runsAtWork(root).filter((w) => w.research).map((w) => w.id));
+    const sessions = busy.sessions.filter((x) => !lineRuns.has(tree.get<Session>(x.id)?.worker ?? ""));
+    const runs = busy.runs - lineRuns.size;
+    if (runs > 0 || sessions.length) return stop(ctx, t("ui.link.work.busy", { runs, sessions: sessions.length }));
+    if (runRefusal(root, { max })) return stop(ctx, t("ui.link.work.cap", { running: runsAtWork(root).length, max }));
+  }
+  if (picked) return workOn(ctx, run, lang, root, tree, picked);
+  // the queue as strom run takes it: a story now and then, history by its pace, the one put next first, without what
+  // others hold — a line's run: its tasks only; the whole queue's: without the tasks of the lines with a run of their own
   const held = othersAtWork(tree, tree.env).tasks;
-  const queue = taskQueue(tree, { strategy: ctx.settings.strategy(tree.config), ...RUN_TURNS }).filter((x) => !held.has(x.id));
+  const takes = lineRunFilter(tree, line?.id, "");
+  const queue = taskQueue(tree, { strategy: ctx.settings.strategy(tree.config), ...RUN_TURNS }).filter((x) => !held.has(x.id) && takes(x));
   if (!queue.length) return stop(ctx, t("ui.link.work.empty"));
   let tasks = what === "tasks" ? (n ?? LINK_WORK_DEFAULT) : undefined;
   if (what === "loop" && !ctx.settings.runGate()) {
@@ -524,6 +586,8 @@ export async function workRun(ctx: Context, run: Run, lang: string, root: string
   const spec = ctx.settings.runGate();
   const gate = spec ? gateLabel(ctx.settings.shared()?.value, spec) : undefined;
   const note = lines(
+    line ? t("ui.run.line", { name: line.name, research: line.id }) : undefined,
+    line && byLine?.agent ? t("ui.link.work.agent.is", { agent: PROFILES[byLine.agent]?.name ?? byLine.agent }) : undefined,
     t("ui.run.next"),
     ...shown.map((x, k) => `  ${String(k + 1).padStart(2)}. ${truncate(humanTask(fresh, x.what, lang), 100)}${forStory(x) ? t("ui.run.story") : forHistory(x) ? t("ui.run.ofhistory") : ""}${lacksImages(fresh, x) ? t("ui.plan.images") : ""}`),
     queue.length > shown.length ? `      ${t("ui.plan.more", { n: queue.length - shown.length })}` : undefined,
@@ -533,9 +597,36 @@ export async function workRun(ctx: Context, run: Run, lang: string, root: string
     t("ui.link.cost"),
   );
   const said = tasks !== undefined ? t("ui.link.what.work.tasks", { n: tasks }) : t("ui.link.what.work.loop");
-  if (!(await asks(ctx, lang, root, said, note, false))) return false;
+  if (!(await asksToStart(ctx, lang, root, said, note, false))) return false;
   out(ctx, t("ui.link.work.stop"));
-  return (await run(tasks !== undefined ? ["run", "--tasks", String(tasks)] : ["run", "--loop"])) === 0;
+  const of = line ? ["--research", line.id, ...(byLine?.agent ? ["--agent", byLine.agent] : [])] : [];
+  return (await run(tasks !== undefined ? ["run", ...of, "--tasks", String(tasks)] : ["run", ...of, "--loop"])) === 0;
+}
+
+/** The tasks a link names worked on now (workRun): one session each, in the link's order, on the person's yes. */
+async function workOn(ctx: Context, run: Run, lang: string, root: string, tree: Tree, ids: string[]): Promise<boolean> {
+  const t = translator(lang);
+  const held = othersAtWork(tree, tree.env).tasks;
+  const named = [...new Set(ids.map((id) => normId(id, "task")))];
+  const open = named.map((id) => tree.get<Task>(id)).filter((x): x is Task => !!x && x.type === "task" && !x.retracted && x.state === "open" && !held.has(x.id));
+  if (!open.length) return stop(ctx, t("ui.link.work.picked.none"));
+  const shown = open.slice(0, WORK_LIST);
+  const minutes = ctx.settings.number("run.minutes", tree.config, DEFAULT_RUN_MINUTES);
+  const spec = ctx.settings.runGate();
+  const gate = spec ? gateLabel(ctx.settings.shared()?.value, spec) : undefined;
+  const note = lines(
+    open.length < named.length ? t("ui.link.work.picked.gone", { n: named.length - open.length }) : undefined,
+    t("ui.link.work.picked.head"),
+    ...shown.map((x, k) => `  ${String(k + 1).padStart(2)}. ${truncate(humanTask(tree, x.what, lang), 100)}${lacksImages(tree, x) ? t("ui.plan.images") : ""}`),
+    open.length > shown.length ? `      ${t("ui.plan.more", { n: open.length - shown.length })}` : undefined,
+    t("ui.link.work.picked", { n: open.length }),
+    t("ui.run.limit", { minutes }),
+    gate ? t("ui.link.work.gate.once", { gate }) : t("ui.link.work.gate.none"),
+    t("ui.link.cost"),
+  );
+  if (!(await asksToStart(ctx, lang, root, t("ui.link.what.work.picked", { n: open.length }), note, false))) return false;
+  out(ctx, t("ui.link.work.stop"));
+  return (await run(["run", "--task", open.map((x) => x.id).join(",")])) === 0;
 }
 
 /**
@@ -637,6 +728,23 @@ export async function finishSession(ctx: Context, run: Run, lang: string, root: 
   return (await run(["session", "finish", s.id])) === 0;
 }
 
+/**
+ * A run asked to finish and end (strom-research://finish?run=…, spec 126): its session's agent writes down what it
+ * found and closes it, the run starts no next one; a run that waits (its gate, the plan's limit, an archive) ends at
+ * once — strom run stop <run> --finish on the person's yes. A run no longer at work: said, nothing asked.
+ */
+export async function finishRun(ctx: Context, run: Run, lang: string, root: string, id: string): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const w = runsAtWork(root).find((x) => x.id === id);
+  if (!w) return stop(ctx, t("ui.link.finish.run.none"));
+  const r = w.research ? tree.get<Research>(w.research) : undefined;
+  const agent = PROFILES[w.agent ?? ""]?.name ?? w.agent ?? "";
+  const what = r?.type === "research" ? `${r.name} (${r.id})` : t("ui.link.finish.run.queue");
+  if (!(await asks(ctx, lang, root, t("ui.link.what.finish.run", { agent, line: what })))) return false;
+  return (await run(["run", "stop", id, "--finish"])) === 0;
+}
+
 /** The agent's sessions, the latest first, and what this month's cost. */
 export function sessionsView(ctx: Context, lang: string, root: string): void {
   const t = translator(lang);
@@ -699,7 +807,7 @@ export async function hypothesisDo(ctx: Context, run: Run, lang: string, root: s
   const picked = how !== "decide" || variant !== undefined;
   if (picked && !pickableInApp(h)) out(ctx, t("ui.link.hypothesis.notInApp", { id: h.id }));
   else if (picked) return hypothesisPicked(ctx, run, lang, root, h, how, variant);
-  if (!(await asks(ctx, lang, root, t(h.state === "open" ? "ui.link.what.hypothesis.decide" : "ui.link.what.hypothesis.change", { question: truncate(h.question, 120) })))) return false;
+  if (!(await asks(ctx, lang, root, t(h.state === "open" ? "ui.link.what.hypothesis.decide" : "ui.link.what.hypothesis.change", { question: truncate(humanClaim(tree, h.question), 120) })))) return false;
   const { decideHypothesis } = await import("./menu-waiting.ts");
   return decideHypothesis(ctx, run, lang, root, h.id);
 }
@@ -709,17 +817,6 @@ export type HypothesisHow = "decide" | "abandon" | "keep-open" | "reopen";
 
 /** People a decision joins to the tree from which the terminal says how many (the app's K1.4: "a large part of the tree"). */
 export const HYPOTHESIS_BIG_JOIN = 50;
-
-/** A person or a family as the person reads it: the name and the ID ("Josef Lhoták (P0001)", "Václav Lhoták + Marie Lhotová (F0001)"). */
-function whoSaid(tree: Tree, id: string): string {
-  const r = tree.get<Person | Family>(id);
-  if (r?.type === "person") return `${displayName(r)} (${id})`;
-  if (r?.type === "family") {
-    const names = r.partners.map((p) => tree.get<Person>(p)).filter((p): p is Person => p?.type === "person").map(displayName);
-    return names.length ? `${names.join(" + ")} (${id})` : id;
-  }
-  return id;
-}
 
 /** One link of a variant in the research language — into the family it went to, when there is one. */
 function linkSaid(t: ReturnType<typeof translator>, tree: Tree, l: VariantLink, family?: string): string {
@@ -811,7 +908,7 @@ async function hypothesisPicked(ctx: Context, run: Run, lang: string, root: stri
   const tree = Tree.open(root, ctx.env);
   const archive = actsAsArchive(tree);
   const p = archive ? undefined : h.proposal;
-  out(ctx, ["", ` ${h.id} · ${h.question}`, ...h.variants.map((v) => `    ${v.label}) ${truncate(v.claim, 110)}`), ...(h.state !== "open" ? [`    ${decidedLine(t, tree, h, lang)}`] : []), ""].join("\n"));
+  out(ctx, ["", ` ${h.id} · ${humanClaim(tree, h.question)}`, ...h.variants.map((v) => `    ${v.label}) ${truncate(humanClaim(tree, v.claim), 110)}`), ...(h.state !== "open" ? [`    ${decidedLine(t, tree, h, lang)}`] : []), ""].join("\n"));
   const why = async (fallback: string): Promise<string | undefined> => {
     const said = (await ctx.ask(t("ui.link.hypothesis.why", { reason: fallback }))).trim();
     return said === "0" ? undefined : said || fallback;
@@ -826,7 +923,7 @@ async function hypothesisPicked(ctx: Context, run: Run, lang: string, root: stri
     if (!v) return stop(ctx, t("ui.link.hypothesis.noVariant", { id: h.id, variant: label ?? "", labels: h.variants.map((x) => x.label).join(", ") }));
     if (h.state === "decided" && h.chosen === v.label) return stop(ctx, `${decidedLine(t, tree, h, lang)} ${t("ui.link.hypothesis.nothing")}`);
     const n = branchJoined(tree, h, v);
-    const what = t(h.state === "open" ? "ui.link.what.hypothesis.pick" : "ui.link.what.hypothesis.repick", { id: h.id, variant: v.label, claim: truncate(v.claim, 110) });
+    const what = t(h.state === "open" ? "ui.link.what.hypothesis.pick" : "ui.link.what.hypothesis.repick", { id: h.id, variant: v.label, claim: truncate(humanClaim(tree, v.claim), 110) });
     // the earlier link stays (other work stands on it) and the new one cannot be written: said first, cancel suggested
     const stays = changeWarning(lang, tree, h, v);
     // a variant that connects nothing, and nothing of an earlier decision on the tree to take off: only the decision is
@@ -888,12 +985,12 @@ export async function acceptProposals(ctx: Context, run: Run, lang: string, root
   let stays = false;
   const line = (h: Hypothesis): string[] => {
     const p = h.proposal!;
-    if (p.abandon || !p.variant) return [`  ${t("ui.link.accept.none", { id: h.id, question: truncate(h.question, 80) })}`];
+    if (p.abandon || !p.variant) return [`  ${t("ui.link.accept.none", { id: h.id, question: truncate(humanClaim(tree, h.question), 80) })}`];
     const v = h.variants.find((x) => x.label === p.variant);
     const warn = changeWarning(lang, tree, h, v);
     if (warn) stays = true;
     const n = v && !warn ? branchJoined(tree, h, v) : 0;
-    return [`  ${t("ui.link.accept.variant", { id: h.id, variant: p.variant, claim: truncate(v?.claim ?? "", 80) })}${n ? ` ${t("ui.link.accept.joins", { n })}` : ""}`, ...(warn ? [`    ${warn}`] : [])];
+    return [`  ${t("ui.link.accept.variant", { id: h.id, variant: p.variant, claim: truncate(humanClaim(tree, v?.claim ?? ""), 80) })}${n ? ` ${t("ui.link.accept.joins", { n })}` : ""}`, ...(warn ? [`    ${warn}`] : [])];
   };
   if (!take.length) return stop(ctx, [t("ui.link.accept.nothing"), ...said].join("\n"));
   out(ctx, ["", t("ui.link.accept.list"), ...take.flatMap(line), ...(said.length ? ["", t("ui.link.accept.skipped"), ...said] : []), ""].join("\n"));

@@ -357,6 +357,41 @@ dá ve výzkumu“. Archiv Stromu odebrání zrcadlí ([S2.4](#S2.4)).
 
 <!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 „What the app no longer has is only reported“, gone :2355 · app:src/ui/research-removed-ui.ts :1-14 · strings.ts sync.notWrittenReport, conflict.person.* · CHANGELOG.cs.md 3.16.0 -->
 
+<a id="S2.6.1"></a>
+### S2.6.1 Pramen smazaný v aplikaci
+
+Pramen, který člověk smaže v aplikaci u stromu z výzkumu, který upravuje (ne sleduje), výzkum s dalším zápisem změn
+odvolá ([R3.10](R3-verification-and-citation.md#R3.10)): citace se v prameni uchovají a `strom source restore` ho
+vrátí. Sledovaný strom maže pramen rovnou ve výzkumu ([A3.1.2](A3-evidence-in-the-app.md#A3.1.2)).
+
+- **Co aplikace při smazání ukáže:**
+  - výzkum, který smazání pramene umí, s běžícím mostem: dialog **Smazat pramen?** s náhledem z výzkumu jako u
+    sledovaného stromu. Pramen se smaže jen v aplikaci a jde vrátit přes **Zpět**;
+  - výzkum, který to umí, bez mostu: dosavadní potvrzení a věta „Výzkum pramen odvolá při dalším zápisu změn.“;
+  - výzkum, který to neumí: dosavadní potvrzení a věta „Výzkum pramen ponechá a při dalším načtení se vrátí.“;
+  - když aplikace výzkum nezná, dosavadní potvrzení.
+- Soubor pro výzkum smazané prameny jmenuje: jen prameny výzkumu, které v souboru chybí, nejvýš 50. Pramen vrácený
+  přes **Zpět** se nejmenuje.
+- **Hlídá kód:** výzkum pramen odvolá, jen když:
+  - zápis spustil člověk, ne agent;
+  - soubor je celý strom, který výzkum aplikaci dal, a nese stav výzkumu, ze kterého vznikl;
+  - pramen v souboru nikdo necituje;
+  - výzkum pramen má a ještě ho neodvolal.
+
+  Jinak nesmaže nic. Smazaný pramen se už nevrátí s pozdějším souborem z aplikace ani importem.
+- **Změny** a **Co se zapsalo:**
+  - řádek **Smazaný pramen**; když poslání čeká ve výzkumu na potvrzení, s poznámkou „čeká ve výzkumu na potvrzení“;
+  - nepřevzaté smazání s důvodem: „pramen neodvolán: soubor je jen část stromu“, „… ve stromu je dál citovaný“,
+    „… ve výzkumu není“, „… už je odvolaný“, „… soubor nenese stav výzkumu, ze kterého vznikl“, „… zápis nespustil
+    člověk“;
+  - citace na pramen, který výzkum už odvolal, se nezapíše („pramen je ve výzkumu odvolaný; citace na něj se
+    nezapíše“). U takového řádku je **Obnovit pramen ve výzkumu** (přes most), bez mostu věta „pramen jde obnovit
+    ve výzkumu“.
+- **Ovládání:** aplikace: **Prameny** → koš u pramene, pak **Poslat** ([S2.2](#S2.2)).
+- **Platí od:** aplikace 3.31.0 s výzkumem 1.36.0
+
+<!-- zdroj: app:810319cb src/source-retract.ts sourceRetractEditModeIn (preview / plain / old / unknown), ResearchLink.deletedSources, deletedSourcesToSend (_STROM_SOURCE_DELETED, jen chybějící, max 50, zapomene se po Zpět a po odvolání) · src/ui/research-changes-ui.ts (sourceDeleted, reviewWait při sent.state pending, nwSourceRow, restoreTail now/later) · strings.ts sources.retract.editMode, editModeOld, changes.sourceDeleted, reviewWait, restoreSource, restoreLater, sync.notWritten source.retract-skipped:*, source.retracted · research:e6bbfb40 src/core/sync.ts sourcesDeleted, plan source.retract (notPerson, noHead, partial, stillCited, unknown, retracted), withholdDeleted (spec 117 J6) · SPEC.md 1120-app-117-smazani · spec 117 K1.4, §4 -->
+
 <a id="S2.7"></a>
 ## S2.7 Vrácení poslání
 
@@ -391,10 +426,14 @@ změní nebo zmizí.
   přeškrtnuté a přidané nebo změněné zvýrazněné (změněný řádek: starý přeškrtnutý, pak nový). Odstavec, který
   výzkum jen přidal, nic nepřeškrtne. Mezery na konci řádku a konce řádků z Windows nejsou změna. Poznámka jen na
   jedné straně má dál **tady → z výzkumu**. Načtou se tatáž data jako dřív.
+- **Číslo snímku nebo folium navíc:** pramen, kterému verze výzkumu k umístění jen přidala číslo snímku nebo folium
+  (tady chybělo, umístění je jinak stejné), nedá řádek u žádné své citace. Pod seznamem je jen věta „U 3 pramenů
+  přibylo číslo snímku.“ (u folia „U 3 pramenů přibylo folium.“) a mezi změny se nepočítá. Změněné umístění, změněné
+  číslo snímku i jeho odebrání dávají řádek dál.
 - **Hranice:** u stromu, který z výzkumu jen načítá ([S2.2](#S2.2)), a když se z posledního poslání něco
   nezapsalo, dialog řekne, že načtení tyto úpravy přepíše; tlačítka jsou **Načíst a přepsat** a **Otevřít jako
   kopii**.
 - **Ovládání:** aplikace: **Načíst verzi výzkumu**
-- **Platí od:** aplikace 3.9.0; poznámka po řádcích od 3.29.0
+- **Platí od:** aplikace 3.9.0; poznámka po řádcích od 3.29.0; číslo snímku nebo folium navíc od 3.31.0
 
-<!-- zdroj: app:src/ui/research-load-ui.ts askResearchLoad (ROWS_SHOWN 8, overwrite: sendMode off nebo nezapsané z posledního poslání → loadOverwrite + research.openCopy), src/ui/research-ui.ts:2377 · 03352a9c src/line-diff.ts diffLines (LCS po řádcích, mezery na konci a CRLF nejsou změna), research-load-ui.ts notes · strings.ts sync.loadTitle, loadColChange, loadMore, loadAdded, loadBackupNote, loadOverwrite, loadOverNotWritten · CHANGELOG.cs.md 3.29.0 „Načíst verzi výzkumu?“ · v3.9.0 (loadColChange) -->
+<!-- zdroj: app:src/ui/research-load-ui.ts askResearchLoad (ROWS_SHOWN 8, overwrite: sendMode off nebo nezapsané z posledního poslání → loadOverwrite + research.openCopy), src/ui/research-ui.ts:2377 · 03352a9c src/line-diff.ts diffLines (LCS po řádcích, mezery na konci a CRLF nejsou změna), research-load-ui.ts notes · strings.ts sync.loadTitle, loadColChange, loadMore, loadAdded, loadBackupNote, loadOverwrite, loadOverNotWritten · CHANGELOG.cs.md 3.29.0 „Načíst verzi výzkumu?“ · v3.9.0 (loadColChange) · 3.31.0: app:2e68d373 src/research-changes.ts placeNumberAdded, pageMoved, diffValues numbersAdded; src/ui/research-load-ui.ts (věta pod seznamem, nepočítá se); strings.ts sync.loadImageNumbers, loadFolioNumbers · CHANGELOG.cs.md 3.31.0 „Načtení verze výzkumu“ -->

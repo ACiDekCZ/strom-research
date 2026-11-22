@@ -15,7 +15,7 @@ const opts = { skip: !hasGit };
 test("story set / show: the facts it rests on, draft or final, _STORY in the GEDCOM", opts, async () => {
   const w = new World();
   await w.withTree();
-  await w.ok(["research", "new", "Předci", "--new-person", "František /Víšek/", "--sex", "M"]); // P1
+  await w.ok(["research", "new", "Předci", "--new-person", "František /Brdíšek/", "--sex", "M"]); // P1
   await w.ok(["source", "add", "Křest Františka 1862", "--kind", "baptism", "--information", "primary"]); // S1
   await w.ok(["event", "add", "P1", "BIRT", "--date", "18 OCT 1862", "--place", "Vavřinec", "--house", "13", "--cite", "S1", "--status", "proven"]); // E1
   fs.mkdirSync(path.join(w.cwd, "notes"), { recursive: true });
@@ -23,7 +23,7 @@ test("story set / show: the facts it rests on, draft or final, _STORY in the GED
   fs.writeFileSync(path.join(w.cwd, "notes", "story-P0001.md"), text + "\n");
   const r = await w.ok(["story", "set", "P1", "--text", "@notes/story-P0001.md", "--title", "Syn podruha", "--fact", "E1", "--note", "Povolání otce je z jednoho zápisu."]);
   assert.match(r.out, /P0001 story: \d+ words, draft/);
-  const show = (await w.ok(["story", "show", "František Víšek"])).out;
+  const show = (await w.ok(["story", "show", "František Brdíšek"])).out;
   assert.match(show, /^P0001 story · draft · \d{4}-\d\d-\d\d · Syn podruha\n\nFrantišek se narodil/);
   assert.match(show, /rests on\n  E0001 P0001 BIRT 18 OCT 1862 Vavřinec \[proven\]/);
   assert.equal((await w.run(["story", "set", "P1", "--text", "x", "--fact", "E9"])).code, 2, "the facts must exist");
@@ -72,7 +72,7 @@ test("a story's spaces come to the Strom file as written: two between words, a n
 test("the story's format: its title from a first \"# \" line (or dropped when it repeats --title); what the Strom app shows as plain text is said, never refused", opts, async () => {
   const w = new World();
   await w.withTree();
-  await w.ok(["research", "new", "Předci", "--new-person", "František /Víšek/", "--sex", "M"]);
+  await w.ok(["research", "new", "Předci", "--new-person", "František /Brdíšek/", "--sex", "M"]);
   const story = async (args: string[]) => {
     const r = await w.ok(["story", "set", "P1", ...args, "--json"]);
     return { out: (await w.ok(["story", "set", "P1", ...args])).out, story: r.json.story as { title?: string; text: string } };

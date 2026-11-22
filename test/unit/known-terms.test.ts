@@ -9,7 +9,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { hostPace, politeGet, robotsVerdict, NetError } from "../../src/core/net.ts";
-import { knownDisallow, knownPaceMs, readPack, shippedTerms, strictestEntry, within, type KnownTerms } from "../../src/core/knownterms.ts";
+import { CENSUS_WAYS, censusWayFloor, knownDisallow, knownPaceMs, readPack, shippedTerms, strictestEntry, within, type KnownTerms } from "../../src/core/knownterms.ts";
+import { censusDay, censusHoldings } from "../../src/core/census.ts";
 import { assetPath } from "../../src/core/assets.ts";
 import { termsText } from "../../src/core/archiveasks.ts";
 import { allows, archiveLevel, pendingQuestions, takeOverConnectors, termsFor, termsHooks, termsOpen, type ConnectorLike } from "../../src/core/terms.ts";
@@ -319,4 +320,37 @@ test("the list: eBadatelna (SOA Praha) by the archive's reply — still by hand 
   assert.match(termsText("de", {}, soap), /^Schriftliche Antwort des Archivs \(12\.11\.2026\): „Pokud/u);
   assert.match(termsText("pl", {}, soap), /^Pisemna odpowiedź archiwum \(12\.11\.2026\): „Pokud/u);
   assert.equal(termsText("cs", {}, { quote: "Lhota", quoteBy: "reply" }), "Písemná odpověď archivu: „Lhota“", "no day: said without it");
+});
+
+test("the list: census records (spec 106) — the way for strom never milder than the host's level, years and days as data", () => {
+  const list = readPack(assetPath("archives.json"));
+  const withCensus = list.filter((a) => a.census);
+  assert.ok(withCensus.length >= 6, `${withCensus.length}`);
+  const rank = (w: string) => (CENSUS_WAYS as readonly string[]).indexOf(w);
+  for (const a of withCensus) {
+    const c = a.census!;
+    assert.ok(rank(c.how) >= 0, `${a.host}: ${c.how}`);
+    assert.ok(rank(c.how) >= rank(censusWayFloor(a)), `${a.host}: ${c.how} is milder than its level ${a.level}${a.browserOnly ? " (a person's browser only)" : ""}`);
+    assert.match(c.checked ?? "", /^2026-\d\d-\d\d$/u, a.host);
+    for (const y of c.years ?? []) assert.ok(Number.isInteger(y) && y > 1700 && y < 2100, `${a.host}: ${y}`);
+    for (const w of c.search ?? []) assert.ok(["place", "street", "house", "name"].includes(w), `${a.host}: ${w}`);
+    if (c.says) assert.equal(c.says, c.says.normalize("NFC"), a.host);
+  }
+  // the floor by the level: a forbidden host only a link, a person's browser only by hand
+  assert.equal(censusWayFloor({ level: "forbidden" }), "link");
+  assert.equal(censusWayFloor({ level: "restricted", browserOnly: true }), "by-hand");
+  assert.equal(censusWayFloor({ level: "unknown" }), "slow");
+  assert.equal(censusWayFloor({ level: "allowed" }), "agent");
+  assert.equal(termsFor({}, "www.mza.cz")?.census?.how, "by-hand");
+  assert.equal(termsFor({}, "www.familysearch.org")?.census?.how, "link");
+  // the reference days: by country and year, unknown — none (the year alone stands)
+  assert.equal(censusDay("CZ", 1857), "1857-10-31");
+  assert.equal(censusDay("cz", "1921"), "1921-02-15");
+  assert.equal(censusDay("CZ", 1910), "1910-12-31");
+  assert.equal(censusDay("CZ", 1850), undefined);
+  assert.equal(censusDay("XX", 1900), undefined);
+  // the brief of a census task: one line an archive
+  const lines = censusHoldings();
+  assert.equal(lines.length, withCensus.length);
+  assert.ok(lines.some((l) => /mza\.cz.*by hand/u.test(l)), lines.join("\n"));
 });

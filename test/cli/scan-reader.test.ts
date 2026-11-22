@@ -72,7 +72,9 @@ test("the tree's scan reader: Bash and Read only, the user's model.vision else i
   await w.ok(["config", "unset", "model.vision", "--for-tree"]);
   await w.ok(["agents", "sync"]);
   assert.match(md(), /\nmodel: "inherit"\n/);
-  // OpenCode's, set while it is the tree's agent
+  // OpenCode's, set while it is the tree's agent — here, as on every computer the tests run on (else the research waits
+  // for it: research on again asks for the agent first)
+  w.agentsHere("opencode");
   await w.ok(["config", "set", "agent", "opencode", "--for-tree"]);
   await w.ok(["config", "set", "model.vision", "anthropic/vision-x", "--for-tree"]);
   await w.ok(["agents", "sync"]);

@@ -36,6 +36,7 @@
 // same tabId never stands for both). An address of this computer (localhost, 127.0.0.1) is nothing of an archive's: let
 // go uncounted — the bridge refused first, as everywhere.
 
+import { beatSession } from "./holds.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { APP_BROWSER_NAVIGATE, APP_BROWSER_PAGE_TOOLS, APP_BROWSER_PREFIXES, CHROME_NAVIGATE, CHROME_PAGE_TOOLS, CHROME_TOOL_PREFIX } from "./browser.ts";
@@ -47,6 +48,7 @@ import { Settings } from "./config.ts";
 import { currentSession } from "./session.ts";
 import { findTreeUpwards, Tree } from "./tree.ts";
 import { answerWebEvent, type WebAnswer, type WebEvent } from "./web.ts";
+import { archiveHeldText, takeSiteFor } from "./archiveholds.ts";
 import { browserGate } from "./webgate.ts";
 import type { Env } from "./paths.ts";
 
@@ -265,6 +267,24 @@ function noteAppTabs(root: string, ev: ChromeEvent, now: number): void {
   if (notes.length) keepTabs(root, ev, notes, now);
 }
 
+/** The words of Claude in Chrome's failure of a tab outside the session's group ("Tab 12 is not in Claude's tab group …"). */
+const NOT_IN_GROUP = /not in Claude.s tab group/iu;
+/** …and of a browser that did not answer in time (a navigate or a script; "did not respond in time", "timed out after"). */
+const NO_ANSWER = /did not respond in time|timed out/iu;
+
+/**
+ * After a call of Claude in Chrome failed: what to do with the tab (the brief's rule, brief/brief.ts BROWSER_TABS) —
+ * a tab outside the session's group: its own tab; a browser that did not answer in time: a fresh tab, the work put aside
+ * only after a second timeout. Anything else: nothing.
+ */
+export function failedTabAdvice(error: string | undefined): string | undefined {
+  if (!error) return undefined;
+  if (NOT_IN_GROUP.test(error)) return "strom: that tab is not in this session's group — open your own (tabs_create_mcp) and go on in it; never a tab of availableTabs outside the group.";
+  if (NO_ANSWER.test(error))
+    return "strom: the browser did not answer in time — close this tab (tabs_close_mcp), open a new one (tabs_create_mcp) and go on there; put the browser's work aside only if it does not answer a second time.";
+  return undefined;
+}
+
 /**
  * The hook's work for one call of Claude in Chrome (or of the desktop app's built-in browser): navigate as a web fetch on
  * the browser's route, a page tool kept off a host strom must leave alone. Throws on anything unexpected (the command
@@ -274,6 +294,9 @@ export async function answerChromeEvent(ev: ChromeEvent, o: { env: Env; cwd: str
   const root = findTreeUpwards(ev.cwd && path.isAbsolute(ev.cwd) ? ev.cwd : o.cwd);
   if (!root) return {};
   const now = o.now ?? Date.now;
+  // after a call of Claude in Chrome failed: a tab outside the session's group, a browser that did not answer in time
+  const advice = ev.phase === "failed" && !ev.app && !ev.codex ? failedTabAdvice(ev.error) : undefined;
+  const withAdvice = (a: WebAnswer): WebAnswer => (advice ? { ...a, context: [a.context, advice].filter(Boolean).join("\n"), event: "PostToolUseFailure" } : a);
   if (ev.app && ev.phase === "post") {
     try {
       noteAppTabs(root, ev, now());
@@ -331,9 +354,9 @@ export async function answerChromeEvent(ev: ChromeEvent, o: { env: Env; cwd: str
         // the tab not kept: its page tools go by nothing known against them
       }
     }
-    return answer;
+    return withAdvice(answer);
   }
-  if (ev.phase) return {};
+  if (ev.phase) return withAdvice({});
   // a script that names the bridge (its address, its secret, its notes)
   if (ev.text) {
     const why = reachesBridge(ev.text, bridgeMarks(root));
@@ -344,6 +367,8 @@ export async function answerChromeEvent(ev: ChromeEvent, o: { env: Env; cwd: str
   const tree = Tree.open(root, o.env);
   const settings = new Settings(o.env, {});
   const session = currentSession(tree, o.env);
+  // a page of the agent's is a sign of life of its session: its task stays held (core/holds.ts; at most once a minute)
+  if (session) beatSession(root, session, o.env);
   const g = browserGate({ env: o.env, tree, url: tab.url, shared: settings.shared()?.value, agent: ev.codex ? "codex" : "claude", ...(session?.task ? { task: session.task } : {}), now: now() });
   if (!g.allow && (g.why === "refused" || g.why === "forbidden")) return { decision: "deny", reason: g.reason ?? `strom: ${tab.host} — not through the browser.` };
   if (g.blocked)
@@ -351,5 +376,9 @@ export async function answerChromeEvent(ev: ChromeEvent, o: { env: Env; cwd: str
       decision: "deny",
       reason: `strom: ${g.host} is left alone until ${clock(g.blocked.until)}${g.blocked.reason ? ` — ${g.blocked.reason}` : ""}; nothing goes to it before then, through the browser either — its page in this tab neither. Go on with other work.`,
     };
+  // an archive that restricts automated access, another session uses now (spec 127 K2): its page tools refused too
+  const shared = settings.shared()?.value;
+  const taken = shared ? takeSiteFor(shared, { env: o.env, tree, host: g.host, ...(g.level ? { level: g.level } : {}), ...(g.human ? { human: true } : {}), ...(session ? { session } : {}), ...(ev.agentSession ? { agentSession: ev.agentSession } : {}) }) : undefined;
+  if (taken && !taken.ok) return { decision: "deny", reason: archiveHeldText(g.host, taken, root) };
   return {};
 }

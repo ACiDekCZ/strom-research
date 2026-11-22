@@ -5,6 +5,140 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.36.0
+
+*2026-11-22 · goes with the Strom app 3.31.0.*
+
+- **A try of the bulk verification at once:** the tasks of a try of the bulk verification (`strom verify bulk --try`)
+  stand first in the queue — the next session takes them — and the Strom app can have them worked on at once, one
+  session per task, by a link that names the tasks. Each task of the queue has its kind of work (verifying, records,
+  material, places, stories…): `strom task list --kind`, and the Strom app filters by it.
+- **Images saved by hand, more safely:** an image's number is taken from a file's name only when the name says it
+  unambiguously (a file manager's copy "33 2.jpg" is image 33; a name with two numbers and no counter gets none); the
+  files of a batch are numbered by their order only when none of them has a number in its name; a folder is taken only
+  once its batch has finished downloading (a browser's .crdownload or .part beside it holds it back). A file that is the
+  same scan as another image is never deleted: it is set aside beside it and said. A file saved under the number of an image registered already that
+  shows another page (another shape or other handwriting) no longer replaces the image: it is set aside beside it and
+  asked in What waits and in the Strom app — the image kept, the new file taken as that image, or its own number given
+  (`strom media aside`). A sharper copy is taken only when it is surely the same scan — compared by the handwriting,
+  not by the printed form; when that cannot be told, the file is set aside and asked as well.
+- **The agent from the Strom app without the question:** a setting for this computer, `run.confirm` (Settings → 1 →
+  "Starting the agent from the Strom app"): `ask` — the default, as before — or `no`, and what the Strom app asks that
+  only starts the agent on the subscription or AI credit (a conversation, a task, the work on the queue, a conflict left
+  to the agent, the identification of places — places of several batches ask only how many, and Enter starts at least
+  one) starts at once; one line in the terminal says so and where the question is turned on again. Still asked: a
+  question with a price in money, consents, deletions, a request sent, the condition of working alone, and any command
+  of an agent. Only the person turns the question off — never an agent.
+- **Deleting a source:** a source can be deleted in the research — `strom source retract` in the terminal or deleting
+  the source in the Strom app, only by the person, never by an agent (it may only propose it, with what `--dry-run` says
+  it would take). The values stay; its citations are taken off the facts and kept in the source, a fact may become less
+  sure, a task resting on it alone is given up, and a decided conflict that stood on it is marked for review
+  (`strom conflict keep` keeps the decision as it is). What it takes is said first and the person confirms it; the
+  source can be put back with its citations (`strom source restore`, or Undo in the Strom app). A source deleted in the
+  Strom app while the tree is edited there is deleted in the research with the next send — only the person's send of the
+  whole tree; otherwise What changed says why not. A deleted source never comes back with a later file or import.
+  In the terminal `strom source show` says a source is deleted, when, and what puts it back, and
+  `strom source list --retracted` lists the deleted ones.
+- **Census records:** a research may use census records as a source — a household in one year shows who lived with whom
+  and where they came from. Off unless the person turns them on, in the settings of the research ("Census records in
+  this research") or in the Strom app; the agent may only propose it, once. A household is written for all its members
+  on the tree at once (`strom census add`): the relation to the head, the age, date, place and house and the sheet's
+  citation alike for each; the people off the tree only in the note. The relation is taken as the census forms write
+  it ("head of the household", "wife of the head" and their words in Czech, German and Polish).
+- **Names: how sure, and after a marriage:** a person's name is cited as a fact is, with how sure it is: the agent
+  cites the name as the record it read gives it (`strom cite P… S… --status`, `name add --status`, `person add
+  --name-status`; proven only on the original record), and the names an older research cited from its records become
+  probable once by themselves (never proven; a name the person wrote or confirmed stays as it is; `strom fixes undo
+  name-status` puts them back). The Strom app that shows it has the name verified together with the birth's record and
+  confirms it against the scan like a fact. Of a woman married more than once, the name now is the one after the last marriage — the
+  husband's surname of the latest wedding, in the wife's form too; a name chosen in the Strom app as the one now is
+  taken over and stays so until chosen again. The file for the Strom app gives the names after a marriage last, the one
+  now the very last, so an older Strom app shows the right one as well.
+- **Several agents and researches at once, without getting in each other's way, and fewer turns lost in long runs:**
+  each session holds its task while its
+  agent gives signs of life — a task another agent holds is left to it, and the task of an agent that went silent is
+  taken over after `task.hold` (what it wrote is kept, the task back in the queue). An archive that restricts automated
+  access (a person's pace, the browser alone, a downloader's hourly cap) is used by one session at a time of all the
+  researches sharing the folder: a task on it waits while another session uses it, and other work goes on meanwhile;
+  working alone with only such tasks left waits for the archive at most `archive.wait`, and one bulk download of images
+  from such an archive runs at a time on a computer, the next one queued behind it. Nothing is asked of the archive
+  while waiting. The menu names the agents working directly too, and the Strom app learns who holds a task or an
+  archive, since when and until when at the latest. The times are this computer's settings: `task.hold`, `archive.hold`
+  (an archive held with no request to it) and `archive.wait`, each 30 minutes by default, from 5 minutes to 24 hours.
+  Each line can have a run of the agent of its own: `strom run --research G…` (in the menu the line is chosen, its run
+  in a window of its own named after the line) takes the tasks of that line, a second run of the same line is refused,
+  and the work on the whole queue leaves the lines with a run of their own aside; at most `run.parallel` runs work in
+  one research at once (3 by default, raised by the person alone) — the use of the agent's plan adds up. A new line
+  inside another offers to take over the open tasks about its people (`strom research gather`). The Strom app sees each
+  run, starts and stops them by line (`strom run stop`); runs on one computer share the plan's limit, the browser's
+  plans, the pages of a website and the readers of scans.
+  The agent's rules say to work in a browser tab of its own; a tab outside its group or a page that does not answer is
+  followed at once by what to do (a new tab; the browser's work put aside only after a second timeout). A long text of
+  `strom readings` or `strom searched` stops at about 20 kB with a line on how to narrow it and `--full` for all
+  (`--json` stays whole; `strom searched` has pages like the other lists). A batch with failed lines also says which
+  lines were not checked because they depend on one that failed. Options agents guess that mean exactly another are
+  taken and said in a line (`strom recordset list --parish` as `--place`, `strom media list --image 5` as `--images
+  5-5`, `strom readings --recordset`, `strom search add --query`); `strom person list --surname` finds a surname with
+  its forms, as `strom query --surname`. The gate log marks a wait of the gate that a run started by the person went
+  past (`pace`). Each run writes down why it ended (`.strom/runs/<run>.end.json`: the same reasons the Strom app is
+  shown, its sessions, cost, last and next task).
+- **Smaller fixes:** A range of images through the agent's browser: an archive in strom's list can be given a range of images in one go (at most 20, image after image at a person's pace, stopped at the archive's first check or refusal, the images left then saved by hand before another range of that archive), each archive only with the person's own consent (`strom allow archive <archive> --range`, or in the menu); no archive has it yet. Photos from the Strom app arrive much faster: sending photos or a batch of files from the Strom app
+  to a large research no longer reads every image record of the research for each file: what the research already has is
+  looked up in an index of the files' hashes (kept in `.strom/cache`, made again by itself whenever it is missing or out
+  of date), and the bridge writes what the app sends through one strom process that stays running instead of starting a
+  new one for each file. A newer Strom app hands over a whole batch at once: each file is checked and answered as soon
+  as it arrives, and the batch is written as it is closed — one save, one rebuild of the family tree file and one notice
+  to the app — while an agent at work gets the research between the parts. An older Strom app sends as before, only
+  faster. A file of a batch that another program holds while the batch is closed (an antivirus, a sync or a backup)
+  is no longer an error: nothing is lost, the Strom app waits a moment and is told why, and the research writes the
+  batch's files by itself a while later. A batch closed unsorted whose files were sorted in the Strom app (Sort with
+  the agent…) no longer stays “not sorted” in the app's menu: a file a sort went through to its end counts as sorted —
+  in a research sorted so before too, with nothing in it changed.
+  The Strom app shows the imported family tree files (GEDCOM, the app's JSON)
+  in Materials and deletes them for good as any file of the material; one a source was made of only together with that
+  source, in one step with one confirmation (`strom input delete … --retract-sources`).
+  A person taken off a file of the material (Assign in the Strom app, `strom input assign --remove`) is no longer put
+  back on it by the agent's sorting; added back, the file is theirs again.
+  An archive strom keeps stricter than its own list of the archive's terms says (a downloader or a
+  research's record read them so once) no longer shuts the agent's browser there quietly: `strom doctor`, `strom run`
+  and `strom allow archive` say since when, why and what the list says, What waits and the Strom app ask the person once
+  whether to keep it or take the archive's terms (`strom allow archive <host> --keep` or `--level <level>`), after which
+  only the tasks the new level opens come back to the queue; where the person allowed an archive "through the browser",
+  the agent's check of a page there points to the agent's browser rather than to the permission given already; a
+  downloader or an archive recorded stricter than the list is warned of; a task split off by `strom task audit --fix`
+  names the book's images by the book's title, without its ID and a verb; `strom task wait --images` given again for the
+  same book joins its images (another book's are refused: one book per task); two tries of the bulk verification in a
+  row come in the order they were asked, the older first; the gate of the subscription's limits reads them in a second
+  or two, without going through the conversations kept on the computer; in the Strom app each citation of a family tree
+  shows its own line of the tree again (a pointer an import made stays out), and an image's number known only from the
+  registered scans is marked as such, so that the app adds it to the location without cutting another image's number out
+  of it. `strom pack` and `strom trees remove` name the archives' scans as scans (which go along, which are left out),
+  and the backup before a removal says it holds the family's photos and originals.
+  In the terminal a hypothesis's question and variants name the people and families they give by ID by their names with
+  the ID (in What waits and when the Strom app asks to decide one), and the agent writes them so too; a name written before
+  the ID — a person's, or the partners' of a family — is never said twice.
+  Runs side by side on one tree ("start another one beside it", a conversation beside a run): a run whose next task another
+  took just before it began goes on with the next free task instead of ending the whole run; no task is taken twice.
+  A line ended within a wider one still at work no longer leaves its tasks waiting for good: they count toward the
+  narrowest line at work their people are in (nothing on them changes, so a line taken up again has them back); a
+  paused line's tasks wait as before.
+  A file sent to the research no longer starts the agent by itself, in a research started before too: neither a batch
+  from the Strom app or a phone, nor a single file or the scan of a source from the app, nor material added in the menu
+  (asked there whether the agent goes through it). The files wait in the material until sorted by hand or with Sort
+  with the agent…; the person alone turns going through them by itself on for a research (`strom config set
+  intake.auto on --for-tree`, Settings → 1, or the research's settings in the Strom app). Tasks made already stay.
+  When the images searched in a book do not cover the years around a date known only from an age (born about 1761 by the
+  age at death), the agent is told which years are missing and where the book goes on, before a “not found” is relied on
+  — how many years either side is the research's setting `search.ageMargin` (default 5).
+  A conversation about a line asked from the Strom app is refused in one sentence when the line is ended — nothing is
+  asked or started. An image of another book is no longer fetched into a book by a slip: `strom fetch` refuses a book
+  whose images came from another book of the connector, or a book of another connector's portal, and says which book
+  it is; an image taken back binds the book to nothing.
+  A send of the Strom app no longer takes off the note of a file of the material that the app never had in its tree:
+  such a send stopped every later write of the research (accepting the sorting in the app said only “exit 1”); opening
+  the Strom app or the next write gives the note back and writes what waited. A write of the Strom app that the check of the research
+  refuses leaves nothing behind, and the app hears why.
+
 ## 1.35.0
 
 *2026-11-19 · goes with the Strom app 3.30.0.*

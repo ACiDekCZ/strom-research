@@ -259,6 +259,9 @@ stojí v záznamu; sjednocují se jen data.
   - jméno bez příjmení („Marie“) doplní celé jméno ze záznamu a osoba se pak ukazuje jím. Stejné jméno znovu jen
     přidá citaci;
   - žena se ukazuje rodným jménem; jméno po sňatku zůstává vedle;
+  - z více jmen po sňatku je aktuální to z posledního sňatku, nebo to, které uživatel zvolil v aplikaci. Ostatní
+    zůstávají jmény po sňatku; soubor pro aplikaci dává aktuální jako poslední
+    ([A4.6.1](A4-surnames-and-families.md#A4.6.1), [A4.6.2](A4-surnames-and-families.md#A4.6.2));
   - titul psaný se jménem („Ing.“, „MUDr.“, „ml.“) jde do předpony nebo přípony jména (`--prefix`, `--suffix`),
     ne do křestního jména ani příjmení;
   - **jméno, kterým se osoba ukazuje** (rozvedená žena zpět u rodného příjmení), je volba uživatele, ne údaj ze
@@ -276,9 +279,9 @@ stojí v záznamu; sjednocují se jen data.
   "…"` (`--clear` vrátí rodné jméno). Tvary příjmení v aplikaci: [A4.5](A4-surnames-and-families.md#A4.5),
   [A4.6](A4-surnames-and-families.md#A4.6).
 - **Platí od:** výzkum 1.0.0; předpona a přípona 1.13.0; jméno, kterým se osoba ukazuje, 1.27.0; nepojmenované
-  dítě 1.27.0
+  dítě 1.27.0; aktuální jméno po sňatku 1.36.0
 
-<!-- zdroj: research:src/core/model.ts NAME_KINDS · research:src/commands/people.ts name add (description), name primary (od v1.27.0), TITLE_OPTIONS (od v1.13.0) · research:assets/method/recording.md "The names a record gives", "A child the record does not name" (od v1.27.0), "People named wrongly by the weaker record" · research:assets/method/intake.md krok 4 -->
+<!-- zdroj: research:src/core/model.ts NAME_KINDS · research:src/commands/people.ts name add (description), name primary (od v1.27.0), TITLE_OPTIONS (od v1.13.0) · research:assets/method/recording.md "The names a record gives", "A child the record does not name" (od v1.27.0), "People named wrongly by the weaker record" · research:assets/method/intake.md krok 4 · aktuální jméno po sňatku: research:5476514e src/core/married.ts marriedInOrder, src/gedcom/export.ts, src/core/sync.ts name.now (spec 010 K4.1, K4.2) -->
 
 <a id="R10.5.1"></a>
 ### R10.5.1 Chybné jméno a poznámka se odvolají
@@ -297,6 +300,68 @@ Jméno nebo poznámka, které se ukážou jako chybné, se nemažou. Odvolají s
 - **Platí od:** výzkum 1.18.0
 
 <!-- zdroj: research:src/commands/people.ts name retract (description), name restore, name add ("name.retracted"), note edit/retract/restore (od v1.18.0) · GitHub issue strom-research #3 -->
+
+<a id="R10.5.2"></a>
+### R10.5.2 Jak jisté je jméno
+
+Jméno osoby má stupeň jistoty jako údaj ([R3.1](R3-verification-and-citation.md#R3.1)): **Doložené**,
+**Pravděpodobné**, **Možné** nebo **Vodítko**. Stupeň dává zápis, který osobu jmenuje a který jméno cituje.
+
+- **Hlídá kód:**
+  - stupeň se zapíše s citací: `strom cite P… S… --status …` dá citaci ke jménu osoby a stupeň jménu;
+    `strom name add … --cite S… --status …` jinému jménu; `strom person add … --cite S… --name-status …` jménu nové
+    osoby (`--status` u `person add` dál platí pro narození a úmrtí);
+  - **Doložené** jen podle původního záznamu s primární informací, stejně jako u údaje
+    ([R3.2](R3-verification-and-citation.md#R3.2)). Opis, rejstřík nebo rodokmen se odmítne;
+  - citace bez `--status` dá jménu bez stupně **Pravděpodobné**, když jde o zápis výzkumu: pramen s kvalitou 2 nebo 3,
+    který není rejstřík ani odvozené dílo a není ani pramen z aplikace Strom, který výzkum nečetl. Jinak jméno stupeň
+    nedostane;
+  - jméno nemá stupeň **Vyvrácené**: jiné jméno je rozpor ([R5](R5-conflicts.md)) nebo další jméno osoby;
+  - stupeň smí mít každé jméno osoby. Potvrzení člověkem, ověření agentem a číslo pro most (`P….N`) má jen jméno
+    totožnosti osoby: rodné jméno, nebo první jméno bez druhu ([R10.5](#R10.5)), ne jméno, kterým se osoba ukazuje.
+    Jen to se počítá do značky kartičky v aplikaci ([S7.10](S7-reliability-and-verification.md#S7.10));
+  - jméno, které člověk potvrdil podle skenu, agent nezmění: jiný stupeň od agenta se odmítne, citace bez `--status`
+    projde. Jméno, které člověk sám zapsal, zůstane bez stupně, jak je;
+  - změna slov jména ukončí jeho potvrzení i ověření.
+- **Jen metodika:** zápis, který osobu jmenuje (křest, sňatek, úmrtí), dokládá i její jméno. Agent cituje jméno tak,
+  jak stojí v zápisu (`--quote`): **Doložené**, když zápis sám četl v originálu; **Pravděpodobné**, když zápis píše
+  totéž jméno v jiném jazyce („Joannes“ pro „Jan“). Jiné jméno není stupeň, ale rozpor nebo další jméno
+  (`strom name add`).
+- **Ověření jména:** úkol ověření narození nebo křtu, jehož zápis cituje i jméno, vezme jméno s sebou: agent čte tentýž
+  zápis a porovná i jméno. Jméno potvrzené člověkem nebo už doložené se nebere. Samotné jméno se ověřuje jen na žádost
+  člověka (aplikace, `strom verify facts --fact P….N`). Hodnotu jména ověření nikdy nemění ([S7.7](S7-reliability-and-verification.md#S7.7)).
+- **Ovládání:** terminál: `strom cite P… S… --quote "…" --status proven|probable|possible|lead`, `strom name add P… "…"
+  --cite S… --status …`, `strom person add … --cite S… --name-status …`, `strom person show P…` (stupeň jména),
+  `strom verify done P….N --proven|--kept`, potvrzení člověkem `strom verify confirm P….N [--undo]`. Aplikace:
+  [S7.10](S7-reliability-and-verification.md#S7.10).
+- **Proč:** dokud jméno stupeň nemělo, zůstávalo jméno z převzatého rodokmenu **Z rodokmenu** napořád, i když agent
+  narození i úmrtí doložil z matrik, a značka osoby ve stromu tak říkala méně, než výzkum ví (spec 066 P5).
+- **Platí od:** výzkum 1.36.0
+
+<!-- zdroj: research:6a266761 src/core/namestatus.ts (nameEid P….N, parseNameStatus NAME_STATUSES bez disproven, namesThePerson: !retracted, !isWeak, app jen s reading, quay ≥ 2; usersName confirmed nebo origin user; nameStatusAfter: asked → checkStatus, jinak probable; refuseConfirmedName event.confirmed jen primaryName) · src/core/model.ts:39 NAME_STATUSES · src/core/actions.ts:271-331 person add --name-status ("a status of a name needs the record that names the person"), :783 cite, :854-861 name add · src/core/people.ts:191 primaryName (bez druhu nebo birth), currentName · research:8b92b3ae src/core/verify.ts:19-21, 243-256 nameAlong (BIRT/BAPM/CHR se stejným pramenem, ne confirmed, ne proven), src/commands/verify.ts:70-78 verify facts --fact P….N · assets/method/recording.md:43-52 (cite P… --quote --status proven; probable jinojazyčný tvar; jiné jméno rozpor/name add) · assets/lang/cs.json verify.search.done.name · CHANGELOG.cs.md 1.36.0 „Jména – jak jistá a po sňatku“ · dirigent:spec/066 K6.2, K6.4 · app:docs/ZADANI_VYZKUM_stav-jmena.md Odpověď výzkumu -->
+
+<a id="R10.5.3"></a>
+### R10.5.3 Jistota jmen ve starších výzkumech
+
+Výzkum založený před verzí 1.36.0 cituje u jmen zápisy, ale jména stupeň nemají. Oprava **Jistota jmen** jim ho jednou
+dopočítá z citací, které už ve výzkumu jsou.
+
+- **Hlídá kód:**
+  - oprava proběhne sama jednou, při prvním spuštění nové verze po záloze výzkumu a při spuštění mostu; i v Archivu
+    Stromu. Nový výzkum ji nespouští;
+  - jméno bez stupně, které cituje zápis výzkumu (kvalita 2 nebo 3, ne rejstřík ani odvozené dílo), dostane
+    **Pravděpodobné**. Nikdy **Doložené**: to dá jen nové čtení originálu (ověření, nebo citace s `--status proven`);
+  - citace, kterou přinesl import (převzatý rodokmen, pramen, ze kterého jméno přišlo, pramen z aplikace Strom, který
+    výzkum nečetl), stupeň nedává;
+  - jméno potvrzené člověkem nebo zapsané člověkem se nemění;
+  - mění se jen stupeň: žádné jméno, citace ani pramen. Je to jeden krok historie s důvodem, zdarma, nic se nikam
+    neposílá;
+  - `strom fixes undo name-status` stupeň zase odebere; jméno, které se od opravy změnilo, ponechá.
+- **V aplikaci:** aplikace sama nic nepřevádí; stupeň jména bere jen ze souboru výzkumu ([S7.10](S7-reliability-and-verification.md#S7.10)).
+- **Ovládání:** terminál: `strom fixes` (seznam oprav), `strom fixes show name-status`, `strom fixes undo name-status`.
+- **Platí od:** výzkum 1.36.0
+
+<!-- zdroj: research:6a266761 src/core/namestatusfix.ts (NAME_STATUS_SINCE 1.36.0, NAME_STATUS_SETTLED, NAME_STATUS_FIX_FILE quality/name-status.json, importsCitation: Source.imported, origin.source, was.cites, app bez reading; researchRecords namesThePerson; nameStatusFixes: !status, !usersName; settleNameStatus první start po záloze, start mostu, i archiv; undo jen nezměněná) · src/core/links.ts LINK_FIX_IDS name-status · assets/lang/cs.json ui.fixes.name-status.* · dirigent:spec/066 K6.5 · app:docs/ZADANI_VYZKUM_stav-jmena.md „Starší stromy“ -->
 
 <a id="R10.6"></a>
 ## R10.6 Lidé, které zápis jmenuje

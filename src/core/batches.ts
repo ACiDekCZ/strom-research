@@ -16,6 +16,7 @@ import { UsageError } from "./errors.ts";
 import type { Env } from "./paths.ts";
 import type { Tree } from "./tree.ts";
 import { costPartial, sessionCost } from "./session.ts";
+import { listSorts } from "./sort.ts";
 
 /** A batch's mark, as the app makes it (a UUID, or letters, digits and "-"). */
 export const BATCH_ID = /^[A-Za-z0-9-]{8,64}$/;
@@ -57,15 +58,43 @@ export interface Batch {
   /** ZIP files inside a ZIP: said, not unpacked. */
   nested: string[];
   tasks?: string[];
+  /**
+   * false: closed without sorting tasks — intake.auto off, or the app said not to sort it (spec 130); its files wait in
+   * the material unsorted. Unset: sorted as it was closed (a batch an older strom closed).
+   */
+  sort?: boolean;
   /** The user's note to the whole batch (the app's "Note for the research"): told in each of its tasks. */
   note?: string;
   /** Where it came from: a phone (strom phone); none: the Strom app. */
   from?: "phone";
   /** The batch a phone's files go on in once this one was closed (a file of its queue never refused for that). */
   next?: string;
+  /** What became of each file the bridge queued (PUT with Prefer: respond-async), as it was taken: said when it is closed. */
+  taken?: BatchTaken[];
+}
+
+/** What became of one queued file (strom media queued, strom input batch done). */
+export interface BatchTaken {
+  sha: string;
+  /** Its path in the batch. */
+  path?: string;
+  batch?: string;
+  /** The input it became… */
+  input?: string;
+  /** …or what the research had of it already… */
+  known?: string;
+  /** …or why it was not taken (its code and the text). */
+  refused?: { code: string; why: string };
+  /** A ZIP of the batch: what each file in it became. */
+  zip?: { name: string; files: number; inputs: string[]; known: string[]; refused: { path: string; why: string }[]; nested: string[] };
+  /** Material of people: what was added to what the research had (its people, the note, its couples)… */
+  added?: { persons: string[]; note: boolean; families?: string[] };
+  /** …and its intake task. */
+  task?: string;
 }
 
 const dirOf = (root: string) => path.join(root, ".strom", "batches");
+export const batchFileOf = (root: string, id: string): string => fileOf(root, id);
 const fileOf = (root: string, id: string) => path.join(dirOf(root), `${id}.json`);
 
 export function readBatch(root: string, id: string): Batch | undefined {
@@ -118,7 +147,7 @@ export function openBatch(root: string, id: string, from?: "phone"): Batch {
 }
 
 /** What came into a batch, noted (the caller holds the tree lock). */
-export function noteBatch(root: string, b: Batch, add: { input?: string; known?: string; bytes?: number; refused?: { path: string; why: string }; nested?: string }): Batch {
+export function noteBatch(root: string, b: Batch, add: { input?: string; known?: string; bytes?: number; refused?: { path: string; why: string }; nested?: string; taken?: BatchTaken }): Batch {
   const next: Batch = {
     ...b,
     updated: new Date().toISOString(),
@@ -127,6 +156,8 @@ export function noteBatch(root: string, b: Batch, add: { input?: string; known?:
     bytes: b.bytes + (add.bytes ?? 0),
     refused: add.refused ? [...b.refused, add.refused].slice(-500) : b.refused,
     nested: add.nested ? [...b.nested, add.nested].slice(-200) : b.nested,
+    // the same file at the same path taken again (its command failed before its commit): said once, as it is now
+    ...(add.taken ? { taken: [...(b.taken ?? []).filter((t) => t.sha !== add.taken!.sha || (t.path ?? "") !== (add.taken!.path ?? "")), add.taken] } : {}),
   };
   writeBatch(root, next);
   return next;
@@ -156,20 +187,50 @@ function folderOf(p: string | undefined): string {
 const IMAGE = /^image\//;
 
 /**
- * Close a batch: its new files become intake tasks of some 25 each, by the folder they came in (the scans of a book —
- * many numbered images of one folder — said so in the task). In an archive the tasks wait put aside. The caller holds
- * the tree lock and commits.
+ * Close a batch: with sort, its new files become intake tasks of some 25 each, by the folder they came in (the scans of
+ * a book — many numbered images of one folder — said so in the task); without, they wait in the material unsorted
+ * (spec 130: intake.auto off, the default). In an archive the tasks wait put aside. A batch closed without its tasks is
+ * sorted when asked again with sort (the app's choice for this batch). The caller holds the tree lock and commits.
  */
-export function closeBatch(tree: Tree, id: string, opts: { name?: string | undefined; persons?: string[]; expected?: number | undefined; note?: string | undefined; why: "app" | "idle" }): Batch & { tasks: string[] } {
+export function closeBatch(tree: Tree, id: string, opts: { name?: string | undefined; persons?: string[]; expected?: number | undefined; note?: string | undefined; why: "app" | "idle"; sort: boolean }): Batch & { tasks: string[] } {
   const b = readBatch(tree.root, id);
   if (!b) throw new UsageError(`no batch ${id} here`, { hint: "strom input batch", code: "batch.none", params: { batch: id } });
-  if (b.done) return b.closed === "idle" && opts.why === "app" && b.from === "phone" ? handOverLate(tree, b, opts) : { ...b, tasks: b.tasks ?? [] };
+  if (b.done) {
+    const late = b.closed === "idle" && opts.why === "app" && b.from === "phone" ? handOverLate(tree, b, opts) : { ...b, tasks: b.tasks ?? [] };
+    // closed unsorted, now asked to sort it: its files still new become its tasks
+    return opts.sort && b.sort === false && !late.tasks.length ? sortLate(tree, late) : late;
+  }
   const lang = tree.lang;
   const phone = b.from === "phone";
   const name = opts.name?.trim().slice(0, 120) || b.name || phrase(lang, phone ? "batch.unnamed.phone" : "batch.unnamed");
   const persons = [...new Set([...(b.persons ?? []), ...(opts.persons ?? [])])];
   const note = opts.note?.replace(/[\p{Cc}]/gu, " ").replace(/\s+/gu, " ").trim().slice(0, 500) || b.note;
   const inputs = b.inputs.map((i) => tree.get<Input>(i)).filter((i): i is Input => !!i && !i.retracted && i.state === "new");
+  const tasks = opts.sort ? sortingTasks(tree, b, { name, persons, note, inputs }) : [];
+  // the user's note to the batch on each of its files too, as theirs (found on Windows: only in the tasks' why)
+  if (note && note !== b.note)
+    for (const i of inputs)
+      if (!i.notes.some((n) => n.text === note))
+        update<Input>(tree, i.id, "input", (x) => ({ ...x, notes: [...x.notes, makeNote(tree, note)] }), { op: "input.note", summary: `${i.id}: the batch's note (the Strom app)` });
+  const done: Batch = { ...b, name, ...(persons.length ? { persons } : {}), ...(opts.expected ? { expected: opts.expected } : {}), ...(note ? { note } : {}), done: new Date().toISOString(), closed: opts.why, tasks, ...(opts.sort ? {} : { sort: false }) };
+  writeBatch(tree.root, done);
+  return { ...done, tasks };
+}
+
+/** A batch closed unsorted, sorted when asked: its files still new (and not sorted by hand) become its tasks. */
+function sortLate(tree: Tree, b: Batch): Batch & { tasks: string[] } {
+  const inputs = b.inputs.map((i) => tree.get<Input>(i)).filter((i): i is Input => !!i && !i.retracted && i.state === "new" && !i.sorted);
+  const tasks = sortingTasks(tree, b, { name: b.name ?? phrase(tree.lang, b.from === "phone" ? "batch.unnamed.phone" : "batch.unnamed"), persons: b.persons ?? [], note: b.note, inputs });
+  const { sort: _unsorted, ...rest } = b;
+  const done: Batch = { ...rest, tasks };
+  writeBatch(tree.root, done);
+  return { ...done, tasks };
+}
+
+/** The sorting tasks of a batch's files: some 25 each, by the folder they came in, in the order they came. */
+function sortingTasks(tree: Tree, b: Batch, { name, persons, note, inputs }: { name: string; persons: string[]; note: string | undefined; inputs: Input[] }): string[] {
+  const lang = tree.lang;
+  const phone = b.from === "phone";
   // by folder, in the order they came; each folder in parts of about 25
   const byFolder = new Map<string, Input[]>();
   for (const i of inputs) byFolder.set(folderOf(i.path), [...(byFolder.get(folderOf(i.path)) ?? []), i]);
@@ -211,14 +272,7 @@ export function closeBatch(tree: Tree, id: string, opts: { name?: string | undef
     );
     tasks.push(t.id);
   });
-  // the user's note to the batch on each of its files too, as theirs (found on Windows: only in the tasks' why)
-  if (note && note !== b.note)
-    for (const i of inputs)
-      if (!i.notes.some((n) => n.text === note))
-        update<Input>(tree, i.id, "input", (x) => ({ ...x, notes: [...x.notes, makeNote(tree, note)] }), { op: "input.note", summary: `${i.id}: the batch's note (the Strom app)` });
-  const done: Batch = { ...b, name, ...(persons.length ? { persons } : {}), ...(opts.expected ? { expected: opts.expected } : {}), ...(note ? { note } : {}), done: new Date().toISOString(), closed: opts.why, tasks };
-  writeBatch(tree.root, done);
-  return { ...done, tasks };
+  return tasks;
 }
 
 /** How long a batch waits for its next file before it is closed (a phone's an hour, the app's a day). */
@@ -284,17 +338,36 @@ export function phoneBatch(root: string, id: string, fresh: () => string): strin
   return at;
 }
 
-/** The batches for the app (/status batches): each with how far it is sorted — the last 30 days', and any not sorted yet. */
+/**
+ * The files a sort of the material went through to its end (done, its files read: with a proposal or without one) — a
+ * file of a batch closed unsorted that the person had sorted in the Strom app (POST /material/sort) or by
+ * `strom material sort` is sorted, though nothing of the sort is written into the research. Found when read, from the
+ * sorts kept in .strom/sorts, so a research whose app sorted its batches before says so with no change of its data.
+ * A sort queued, at work, failed or cancelled sorted nothing.
+ */
+export function filesSortedBySorts(root: string): Set<string> {
+  const out = new Set<string>();
+  for (const s of listSorts(root)) if (s.state === "done") for (const id of s.files) out.add(id);
+  return out;
+}
+
+/**
+ * The batches for the app (/status batches): each with how far it is sorted — the last 30 days', and any not sorted yet.
+ * A file is sorted when its batch's sorting (strom input sort, a reading, media) moved it on, or a sort of the material
+ * went through it to its end (filesSortedBySorts).
+ */
 export function batchStatus(tree: Tree): Record<string, unknown>[] {
   const month = Date.now() - 30 * 24 * 60 * 60_000;
   // In an archive (or a research waiting for its agent) a batch is kept as it came: nothing sorts it, so it is no
   // batch "waiting to be sorted" — said as `kept`, and gone from the list after a month like a sorted one.
   const kept = actsAsArchive(tree);
   const out: Record<string, unknown>[] = [];
+  let bySorts: Set<string> | undefined;
   for (const b of listBatches(tree.root)) {
     // a file deleted for good is no file of the batch any more
     const inputs = b.inputs.map((i) => tree.get<Input>(i)).filter((i): i is Input => !!i && i.retracted?.reason !== "deleted");
-    const sorted = inputs.filter((i) => i.sorted || i.state !== "new").length;
+    // the sorts are read only when a batch has a file its own sorting did not move on (once for all batches)
+    const sorted = inputs.filter((i) => i.sorted || i.state !== "new" || (bySorts ??= filesSortedBySorts(tree.root)).has(i.id)).length;
     if (Date.parse(b.updated) < month && (kept || sorted === inputs.length)) continue;
     const persons = [...new Set(inputs.flatMap((i) => [...(i.persons ?? []), ...(i.sorted?.persons ?? [])]))];
     out.push({

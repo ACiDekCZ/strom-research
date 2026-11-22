@@ -5,8 +5,9 @@ Przy każdej danej aplikacja pokazuje, jak jest wiarygodna, a karta w drzewie ma
 potrafi zweryfikować daną według oryginału aktu: w tle, przy jednej danej, przy osobie albo w dużej części drzewa.
 Pewność powstaje jednak dopiero wtedy, gdy **człowiek** sam porówna daną ze skanem aktu i ją potwierdzi (**Potwierdź
 według skanu**, [S7.8](#S7.8)). Weryfikacja przez agenta daje najwyżej **Udokumentowane**; potwierdzenie przez człowieka
-jest silniejsze i agent nigdy go nie zmienia. Rozdział opisuje aplikację Strom 3.26.0 i badanie 1.30.0. Co działa
-tylko z mostem badania, a co także bez niego, podsumowuje [S7.9](#S7.9).
+jest silniejsze i agent nigdy go nie zmienia. Rozdział opisuje aplikację Strom 3.26.0 i badanie 1.30.0; zmiany
+z nowszej wersji mają przy sobie jej numer. Co działa tylko z mostem badania, a co także bez niego, podsumowuje
+[S7.9](#S7.9). Imię i nazwisko osoby jako daną opisuje [S7.10](#S7.10).
 
 <!-- zdroj: dirigent:spec/065-spolehlivost-a-znovu-overeni/spec.md · app:7b0471f8 CHANGELOG.cs.md 3.26.0 (Ověřit údaje, Jedna značka na kartičce) · research:6c6e7c3b CHANGELOG.cs.md 1.30.0 (ověření podle originálů) -->
 
@@ -81,6 +82,12 @@ Bierze najsłabszą z trzech danych karty: imię, urodzenie i zgon.
     i bez pochodzenia znacznika nie ma;
   - osoba zastępcza („?”) znacznika nie ma.
 - **Podpowiedź przy znaczniku:** „Najsłabsza dana karty: …” i słowami, co znacznik oznacza.
+  - **Od aplikacji 3.31.0:** przy znaczniku **Z drzewa** nagłówek „Cytowane w drzewie, w Strom niezweryfikowane”
+    stoi tylko nad źródłami cytowanymi wyłącznie przy danych z drzewa (np. przy imieniu i nazwisku). Źródło cytowane
+    przy udokumentowanym urodzeniu lub zgonie (księga metrykalna, nawet gdy cytuje ją zarazem imię i nazwisko) stoi
+    pod własnym nagłówkiem **Źródła (N)**. Wcześniej pod nagłówkiem z drzewa stało każde źródło karty. Gdy
+    o znaczniku decyduje imię i nazwisko, podpowiedź prowadzi linkiem **Imię w karcie osoby ›** do znacznika imienia
+    i nazwiska w karcie osoby ([S7.10](#S7.10)).
 - **Obsługa:** **Ustawienia → Karta osoby → Na karcie pokazuj → Udokumentowanie i wiarygodność** (domyślnie
   włączone).
 - **Obowiązuje od:** aplikacja 3.26.0
@@ -119,7 +126,8 @@ znacznika oferuje **Zweryfikuj**. Badanie weryfikuje wtedy daną według orygina
   - weryfikacja, o którą poprosił człowiek, idzie w kolejce badania pierwsza ([R2](R2-lines-and-queue.md));
   - **Zweryfikuj** jest oferowane tylko przy drzewie powiązanym z badaniem, gdy most działa, a badanie potrafi
     weryfikować ([S7.9](#S7.9));
-  - imienia, płci, rozwodu i pozostałych zdarzeń się nie weryfikuje;
+  - imienia, płci, rozwodu i pozostałych zdarzeń się nie weryfikuje. **Od aplikacji 3.31.0 z badaniem 1.36.0**
+    weryfikuje się także imię i nazwisko ([S7.10](#S7.10));
   - **Zweryfikuj w pierwszej kolejności** nie jest oferowane przy danej, o której weryfikację człowiek już poprosił
     (jest w kolejce pierwsza), przy danej czekającej na skany lub na zgodę archiwum, przy następnej w kolejce i gdy
     badanie nie podaje pozycji danej. Zadania, nad którym agent właśnie pracuje, badanie nie przesuwa.
@@ -130,8 +138,10 @@ znacznika oferuje **Zweryfikuj**. Badanie weryfikuje wtedy daną według orygina
 - **Obsługa:** aplikacja: karta osoby → znacznik danej → **Zweryfikuj** (albo **Zweryfikuj w pierwszej
   kolejności**) → **Rozpocznij weryfikację**. Terminal: `strom verify facts P…|F…|E… [--fact …] [--dry-run]`.
 - **Obowiązuje od:** badanie 1.30.0, aplikacja 3.26.0
+- **Od aplikacji 3.31.0:** podgląd zamiast „Działa w tle badania. Wynik pojawi się przy danej.” mówi „Weryfikacja
+  nastąpi podczas pracy badania. Wynik pojawi się przy danej.” Weryfikacja nie czeka w tle, bierze ją sesja badania.
 
-<!-- zdroj: app:7cf409bd src/verify-offer.ts verifyOffer (prioritize: pending wait, position > 1, step, researchVerifies) · src/verify-ui-model.ts factOffer (čekání spuštěné tady: position null) · src/ui/verify-ui.ts (tlačítko prioritize → verifyOpenPreview; verifyStart: pozice z odpovědi) · strings.ts verify.prioritize, verify.pending · research:a4a2f6c0 src/core/verify.ts verifyAsk (držený úkol → queueAt next; doing nebo už next beze změny), verifyWait (wait / asked / images / permission, position) · app:7b0471f8 src/verify-offer.ts verifyOffer (Verify jen u nedoložených, s feature verify, ne archiv, ne čekající; cost low/high) · src/verify-ui-model.ts verifyFactKind (BIRT, BAPM, MARR, DEAT, BURI) · strings.ts verify.btn, previewHead, what, how, estimate1, howRead, howSearch, costLow, costHigh, sessions, previewNote, previewNoteSearch, start, pending, failed, nothing, noResearch · app:669c08f0 strings.ts verify.busy, locked, whyArchive, whyRetracted, whyGone, whyMerged, whyOld, whyRefused (odmítnutí podle kódu) · research:6c6e7c3b strom help verify facts (první ve frontě; bez přečteného originálu se záznam hledá) · research:4ac323ef src/core/verify.ts askedFor (úkol přeřazený člověkem, queueAt next, do konce sezení na něm → asked v souboru, /status, verify status) · app:src/verify-offer.ts (asked: Verify first se nenabízí) · CHANGELOG.cs.md 1.31.0 -->
+<!-- zdroj: app:f19d34cb strings.ts verify.previewNote (065 K7.3) · app:7cf409bd src/verify-offer.ts verifyOffer (prioritize: pending wait, position > 1, step, researchVerifies) · src/verify-ui-model.ts factOffer (čekání spuštěné tady: position null) · src/ui/verify-ui.ts (tlačítko prioritize → verifyOpenPreview; verifyStart: pozice z odpovědi) · strings.ts verify.prioritize, verify.pending · research:a4a2f6c0 src/core/verify.ts verifyAsk (držený úkol → queueAt next; doing nebo už next beze změny), verifyWait (wait / asked / images / permission, position) · app:7b0471f8 src/verify-offer.ts verifyOffer (Verify jen u nedoložených, s feature verify, ne archiv, ne čekající; cost low/high) · src/verify-ui-model.ts verifyFactKind (BIRT, BAPM, MARR, DEAT, BURI) · strings.ts verify.btn, previewHead, what, how, estimate1, howRead, howSearch, costLow, costHigh, sessions, previewNote, previewNoteSearch, start, pending, failed, nothing, noResearch · app:669c08f0 strings.ts verify.busy, locked, whyArchive, whyRetracted, whyGone, whyMerged, whyOld, whyRefused (odmítnutí podle kódu) · research:6c6e7c3b strom help verify facts (první ve frontě; bez přečteného originálu se záznam hledá) · research:4ac323ef src/core/verify.ts askedFor (úkol přeřazený člověkem, queueAt next, do konce sezení na něm → asked v souboru, /status, verify status) · app:src/verify-offer.ts (asked: Verify first se nenabízí) · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="S7.4"></a>
 ## S7.4 Zweryfikuj dane przy osobie
@@ -158,6 +168,7 @@ w karcie osoby i w podpowiedzi znacznika na karcie w drzewie albo pozycją **Zwe
 - **Pilnuje kod:** N to dokładnie to, co weźmie badanie: dane osoby i jej rodzin, które badanie zna (także dane już
   udokumentowane przez innego czytelnika), poza potwierdzonymi przez człowieka, czekającymi na weryfikację, imieniem
   i płcią. Liczba w menu, w oknie i w komunikacie po uruchomieniu jest taka sama.
+  - **Od aplikacji 3.31.0 z badaniem 1.36.0:** N liczy także imię i nazwisko ([S7.10](#S7.10)).
   - **Od aplikacji 3.30.0:** tylko urodzenie, chrzest, ślub, zgon i pochówek. Miejsce zamieszkania, zawód i inne dane
     weryfikuje się przez **Zweryfikuj** przy danej. Gdyby badanie dla całej osoby wzięło także inne dane, aplikacja
     wysyła do weryfikacji każdą zaznaczoną daną z osobna. Do 3.29.0 także miejsce zamieszkania i zawód.
@@ -168,8 +179,10 @@ w karcie osoby i w podpowiedzi znacznika na karcie w drzewie albo pozycją **Zwe
   N** albo **Zweryfikuj w pierwszej kolejności** pod **Weryfikacja · N**; potem w oknie **Zweryfikuj (N)**. Terminal:
   `strom verify facts P…`.
 - **Obowiązuje od:** badanie 1.30.0, aplikacja 3.26.0
+- **Od aplikacji 3.31.0:** pod szacunkiem w oknie stoi „Tanio = odczytać znany zapis. Drożej = zapis trzeba znaleźć.
+  Weryfikacja nastąpi podczas pracy badania; wyniki pojawią się przy danych.” (wcześniej „Działa w tle badania”).
 
-<!-- zdroj: app:7cf409bd src/ui/verify-person-ui.ts personVerifyMenu (pending + prioritize), verifyCardTipActions (st-verify-first), renderPersonVerifyRow (jen pending řádek), showVerifyPersonDialog prioritize (titulek verify.prioritize) · src/ui/card-signals-ui.ts signal-verify-first · src/ui/context-menu.ts · research:a4a2f6c0 src/core/verify.ts verifyAsk (osoba: držené úkoly na začátek) · app:7b0471f8 src/verify-ui-model.ts personVerifyAskCount · strings.ts verify.menu, menuPending, personTitle, estimate, startN, bulkStarted · app:7eb903a3 src/ui/verify-person-ui.ts renderPersonVerifyRow, personVerifyMenu (karta osoby nad #events-section; jinak personPending), verifyCardTipActions · strings.ts verify.personBtn, personPending, events.title · dirigent:prace/1109-app-jeden-rodic/karta.md Výsledek (6f58068a: menu = náhled = toast; i bydliště, i doložené) · app:0fbda127 src/verify-ui-model.ts PERSON_VERIFY_KINDS, personVerifyAskCount, src/ui/verify-person-ui.ts others (start po údajích) -->
+<!-- zdroj: app:f19d34cb strings.ts verify.estimateNote (065 K7.3) · app:7cf409bd src/ui/verify-person-ui.ts personVerifyMenu (pending + prioritize), verifyCardTipActions (st-verify-first), renderPersonVerifyRow (jen pending řádek), showVerifyPersonDialog prioritize (titulek verify.prioritize) · src/ui/card-signals-ui.ts signal-verify-first · src/ui/context-menu.ts · research:a4a2f6c0 src/core/verify.ts verifyAsk (osoba: držené úkoly na začátek) · app:7b0471f8 src/verify-ui-model.ts personVerifyAskCount · strings.ts verify.menu, menuPending, personTitle, estimate, startN, bulkStarted · app:7eb903a3 src/ui/verify-person-ui.ts renderPersonVerifyRow, personVerifyMenu (karta osoby nad #events-section; jinak personPending), verifyCardTipActions · strings.ts verify.personBtn, personPending, events.title · dirigent:prace/1109-app-jeden-rodic/karta.md Výsledek (6f58068a: menu = náhled = toast; i bydliště, i doložené) · app:0fbda127 src/verify-ui-model.ts PERSON_VERIFY_KINDS, personVerifyAskCount, src/ui/verify-person-ui.ts others (start po údajích) -->
 
 <a id="S7.5"></a>
 ## S7.5 Zweryfikuj dane w drzewie
@@ -203,8 +216,51 @@ w drzewie** pokazuje z góry zakres, kolejność i szacunek kosztu i weryfikuje 
   [--order ancestors|weakest|oldest] [--try N] [--budget …] [--dry-run]`, `strom verify status`,
   `strom verify stop [--bulk]`.
 - **Obowiązuje od:** badanie 1.30.0, aplikacja 3.26.0
+- **Od aplikacji 3.31.0 z badaniem 1.36.0:** próba trafia na początek kolejki, a komunikat po uruchomieniu proponuje
+  **Przetwórz teraz** ([S7.5.1](#S7.5.1)). Pod szacunkiem okno mówi „Weryfikacja nastąpi podczas pracy badania; postęp
+  i zatrzymanie w „Co wie badanie › Weryfikacja”.” Wiersz „Czeka na weryfikację” ma **Pokaż w kolejce**
+  ([S4.2.4](S4-research-from-the-app.md#S4.2.4)).
 
-<!-- zdroj: app:7b0471f8 src/ui/verify-person-ui.ts verifyRowsHtml, treeVerifyBlock, showVerifyBulkDialog · src/ui/research-actions-ui.ts:371 (nabídka výzkumu) · src/import-next.ts IMPORT_NEXT_VERIFY_FEATURES ['verify.bulk'] · src/verify-ui-model.ts VERIFY_TRY_PEOPLE 5 · strings.ts verify.bulkRow, bulkRowSub, bulkTitle, bulkSub, scope, order, scopeLine, scopeSurname, scopeTree, orderAncestors, orderWeakest, orderOldest, tryFirst, tryFirstSub, tryN, startN, bulkNote, section, pendingRow, pendingRowSub, stop, stopped · research:6c6e7c3b strom help verify bulk, verify stop, verify status · src/core/verify.ts (žijící) · research:94d75934 src/core/verify.ts verifyBulk (origin import nebo tree → search) -->
+<!-- zdroj: app:f19d34cb, 53ef9cbe (065 K7.1–K7.4) · app:7b0471f8 src/ui/verify-person-ui.ts verifyRowsHtml, treeVerifyBlock, showVerifyBulkDialog · src/ui/research-actions-ui.ts:371 (nabídka výzkumu) · src/import-next.ts IMPORT_NEXT_VERIFY_FEATURES ['verify.bulk'] · src/verify-ui-model.ts VERIFY_TRY_PEOPLE 5 · strings.ts verify.bulkRow, bulkRowSub, bulkTitle, bulkSub, scope, order, scopeLine, scopeSurname, scopeTree, orderAncestors, orderWeakest, orderOldest, tryFirst, tryFirstSub, tryN, startN, bulkNote, section, pendingRow, pendingRowSub, stop, stopped · research:6c6e7c3b strom help verify bulk, verify stop, verify status · src/core/verify.ts (žijící) · research:94d75934 src/core/verify.ts verifyBulk (origin import nebo tree → search) -->
+
+<a id="S7.5.1"></a>
+### S7.5.1 Próba na początku kolejki i Przetwórz teraz
+
+Próba **Najpierw wypróbuj na 5 osobach** trafia na początek kolejki badania, jak **Zweryfikuj** przy osobie. Gdy
+badanie akurat nie pracuje, aplikacja proponuje przetworzyć ją od razu.
+
+- **W oknie:** pod opcją próby stoi „Zadania trafiają na początek kolejki badania. Po 5 osobach weryfikacja się
+  zatrzyma i pokaże wynik.” a pod szacunkiem „Weryfikacja nastąpi podczas pracy badania; postęp i zatrzymanie w „Co wie
+  badanie › Weryfikacja”.”
+- **Po uruchomieniu** komunikat mówi, kiedy próba zostanie przetworzona:
+  - badanie pracuje: „12 danych do weryfikacji jest następnych w kolejce badania.”;
+  - badanie nie pracuje: „12 danych do weryfikacji czeka na początku kolejki. Badanie teraz nie pracuje.” z **Przetwórz
+    teraz** (oznaczenia AI i terminala, [S4.5.1](S4-research-from-the-app.md#S4.5.1)); komunikat stoi 15 s i można go
+    zamknąć;
+  - w przeciwnym razie (badanie nie umie pracy nad wybranymi zadaniami, nie ma ustawionego agenta albo nie powiedziało,
+    czy pracuje): „12 danych do weryfikacji czeka na początku kolejki; weryfikacja nastąpi przy następnej pracy
+    badania.”
+- **Przetwórz teraz** otwiera terminal badania jak **Praca nad kolejką…** ([S4.2.3](S4-research-from-the-app.md#S4.2.3)):
+  „Te zadania, w tej kolejności:”, potem „Jedna sesja na zadanie (N sesji), potem koniec; co nie zostanie skończone,
+  wraca do kolejki.” Uruchamia się dopiero po „tak” ([R7.1.2](R7-when-the-agent-works.md#R7.1.2)).
+- **Pilnuje kod:**
+  - zadania próby dostają w kolejce miejsce jak ręczne **od razu** ([R2.3.1](R2-lines-and-queue.md#R2.3.1)); weźmie je
+    następna sesja. Reszta zakresu bez próby idzie dalej dopiero po pracy nad liniami ([S7.5](#S7.5));
+  - dwie próby po sobie idą w kolejności zlecenia, starsza pierwsza;
+  - terminal bierze tylko zadania, które jeszcze czekają i nad którymi nikt nie pracuje; pozostałe pomija („Zadania
+    z odnośnika, które już nie czekają (zrobione, cofnięte lub zajęte przez innego), pominięte: N.”). Gdy nie czeka
+    żadne, nic się nie uruchamia.
+- **Gdzie widać postęp:** Co wie badanie › **Weryfikacja** („Czeka na weryfikację: N danych”, **Zatrzymaj**, **Pokaż
+  w kolejce**), w **Kolejce** rodzaj **Weryfikacja** ([S4.2.4](S4-research-from-the-app.md#S4.2.4)); terminal
+  `strom verify status`.
+- **Granice:** przy starszym badaniu próba idzie po pracy nad liniami jak inne zadania weryfikacji, a komunikat mówi
+  „N danych czeka w kolejce do weryfikacji.”
+- **Obsługa:** aplikacja: **Zweryfikuj dane w drzewie…** → **Najpierw wypróbuj na 5 osobach** → **Wypróbuj na 5** →
+  komunikat → **Przetwórz teraz**. Terminal: `strom verify bulk --scope … --try N` („próba, na początku kolejki:
+  weźmie ją następna sesja”).
+- **Obowiązuje od:** aplikacja 3.31.0, badanie 1.36.0
+
+<!-- zdroj: dirigent:spec/065-spolehlivost-a-znovu-overeni K7.1–K7.3 · prace/1119-app-065-p7, 1119-research-065-p7-drobnosti · app:f19d34cb src/ui/verify-person-ui.ts (tryHead: verify.tryFirst → tryFirstSubHead; bulkNote(knowsTitle › section); showVerifyBulkStarted: BULK_PROCESS_MS 15 s, closable, activeResearchNoAgent, work do=tasks workTasks, researchLinkFlags) · src/research-verify.ts verifyBulkStartedKind (plain / next / head / process: working false, work.tasks, workTaskIds) · src/verify-ui-model.ts VERIFY_TRY_PEOPLE 5 · strings.ts verify.tryFirstSubHead, bulkNote, bulkStartedIdle, bulkStartedNext, bulkStartedHead, processNow, bulkStarted · research:7116bb60 src/core/verify.ts verifyBulk (try → priority 3, queueAt next, first), src/commands/verify.ts (working), src/cli/menu-links.ts workOn (jen open a nedržené, asks výchozí ne, run --task), src/core/links.ts (task= jen s do=tasks, 1–100) · cs.json ui.verify.bulk.first, ui.link.work.picked.head, ui.link.work.picked, ui.link.work.picked.gone, ui.link.work.picked.none · CHANGELOG.cs.md 1.36.0 (dvě zkoušky v pořadí zadání) -->
 
 <a id="S7.6"></a>
 ## S7.6 Weryfikacja sama w kolejce badania
@@ -296,7 +352,10 @@ Najsilniejszy znacznik daje człowiek: patrzy na skan aktu, porównuje go z dan�
     według skanu”, „cofnięcie potwierdzenia osoby {imię}”) i wpis w historii zmian („Dana osoby {imię} potwierdzona
     według skanu”, „Cofnięto potwierdzenie według skanu: {imię}”);
   - drzewo powiązane z badaniem: potwierdzenie zapisuje badanie przez most, tylko gdy most działa, a badanie to
-    potrafi; imienia i płci się tu nie potwierdza;
+    potrafi; imienia i płci się tu nie potwierdza. **Od aplikacji 3.31.0 z badaniem 1.36.0** potwierdza się także
+    imię i nazwisko ([S7.10](#S7.10));
+  - **od aplikacji 3.31.0:** potwierdzona dana, która nadal ma wartość z drzewa innego programu, ma pod
+    potwierdzeniem wiersz „Przejęte z drzewa {program}, plik {data}”: skąd wartość przyszła, zostaje widoczne;
   - w terminalu potwierdza tylko człowiek przy swoim terminalu: `strom verify confirm E… [--undo]`. Agentowi `strom`
     potwierdzenie odrzuca.
 - **Granice:** drzewo powiązane z badaniem, którego most nie działa: od aplikacji 3.30.0 oferuje **Potwierdź według
@@ -332,3 +391,49 @@ Najsilniejszy znacznik daje człowiek: patrzy na skan aktu, porównuje go z dan�
 - **Obowiązuje od:** badanie 1.30.0, aplikacja 3.26.0
 
 <!-- zdroj: app:7b0471f8 src/verify-offer.ts (feature verify a facts.confirm jen ze stavu výzkumu přes most) · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2) · research:6c6e7c3b strom help verify · app:0fbda127 researchConfirms offline -->
+
+<a id="S7.10"></a>
+## S7.10 Imię i nazwisko jako dana
+
+Imię i nazwisko osoby ma znacznik jak urodzenie czy zgon: na ile jest pewne według aktów, które je dokumentują, i czy
+potwierdził je człowiek. Można je zweryfikować i potwierdzić według skanu. Stopień imienia i nazwiska określa badanie
+([R10.5.2](R10-people-and-hypotheses.md#R10.5.2)).
+
+- **Gdzie:**
+  - karta osoby: znacznik przy **Imię** i **Nazwisko** (imię i nazwisko z drzewa zmienione tylko częściowo ma
+    znacznik tylko przy części, która jest z drzewa); podpowiedź znacznika jak przy danej ([S7.1](#S7.1));
+  - karta w drzewie: imię i nazwisko jest jedną z trzech danych, z których powstaje jeden znacznik ([S7.2](#S7.2)).
+    Po potwierdzeniu lub jego cofnięciu przez most znacznik karty zmienia się od razu;
+  - nazwisko po ślubie ma cichy znacznik przy **Nazwisko po ślubie**: bez podpowiedzi i bez akcji, i nie wchodzi do
+    znacznika karty.
+- **Akcje przy imieniu i nazwisku** (drzewo powiązane z badaniem, które obsługuje imię i nazwisko):
+  - **Zweryfikuj** z podglądem jak przy danej ([S7.3](#S7.3)). Gdy badanie weryfikuje imię i nazwisko razem z aktem
+    urodzenia lub chrztu, podgląd to mówi: „Zostanie zweryfikowane razem z urodzeniem.”, „Zostanie zweryfikowane
+    razem z chrztem.”, przy urodzeniu lub chrzcie „Imię zostanie zweryfikowane razem z nim.”;
+  - **Potwierdź według skanu** i **Cofnij** jak przy danej ([S7.8](#S7.8)); imienia i nazwiska zmienionego od
+    wczytania drzewa się nie potwierdza;
+  - **Zweryfikuj dane (N)** przy osobie liczy imię i nazwisko ([S7.4](#S7.4));
+  - gdy o znaczniku karty decyduje imię i nazwisko, podpowiedź znacznika oferuje link **Imię w karcie osoby ›**:
+    otwiera kartę osoby z podpowiedzią imienia i nazwiska.
+- **Pilnuje kod:**
+  - stopień imienia i nazwiska aplikacja bierze tylko z pliku badania; sama niczego nie dolicza ani nie przelicza
+    ([R10.5.3](R10-people-and-hypotheses.md#R10.5.3));
+  - do znacznika karty liczy się tylko imię i nazwisko tożsamości osoby
+    ([R10.5.2](R10-people-and-hypotheses.md#R10.5.2));
+  - drzewo powiązane z badaniem, którego most nie działa: imię i nazwisko z numerem badania można potwierdzić według
+    skanu; potwierdzenie przechowuje aplikacja, a do badania dociera ono z najbliższym przekazaniem drzewa
+    ([S7.8](#S7.8));
+  - drzewo bez badania: imię i nazwisko ze źródłem potwierdza sama aplikacja, jak pozostałe dane;
+  - nazwisko po ślubie zapisane w aplikacji inaczej albo usunięte traci swój stopień;
+  - gdy żadna dana osoby nie jest już tylko z drzewa (każda jest udokumentowana lub potwierdzona), wiersz
+    o pochodzeniu w karcie osoby mówi „Dane osoby pochodzą z {program} (plik {data}, wczytano {data}); żadna nie
+    jest już tylko z drzewa.” ([S6.2](S6-tree-from-another-program.md#S6.2)).
+- **Granice:** przy starszym badaniu, które nie obsługuje imienia i nazwiska, nic się nie zmienia: imię i nazwisko
+  w drzewie badania nie ma **Zweryfikuj** ani **Potwierdź według skanu**, a znacznik imienia i nazwiska zostaje
+  według pochodzenia (np. **Z drzewa**). Płci nadal się nie weryfikuje ani nie potwierdza.
+- **Obsługa:** aplikacja: karta osoby → znacznik przy **Imię** lub **Nazwisko** → **Zweryfikuj** / **Potwierdź
+  według skanu** / **Cofnij**; podpowiedź znacznika na karcie → **Imię w karcie osoby ›**. Terminal: `strom verify
+  facts --fact P….N`, `strom verify confirm P….N [--undo]`.
+- **Obowiązuje od:** aplikacja 3.31.0, badanie 1.36.0
+
+<!-- zdroj: app:58e76958 src/ged-parser.ts (_STROM_STATUS, _STROM_EID P….N, _STROM_CONFIRMED pod NAME), src/reliability.ts factStatusOf (name → nameStatus), src/ui/person-reliability-ui.ts:126-145 (marriedNameStatus inert, fact name:married; jméno u input-firstname a lastname-label, fromParts GIVN/SURN), src/ui/fact-status.ts:200-203 personMarksLayout originHistory · app:bb1c6f0a src/verify-ui-model.ts verifyFactKind NAME, factOffer (nameOk: features name-status, nebo offline s eid; jinak ve stromu výzkumu nic), PERSON_VERIFY_KINDS NAME, verifyTogetherKind (NAME ↔ BIRT/BAPM/CHR), src/verify.ts NAME_STATUS_FEATURE, researchNameRef · strings.ts verify.kinds.NAME, verify.together · app:837ca7a4 src/ui/verify-person-ui.ts:293-310 verifyCardTipActions nameAtPerson, src/renderer.ts refreshCardStatus, src/data.ts (married name přepsaný → bez stavu) · CHANGELOG.cs.md 3.31.0 „Stav jména“ · research:8b92b3ae features name-status, POST /facts/confirm a /verify s P….N · research:0bbd1d22 src/core/stromapp.ts APP_READS_NAME_STATUS · dirigent:spec/066 K6.3, K6.5 · app:docs/ZADANI_VYZKUM_stav-jmena.md Odpověď aplikace -->

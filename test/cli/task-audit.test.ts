@@ -472,3 +472,122 @@ test("a book's name is found as words of its own, in any script — its pattern 
   assert.deepEqual(book("Снимки 5, книга Вранов 9"), ["B0004"]);
   assert.deepEqual(book("Снимки 5, книга Вранов 98"), [null]);
 });
+
+test("images of two books by their IDs and numbers (B0001:20-22 a B0002:5-6, as an older strom wrote it): several books, the fix gives each book its task with its own numbers", opts, async () => {
+  const { w } = await world();
+  const id = await task(w, "Křest Vojtěcha Lhotáka (~1790)", ["fara Podhradí"]);
+  const words = "snímky B0001:20-22 a B0002:5-6 uložit ručně";
+  waitAs(w, id, { waitingOn: words, wait: { kind: "web" } });
+  const a = (await w.ok(["task", "audit", id, "--json"])).json.tasks[0];
+  assert.deepEqual(a.findings, [
+    { kind: "images-as-text", books: ["B0001", "B0002"] },
+    { kind: "several-books", books: ["B0001", "B0002"] },
+  ]);
+  assert.equal(a.fix.can, "whole");
+  const f1 = inboxFolderFor({ id: "B0001", title: "Podhradí 1, N 1700–1750" });
+  const f2 = inboxFolderFor({ id: "B0002", title: "Podhradí 2, O 1750–1800" });
+  assert.deepEqual(a.fix.changes, [
+    { op: "wait-images", task: id, book: "B0001", title: "Podhradí 1, N 1700–1750", images: "20–22", folder: f1 },
+    { op: "split", task: null, from: id, book: "B0002", title: "Podhradí 2, O 1750–1800", images: "5–6", folder: f2, waits: "images" },
+  ]);
+  const fixed = (await w.ok(["task", "audit", id, "--fix", "--json"])).json;
+  const t = get(w, id);
+  assert.deepEqual(t.awaits, { recordset: "B0001", images: "20–22", folder: f1 });
+  // each book's images by its title, in the research language — never its ID, never what is to be done with them
+  assert.equal(t.waitingOn, "Snímky 20–22 knihy Podhradí 1, N 1700–1750");
+  const s = get(w, fixed.made[0]);
+  assert.deepEqual(s.awaits, { recordset: "B0002", images: "5–6", folder: f2 });
+  assert.equal(s.waitingOn, "Snímky 5–6 knihy Podhradí 2, O 1750–1800");
+  assert.deepEqual((await w.ok(["task", "audit", "--json"])).json.tasks, []);
+  // written so again: refused as several books, each book its command with its numbers
+  const other = await task(w, "Sňatek rodičů Vojtěcha", ["fara Podhradí"]);
+  const r = await w.run(["task", "wait", other, "--kind", "web", "--on", words, "--json"]);
+  assert.equal(r.code, 2, r.out + r.err);
+  assert.match(r.out + r.err, /several-books/);
+  assert.match(r.out + r.err, new RegExp(`strom task wait ${other} --images B0001:20-22`));
+  assert.match(r.out + r.err, /--images B0002:5-6/);
+  // a comma, a space alone, another language, decomposed, another script: each book its numbers
+  const tree = Tree.open(w.cwd, w.env);
+  const read = (text: string) => readWait(tree, { waitingOn: text, where: [] }).map((p) => [p.book ?? null, p.numbers]);
+  const two = [
+    ["B0001", [20, 21, 22]],
+    ["B0002", [5, 6]],
+  ];
+  for (const text of [
+    "Snímky B0001:20-22, B0002:5-6",
+    "Snímky B0001:20–22 B0002:5–6",
+    "Bilder B0001: 20-22 und B0002: 5-6 von Hand speichern",
+    "Skany B0001:20-22 oraz B0002:5-6 zapisać ręcznie".normalize("NFD"),
+    "Снимки B0001:20-22 и B0002:5-6",
+  ])
+    assert.deepEqual(read(text), two, text);
+  // one book by its ID and numbers, no image word: its images by their numbers
+  assert.deepEqual(read("B0001:20-22 uložit ručně"), [["B0001", [20, 21, 22]]]);
+});
+
+test("a book the research does not have: its name without the words of what is to be done ('uložit ručně', 'save by hand'…); an ID it has none of, that ID alone", opts, async () => {
+  const { w } = await world();
+  const tree = Tree.open(w.cwd, w.env);
+  const unknown = (text: string) => readWait(tree, { waitingOn: text, where: [] }).map((p) => p.unknown ?? p.book ?? null);
+  for (const [text, name] of [
+    ["snímky 7-9 knihy Lhotka 5 uložit ručně", "Lhotka 5"],
+    ["snímky 7-9 knihy Lhotka 5 uložit ručně".normalize("NFD"), "Lhotka 5"],
+    ["snímky 7-9 knihy Lhotka 5 nutno ručně stáhnout", "Lhotka 5"],
+    ["snímky 7-9 knihy Lhotka 5, N 1801–1850 k ručnímu uložení", "Lhotka 5, N 1801–1850"],
+    ["images 7-9 of the book Lhotka 5 to be saved by hand", "Lhotka 5"],
+    ["images 7-9 of the book Lhotka 5 to download manually", "Lhotka 5"],
+    ["Bilder 7-9 aus dem Buch Lhotka 5 von Hand speichern", "Lhotka 5"],
+    ["skany 7-9 z księgi Lhotka 5 zapisać ręcznie", "Lhotka 5"],
+    ["snímky 7-9 knihy Лхотка 5 uložit ručně", "Лхотка 5"],
+    ["snímky 7-9 knihy B0009 uložit ručně", "B0009"],
+    ["snímky B0009:7-9 uložit ručně", "B0009"],
+  ] as [string, string][])
+    assert.deepEqual(unknown(text), [name], text);
+  const id = await task(w, "Křest Vojtěcha Lhotáka (~1790)", ["fara Lhotka"]);
+  const r = await w.run(["task", "wait", id, "--kind", "web", "--on", "snímky 7-9 knihy Lhotka 5 uložit ručně", "--json"]);
+  assert.equal(r.code, 2, r.out + r.err);
+  assert.match(r.out + r.err, /strom recordset add \\?"Lhotka 5\\?" \(the book first\)/);
+  // an ID of no book of the research: never a record set named by it and the rest of the sentence
+  const b = await w.run(["task", "wait", id, "--kind", "web", "--on", "snímky 7-9 knihy B0009 uložit ručně", "--json"]);
+  assert.equal(b.code, 2, b.out + b.err);
+  assert.match(b.out + b.err, /the research has no B0009: strom recordset add \\?"<the book's title>\\?"/);
+  assert.doesNotMatch(b.out + b.err, /recordset add \\?"B0009/);
+});
+
+test("task wait --images given again: the same book's images joined (as a comma joins them), another book's refused — one book per task, as a comma before it", opts, async () => {
+  const { w } = await world();
+  const id = await task(w, "Křest Vojtěcha Lhotáka (~1790)", ["fara Podhradí"]);
+  const before = get(w, id);
+  for (const images of [["B0001:50-52", "B0002:3"], ["B0001:50-52,B0002:3"], ["B0001:50", "B0001:51,B0002:3"]]) {
+    const r = await w.run(["task", "wait", id, ...images.flatMap((x) => ["--images", x]), "--on", "Snímky dvou knih", "--json"]);
+    assert.equal(r.code, 2, r.out + r.err);
+    assert.match(r.out + r.err, /--images: images of B0001, B0002 — one book per task/, images.join(" "));
+    assert.deepEqual(waitOf(get(w, id)), waitOf(before), "nothing written");
+  }
+  await w.ok(["task", "wait", id, "--images", "B0001:50", "--images", "B0001:52", "--on", "Snímky 50 a 52 knihy Podhradí 1"]);
+  assert.deepEqual(get(w, id).awaits, { recordset: "B0001", images: "50, 52", folder: inboxFolderFor({ id: "B0001", title: "Podhradí 1, N 1700–1750" }) });
+  await w.ok(["task", "wait", id, "--images", "B0001:50-52", "--images", "b0001:53", "--on", "Snímky 50–53 knihy Podhradí 1"]);
+  assert.equal(get(w, id).awaits?.images, "50–53");
+});
+
+test("the fix says a book's images by its title, without what is to be done with them — in any language and decomposed; other words kept as they stood", opts, async () => {
+  const { w } = await world();
+  const fix = async (words: string) => {
+    const id = await task(w, "Křest Vojtěcha Lhotáka (~1790)", ["fara Podhradí"]);
+    waitAs(w, id, { waitingOn: words, wait: { kind: "web" } });
+    const made = (await w.ok(["task", "audit", id, "--fix", "--json"])).json.made as string[];
+    return [get(w, id).waitingOn, get(w, made[0]!).waitingOn];
+  };
+  const titled = ["Snímky 20–22 knihy Podhradí 1, N 1700–1750", "Snímky 5–6 knihy Podhradí 2, O 1750–1800"];
+  for (const words of [
+    "Bilder B0001:20-22 und B0002:5-6 von Hand speichern",
+    "skany B0001:20-22 oraz B0002:5-6 trzeba zapisać ręcznie".normalize("NFD"),
+    "Snímky B0001:20–22, B0002:5–6 k ručnímu uložení",
+  ])
+    assert.deepEqual(await fix(words), titled, words);
+  // a note of its own beside the ID: those words as they stood (nothing of them lost), the other book's by its title
+  assert.deepEqual(await fix("snímky B0001:20-22 a B0002:5-6 uložit ručně (Lhoták psán Lhotak)"), [titled[0], "B0002:5-6 uložit ručně (Lhoták psán Lhotak)"]);
+  // the book named by its title: its words as they stood
+  assert.deepEqual(await fix("snímky 20–22 knihy Podhradí 1 a snímky 5–6 knihy Podhradí 2 uložit ručně"), ["Snímky 20–22 knihy Podhradí 1", "Snímky 5–6 knihy Podhradí 2 uložit ručně"]);
+  assert.deepEqual((await w.ok(["task", "audit", "--json"])).json.tasks, []);
+});

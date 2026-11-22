@@ -2,8 +2,12 @@
 // told to do in the brief, through the strom on its PATH.
 import { spawnSync } from "node:child_process";
 
+// Windows: strom is a launcher (strom.cmd) only cmd.exe starts, and the shell option joins the arguments with spaces as
+// they are — each one quoted for cmd.exe, else "done by run-…" came as three (found on Windows, W136-T1)
+const win = process.platform === "win32";
+const cmdQuote = (a: string) => (/^[\p{L}\p{N}_.\-/:=@]+$/u.test(a) ? a : `"${a.replace(/"/g, '""')}"`);
 const strom = (...args: string[]) => {
-  const r = spawnSync("strom", args, { encoding: "utf8", env: process.env, shell: process.platform === "win32" });
+  const r = spawnSync("strom", win ? args.map(cmdQuote) : args, { encoding: "utf8", env: process.env, shell: win });
   process.stdout.write(`$ strom ${args.join(" ")} → ${r.status}\n`);
   if (r.status !== 0) process.stdout.write(r.stdout + r.stderr);
   return r;
@@ -100,6 +104,52 @@ if (mode === "limit-once" && !(await import("node:fs")).existsSync(".strom/agent
   process.exit(1);
 }
 if (mode === "die") process.exit(0); // leaves the session open
+// holds its task (test/cli/holds.test.ts): its first session says who it is (AGENT_DIR/agent.json) and waits, writing
+// nothing, until AGENT_DIR/go is there — then a read and two writes, how each ended in AGENT_DIR/after.json; a later
+// session as "done"
+if (mode === "hold" && task) {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const dir = process.env.AGENT_DIR!;
+  let first = true;
+  try {
+    fs.mkdirSync(path.join(dir, "first"));
+  } catch {
+    first = false;
+  }
+  if (first) {
+    fs.writeFileSync(path.join(dir, "agent.json.tmp"), JSON.stringify({ pid: process.pid, task, session: process.env.STROM_SESSION }));
+    fs.renameSync(path.join(dir, "agent.json.tmp"), path.join(dir, "agent.json"));
+    // (never left behind by a test that failed: gone after four minutes)
+    const until = Date.now() + 240_000;
+    while (!fs.existsSync(path.join(dir, "go")) && Date.now() < until) await new Promise((r) => setTimeout(r, 50));
+    const said = (r: ReturnType<typeof strom>) => ({ code: r.status, err: r.stderr });
+    const after = {
+      read: said(strom("task", "list")),
+      note: said(strom("session", "note", "obrazy 1–5 přečteny")),
+      done: said(strom("task", "done", task, "--result", "found by the one taken over")),
+    };
+    fs.writeFileSync(path.join(dir, "after.json.tmp"), JSON.stringify(after));
+    fs.renameSync(path.join(dir, "after.json.tmp"), path.join(dir, "after.json"));
+    process.exit(0);
+  }
+}
+// runs of lines side by side (test/cli/run-lines.test.ts): each session says which run took which task
+// (AGENT_DIR/took-<worker>-<task>) and waits until AGENT_DIR/go is there, then as "done"
+if (mode === "wait") {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const dir = process.env.AGENT_DIR!;
+  fs.writeFileSync(path.join(dir, `took-${process.env.STROM_WORKER ?? "?"}-${task ?? "none"}`), "");
+  const until = Date.now() + 240_000;
+  while (!fs.existsSync(path.join(dir, "go")) && Date.now() < until) await new Promise((r) => setTimeout(r, 50));
+}
+// its task done and the session closed, nothing else written (runs side by side: test/cli/run-race.test.ts)
+if (mode === "done" || mode === "hold" || mode === "wait") {
+  if (task) strom("task", "done", task, "--result", `done by ${process.env.STROM_WORKER ?? "?"}`);
+  strom("session", "close", "--summary", "done", "--next", "nothing");
+  process.exit(0);
+}
 if (mode === "denied") {
   // what an agent reports when its permissions refuse strom (stands in for Claude's permission_denials)
   console.log("denied: Bash: strom input show I0001");
