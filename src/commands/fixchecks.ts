@@ -48,6 +48,7 @@ import { PROVEN_SINCE, provenDone, provenFixes, type ProvenFix, type ProvenLeft 
 import { ORIGINS_SINCE, originFixes, originsDone, type OriginMark } from "../core/originfix.ts";
 import { VERIFY_SINCE, verifyDone, verifyFixes, verifyQueued, type VerifyItem } from "../core/verify.ts";
 import { NAME_STATUS_SINCE, nameStatusDone, nameStatusFixes, type NameStatusFix } from "../core/namestatusfix.ts";
+import { CONTACT_RESIDENCES_SINCE, contactResidenceFixes, contactResidencesDone, type ContactFix, type ContactLeft } from "../core/contactfix.ts";
 
 /** One earlier reading of one place, to be read again. */
 export interface FixItem {
@@ -100,11 +101,11 @@ export interface FixFindings {
   readings: number;
   /** A check that rewrites (participant-names, app-shapes, street-places, edit-decisions, woken-waits): what it would set
    * right, and how many it found it cannot. */
-  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[] | ReaderFix[] | ProvenFix[] | OriginMark[] | VerifyItem[] | NameStatusFix[];
+  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[] | ReaderFix[] | ProvenFix[] | OriginMark[] | VerifyItem[] | NameStatusFix[] | ContactFix[];
   unsplit?: number;
   /** What it found and leaves as it is, each with why (street-places: a fact whose house says another thing; edit-decisions:
    * the user's value taken, decided again on a new source; woken-waits: taken up since). */
-  left?: StreetLeft[] | EditDecisionLeft[] | WokenWaitLeft[] | ReaderKept[] | ProvenLeft[];
+  left?: StreetLeft[] | EditDecisionLeft[] | WokenWaitLeft[] | ReaderKept[] | ProvenLeft[] | ContactLeft[];
   /**
    * Municipalities with numbers alone after the name ("Lhota 16"), set right only once a person says for the whole
    * municipality that they are houses (street-places): counted in what waits.
@@ -1056,8 +1057,28 @@ export const NAME_STATUS: FixCheck = {
   applied: (tree) => nameStatusDone(tree).length,
 };
 
+/**
+ * Until 1.37.0 an e-mail of a family tree taken in could become a residence (spec 134 U11): an empty one of another
+ * program's "1 RESI / 2 EMAIL", one with the house "Email" (its label of the address), one the Strom app noted
+ * "E-mail: …". Since then it is the person's contact; those written before are set right by rules
+ * (core/contactfix.ts), on a person's word alone: the e-mails to the contact, the residence withdrawn — one with a record
+ * cited, people at it or a note of its own left and said why.
+ */
+export const CONTACT_RESIDENCES: FixCheck = {
+  id: "contact-residences",
+  since: CONTACT_RESIDENCES_SINCE,
+  paid: false,
+  remedy: "rewrite",
+  unit: "fact",
+  detect: (tree) => {
+    const f = contactResidenceFixes(tree);
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: f.left.length, left: f.left };
+  },
+  applied: (tree) => contactResidencesDone(tree).length,
+};
+
 /** Every check strom knows, the oldest fix first. */
-export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS, READERS, PROVEN_ORIGINALS, ORIGINS, VERIFY_ORIGINALS, NAME_STATUS];
+export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS, READERS, PROVEN_ORIGINALS, ORIGINS, VERIFY_ORIGINALS, NAME_STATUS, CONTACT_RESIDENCES];
 
 
 /**

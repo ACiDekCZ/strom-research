@@ -35,6 +35,9 @@ erfasst daraus nur, was wirklich darin steht.
   `strom input list`, `strom input show I…`. App: **Material senden…**, **Materialien hinzufügen…**
   ([A3.5](A3-evidence-in-the-app.md#A3.5)).
 - **Gilt seit:** Forschung 1.0.0
+- **Ab Forschung 1.36.0:** eine Aufgabe Unterlagen bekommt eine Datei nur bei eingeschaltetem `intake.auto` oder mit
+  `--sort`; sonst wartet sie unsortiert in den Materialien ([R11.6](#R11.6)). Ein Text (`--text`) bekommt immer eine
+  Aufgabe.
 
 <!-- zdroj: research:src/commands/intake.ts intake (description, BOOK_OF_SCANS=20, sha256 known, intakeTask) · research:src/core/media.ts MAX_IN_TREE=20 MB · research 1.0.0 = commit 48698860 · research:assets/method/intake.md kroky 1, 4, 6, 7 -->
 
@@ -115,8 +118,14 @@ Ein Stammbaum (GEDCOM oder eine Datei der Strom-App) sind die Schlüsse eines an
     der Agent schreiben;
   - die `ROLE` eines Beteiligten nach GEDCOM 7 wird auch in der Datei eines anderen Programms gelesen;
   - eine Hebamme geht in die App als **Anwesend** mit der Notiz „Hebamme“.
+- **Ab Forschung 1.36.0:** in der Datei für die Strom-App hat jede Zitation eines Stammbaums ohne eigene Fundstelle
+  ihre eigene Zeile aus dem Stammbaum als Seite (`PAGE`), sodass die App bei jeder Zitation ihre Zeile zeigt. Ein
+  Verweis, den ein Import oder ein Abgleich geschrieben hat („I1 BIRT“, „BIRT DATE PLAC“, „family“), und eine Zitation
+  ohne Zeile bekommen keine `PAGE`. Die Zeile bleibt auch in `DATA` › `TEXT`. Ein Stammbaum, den die App unverändert
+  zurückgibt, ist keine Änderung des Benutzers, und nichts wird doppelt zitiert; eine in der App geänderte Zeile ist
+  eine Änderung des Benutzers wie bei jeder Quelle.
 
-<!-- zdroj: research:src/core/import.ts hlavička ("as LEADS", oursByRefn), source kind family-tree form authored :113-117, status lead :294 · research:src/commands/intake.ts --no-import · research:assets/method/intake.md krok 5 · research:94d75934 src/core/import.ts (soubor aplikace Strom → origin user + tree), src/core/model.ts ValueOrigin.tree · 1.32.0: research:ac489205 src/core/import.ts importStromJson (godparent/weddingWitness → EVEN v jazyce výzkumu s roleAt, participants, partnerships[].participants, shareId/shareRole), src/core/roles.ts, src/gedcom/export.ts (porodní bába RELA Present + poznámka), celá poznámka události · research:f8eb2032 Note.whole, makeNote 500, factDetails, partnersAges, childRelation · research:01125661 appNobody, appMarriedName, appUnionFacts, appLooseFamilies · research:CHANGELOG 1.32.0 „Events shared in the Strom app“ · src/core/live.ts BRIDGE_FEATURES event.share · dirigent:prace/1113-vyzkum-085-json, 1113-vyzkum-json-intake-uplny, 1113-vyzkum-json-intake-drobnosti Výsledek · 1.34.0: research:aa0d53d5 src/core/import.ts gedRoleEventLabel (B6) -->
+<!-- zdroj: research:src/core/import.ts hlavička ("as LEADS", oursByRefn), source kind family-tree form authored :113-117, status lead :294 · research:src/commands/intake.ts --no-import · research:assets/method/intake.md krok 5 · research:94d75934 src/core/import.ts (soubor aplikace Strom → origin user + tree), src/core/model.ts ValueOrigin.tree · 1.32.0: research:ac489205 src/core/import.ts importStromJson (godparent/weddingWitness → EVEN v jazyce výzkumu s roleAt, participants, partnerships[].participants, shareId/shareRole), src/core/roles.ts, src/gedcom/export.ts (porodní bába RELA Present + poznámka), celá poznámka události · research:f8eb2032 Note.whole, makeNote 500, factDetails, partnersAges, childRelation · research:01125661 appNobody, appMarriedName, appUnionFacts, appLooseFamilies · research:CHANGELOG 1.32.0 „Events shared in the Strom app“ · src/core/live.ts BRIDGE_FEATURES event.share · dirigent:prace/1113-vyzkum-085-json, 1113-vyzkum-json-intake-uplny, 1113-vyzkum-json-intake-drobnosti Výsledek · 1.34.0: research:aa0d53d5 src/core/import.ts gedRoleEventLabel (B6) · 1.36.0: research:519951b3 src/gedcom/export.ts stromPage (family-tree: PAGE = locator citace, ne treePointer), citation where (DATA TEXT i vedle PAGE), src/core/sourcefields.ts treePointer · test/cli/origin-ids.test.ts · CHANGELOG.cs.md 1.36.0 -->
 
 <a id="R11.4"></a>
 ## R11.4 Ein Stapel aus der App
@@ -153,6 +162,9 @@ Stapel an. Der Agent sortiert ihn dann nach Aufgaben.
 - **Bedienung:** Terminal: `strom input batch` (Stapel und wie viel eingeordnet ist), `strom input sort I… --as
   source|document|photo|unrelated --person P…`. App: **Materialien hinzufügen…** im Menü der Forschung.
 - **Gilt seit:** Forschung 1.12.0; Stapel vom Telefon 1.18.0
+- **Ab Forschung 1.36.0:** Aufgaben zum Sortieren entstehen nur bei eingeschaltetem `intake.auto` oder wenn ein
+  Mensch um das Sortieren des Stapels bittet; sonst wird der Stapel ohne Aufgaben geschlossen, und die Dateien warten
+  unsortiert in den Materialien ([R11.6](#R11.6)).
 
 <!-- zdroj: research:src/core/batches.ts hlavička, BATCH_TASK_FILES=25 (od v1.12.0), BATCH_IDLE_MS, PHONE_BATCH_IDLE_MS (od v1.18.0) · research:src/commands/intake.ts input batch done (--idle), input sort (unrelated --reason) · research:assets/method/intake.md "A batch from the Strom app" -->
 
@@ -377,8 +389,52 @@ Zustimmung oder in der App über **Endgültig löschen…** ([A3.5.16](A3-eviden
     gespeichert.
 - **Grenzen:** in der App Strom lässt es sich nicht rückgängig machen; eine Datei bleibt nur in einer Sicherung
   (`strom backup`) oder einem Paket, das vorher entstand. Die Geschichte der Forschung behält den Eintrag.
-- **Bedienung:** Terminal: `strom input delete I… [--dry-run] [--files-from …]`; App: **Endgültig löschen…** über
-  die Brücke (`POST /material/delete`, [R11.5.4](#R11.5.4)).
+- **Ab Forschung 1.36.0:** eine Stammbaumdatei (ein importiertes GEDCOM, die JSON-Datei der App) wird genauso
+  gelöscht. Entstand aus ihr eine Quelle und gilt diese noch, endet der Befehl (`material.source-live`): die Datei
+  lässt sich nur zusammen mit dieser Quelle löschen, `--retract-sources S…`. Zuerst wird die Quelle gelöscht, wie
+  bei `strom source retract` ([R3.10](R3-verification-and-citation.md#R3.10)); für beides genügt ein Ja, und alles
+  wird mit einem Commit geschrieben. Die Quelle lässt sich danach wiederherstellen, aber ohne die Datei.
+- **Bedienung:** Terminal: `strom input delete I… [--dry-run] [--files-from …] [--retract-sources S…]`; App:
+  **Endgültig löschen…** über die Brücke (`POST /material/delete`, [R11.5.4](#R11.5.4)).
 - **Gilt seit:** Forschung 1.35.0
 
-<!-- zdroj: research:0cc2cfca src/commands/intake.ts input delete (popis, --files-from, skrytý --confirm, isAgent → material.agent, checkDeleteConfirm → material.delete-changed, material.body, souhlas člověka, exit 4) · src/core/materialdelete.ts (hlavička: historie drží záznam, bajty jen v záloze nebo balíčku; DELETE_MOST_FILES=MATERIAL_MOST_EDIT=500, DELETE_CONFIRM_MS 15 min; nečitelný jiný výzkum → nic se nesmaže) · input show („deleted for good“), input list bez smazaných · CHANGELOG.md 1.35.0 -->
+<!-- zdroj: research:0cc2cfca src/commands/intake.ts input delete (popis, --files-from, skrytý --confirm, isAgent → material.agent, checkDeleteConfirm → material.delete-changed, material.body, souhlas člověka, exit 4) · src/core/materialdelete.ts (hlavička: historie drží záznam, bajty jen v záloze nebo balíčku; DELETE_MOST_FILES=MATERIAL_MOST_EDIT=500, DELETE_CONFIRM_MS 15 min; nečitelný jiný výzkum → nic se nesmaže) · input show („deleted for good“), input list bez smazaných · CHANGELOG.md 1.35.0 · 1.36.0: e6bbfb40 src/commands/intake.ts input delete (--retract-sources, material.source-live, jeden commit), ui.input.delete.retracted · src/core/live.ts POST /material/delete {files, confirm, sources} -->
+
+<a id="R11.6"></a>
+## R11.6 Gesendete Dateien geht der Agent erst nach dem Einschalten durch
+
+Eine an die Forschung gesendete Datei startet nicht von selbst die Arbeit des Agenten. Sie wird gespeichert und wartet
+unsortiert in den Materialien, bis ein Mensch um das Sortieren bittet oder in den Einstellungen der Forschung
+einschaltet, dass der Agent gesendete Dateien selbst durchgeht (`intake.auto`).
+
+- **Prüft der Code:**
+  - `intake.auto` ist standardmäßig aus, auch in früher angelegten Forschungen; nichts wird umgewandelt und nichts
+    gefragt;
+  - aus: ein geschlossener Stapel (App, Telefon, Schließen einen Tag nach der letzten Datei) legt keine Aufgaben zum
+    Sortieren an. Eine Aufgabe entsteht auch nicht bei einer einzelnen Datei aus der App (Material einer Person, Scan
+    einer Quelle, Original eines Porträts oder Fotos einer Verbindung aus dem Eintrag des Stammbaums,
+    [S8.3](S8-where-the-data-are.md#S8.3)), bei einer erneut gesendeten Datei mit einer weiteren Person oder Notiz,
+    bei einer erneut gezeigten Datei, bei einer ergänzten Unterlage und auch nicht bei Dateien von `strom intake`;
+  - ein: wie bisher. Ein Stapel gibt Aufgaben zum Sortieren zu je etwa 25 Dateien, die in der Warteschlange vorne
+    stehen ([R11.4](#R11.4)), eine Datei ihre Aufgabe Unterlagen ([R11.1](#R11.1)), ein Scan einer Quelle eine
+    Aufgabe zum Lesen;
+  - eine Aufgabe entsteht immer aus einer ausdrücklichen Handlung eines Menschen: **Mit dem Agenten sortieren…**
+    ([R11.5.3](#R11.5.3)), `--sort`, eine Datei als Antwort auf eine wartende Aufgabe
+    ([R6.7.1](R6-awaiting-action.md#R6.7.1)), **Dokument lesen…** und auch ein Text (`strom intake --text`), den ein
+    Mensch sagt;
+  - einschalten darf nur ein Mensch: im Terminal, im Menü oder in der Strom-App. Dem Agenten wird das Einschalten
+    abgelehnt. Ausschalten darf jeder. Aufgaben zum Sortieren, die schon entstanden sind, bleiben nach dem Ausschalten;
+  - die Einstellung gilt für eine Forschung (`--for-tree`) oder für alle Forschungen auf dem Computer.
+- **Warum:** das Sortieren verbraucht das KI-Abonnement und ändert den Stammbaum (es ordnet Dateien Personen zu,
+  benennt sie, legt Quellen an). Das bloße Hochladen einer Datei darf keine KI-Arbeit starten; Dokumente der Familie
+  brauchen die Zustimmung eines Menschen.
+- **In der App:** der Schalter in den Einstellungen der Forschung ([S4.4.11](S4-research-from-the-app.md#S4.4.11)),
+  das Ende des Sendens eines Stapels und **Material senden…** ([A3.5](A3-evidence-in-the-app.md#A3.5)).
+- **Bedienung:** Terminal: `strom config set intake.auto on|off --for-tree`; Menü **Einstellungen** → „An die
+  Forschung gesendete Dateien sieht der Agent selbst durch: aus“; `strom intake <Dateien> --sort` (die Dateien geht
+  der Agent sofort durch); Menü **Unterlagen der Familie** fragt „Vom Agenten durchsehen lassen (Aufgaben für den
+  Agenten, verbraucht das KI-Abonnement)?“ (Standard nein); `strom input batch done <Stapel> --sort` (einen ohne
+  Aufgaben geschlossenen Stapel sortieren). Brücke: `POST /intake {auto}`, `POST /batch/<id>/done` mit `sort`.
+- **Gilt seit:** Forschung 1.36.0
+
+<!-- zdroj: research:da86bbe7, 90f33705 src/core/config.ts:400 intake.auto (tree: true, off|on, výchozí off), :962 intakeAuto · src/commands/setup.ts:1311, :1655-1673 intakeDecision (requireHuman, STROM_FOR_APP bez agenta, off kdokoli) · src/commands/intake.ts:202-225 (--sort, --text vždy úkol), :829-848 input batch done --sort/--no-sort · src/cli/menu-research.ts:110-125 (ui.intake.sort.ask, výchozí ne; ui.intake.done.waits) · src/cli/menu-settings.ts:98, :247-250 · src/core/live.ts:6693 POST /intake, BRIDGE_FEATURES intake.auto · cs.json ui.settings.intake(.about, .on, .off), ui.intake.sort.ask, ui.intake.done.waits · CHANGELOG.cs.md 1.36.0 · dirigent:spec/130 K1.1–K1.3, K2.1, K3.1, K4.1, rozhodnutí 21. 11. · app:docs/ZADANI_VYZKUM_trideni-davek.md (Most, Doplněk K1.3) · app:strings.ts read.menu (položka menu s „…“, titulek read.title bez) · dirigent:prace/1122-app-nalezy-330 -->

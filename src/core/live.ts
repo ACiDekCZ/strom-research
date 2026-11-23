@@ -71,6 +71,10 @@
 //                          says a name's status, confirmation and verification under NAME (2 _STROM_EID P….N): the app
 //                          offers Verify (POST /verify {fact: P….N}) and Confirm against the scan (POST /facts/confirm
 //                          {fact: P….N}) at the name of a person's identity — the confirmation in an archive too.
+//                          person.contact (spec 134 U11, every app, an archive too): a person's contact (their e-mails)
+//                          is the research's — strom sync and an app's handover read it as 1 RESI / 2 EMAIL, as the
+//                          app's older residence of nothing but a note "E-mail: …" and as 1 EMAIL, and /tree.ged
+//                          writes it as 1 RESI / 2 EMAIL (at most three to a RESI), no date, status or mark of strom's.
 //   GET <token>/status/<part>  one of those parts: {part, rev, head, …its fields as /status carries them}; 404
 //                          status.part for another name.
 //                          A queue item off the lines of a research with several (core/offline.ts) says offLine:
@@ -98,6 +102,8 @@
 //                          is tens of MB) — one making at a time, the asks for the same file wait for it together, /status and the rest answer meanwhile;
 //                          made once for each head and variant (the app's version, links, images' settings) and kept on
 //                          disk (.strom/cache/live-ged: a bridge started again gives it at once); X-Strom-Head its head.
+//                          A person's contact (feature person.contact): 1 RESI with 2 EMAIL lines alone (three at most,
+//                          then another RESI) — no event of the research; read back by strom sync as the contact.
 //                          ?stale=1 (feature ged.stale): the last one made of the variant at once, though the research
 //                          changed since (X-Strom-Stale: 1, X-Strom-Head-Now), the new one told by the event change. While
 //                          the app follows (/events), a change is told once the tree of its head is made (at most 45 s).
@@ -156,7 +162,11 @@
 //                          inbox to be shown and written on the user's word (strom sync) — nothing of the
 //                          research changes; /status says what waits there (inbox) and how each send went (sends);
 //                          ?media=app: the send carries every file of its tree — a place of one the app was given with
-//                          the files (GET /tree.ged?media=app of its _STROM_HEAD) and no longer has is taken off
+//                          the files (GET /tree.ged?media=app of its _STROM_HEAD) and no longer has is taken off.
+//                          Files by reference (spec 133, feature sync.mediaRef): `_STROM_DATA <sha>` where FILE data:…
+//                          would be, the research's excerpt with no FILE; a hash the research cannot find (the shared
+//                          store, its own files) refuses the whole send before anything is kept: 409
+//                          {ok: false, code: sync.media-ref-unknown, error, shas: [≤ 50]} — the app sends it with the data
 //   POST <token>/cancel    …or says it sends nothing ({"reason": "unchanged" | "cancelled" | "no-tree"})
 //   GET <token>/media/<sha256>   whether the research has a file of that content (an original the app would send);
 //                          ?file=1: the file itself (the original, for the app's viewer)
@@ -300,7 +310,8 @@
 //                          after it failed. Without Prefer: written before the answer, as before
 //   POST <token>/media/known   what the research has of many files at once ({shas: [SHA-256] (at most 5000)},
 //                          feature media.known): {known: {<sha>: {id, kind, mime, bytes, here} | {queued: true} |
-//                          null}}; 413 media.known-many {max}, 400 media.known-body. Read only. GET /media/<sha> of a
+//                          null}} — a working copy of a file of the app's tree by its own hash too, while its bytes are
+//                          in the shared store (spec 133); 413 media.known-many {max}, 400 media.known-body. Read only. GET /media/<sha> of a
 //                          queued file: 404 {known: null, queued: true}
 //   POST <token>/batch/<id>/done   the batch is whole ({name, files, person, note, sort?: true|false}): with
 //                          intake.auto on its files become sorting tasks, off (the default, spec 130) they wait in the
@@ -761,7 +772,7 @@ import { endWork, excerptAnswer, excerptOnThread, fixesOnThread, gedOnThread, ge
 import { IMAGE_MIME, IMAGE_SHA, imageFile, readImage } from "./liveimages.ts";
 import { markServedWithMedia, treeMediaFile } from "./treemedia.ts";
 import { isStatusPart, splitStatus, StatusKeeper, STATUS_PARTS } from "./livestatus.ts";
-import { adoptedAt, notWrittenList, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type MediaWritten, type Skipped } from "./sync.ts";
+import { adoptedAt, notWrittenList, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, refuseReceived, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type MediaWritten, type PlanTimes, type ReceiveTimes, type Skipped } from "./sync.ts";
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { actsAsArchive, kindOf, settleWaiting, stateOf } from "./state.ts";
 import { forStory } from "./stories.ts";
@@ -778,7 +789,8 @@ import { PROFILES } from "../agents/profiles.ts";
 import { ui } from "../cli/ui.ts";
 import { DISK_FULL, EXIT, isDiskFull, StromError } from "./errors.ts";
 import { acquireLock, liveHolder } from "./lock.ts";
-import { checkAsked, checkEdit, material, MATERIAL_MOST_EDIT, MATERIAL_MOST_FILES, MATERIAL_MOST_PEOPLE, materialUses, peopleOf, workingCopyOf } from "./material.ts";
+import { checkAsked, checkEdit, material, MATERIAL_MOST_EDIT, MATERIAL_MOST_FILES, MATERIAL_MOST_PEOPLE, materialUses, peopleOf, workingCopyBySha, workingCopyOf } from "./material.ts";
+import { checkMediaRefs, type MediaRefCheck } from "./appmedia.ts";
 import { checkDeleteConfirm, checkRetractWith, deleteConfirm, DELETE_MOST_FILES, deleteImpacts, deleteSourceImpacts, refuseLiveSources } from "./materialdelete.ts";
 import { checkRetractConfirm, keepable, restorable, RETRACT_MOST, retractConfirm, retractImpacts } from "./sourceretract.ts";
 import { cachedThumb, THUMB_SIZES } from "./thumbs.ts";
@@ -1884,10 +1896,13 @@ export function tagMatches(req: Pick<http.IncomingMessage, "headers">, tag: stri
     .some((t) => t === "*" || t === tag);
 }
 
+/** A send naming by reference a file the research cannot find (spec 133 §1.4): refused whole, 409. */
+const MEDIA_REF_UNKNOWN = "sync.media-ref-unknown";
+
 /** How many hashes POST /media/known takes at once. */
 export const MEDIA_KNOWN_MAX = 5000;
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sync.mediaRef", "person.contact"] as const;
 
 /** What only a research with its agent here does (accepts.read: none in an archive, nor where it waits for its agent). */
 const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move"]);
@@ -4520,6 +4535,52 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   // strom holding it longer than a writer waits): the send is tried again a while later, not left waiting for ever.
   let writing: string | undefined;
   let retryAt: ReturnType<typeof setTimeout> | undefined;
+  /** Where a send's time went (ms), for its one line in live.log: no names, no data — its mark, sizes and times. */
+  interface SendClock {
+    from: number;
+    intake?: string;
+    bytes?: number;
+    body?: number;
+    decode?: number;
+    undone?: number;
+    got?: ReceiveTimes;
+    /** Its writer's run (ms), and the phases it said (strom sync --json). */
+    child?: number;
+    phases?: Record<string, number>;
+    plans?: number;
+    planParts?: PlanTimes;
+    answer?: { code: number; at: number };
+    /** What it carries of its files (spec 133): by reference, excerpts without FILE, with data. */
+    media?: Omit<MediaRefCheck, "unknown">;
+    writing?: boolean;
+    said?: boolean;
+  }
+  const secs = (ms: number | undefined) => (!ms ? "0 s" : ms < 1000 ? `${(ms / 1000).toFixed(2)} s` : `${(ms / 1000).toFixed(1)} s`);
+  const parts = (p: PlanTimes | undefined) =>
+    p && Object.keys(p).length ? ` (${(["ours", "given", "since", "after", "mend", "rest"] as const).filter((k) => p[k] !== undefined).map((k) => `${k} ${secs(p[k])}`).join(", ")})` : "";
+  const noteSend = (c: SendClock) => {
+    if (c.said || c.writing) return;
+    c.said = true;
+    const at = [
+      c.body !== undefined ? `body ${secs(c.body)}` : undefined,
+      c.decode !== undefined ? `decode ${secs(c.decode)}` : undefined,
+      c.undone !== undefined ? `undone ${secs(c.undone)}` : undefined,
+      c.got?.ids !== undefined ? `known ids+file ${secs(c.got.ids)}` : undefined,
+      c.got?.plan !== undefined ? `plan ${secs(c.got.plan)}${parts(c.got.planParts)}` : undefined,
+      c.child !== undefined
+        ? `writer ${secs(c.child)}${c.phases ? ` (read ${secs(c.phases.read)}, plan ${secs(c.phases.plan)}${parts(c.planParts)}, plans ${c.plans ?? 0}, lock ${secs(c.phases.lock)}, apply ${secs(c.phases.apply)}, settle ${secs(c.phases.settle)})` : ""}`
+        : undefined,
+      c.media ? `files by reference ${c.media.dataRefs}, excerpts without FILE ${c.media.excerptsWithoutFile}, with data ${c.media.withData}` : undefined,
+      c.answer ? `answered ${c.answer.code} at ${secs(c.answer.at)}` : "answered before",
+    ].filter(Boolean);
+    noteLive(root, `send ${c.intake ?? c.got?.intake ?? "?"}${c.bytes !== undefined ? ` ${(c.bytes / 1e6).toFixed(1)} MB` : ""}: ${at.join(", ")}`);
+  };
+  /** The reply of a send, timed: its line said at the answer — or once its writer is done, while one writes it. */
+  const timedReply = (c: SendClock, reply: (code: number, body: Record<string, unknown>) => void) => (code: number, body: Record<string, unknown>) => {
+    c.answer = { code, at: performance.now() - c.from };
+    reply(code, body);
+    noteSend(c);
+  };
   const WRITE_ANSWER_MS = Number(env.STROM_SYNC_ANSWER_MS ?? 20_000);
   const RETRY_MS = Number(env.STROM_SYNC_RETRY_MS ?? 30_000);
   const RETRIES = 5;
@@ -4535,43 +4596,115 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   const writeNext = () => {
     if (writing || !writesAtOnce()) return;
     const next = receivedPending(root).at(-1);
-    if (next) write({ file: path.join(root, SYNC_INBOX, next.file), changes: next.changes, intake: next.intake }, () => {});
+    if (next)
+      write({ file: path.join(root, SYNC_INBOX, next.file), changes: next.changes, intake: next.intake, ...(next.counting ? { counting: true as const } : {}), clock: { from: performance.now(), intake: next.intake } }, () => {});
   };
-  const write = (sent: { file: string; changes: number; intake: string }, reply: (code: number, body: Record<string, unknown>) => void) => {
+  /**
+   * A send written by a strom of its own. One the bridge left to it to count (`counting`: planned once, there — never
+   * here as well): the app waits for the answer until that strom says how many changes it brings, from then on at most
+   * WRITE_ANSWER_MS; one it refuses as it reads it is refused as the bridge refuses one (400, the file kept aside).
+   */
+  const write = (sent: { file: string; changes: number; intake: string; counting?: true; clock?: SendClock }, reply: (code: number, body: Record<string, unknown>) => void) => {
+    // its count, once known (a send counted by the bridge: known from the start)
+    let count: number | undefined = sent.counting ? undefined : sent.changes;
+    const pendingBody = (extra: Record<string, unknown> = {}) => ({ ok: true, inbox: false, pending: true, ...extra, ...(count !== undefined ? { changes: count } : {}), intake: sent.intake });
     if (writing) {
-      reply(202, { ok: true, inbox: false, pending: true, changes: sent.changes, intake: sent.intake });
+      reply(202, pendingBody());
       return;
     }
     writing = sent.intake;
+    const clock = sent.clock ?? { from: performance.now(), intake: sent.intake };
+    clock.writing = true;
+    const started = performance.now();
     const { command, args } = stromLauncher();
     const child = spawn(command, [...args, "sync", sent.file, "--apply", "--json"], {
       cwd: root,
-      env: forApp(env, root),
+      env: { ...forApp(env, root), STROM_SYNC_TELL: "1" },
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
     });
     track(child);
     let out = "";
     let err = "";
-    child.stdout.on("data", (d: Buffer) => (out += d.toString("utf8")));
-    child.stderr.on("data", (d: Buffer) => (err += d.toString("utf8")));
+    let reading = false;
     let answered = false;
-    const timer = setTimeout(() => {
-      answered = true;
-      reply(202, { ok: true, inbox: false, pending: true, changes: sent.changes, intake: sent.intake });
-    }, WRITE_ANSWER_MS);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const wait = () => {
+      timer = setTimeout(() => {
+        answered = true;
+        reply(202, pendingBody());
+      }, WRITE_ANSWER_MS);
+    };
+    if (count !== undefined) wait();
+    child.stdout.on("data", (d: Buffer) => (out += d.toString("utf8")));
+    child.stderr.on("data", (d: Buffer) => {
+      err += d.toString("utf8");
+      if (count !== undefined && reading) return;
+      for (const line of err.split("\n")) {
+        if (line === "strom-sync: reading") reading = true;
+        const n = /^strom-sync: planned (\d+)$/.exec(line);
+        if (n && count === undefined) {
+          count = Number(n[1]);
+          // counted: the app waits no longer than any send's answer waits; nothing new: answered once settled
+          if (count > 0) wait();
+        }
+      }
+    });
     child.on("error", (e) => noteLive(root, `a send could not be written: ${errorText(e)}`));
     child.on("close", (code) => {
       clearTimeout(timer);
-      let data: { input?: string | null; changes?: Change[]; message?: string; code?: string; params?: Record<string, string>; skipped?: Skipped[]; applied?: { do: string; id: string; before?: unknown }[]; media?: MediaWritten[]; retracted?: string[] } = {};
+      clock.child = performance.now() - started;
+      let data: { input?: string | null; changes?: Change[]; message?: string; code?: string; params?: Record<string, string>; skipped?: Skipped[]; applied?: { do: string; id: string; before?: unknown }[]; media?: MediaWritten[]; retracted?: string[]; phases?: Record<string, number>; plans?: number; planParts?: PlanTimes } = {};
       try {
         data = JSON.parse(out) as typeof data;
       } catch {
         // said by the exit code
       }
+      if (data.phases) Object.assign(clock, { phases: data.phases, plans: data.plans, planParts: data.planParts });
       const why = data.message ?? err.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? "the send was not written";
       // the research busy: tried again a while later (the app keeps following it as pending)
       const busy = code === EXIT.locked;
+      const done = () => {
+        clock.writing = false;
+        noteSend(clock);
+        writing = undefined;
+        // the next that waits; the research busy: a while later
+        if (busy) {
+          clearTimeout(retryAt);
+          retryAt = setTimeout(writeNext, RETRY_MS);
+          retryAt.unref?.();
+        } else writeNext();
+      };
+      if (code === 0 && count === undefined) count = data.changes?.length ?? 0;
+      // refused as it was read, before it was counted (another research's, without the research's IDs, empty…): as the
+      // bridge refuses a send it counts itself — no record of it left, the file kept aside, the app told why
+      if (sent.counting && count === undefined && reading && code !== null && code !== 0 && !busy) {
+        let keptAs: string | undefined;
+        try {
+          keptAs = refuseReceived(root, sent.intake);
+        } catch (e) {
+          noteLive(root, `the send ${sent.intake} refused was not kept aside: ${errorText(e)}`);
+        }
+        noteLive(root, `the send ${sent.intake} was refused (${data.code ?? `exit ${code}`})`);
+        if (!answered) {
+          let lang = "en";
+          try {
+            lang = Tree.open(root, env).lang;
+          } catch {
+            // said in English
+          }
+          const key = data.code ? REFUSED[data.code] : undefined;
+          if (data.code === DISK_FULL || isDiskFull(why)) reply(507, { ...diskFullSaid(lang, root), ...(keptAs ? { keptAs } : {}) });
+          else reply(400, { ...(key ? said(lang, key) : { error: why, code: "tree.refused", text: why }), ...(keptAs ? { keptAs } : {}) });
+        }
+        return done();
+      }
+      // counted by its writer, nothing new: answered as a send that brings nothing (nothing waits, nothing written)
+      if (sent.counting && code === 0 && count === 0) {
+        noteLive(root, `the send ${sent.intake} brought nothing new${data.input ? ` (the same as ${data.input})` : ""}`);
+        if (!answered) reply(200, { ok: true, changes: 0, file: path.basename(sent.file), inbox: false, head: head(root), conflicts: [], intake: sent.intake });
+        return done();
+      }
       if (code !== 0) noteLive(root, `the send ${sent.intake} was not written (exit ${code}${busy ? ", the research busy: tried again later" : ""}): ${why}`);
       // the same file as a sync before (sent again unchanged): nothing new, the input it was then only named
       else noteLive(root, `the send ${sent.intake} ${data.input && data.changes?.length ? `written: ${data.input}` : `brought nothing new${data.input ? ` (the same as ${data.input})` : ""}`}${data.skipped?.length ? `, ${counted(data.skipped.length, "change")} left out` : ""}`);
@@ -4592,7 +4725,7 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
           reply(200, {
             ok: true,
             inbox: false,
-            changes: sent.changes,
+            changes: count ?? sent.changes,
             applied: changes.filter((c) => c.action !== "pick" && c.action !== "report").length - (data.skipped?.length ?? 0),
             // the people and sources it brought, under the IDs the research gave them (the app's xref → P…, S…): the app
             // keeps them as their REFN, its next send names them so (as an adoption's answer does)
@@ -4621,7 +4754,7 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
             conflicts,
             intake: sent.intake,
           });
-        } else if (busy) reply(202, { ok: true, inbox: false, pending: true, retry: Math.round(RETRY_MS / 1000), changes: sent.changes, intake: sent.intake });
+        } else if (busy) reply(202, pendingBody({ retry: Math.round(RETRY_MS / 1000) }));
         // a sentence the app shows as it is (3.8 shows "error" of a refusal), what went wrong beside it
         else {
           let lang = "en";
@@ -4646,13 +4779,7 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
           else reply(500, { ...said(lang, "ui.sync.bridge.failed"), reason: why, ...(data.code ? { reasonCode: data.code } : {}), ...(data.params ? { reasonParams: data.params, reasonNames } : {}), intake: sent.intake });
         }
       }
-      writing = undefined;
-      // the next that waits; the research busy: a while later
-      if (busy) {
-        clearTimeout(retryAt);
-        retryAt = setTimeout(writeNext, RETRY_MS);
-        retryAt.unref?.();
-      } else writeNext();
+      done();
     });
   };
 
@@ -4746,10 +4873,21 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
    * research, or sends one of them again (POST /sync/<R…>/again; found on Windows: sent again after an undo, nothing
    * new, the app and the research apart without a word).
    */
-  const take = (text: string, reply: (code: number, body: Record<string, unknown>) => void, again?: string, mediaApp?: boolean) => {
+  const take = (text: string, reply: (code: number, body: Record<string, unknown>) => void, again?: string, mediaApp?: boolean, clock?: SendClock) => {
+    const undoneFrom = performance.now();
     const since = undoneSince(root, text);
+    if (clock) clock.undone = performance.now() - undoneFrom;
     const told = (code: number, body: Record<string, unknown>) => reply(code, since.length && code < 400 ? { ...body, undoneSince: since } : body);
-    const got = receiveTree(root, env, text, { ...(writing ? { keep: writing } : {}), ...(again ? { again } : {}), ...(mediaApp ? { mediaApp } : {}) });
+    // written at once, nothing being written: counted by the strom that writes it, as it plans it (once, there)
+    const counts = !writing && writesAtOnce();
+    const times: ReceiveTimes = {};
+    if (clock) clock.got = times;
+    const got = receiveTree(root, env, text, { ...(writing ? { keep: writing } : {}), ...(again ? { again } : {}), ...(mediaApp ? { mediaApp } : {}), ...(counts ? { plan: false } : {}), times });
+    if (clock) clock.intake = got.intake;
+    if (got.counting) {
+      write({ ...got, ...(clock ? { clock } : {}) }, told);
+      return;
+    }
     const tree = Tree.open(root, env);
     // nothing new: nothing waits, nothing written
     if (!got.changes) {
@@ -4757,7 +4895,7 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       return;
     }
     if (actsAsArchive(tree) || !new Settings(env, {}).syncReview(tree.config)) {
-      write(got, told);
+      write({ ...got, ...(clock ? { clock } : {}) }, told);
       return;
     }
     told(200, { ok: true, changes: got.changes, file: path.basename(got.file), inbox: true, intake: got.intake });
@@ -4768,22 +4906,26 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     const reply = (code: number, body: Record<string, unknown>) => {
       if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
     };
+    const clock: SendClock = { from: performance.now() };
+    const answer = timedReply(clock, reply);
     req.resume();
     if (!origin) return reply(403, refusal("only the Strom app may send a tree here", "app.only"));
     const text = undoneSend(root, intake);
     if (!text) return reply(404, { error: `no send ${intake.slice(0, 64)} taken back is kept here`, code: "send.none", intake });
     // what the app said of the send's files then (media=app) holds for it again
     const mediaApp = !!receivedAll(root).find((r) => r.intake === intake)?.mediaApp;
+    clock.bytes = Buffer.byteLength(text);
     safely(req, res, () => {
       try {
         take(
           text,
           (code, body) => {
             if (code < 400 && typeof body.intake === "string") markSentAgain(root, intake, body.intake);
-            reply(code, body);
+            answer(code, body);
           },
           intake,
           mediaApp,
+          clock,
         );
       } catch (e) {
         const m = (e as Error).message;
@@ -4795,8 +4937,8 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         } catch {
           // said in English
         }
-        if (isDiskFull(e)) return reply(507, diskFullSaid(lang, root));
-        reply(400, key ? said(lang, key) : { error: m, code: "tree.refused", text: m });
+        if (isDiskFull(e)) return answer(507, diskFullSaid(lang, root));
+        answer(400, key ? said(lang, key) : { error: m, code: "tree.refused", text: m });
       }
     });
   };
@@ -4805,8 +4947,11 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   const receive = (req: http.IncomingMessage, res: http.ServerResponse, origin: string | undefined, as: "sync" | "adopt" = "sync") => {
     // the app says the send carries every file of its tree (spec 108 P4): a place it no longer has may be taken off
     const mediaApp = new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("media") === "app";
-    const reply = (code: number, body: Record<string, unknown>) =>
+    const clock: SendClock = { from: performance.now() };
+    const answer = (code: number, body: Record<string, unknown>) =>
       res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
+    // a tree's send timed (live.log); an adoption, a refusal before the tree came: answered as they are
+    const reply = as === "sync" ? timedReply(clock, answer) : answer;
     const lang = () => {
       try {
         return Tree.open(root, env).lang;
@@ -4828,6 +4973,8 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     });
     req.on("error", (e) => noteLive(root, `a tree from the app did not come whole: ${errorText(e)}`));
     req.on("end", () => safely(req, res, () => {
+      clock.body = performance.now() - clock.from;
+      clock.bytes = size;
       if (over) {
         reply(413, said(lang(), "ui.sync.bridge.large"));
         return;
@@ -4835,8 +4982,20 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       try {
         // the version the app says with it (its file writes none of its own): the tree is read as that app means it
         // a GEDCOM's bytes by the same rule as a file's (the app sends UTF-8: the same text), the app's JSON as UTF-8
+        const decodeFrom = performance.now();
         const body = Buffer.concat(chunks);
         const text = stampAppVersion(looksLikeGedcom(body) ? decodeGedcom(body).text : body.toString("utf8"), saidAppVersion(req));
+        clock.decode = performance.now() - decodeFrom;
+        if (as === "sync") {
+          // files by reference (spec 133): one the research cannot find refuses the whole send — nothing kept, no record
+          const { unknown, ...counts } = checkMediaRefs(text, { tree: () => readTree(root, env), store: new Settings(env, {}).shared()?.value });
+          clock.media = counts;
+          if (unknown.length) {
+            noteLive(root, `send refused: ${MEDIA_REF_UNKNOWN} (${unknown.length} ${unknown.length === 1 ? "file" : "files"} by reference not here)`);
+            reply(409, { ok: false, code: MEDIA_REF_UNKNOWN, error: `the research does not have ${unknown.length === 1 ? "a file" : `${unknown.length} files`} the tree names by reference — send it with the files' data`, shas: unknown });
+            return;
+          }
+        }
         if (as === "adopt") {
           if (adopting) {
             reply(409, said(lang(), "ui.sync.bridge.adopting"));
@@ -4845,7 +5004,7 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
           adopt(receiveAdopted(root, text, origin), reply, lang(), appVersionOf(req, new Settings(env, {})));
           return;
         }
-        take(text, reply, undefined, mediaApp);
+        take(text, reply, undefined, mediaApp, clock);
       } catch (e) {
         const m = (e as Error).message;
         const code = e instanceof StromError ? e.code : undefined;
@@ -5013,7 +5172,8 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       for (const raw of shas as string[]) {
         const sha = raw.toLowerCase();
         if (sha in known) continue;
-        const k = knownOriginal(tree, shared, sha) ?? workingCopyOf(tree, shared, sha);
+        // a working copy by its own hash too (spec 133: the app names the bytes it would send by reference)
+        const k = knownOriginal(tree, shared, sha) ?? workingCopyOf(tree, shared, sha) ?? workingCopyBySha(tree, shared, sha);
         known[sha] = k ? { id: k.id, kind: k.kind, mime: k.mime, bytes: k.bytes, here: !!k.file && fs.existsSync(k.file) } : queued.has(sha) ? { queued: true } : null;
       }
       json(200, { known });

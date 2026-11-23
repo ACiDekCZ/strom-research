@@ -16,6 +16,7 @@ import { testHooks } from "../../src/core/net.ts";
 import { archivesFile, grantWay } from "../../src/core/terms.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { waitingFor } from "../../src/core/waiting.ts";
+import { floorWhat, holdText } from "../../src/core/floor.ts";
 
 const opts = { skip: !hasGit };
 let ahead = 0;
@@ -205,7 +206,7 @@ test("held by a downloader or by the research's record of the archive: no questi
     assert.deepEqual(items(w), []);
     const doc = (await w.run(["doctor"])).out;
     assert.match(doc, /archivy držené přísněji[^\n]*www\.mza\.cz[^\n]*→ Drží to ještě: záznam archivu ve výzkumu R0001/);
-    assert.match((await w.ok(["allow", "archive"])).out, /www\.mza\.cz: strom keeps manual since 2026-11-13 [^\n]*still held by the research's archive R0001 \(strom repo show R0001\)/);
+    assert.match((await w.ok(["allow", "archive"])).out, /www\.mza\.cz: strom keeps manual since 2026-11-13 [^\n]*still held by the research's archive R0001 \(Moravský zemský archiv\) \(strom repo show R0001\)/);
     // the person makes it milder: what still holds it, named — and what strom run takes
     const r = await w.run(["allow", "archive", "www.mza.cz", "--level", "restricted"], { tty: true });
     assert.equal(r.code, 0, r.out + r.err);
@@ -397,4 +398,82 @@ test("net web --check without --browser where the person allowed it \"through th
   } finally {
     w.cleanup();
   }
+});
+
+test("K051: a record set of the research's archive on a portal of strom's list does not hold the portal — its terms do, and a floor strom kept is the person's question; on a site the list does not know the archive holds it still, named with the book and the site", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  try {
+    const PORTAL = "https://www.portafontium.eu/register/lhota-n-1";
+    const OTHER = "https://matriky.portal.example.org/kniha/7";
+    await w.ok(["research", "new", "X", "--new-person", "Jan /Lhoták/"]);
+    // a municipal office kept "by hand" (its own site), with a book whose address an agent put on Porta fontium
+    await w.ok(["repo", "add", "Úřad obce Lhota", "--country", "CZ", "--url", "https://www.obec-lhota.example/", "--automation", "manual"]); // R0001
+    await w.ok(["recordset", "add", "Lhota N 1784–1820", "--repo", "R0001", "--url", PORTAL]); // B0001
+    await w.ok(["recordset", "add", "Lhota O 1784–1830", "--repo", "R0001", "--url", OTHER]); // B0002
+    // the portal of strom's list: its terms (restricted), the office's level not
+    const portal = await check(w, PORTAL);
+    assert.equal(portal.level, "restricted", JSON.stringify(portal));
+    assert.doesNotMatch(portal.reason, /R0001|Lhota/u);
+    // its own site and a site the list does not know: held by the office's level still
+    assert.equal((await check(w, "https://www.obec-lhota.example/matrika")).level, "manual");
+    const other = await check(w, OTHER);
+    assert.equal(other.level, "manual", JSON.stringify(other));
+    // the person lowers the unknown site (a downloader of it here): what still holds it named — the archive, its book and the site
+    await fakeConnector(w, "portalb", "", { automation: "allowed" });
+    const file = path.join(pluginDir(w, "portalb"), "connector.json");
+    fs.writeFileSync(file, JSON.stringify({ ...readJsonFile(file), hosts: ["matriky.portal.example.org"] }));
+    const r = await w.run(["allow", "archive", "matriky.portal.example.org", "--level", "allowed"], { tty: true });
+    assert.equal(r.code, 0, r.out + r.err);
+    assert.match(r.out, /it stays manual: [^\n]*the tree's archive R0001 \(Úřad obce Lhota\) through its record set B0002 on matriky\.portal\.example\.org/u);
+    assert.match(r.out, /strom repo show R0001 · strom recordset show B0002/);
+    // a floor strom kept of the portal before (the office's level then): the floor alone holds it — the person's question
+    floor(w, "www.portafontium.eu", { floor: "manual", floorBy: "strom", floorAt: "2026-11-06T10:00:00.000Z" });
+    assert.deepEqual(items(w).map((i) => i.id), ["floor:www.portafontium.eu"]);
+    const doc = (await w.run(["doctor"])).out;
+    assert.match(doc, /Porta fontium \(www\.portafontium\.eu\): strom drží „snímky jen ručně“ od 6\. 11\.[^\n]*→ Rozhoduje jen člověk/u);
+    assert.doesNotMatch(doc, /R0001/);
+    assert.match((await w.ok(["allow", "archive"])).out, /www\.portafontium\.eu: strom keeps manual since 2026-11-06 [^\n]*the person decides \(What waits\)/);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("K051 N1: the research's archive holds its own portal of strom's list under another domain through its book (the list gives the portal that archive's terms) — another archive's book on a portal of the list does not", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  try {
+    const OWN = "https://ebadatelna.soapraha.cz/d/123";
+    const PORTAL = "https://www.portafontium.eu/register/lhota-n-2";
+    await w.ok(["research", "new", "X", "--new-person", "Jan /Lhoták/"]);
+    // the archive recorded stricter than the list (its own address soapraha.gov.cz), its book on its portal ebadatelna.soapraha.cz
+    await w.ok(["repo", "add", "SOA Lhota smyšlený", "--country", "CZ", "--url", "https://soapraha.gov.cz/", "--automation", "forbidden"]); // R0001
+    await w.ok(["recordset", "add", "Kniha SOA", "--repo", "R0001", "--url", OWN]); // B0001
+    // an office (its own site, off the list) recorded as strictly, its book on Porta fontium
+    await w.ok(["repo", "add", "Úřad obce Lhota", "--country", "CZ", "--url", "https://www.obec-lhota.example/", "--automation", "forbidden"]); // R0002
+    await w.ok(["recordset", "add", "Lhota N 1784–1820", "--repo", "R0002", "--url", PORTAL]); // B0002
+    const own = await check(w, OWN);
+    assert.equal(own.level, "forbidden", JSON.stringify(own));
+    assert.equal((await check(w, "https://soapraha.gov.cz/castokladenedotazy/")).level, "forbidden");
+    // K051 stays: the office's level never reaches the portal of the list
+    const portal = await check(w, PORTAL);
+    assert.equal(portal.level, "restricted", JSON.stringify(portal));
+    assert.doesNotMatch(portal.reason, /R0002|Lhota/u);
+    // what holds a floor of the portal is said with the archive, its book and the site
+    floor(w, "ebadatelna.soapraha.cz", { floor: "forbidden", floorBy: "strom", floorAt: "2026-11-06T10:00:00.000Z" });
+    const doc = (await w.run(["doctor"])).out;
+    assert.match(doc, /ebadatelna\.soapraha\.cz[^\n]*Drží to ještě: záznam archivu ve výzkumu R0001 \(SOA Lhota smyšlený\) přes jeho knihu B0001 na ebadatelna\.soapraha\.cz \(strom recordset show B0001\)/u);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("K051: what holds a floor through a book of the research's archive is said with the archive, the book and the site — to the person in cs/en/de/pl, to the agent in English", () => {
+  const hold = { by: "tree" as const, repository: "R0009", name: "Úřad obce Lhota", recordset: "B3", site: "www.portal.example.org" };
+  const n = { host: "www.portal.example.org", title: "Portal", floor: "manual" as const, by: "strom" as const, list: "restricted" as const, browserOnly: false, holds: [hold], ask: false };
+  assert.equal(holdText(hold), "the research's archive R0009 (Úřad obce Lhota) through its record set B3 on www.portal.example.org (strom recordset show B3 · strom repo show R0009)");
+  assert.equal(floorWhat("cs", n), "Drží to ještě: záznam archivu ve výzkumu R0009 (Úřad obce Lhota) přes jeho knihu B3 na www.portal.example.org (strom recordset show B3) – změnit nejdřív tam.");
+  for (const lang of ["en", "de", "pl"]) assert.match(floorWhat(lang, n), /R0009 \(Úřad obce Lhota\).*B3.*www\.portal\.example\.org \(strom recordset show B3\)/u, lang);
+  // the archive's own address: as before
+  assert.equal(holdText({ by: "tree", repository: "R0001" }), "the research's archive R0001 (strom repo show R0001)");
 });

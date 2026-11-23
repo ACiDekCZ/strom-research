@@ -605,7 +605,8 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
         terminalOnly: true,
         item: {
           id: r.intake,
-          what: ui(lang, "ui.waiting.sent", { day: humanDay(r.at, lang), time: r.at.slice(11, 16), n: r.changes }),
+          // counted by its writer (Received.counting): no number yet, never "0 changes"
+          what: r.counting ? ui(lang, "ui.waiting.sent.counting", { day: humanDay(r.at, lang), time: r.at.slice(11, 16) }) : ui(lang, "ui.waiting.sent", { day: humanDay(r.at, lang), time: r.at.slice(11, 16), n: r.changes }),
           on: "",
           at: r.at,
           kind: "send",

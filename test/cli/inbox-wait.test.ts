@@ -238,3 +238,29 @@ test("B0408: a file that is the same scan as another image is never deleted unsa
     w.cleanup();
   }
 });
+
+test("1123: images saved under the portal's names (__0236.jpg, Lhota_11__125.JPEG) bring the task back — the status says them saved", opts, async () => {
+  const { w, shared } = await world();
+  await w.ok(["recordset", "add", "Lhota N 1850–1870", "--url", "https://archive.example.org/book/77"]); // B1
+  await w.ok(["task", "add", "Křest Jana", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b"]); // T1
+  const dir = path.join(shared, "inbox", inboxFolderFor({ id: "B0001", title: "Lhota N 1850–1870" }));
+  const asked = await w.ok(["task", "wait", "T1", "--images", "B1:236-237", "--on", "snímky 236–237 knihy Lhota"]);
+  assert.match(asked.out, /each named by its number \(236\.jpg; the number in the name is enough, __0236\.jpg;/u);
+  fs.mkdirSync(dir, { recursive: true });
+  saved("grey.jpg", path.join(dir, "__0236.jpg"));
+  saved("cmyk.jpg", path.join(dir, "__0237.JPEG"));
+  assert.match((await w.ok(["status"])).out, /uloženo 2 z 2/);
+  const first = await w.ok(["media", "add", "--inbox", "--waiting"]);
+  assert.match(first.out, /images 236–237 of B0001 registered — back in the queue: T0001/);
+  assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "open");
+  // the portal pads to three digits only: 025 and 125 in one folder (failed before: "the file names give 25")
+  await w.ok(["task", "wait", "T1", "--images", "B1:25,125", "--on", "snímky 25 a 125 knihy Lhota"]);
+  saved("base420.jpg", path.join(dir, "Lhota_11__025.jpg"));
+  saved("base444.jpg", path.join(dir, "Lhota_11__125.JPEG"));
+  assert.match((await w.ok(["status"])).out, /uloženo 2 z 2/);
+  const second = await w.ok(["media", "add", "--inbox", "--waiting"]);
+  assert.match(second.out, /images 25, 125 of B0001 registered — back in the queue: T0001/);
+  assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "open");
+  assert.ok(!fs.existsSync(dir) || fs.readdirSync(dir).length === 0, "nothing left lying");
+  w.cleanup();
+});

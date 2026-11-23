@@ -281,6 +281,9 @@ own record. Names are recorded as they stand in the entry; only dates are standa
   - a name without a surname (“Marie”) is completed by the full name from the entry, and the person is then shown by
     it. The same name again only adds a citation;
   - a woman is shown by her birth name; the married name stays beside it;
+  - of several married names the current one is that of the last marriage, or the one the user chose in the app. The
+    others stay married names; the file for the app gives the current one last
+    ([A4.6.1](A4-surnames-and-families.md#A4.6.1), [A4.6.2](A4-surnames-and-families.md#A4.6.2));
   - a title written with the name (“Ing.”, “MUDr.”, “ml.”) goes into the prefix or suffix of the name (`--prefix`,
     `--suffix`), not into the given name or the surname;
   - **the name a person is shown by** (a divorced woman back at her birth surname) is the user's choice, not a fact
@@ -299,9 +302,10 @@ own record. Names are recorded as they stand in the entry; only dates are standa
 - **Controls:** terminal: `strom name add P… "Marie /Vlková/" --kind birth --cite S…`, `strom name primary P…
   "…"` (`--clear` returns the birth name). Surname forms in the app: [A4.5](A4-surnames-and-families.md#A4.5),
   [A4.6](A4-surnames-and-families.md#A4.6).
-- **Since:** research 1.0.0; prefix and suffix 1.13.0; the name a person is shown by 1.27.0; an unnamed child 1.27.0
+- **Since:** research 1.0.0; prefix and suffix 1.13.0; the name a person is shown by 1.27.0; an unnamed child 1.27.0;
+  the current married name 1.36.0
 
-<!-- zdroj: research:src/core/model.ts NAME_KINDS · research:src/commands/people.ts name add (description), name primary (od v1.27.0), TITLE_OPTIONS (od v1.13.0) · research:assets/method/recording.md "The names a record gives", "A child the record does not name" (od v1.27.0), "People named wrongly by the weaker record" · research:assets/method/intake.md krok 4 -->
+<!-- zdroj: research:src/core/model.ts NAME_KINDS · research:src/commands/people.ts name add (description), name primary (od v1.27.0), TITLE_OPTIONS (od v1.13.0) · research:assets/method/recording.md "The names a record gives", "A child the record does not name" (od v1.27.0), "People named wrongly by the weaker record" · research:assets/method/intake.md krok 4 · aktuální jméno po sňatku: research:5476514e src/core/married.ts marriedInOrder, src/gedcom/export.ts, src/core/sync.ts name.now (spec 010 K4.1, K4.2) -->
 
 <a id="R10.5.1"></a>
 ### R10.5.1 A wrong name and a note are retracted
@@ -321,6 +325,78 @@ history.
 - **Since:** research 1.18.0
 
 <!-- zdroj: research:src/commands/people.ts name retract (description), name restore, name add ("name.retracted"), note edit/retract/restore (od v1.18.0) · GitHub issue strom-research #3 -->
+
+<a id="R10.5.2"></a>
+### R10.5.2 How sure a name is
+
+A person's name has a degree of certainty like a fact ([R3.1](R3-verification-and-citation.md#R3.1)): **Proven**,
+**Probable**, **Possible** or **Lead**. The degree is given by the record that names the person and that the name
+cites.
+
+- **Enforced by the code:**
+  - the degree is written with the citation: `strom cite P… S… --status …` gives the citation to the person's name
+    and the degree to the name; `strom name add … --cite S… --status …` to another name; `strom person add … --cite
+    S… --name-status …` to the name of a new person (`--status` at `person add` still applies to the birth and the
+    death);
+  - **Proven** only from the original record with primary information, as for a fact
+    ([R3.2](R3-verification-and-citation.md#R3.2)). A copy, an index or a family tree is refused;
+  - a citation without `--status` gives a name with no degree **Probable** when it is a record of the research:
+    a source of quality 2 or 3 that is not an index or a derivative work, nor a source from the Strom app that the
+    research has not read. Otherwise the name gets no degree;
+  - a name has no degree **Disproven**: another name is a conflict ([R5](R5-conflicts.md)) or a further name of the
+    person;
+  - any name of a person may have a degree. Confirmation by a person, verification by the agent and the number for
+    the bridge (`P….N`) belong only to the name of the person's identity: the birth name, or the first name without
+    a kind ([R10.5](#R10.5)), not the name the person is shown by. Only that name counts toward the card's mark in the app
+    ([S7.10](S7-reliability-and-verification.md#S7.10));
+  - a name a person confirmed against the scan is not changed by the agent: another degree from the agent is refused,
+    a citation without `--status` passes. A name a person wrote in stays without a degree, as it is;
+  - changing the words of a name ends its confirmation and its verification.
+- **Method only:** a record that names the person (a baptism, a marriage, a death) proves the person's name too. The
+  agent cites the name as it stands in the record (`--quote`): **Proven** when it read the record itself in the
+  original; **Probable** when the record writes the same name in another language (“Joannes” for “Jan”). A different
+  name is not a degree but a conflict or a further name (`strom name add`).
+- **Verifying the name:** a task verifying a birth or a baptism whose record cites the name too takes the name along:
+  the agent reads the same record and compares the name as well. A name confirmed by a person or already proven is
+  not taken. The name alone is verified only on a person's request (the app, `strom verify facts --fact P….N`).
+  Verification never changes the value of a name ([S7.7](S7-reliability-and-verification.md#S7.7)).
+- **Controls:** terminal: `strom cite P… S… --quote "…" --status proven|probable|possible|lead`, `strom name add P… "…"
+  --cite S… --status …`, `strom person add … --cite S… --name-status …`, `strom person show P…` (the name's degree),
+  `strom verify done P….N --proven|--kept`, confirmation by a person `strom verify confirm P….N [--undo]`. App:
+  [S7.10](S7-reliability-and-verification.md#S7.10).
+- **Why:** while a name had no degree, a name from a family tree the research took in stayed **From family tree** for
+  good, even when the agent had proven the birth and the death from the registers, and the person's mark in the tree
+  thus said less than the research knows (spec 066 P5).
+- **Since:** research 1.36.0
+
+<!-- zdroj: research:6a266761 src/core/namestatus.ts (nameEid P….N, parseNameStatus NAME_STATUSES bez disproven, namesThePerson: !retracted, !isWeak, app jen s reading, quay ≥ 2; usersName confirmed nebo origin user; nameStatusAfter: asked → checkStatus, jinak probable; refuseConfirmedName event.confirmed jen primaryName) · src/core/model.ts:39 NAME_STATUSES · src/core/actions.ts:271-331 person add --name-status ("a status of a name needs the record that names the person"), :783 cite, :854-861 name add · src/core/people.ts:191 primaryName (bez druhu nebo birth), currentName · research:8b92b3ae src/core/verify.ts:19-21, 243-256 nameAlong (BIRT/BAPM/CHR se stejným pramenem, ne confirmed, ne proven), src/commands/verify.ts:70-78 verify facts --fact P….N · assets/method/recording.md:43-52 (cite P… --quote --status proven; probable jinojazyčný tvar; jiné jméno rozpor/name add) · assets/lang/cs.json verify.search.done.name · CHANGELOG.cs.md 1.36.0 „Jména – jak jistá a po sňatku“ · dirigent:spec/066 K6.2, K6.4 · app:docs/ZADANI_VYZKUM_stav-jmena.md Odpověď výzkumu -->
+
+<a id="R10.5.3"></a>
+### R10.5.3 How sure names are in older researches
+
+A research created before version 1.36.0 cites records at names, but the names have no degree. The fix **How sure
+the names are** works it out for them once from the citations already in the research.
+
+- **Enforced by the code:**
+  - the fix runs by itself once, at the first start of the new version after the research's backup and at the start
+    of the bridge; in a Strom archive too. A new research does not run it;
+  - a name with no degree that cites a record of the research (quality 2 or 3, not an index or a derivative work) gets
+    **Probable**. Never **Proven**: that comes only from a new reading of the original (verification, or a citation
+    with `--status proven`);
+  - a citation that an import brought (a family tree the research took in, the source the name came from, a source
+    from the Strom app that the research has not read) gives no degree;
+  - a name confirmed by a person or written in by a person does not change;
+  - only the degree changes: no name, citation or source. It is one step of the history with a reason, free, and
+    nothing is sent anywhere;
+  - `strom fixes undo name-status` takes the degree off again; a name that has changed since the fix is left as it
+    is.
+- **In the app:** the app itself converts nothing; it takes a name's degree only from the research's file
+  ([S7.10](S7-reliability-and-verification.md#S7.10)).
+- **Controls:** terminal: `strom fixes` (the list of fixes), `strom fixes show name-status`, `strom fixes undo
+  name-status`.
+- **Since:** research 1.36.0
+
+<!-- zdroj: research:6a266761 src/core/namestatusfix.ts (NAME_STATUS_SINCE 1.36.0, NAME_STATUS_SETTLED, NAME_STATUS_FIX_FILE quality/name-status.json, importsCitation: Source.imported, origin.source, was.cites, app bez reading; researchRecords namesThePerson; nameStatusFixes: !status, !usersName; settleNameStatus první start po záloze, start mostu, i archiv; undo jen nezměněná) · src/core/links.ts LINK_FIX_IDS name-status · assets/lang/cs.json ui.fixes.name-status.* · dirigent:spec/066 K6.5 · app:docs/ZADANI_VYZKUM_stav-jmena.md „Starší stromy“ -->
 
 <a id="R10.6"></a>
 ## R10.6 People a record names

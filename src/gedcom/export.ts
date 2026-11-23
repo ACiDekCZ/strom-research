@@ -698,6 +698,13 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     const deferred: string[] = [];
     const assos: { person: string; rela: string }[] = [];
     for (const e of preferredOrder(p.events)) deferred.push(...event(e, "INDI", {}, assos));
+    // the person's contact (spec 134 U11): a residence of e-mails alone (5.5.1 has EMAIL beside an event's address, at
+    // most three), no date, no status, no mark of strom's — the user's, as the Strom app and other programs read it
+    const emails = p.contact?.emails ?? [];
+    for (let i = 0; i < emails.length; i += 3) {
+      w.line(1, "RESI");
+      for (const m of emails.slice(i, i + 3)) w.line(2, "EMAIL", m.normalize("NFC"));
+    }
     // 5.5.1 has associations on the individual only (strict); the event's note names the event.
     for (const a of assos) {
       w.line(1, "ASSO", x(a.person));

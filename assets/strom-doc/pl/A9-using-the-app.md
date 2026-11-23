@@ -24,7 +24,7 @@ osoby; to, co dotyczy całego drzewa, jest na pasku narzędzi i w menu **Akcje**
 | widok Mapa i inne widoki | przełącznik widoków na pasku narzędzi; na telefonie, tablecie i w oknie do 1024 px dolny pasek i **Więcej → Widok** | [A6](A6-views.md), [A9.5](#A9.5) |
 | całe drzewo w wierszach, eksport CSV i XLSX | **Tabela** w przełączniku widoków; na telefonie, tablecie i w oknie do 1024 px **Tabela** na dolnym pasku | [A6.7](A6-views.md#A6.7) |
 | listy osób (stałe, automatyczne, robocze) | **Akcje → Listy osób…**; na telefonie **Więcej → Listy osób** | [A11](A11-lists-of-people.md) |
-| kadrowanie portretu, zdjęcie pary | edycja osoby → **Wybierz zdjęcie**, **Edytuj kadr**; edycja osoby → **Zarządzaj relacjami** → wiersz **Zdjęcie** | [A12](A12-portrait-and-couple-photo.md) |
+| kadrowanie portretu, zdjęcie pary | edycja osoby → **Wybierz zdjęcie**, **Edytuj kadr**; edycja osoby → **Zarządzaj relacjami** → wiersz **Zdjęcie**; od aplikacji 3.31.0 też **Portret ze zdjęcia…** w nagłówku edycji osoby i na stronie osoby bez portretu, na stronie osoby ⋯ **Zmień portret…** | [A12](A12-portrait-and-couple-photo.md) |
 | zwinąć minimapę lub legendę drzewa | uszko nad minimapą; **◯** w legendzie | [A9.6](#A9.6) |
 | pełny ekran (telefon i tablet) | **Więcej → Pełny ekran**; na iPhonie w Safari **Więcej → Pełny ekran…** | [A9.5](#A9.5) |
 | widok albo Przegląd badania w osobnym oknie (na komputerze) | ⧉ **Otwórz w nowym oknie** obok przełącznika widoków; Ctrl+klik (macOS ⌘+klik) na karcie widoku; ⧉ na pasku Tabeli i w nagłówku Przeglądu | [A6.8](A6-views.md#A6.8), [S4.1.6](S4-research-from-the-app.md#S4.1.6) |
@@ -117,8 +117,9 @@ i akcje są w arkuszu **Więcej**.
 - **Dolny pasek:** **Rodzina** | **Potomkowie** | **＋** (dodaj osobę; tylko w drzewie, które można edytować) |
   **Tabela** | **Więcej**. Otwarta Rodzina, Potomkowie lub Tabela jest wyróżniona na pasku; otwarty Wachlarz, Mapa
   lub Oś czasu wyróżnia **Więcej**.
-- **Więcej → Widok:** **Wachlarz** | **Mapa** | **Oś czasu**. Na telefonie jest pod nimi wybór rodu
-  ([A6.6](A6-views.md#A6.6)), gdy drzewo go oferuje; nie przy Osi czasu, Mapie i Tabeli.
+- **Więcej → Widok:** **Wachlarz** | **Mapa** | **Oś czasu**. Na telefonie jest pod nimi wiersz **Wybór**
+  ([A6.6.1](A6-views.md#A6.6.1)) w Rodzinie, Potomkach i Wachlarzu każdego drzewa z osobami; nie przy Osi czasu, Mapie
+  i Tabeli. Do aplikacji 3.30.0 był tam wybór rodu, tylko gdy drzewo go oferowało.
 - **Pełny ekran:** w arkuszu **Więcej** jest **Pełny ekran**, w trybie pełnego ekranu **Zamknij pełny ekran**.
   Paski przeglądarki nie zajmują wtedy miejsca.
   - Oferuje się go tylko tam, gdzie przeglądarka pozwala stronie na pełny ekran, i tylko z dolnym paskiem. Telefon
@@ -163,8 +164,10 @@ drzewa**.
 - **Obsługa:** uszko nad minimapą; **◯** w legendzie, chip „◯ Legenda”. Wyłączenie: ustawienia **Minimapa**,
   **Legenda drzewa**.
 - **Obowiązuje od:** aplikacja 3.28.0
+- **Od aplikacji 3.31.0:** na telefonie (pionowo i poziomo) **Ustawienia** nie mają wiersza **Minimapa**, bo minimapa
+  się tam nie pokazuje.
 
-<!-- zdroj: app:f5d56ed3 src/ui/minimap.ts readMinimapOpen (strom-minimap-open, výchozí otevřeno), setMinimapFold (ouško jen když je minimapa nabízená), updateMinimap (isMinimapEnabled, mobil a telefon na šířku bez minimapy, STANDALONE_VIEWS, sbaleno: display none, nic se nekreslí) · src/ui/tree-legend.ts readTreeLegendOpen (strom-tree-legend-open, výchozí otevřeno), readTreeLegendSeen / noteTreeLegendSeen (strom-tree-legend-seen), syncTreeLegendFold (tečka, aria-label title + newMark, telefon vždy čip), openTreeLegendSheet (Hotovo = tour.done, klepnutí vedle, tažení 80 px dolů / doprava na šířku, nečte ani nepíše volbu), paměť bez úložiště · src/ui/misc.ts updateLegendMarks (data-marks: story-own, story-other, action, cross) · src/storage-keys.ts TREE_UI_STORAGE_KEYS · index.html .minimap-toggle (hover / pointer coarse), #tree-legend .tree-legend-toggle, pointer-events · strings.ts minimap.title, collapse, expand, settingLabel; legend.title, collapse, expand, newMark; settings legendLabel · app d78ba58b · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §2 -->
+<!-- zdroj: app:f5d56ed3 src/ui/minimap.ts readMinimapOpen (strom-minimap-open, výchozí otevřeno), setMinimapFold (ouško jen když je minimapa nabízená), updateMinimap (isMinimapEnabled, mobil a telefon na šířku bez minimapy, STANDALONE_VIEWS, sbaleno: display none, nic se nekreslí) · src/ui/tree-legend.ts readTreeLegendOpen (strom-tree-legend-open, výchozí otevřeno), readTreeLegendSeen / noteTreeLegendSeen (strom-tree-legend-seen), syncTreeLegendFold (tečka, aria-label title + newMark, telefon vždy čip), openTreeLegendSheet (Hotovo = tour.done, klepnutí vedle, tažení 80 px dolů / doprava na šířku, nečte ani nepíše volbu), paměť bez úložiště · src/ui/misc.ts updateLegendMarks (data-marks: story-own, story-other, action, cross) · src/storage-keys.ts TREE_UI_STORAGE_KEYS · index.html .minimap-toggle (hover / pointer coarse), #tree-legend .tree-legend-toggle, pointer-events · strings.ts minimap.title, collapse, expand, settingLabel; legend.title, collapse, expand, newMark; settings legendLabel · app d78ba58b · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §2 · 3.31.0: app:8bbd45cb index.html #minimap-setting-row skrytý při max-width 640px nebo telefonu na šířku · dirigent:prace/1122-app-mobil-drobnosti -->
 
 <a id="A9.7"></a>
 ## A9.7 Działanie, które chwilę trwa

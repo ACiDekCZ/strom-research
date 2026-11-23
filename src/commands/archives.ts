@@ -187,7 +187,7 @@ export function levelText(a: ArchiveLevel): string {
           ? `its robots.txt keeps automated tools off the whole site ("${a.browserOnly?.line ?? "Disallow: /"}"): only through a person's browser`
           : f === "terms" && a.browserOnly?.by === "terms"
             ? "strom's known terms of the archive: only through a person's browser"
-            : f === "terms" ? `strom's known terms of the archive${a.scope ? ` — ${a.scope}` : ""}` : f === "tree" ? `the tree's archive ${a.repository ?? ""}`.trim() : f === "pages" ? "a bot check (browser.pages)" : f === "new connector" ? "a connector the user has not confirmed yet" : f === "kept" ? "the connector's earlier reading (it says now it may do more: the user decides)" : f === "floor" ? "the strictest level strom saw for it" : "the connector's reading",
+            : f === "terms" ? `strom's known terms of the archive${a.scope ? ` — ${a.scope}` : ""}` : f === "tree" ? treeArchive(a) : f === "pages" ? "a bot check (browser.pages)" : f === "new connector" ? "a connector the user has not confirmed yet" : f === "kept" ? "the connector's earlier reading (it says now it may do more: the user decides)" : f === "floor" ? "the strictest level strom saw for it" : "the connector's reading",
     )
     .join(", ");
   return `${a.level}${why ? ` (${why})` : ""}`;
@@ -198,9 +198,17 @@ function browserWhy(a: ArchiveLevel): string {
   return a.browserOnly?.by === "robots" ? `its robots.txt keeps automated tools off the whole site ("${a.browserOnly.line ?? "Disallow: /"}")` : "strom's known terms of the archive";
 }
 
+/** The family tree's archive that gives a level, and the record set of its through which it holds the host's site (K051). */
+function treeArchive(a: ArchiveLevel): string {
+  return `the tree's archive${a.repository ? ` ${a.repository}` : ""}${a.repositoryName ? ` (${a.repositoryName})` : ""}${a.recordset ? ` through its record set ${a.recordset.id} on ${a.recordset.host}` : ""}`;
+}
+
 /** A level the family tree's own archive gives, said as the tree records it ("R0001 … is marked automation manual in this tree"). */
 function treeSaid(a: ArchiveLevel): string | undefined {
-  return a.from.includes("tree") && a.repository ? `${a.repository} ${a.title ?? a.host} is marked automation ${a.level} in this tree` : undefined;
+  if (!a.from.includes("tree") || !a.repository) return undefined;
+  return a.recordset
+    ? `${a.repository} ${a.repositoryName ?? ""} is marked automation ${a.level} in this tree, and its record set ${a.recordset.id} is on ${a.recordset.host} (strom recordset show ${a.recordset.id})`.replace(/ {2,}/g, " ")
+    : `${a.repository} ${a.title ?? a.host} is marked automation ${a.level} in this tree`;
 }
 
 /** The sessions' task here, for the command an agent is given. */
@@ -776,7 +784,7 @@ register({
       const after = strictest(...levels.map((x) => x.a.level));
       // what still holds it stricter: its real sources, each with what to look at (the downloader, the research's archive)
       const holding = levels.filter((x) => rank(x.a.level) > rank(level));
-      const look = [...new Set(holding.flatMap((x) => [...(x.c && x.a.from.some((f) => f === "connector" || f === "kept" || f === "pages" || f === "new connector") ? [`strom connector show ${x.c.name}`] : []), ...(x.a.from.includes("tree") && x.a.repository ? [`strom repo show ${x.a.repository}`] : [])]))];
+      const look = [...new Set(holding.flatMap((x) => [...(x.c && x.a.from.some((f) => f === "connector" || f === "kept" || f === "pages" || f === "new connector") ? [`strom connector show ${x.c.name}`] : []), ...(x.a.from.includes("tree") && x.a.repository ? [`strom repo show ${x.a.repository}`, ...(x.a.recordset ? [`strom recordset show ${x.a.recordset.id}`] : [])] : [])]))];
       const said = [...new Set(holding.map((x) => `${x.c ? `${x.c.name}: ` : ""}${levelText(x.a)}`))];
       // strom run and the agent's browser take the archive's level without a downloader: said where it differs
       const plain = levels.filter((x) => !x.c);

@@ -894,7 +894,8 @@ function browserWords(ctx: Context, t: ReturnType<typeof translator>, tree: Tree
 }
 
 /** Why the files saved for a task are not taken, in the person's words. */
-function problemWords(t: ReturnType<typeof translator>, st: InboxState): string {
+export function problemWords(t: ReturnType<typeof translator>, st: InboxState): string {
+  if (st.ambiguous) return t("ui.wait.inbox.ambiguous", { file: st.ambiguous, n: st.ambiguousNumber ?? st.missing[0] ?? "40" });
   return st.problemCode === "inbox.unnamed" ? t("ui.wait.inbox.unnamed") : t("ui.wait.inbox.count", { files: st.lying, n: st.missing.length || st.want, first: st.missing[0] ?? "40" });
 }
 

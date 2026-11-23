@@ -378,6 +378,45 @@ usunąć można w badaniu”. Archiwum Strom usunięcie odzwierciedla ([S2.4](#S
 
 <!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 „What the app no longer has is only reported“, gone :2355 · app:src/ui/research-removed-ui.ts :1-14 · strings.ts sync.notWrittenReport, conflict.person.* · CHANGELOG.cs.md 3.16.0 -->
 
+<a id="S2.6.1"></a>
+### S2.6.1 Źródło usunięte w aplikacji
+
+Źródło, które człowiek usunie w aplikacji przy drzewie z badania, które aplikacja edytuje (nie śledzi), badanie
+wycofa przy następnym zapisie zmian ([R3.10](R3-verification-and-citation.md#R3.10)): cytaty przechowuje się
+w źródle, a `strom source restore` je przywraca. Drzewo śledzone usuwa źródło od razu w badaniu
+([A3.1.2](A3-evidence-in-the-app.md#A3.1.2)).
+
+- **Co aplikacja pokazuje przy usuwaniu:**
+  - badanie, które umie usuwać źródła, z działającym mostem: okno **Usunąć źródło?** z podglądem z badania jak przy
+    drzewie śledzonym. Źródło usuwa się tylko w aplikacji i można je przywrócić przez **Cofnij**;
+  - badanie, które to umie, bez mostu: dotychczasowe potwierdzenie i zdanie „Badanie wycofa źródło przy następnym
+    zapisie zmian.”;
+  - badanie, które tego nie umie: dotychczasowe potwierdzenie i zdanie „Badanie zachowa źródło; wróci przy
+    następnym wczytaniu.”;
+  - gdy aplikacja badania nie zna, dotychczasowe potwierdzenie.
+- Plik dla badania wymienia usunięte źródła: tylko źródła badania, których w pliku brakuje, najwyżej 50. Źródła
+  przywróconego przez **Cofnij** się nie wymienia.
+- **Pilnuje kod:** badanie wycofa źródło tylko wtedy, gdy:
+  - zapis uruchomił człowiek, nie agent;
+  - plik jest całym drzewem, które badanie dało aplikacji, i zawiera stan badania, z którego powstał;
+  - nikt w pliku źródła nie cytuje;
+  - badanie ma źródło i jeszcze go nie wycofało.
+
+  Inaczej nie usuwa niczego. Usunięte źródło już nie wróci z późniejszym plikiem z aplikacji ani importem.
+- **Zmiany** i **Co zostało zapisane:**
+  - wiersz **Usunięte źródło**; gdy wysłanie czeka w badaniu na potwierdzenie, z uwagą „czeka w badaniu na
+    potwierdzenie”;
+  - nieprzyjęte usunięcie z powodem: „źródło niewycofane: plik jest tylko częścią drzewa”, „… w drzewie jest nadal
+    cytowane”, „… nie ma go w badaniu”, „… jest już wycofane”, „… plik nie zawiera stanu badania, z którego
+    powstał”, „… zapisu nie uruchomił człowiek”;
+  - cytowanie źródła, które badanie już wycofało, się nie zapisuje („źródło jest wycofane w badaniu; cytowanie go nie
+    zostanie zapisane”). Przy takim wierszu jest **Przywróć źródło w badaniu** (przez most), bez mostu zdanie
+    „źródło można przywrócić w badaniu”.
+- **Obsługa:** aplikacja: **Źródła** → kosz przy źródle, potem **Wyślij** ([S2.2](#S2.2)).
+- **Obowiązuje od:** aplikacja 3.31.0 z badaniem 1.36.0
+
+<!-- zdroj: app:810319cb src/source-retract.ts sourceRetractEditModeIn (preview / plain / old / unknown), ResearchLink.deletedSources, deletedSourcesToSend (_STROM_SOURCE_DELETED, jen chybějící, max 50, zapomene se po Zpět a po odvolání) · src/ui/research-changes-ui.ts (sourceDeleted, reviewWait při sent.state pending, nwSourceRow, restoreTail now/later) · strings.ts sources.retract.editMode, editModeOld, changes.sourceDeleted, reviewWait, restoreSource, restoreLater, sync.notWritten source.retract-skipped:*, source.retracted · research:e6bbfb40 src/core/sync.ts sourcesDeleted, plan source.retract (notPerson, noHead, partial, stillCited, unknown, retracted), withholdDeleted (spec 117 J6) · SPEC.md 1120-app-117-smazani · spec 117 K1.4, §4 -->
+
 <a id="S2.7"></a>
 ## S2.7 Cofnięcie wysłania
 
@@ -414,9 +453,13 @@ w aplikacji zmieni albo zniknie.
   przekreślone, a dodane lub zmienione wyróżnione (zmieniony wiersz: stary przekreślony, potem nowy). Akapit, który
   badanie tylko dodało, niczego nie przekreśla. Spacje na końcu wiersza i końce wierszy z Windows nie są zmianą.
   Notatka tylko po jednej stronie ma dalej **tutaj → z badania**. Wczytują się te same dane co dotąd.
+- **Dodany numer skanu lub folio:** źródło, do którego lokalizacji wersja badania dodaje tylko numer skanu lub folio
+  (tutaj go brakowało, lokalizacja jest poza tym ta sama), nie daje wiersza przy żadnym ze swoich cytatów. Pod listą
+  jest tylko zdanie „Przy 3 źródłach przybył numer skanu.” (przy folio „Przy 3 źródłach przybyło folio.”) i nie liczy
+  się ono jako zmiana. Zmieniona lokalizacja, zmieniony numer skanu i jego usunięcie dalej dają wiersz.
 - **Granice:** przy drzewie, które z badania tylko wczytuje ([S2.2](#S2.2)), i gdy z ostatniego wysłania coś się nie
   zapisało, okno mówi, że wczytanie nadpisze te zmiany; przyciski to **Wczytaj i nadpisz** i **Otwórz jako kopię**.
 - **Obsługa:** aplikacja: **Wczytaj wersję badania**
-- **Obowiązuje od:** aplikacja 3.9.0; notatka wiersz po wierszu od 3.29.0
+- **Obowiązuje od:** aplikacja 3.9.0; notatka wiersz po wierszu od 3.29.0; dodany numer skanu lub folio od 3.31.0
 
-<!-- zdroj: app:src/ui/research-load-ui.ts askResearchLoad (ROWS_SHOWN 8, overwrite: sendMode off nebo nezapsané z posledního poslání → loadOverwrite + research.openCopy), src/ui/research-ui.ts:2377 · 03352a9c src/line-diff.ts diffLines (LCS po řádcích, mezery na konci a CRLF nejsou změna), research-load-ui.ts notes · strings.ts sync.loadTitle, loadColChange, loadMore, loadAdded, loadBackupNote, loadOverwrite, loadOverNotWritten · CHANGELOG.cs.md 3.29.0 „Načíst verzi výzkumu?“ · v3.9.0 (loadColChange) -->
+<!-- zdroj: app:src/ui/research-load-ui.ts askResearchLoad (ROWS_SHOWN 8, overwrite: sendMode off nebo nezapsané z posledního poslání → loadOverwrite + research.openCopy), src/ui/research-ui.ts:2377 · 03352a9c src/line-diff.ts diffLines (LCS po řádcích, mezery na konci a CRLF nejsou změna), research-load-ui.ts notes · strings.ts sync.loadTitle, loadColChange, loadMore, loadAdded, loadBackupNote, loadOverwrite, loadOverNotWritten · CHANGELOG.cs.md 3.29.0 „Načíst verzi výzkumu?“ · v3.9.0 (loadColChange) · 3.31.0: app:2e68d373 src/research-changes.ts placeNumberAdded, pageMoved, diffValues numbersAdded; src/ui/research-load-ui.ts (věta pod seznamem, nepočítá se); strings.ts sync.loadImageNumbers, loadFolioNumbers · CHANGELOG.cs.md 3.31.0 „Načtení verze výzkumu“ -->

@@ -21,7 +21,8 @@ import { normalizeDate } from "./gdate.ts";
 import { restoreTakenOff } from "./sync.ts";
 import { inTree, workingRel } from "./treemedia.ts";
 import { mediaRecords } from "./mediaindex.ts";
-import { recordsBySha } from "./shaindex.ts";
+import { inputsByWorkingSha, recordsBySha } from "./shaindex.ts";
+import { storedBytes } from "./appmedia.ts";
 import { listSorts, type SortState } from "./sort.ts";
 import type { Tree } from "./tree.ts";
 
@@ -194,6 +195,18 @@ export function workingCopyOf(tree: Tree, shared: string | undefined, sha: strin
   const i = recordsBySha<Input>(tree, "input", sha).find((x) => !x.retracted && !x.file && x.working);
   if (!i) return undefined;
   return { id: i.id, kind: "input", mime: i.working!.mime, bytes: i.working!.bytes, name: i.name, ...(shared ? { file: path.join(shared, workingRel(shared, i.working!)) } : {}) };
+}
+
+/**
+ * A working copy the research keeps of a file of the app's tree, by the working copy's own hash (spec 133: the app asks
+ * POST /media/known by the bytes it would send, then names them by reference): the input it is of, while its bytes are
+ * in the shared store — answered as a known file is. None: the app sends those bytes as ever.
+ */
+export function workingCopyBySha(tree: Tree, shared: string | undefined, sha: string): { id: string; kind: "input"; mime: string; bytes: number; name: string; file: string } | undefined {
+  if (!shared) return undefined;
+  const i = inputsByWorkingSha(tree, sha).find((x) => !x.retracted && x.working);
+  const file = i ? storedBytes(shared, sha) : undefined;
+  return i && file ? { id: i.id, kind: "input", mime: i.working!.mime, bytes: i.working!.bytes, name: i.name, file } : undefined;
 }
 
 /** What finds the uses of the material's files at once (the sources, images and tasks read once for the whole list). */

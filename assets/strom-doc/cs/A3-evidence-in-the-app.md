@@ -54,8 +54,83 @@ ukáže jedno ze tří:
 - **Od aplikace 3.24.0:** překlad přepisu, který poslal výzkum ([R3.4](R3-verification-and-citation.md#R3.4)), je
   pod přepisem jako sbalený oddíl **Překlad přepisu**: v prohlížeči pramene i na kartě pramene na stránce osoby.
   Poznámka pramene se tím nemění; editor poznámky ji ukazuje celou. Pramen bez překladu vypadá jako dřív.
+- **Od aplikace 3.25.0:** přepis, který četl jen výzkum, jde v prohlížeči pramene potvrdit bez změny textu
+  ([A3.1.3](#A3.1.3)).
 
 <!-- zdroj: app:src/research-sync.ts:357 researchReadSource, :365 isOlderSource, :377 verifiedOffer, :385 unverifiedOlderSources · src/ui/sources.ts:618 renderSourceReading, :658 sourceVerifiedValue, :296 renderSourcesFilter, :377 renderSourceViewer · strings.ts sources.verified/verifiedHintGuide/verifiedHintOlder/verifiedByTree/readBy/userReadingNote/filterUnverified · překlad (od 3.24.0): src/source-translation.ts SOURCE_TRANSLATION_LABELS, splitSourceTranslation · strings.ts viewerTranslation, translation · commit c2942b0 -->
+
+<a id="A3.1.2"></a>
+### A3.1.2 Smazat pramen u sledovaného stromu
+
+U stromu, který aplikace sleduje živě z výzkumu, jde pramen smazat přímo ve výzkumu. Výzkum pramen odvolá
+([R3.10](R3-verification-and-citation.md#R3.10)): z údajů a vyprávění zmizí jeho citace, data, místa, jména ani
+text vyprávění se nemění a smazání jde vrátit.
+
+- Okno **Prameny** je u sledovaného stromu jen ke čtení: bez úprav a přidávání, v řádku pramene je jen koš. Když
+  výzkum neodpovídá, koš je v klidu a při najetí řekne „Smazat pramen jde, když výzkum běží.“ Na dotykovém zařízení
+  je v řádku místo koše **⋯** s listem zespodu: **Otevřít pramen** a **Smazat pramen…**.
+- Dialog **Smazat pramen?** nejdřív zjistí ve výzkumu, co na pramenu stojí („Zjišťuje se ve výzkumu, co na pramen
+  odkazuje…“), a teprve pak dovolí smazat. Pod nadpisem **Co na pramenu stojí** řekne, kolik citací u údajů
+  a kolik vyprávění pramen cituje, a po řádcích:
+  - **Údaje** a **Bez pramene**: které údaje zůstanou bez pramene („Údaje zůstanou, jen bez citace.“) a které mají
+    i jiný pramen;
+  - **Méně jisté**: kolik údajů bude méně jistých;
+  - **Vyprávění**: „Text vyprávění zůstane; pramen vypadne jen ze seznamu pramenů vyprávění.“ Kód pramene v textu
+    zůstane, jen nebude odkazem;
+  - **Rozpory**: rozpor zůstane a označí se „pramen odvolán – přezkoumat“ ([S3.4.1](S3-what-the-research-knows.md#S3.4.1));
+    u rozhodnutého „rozhodnutí zůstává“. Rozpor se sám neuzavře;
+  - **Úkoly** (otevřený, rozpracovaný, odložený, čeká): úkol jen na tomto prameni skončí jako vzdaný, jinému pramen
+    vypadne z míst úkolu; řekne i, když na úkolu agent právě pracuje. **Vrátit** úkoly vrátí do dnešního stavu;
+  - **Soubory**: soubor zůstane v Materiálech, jen bez vazby na pramen; snímky z archivu zůstanou u pramene. Když
+    pramen vznikl ze souboru rodokmenu, dialog to řekne; smazat i soubor jde v Materiálech ([A3.5.17](#A3.5.17)).
+
+  Pramen, který nikdo necituje, má jen „Pramen nikdo necituje.“
+- Po **Smazat pramen** řekne oznámení „Pramen … smazán ve výzkumu.“ s **Vrátit**. **Vrátit** vrátí pramen i
+  s citacemi; citaci, jejíž údaj se mezitím změnil, vrátit nejde a oznámení řekne kolik. Později jde pramen obnovit
+  ve výzkumu (`strom source restore`).
+- **Hlídá kód:**
+  - smazání platí jen pro výčet, který dialog ukázal, a nejvýš 15 minut. Když se výčet mezitím změnil nebo potvrzení
+    vypršelo, dialog ukáže nový výčet a smazání je třeba potvrdit znovu;
+  - když výzkum zrovna zapisuje, smazání se za chvíli zkusí znovu. Pramen, který ve výzkumu už není, strom načte
+    znovu; už odvolaný pramen dialog ohlásí;
+  - výzkum jen ke čtení (zapečetěný na jiném počítači) smazání nenabídne.
+- **Hranice:**
+  - jen u sledovaného stromu výzkumu, který smazání pramene umí, a jen u pramene z výzkumu; ne u kopie stromu.
+    Smazání při úpravách stromu z výzkumu popisuje [S2.6.1](S2-edits-from-the-app.md#S2.6.1);
+  - **Vrátit** potřebuje běžící výzkum; jinak oznámení řekne, že pramen jde obnovit ve výzkumu. Pramen sloučený
+    nebo odvolaný ve výzkumu jinak obnovit nejde.
+- **Ovládání:** aplikace: **Akce → Prameny** → koš (na dotyku **⋯** → **Smazat pramen…**) → **Smazat pramen**;
+  oznámení → **Vrátit**. Položka **Prameny** je u sledovaného stromu v menu, jen když jde smazání nabídnout.
+- **Platí od:** aplikace 3.31.0 s výzkumem 1.36.0
+
+<!-- zdroj: app:d527ffdd src/source-retract.ts sourceRetractOfferedIn (null bez sledování, jen ke čtení, kopie link.copy, bez brány source.retract; off když most neodpovídá), RETRACT stavy · 9d91f035, 4178ef85 src/ui/sources.ts sourcesReadOnly, openSourceRowSheet, source-retract-ui.ts (dialog, toast Vrátit, /source/restore) · src/ui/tree-management.ts isSourcesMenuOffered (zamčený strom jen se sourceRetractOffered) · strings.ts sources.retract.* (trashOff, rowMenu, menuDelete, menuOpen, title, intro, loading, usesTitle, counts, rows, bare, hasOther, lowered, storyKeep, storyCode, conflictReview, conflictDecided, conflictNever, taskState, taskDropped, taskNarrowed, taskDoing, tasksBack, filesStay, images, fileTree, undoLater, noCites, go, changed, expired, busyWait, gone, already, readonly, toast, undo, restored, restoredPart, restoreDown, notRestorable) · SPEC.md 1120-app-117-smazani · research:e6bbfb40 src/core/sourceretract.ts RETRACT_CONFIRM_MS · spec 117 §1–§3, J3 -->
+
+<a id="A3.1.3"></a>
+### A3.1.3 Potvrdit přepis výzkumu
+
+Přepis, který četl jen výzkum, může uživatel potvrdit: přečetl zápis sám a přepis souhlasí. Text se nemění; přepis
+pak platí i jako čtení uživatele ([R3.5.2](R3-verification-and-citation.md#R3.5.2)).
+
+- V prohlížeči pramene je na konci řádku „Přepis četl výzkum“ malé tlačítko **Potvrdit přepis** („Přepis souhlasí se
+  záznamem. Bude platit i jako čtení uživatele.“). Po potvrzení řádek zní „Přepis četl výzkum, uživatel ho potvrdil
+  ‹datum›“ a tlačítko je **Zrušit potvrzení** („Přepis bude znovu platit jen jako čtení výzkumu.“).
+- **Hranice:**
+  - jen u pramene s přepisem, který výzkum zná a četl jen on; přepis, který uživatel přečetl jinak, potvrdit nejde;
+  - jen u stromu propojeného s výzkumem, jehož most potvrzení přijímá; ne v Archivu Stromu, u výzkumu, který čeká na
+    agenta, ani u stromu otevřeného jen ke čtení;
+  - když výzkum neběží, tlačítko je v klidu s větou „Potvrdit jde, když výzkum běží.“ (u zrušení „Zrušit potvrzení
+    jde, když výzkum běží.“);
+  - potvrzení zapíše výzkum, ne aplikace. Odpověď je vidět hned; do stromu přijde s další verzí výzkumu;
+  - výzkum může odmítnout a aplikace řekne proč: přepis se mezitím změnil („Potvrdit jde nové znění, až dorazí.“),
+    pramen je sloučený, odvolaný nebo už ve výzkumu není, nebo výzkum naposledy zapsala novější verze Strom
+    Research;
+  - potvrzení nemění stupeň jistoty v aplikaci; rozhoduje výzkum.
+- **Ovládání:** aplikace: **Akce → Prameny** → pramen → **Potvrdit přepis** / **Zrušit potvrzení**; platí i u stromu,
+  který aplikace sleduje živě z výzkumu.
+- **Platí od:** aplikace 3.25.0, výzkum 1.29.0
+
+<!-- zdroj: app:v3.30.0 src/source-confirm.ts (SOURCES_CONFIRM_FEATURE sources.confirm, SOURCE_CONFIRM_TIMEOUT_MS, sourceConfirmAction, sourceConfirmOffer: agentless, readOnly, rest) · src/ui/source-confirm-ui.ts (prohlížeč pramene, odpověď hned, strom až s další verzí výzkumu _STROM_READ/_CONF/_TXT) · strings.ts sources.readConfirmed, sources.confirm.action/actionTitle/undo/undoTitle/restConfirm/restUndo/changed/merged/retracted/reader/none/archive/locked · CHANGELOG.cs.md 3.25.0 · research:src/core/confirm.ts -->
+
 
 <a id="A3.2"></a>
 ## A3.2 Citace: co pramen dokládá
@@ -279,6 +354,21 @@ s výzkumem nebo Archivem Stromu ukazuje i soubory výzkumu, které ve stromu ni
   na osobu).
 - **Platí od:** aplikace 3.9.0; sekce a okno **Materiály** 3.16.0; 3.30.0: okno u každého stromu, soubor stromu
   jako jeden materiál s místy (verze dat 24)
+- **Od aplikace 3.31.0 s výzkumem 1.36.0:** výzkum soubory projde sám jen se zapnutým nastavením **Soubory poslané do
+  výzkumu projde agent sám** ([S4.4.11](S4-research-from-the-app.md#S4.4.11),
+  [R11.6](R11-material-from-the-user.md#R11.6)). Vypnuto (výchozí):
+  - **Poslat materiál…** říká „Do stromu se nic nepřidá. Výzkum soubory uloží k osobě. Čekají v Materiálech, agent
+    je projde jen na požádání.“ (u pramene „… k prameni.“). Po poslání hláška „Posláno do výzkumu (Jan Horák):
+    1 soubor. Čeká v Materiálech neroztříděný.“ s **Roztřídit agentem…** (na počítači s oknem **Materiály**,
+    [A3.5.8](#A3.5.8)) a **Zobrazit**;
+  - potvrzení dávky **Přidat materiály…** nemá bloky **Soukromí** a **Odhad ceny**, jen „Soubory se uloží do výzkumu
+    mimo git a čekají v Materiálech neroztříděné. Agent je roztřídí jen na požádání; cena se ukáže předem.“;
+  - konec dávky říká „Soubory čekají v Materiálech neroztříděné. Agent je roztřídí jen na požádání.“ a nabízí
+    **Roztřídit agentem…** pro soubory dávky; když to nejde hned, odkáže na **Roztřídit agentem…** v Materiálech.
+    Zapnuto: „Výzkum dávku roztřídí sám. …“ s počtem **Úkoly k roztřídění**;
+  - soubor, který agent ještě neprošel, má v Materiálech stav **neroztříděno** (zapnuto: **čeká na zpracování**).
+
+  Se starším výzkumem platí dosavadní texty.
 
 <!-- zdroj: dirigent:spec/102-sprava-materialu-a-pramenu · app:2b66d7cf src/types.ts STROM_DATA_VERSION 24, Attachment.places (MediaPlace), migrace v23→v24 (stejný soubor u více osob jeden záznam) · src/media.ts allMedia, treeMedia · app:1ebf7896 src/ui/materials-ui.ts materialsWindowOn, materialsListOn · src/ui/tree-management.ts (Akce › Materiály) · src/ui/research-actions-ui.ts:373 · src/ui/attachments-ui.ts attachments-all-materials · app:a275d977 menu osoby Materiály · src/ui/material-ui.ts MATERIAL_MAX_FILES, MATERIAL_NOTE_MAX, REFUSED_EXT, materialAvailable · strings.ts material.*, materials.desktopOnlyResearch, treeReadOnly, olderEdit, assignNewer, agentSort.older · app:CHANGELOG.cs.md 3.30.0 -->
 
@@ -307,8 +397,10 @@ výzkumu.
   v **Filtry**.
 - **Ovládání:** viz [A3.5](#A3.5); výběr souborů: **Vybrat**, Ctrl/Cmd+A vybere, co filtry ukazují.
 - **Platí od:** aplikace 3.30.0
+- **Od aplikace 3.31.0:** na telefonu se okno otevírá i z **Více → Pro rodinu**: první řádek **Materiály** s počtem
+  souborů. Na tabletu zůstává **Materiály** v první úrovni **Více**.
 
-<!-- zdroj: app:c9775287 src/materials-overview.ts chooseSort, sortOverviewGroups (uvnitř skupin), src/ui/materials-window.ts mwSortChipHtml, mwSortMenu, mwSortColumns (intree jen model archive), mwSetSort → writeListPrefs (localStorage), filtry ≤ 1024 · strings.ts materials.sortBy, sortChip, sortDefault, sortAscending, sortDescending · app:1ebf7896 src/ui/materials-ui.ts, src/ui/materials-window.ts (skupiny, Kde soubory jsou) · app:a1127378 sloupce seznamu, Ctrl/Cmd+A · app:b198b1c2 src/media-uses.ts materialPersonLabel (Neznámá osoba) · app:e6e16634 staleEdit · app:prace/1117-app-102-materialy D1 (telefon: bez řádku Materiály ve Více) · strings.ts materials.groupAdded, groupPerson, groupBatch, groupDate, whereTitle, whereApp, whereArchiveResearch, whereEncryptedResearch, search, showHidden, unknownPerson, staleEdit -->
+<!-- zdroj: app:c9775287 src/materials-overview.ts chooseSort, sortOverviewGroups (uvnitř skupin), src/ui/materials-window.ts mwSortChipHtml, mwSortMenu, mwSortColumns (intree jen model archive), mwSetSort → writeListPrefs (localStorage), filtry ≤ 1024 · strings.ts materials.sortBy, sortChip, sortDefault, sortAscending, sortDescending · app:1ebf7896 src/ui/materials-ui.ts, src/ui/materials-window.ts (skupiny, Kde soubory jsou) · app:a1127378 sloupce seznamu, Ctrl/Cmd+A · app:b198b1c2 src/media-uses.ts materialPersonLabel (Neznámá osoba) · app:e6e16634 staleEdit · app:prace/1117-app-102-materialy D1 (telefon: bez řádku Materiály ve Více) · strings.ts materials.groupAdded, groupPerson, groupBatch, groupDate, whereTitle, whereApp, whereArchiveResearch, whereEncryptedResearch, search, showHidden, unknownPerson, staleEdit · 3.31.0: app:122a5096 src/ui/bottom-sheet.ts materialsRow (s počtem materialsAppCount) jako první řádek stránky menu.forFamily jen isPhoneBar, jinak v první úrovni · strings.ts materials.menu, menu.forFamily · dirigent:prace/1122-app-mobil-drobnosti -->
 
 <a id="A3.5.2"></a>
 ### A3.5.2 Titulek, druh a datum
@@ -367,8 +459,11 @@ Každý soubor ukazuje, kde je použit: osoby, portrét, svazek, události, pram
 - **Ovládání:** prohlížeč souboru (**Připojit k…** nebo P; šipky mění cíl, Enter připojí); výběr v okně
   **Materiály**.
 - **Platí od:** aplikace 3.30.0
+- **Od aplikace 3.31.0:** osoba, které už patří všechny zvolené soubory (místem ve stromu nebo přiřazením ve
+  výzkumu), stojí nad seznamem jako čip se značkou „už připojeno“, bez ×, a v seznamu je zaškrtnutá a nejde změnit.
+  Vedle ní se neukazuje „Zatím nikdo“.
 
-<!-- zdroj: app:a275d977 src/ui/material-attach-ui.ts openAttachDialog, MAX_PEOPLE=50, materialKeptByArchive, dup dialog · strings.ts materials.attach, attachTarget, coupleNote, archiveOnlyResearch, dupTitle, dupAttach, dupNew, dupLinkedToast, assignMax, noRefnTreeResearch -->
+<!-- zdroj: app:a275d977 src/ui/material-attach-ui.ts openAttachDialog, MAX_PEOPLE=50, materialKeptByArchive, dup dialog · strings.ts materials.attach, attachTarget, coupleNote, archiveOnlyResearch, dupTitle, dupAttach, dupNew, dupLinkedToast, assignMax, noRefnTreeResearch · 3.31.0: app:9eee6b2c src/ui/material-attach-ui.ts attachFixedPeople (místo ve stromu nebo REFN ve výzkumu, u všech souborů), src/person-picker.ts fixedChips · strings.ts materials.attachAlready, noneChosen · dirigent:prace/1122-app-portret-dev -->
 
 <a id="A3.5.5"></a>
 ### A3.5.5 Pramen ze souboru a doklad pramene
@@ -684,12 +779,51 @@ na soubory odkazuje; v aplikaci to nejde vrátit.
     stromu…** ([A3.5.6](#A3.5.6));
   - nejvýš 500 souborů najednou („Najednou jde smazat nejvýš 500 souborů.“);
   - jen s výzkumem, který mazání umí, a s běžícím mostem; nikdy ve stromu jen ke čtení;
-  - na úzké obrazovce je dialog list zespodu.
+  - na úzké obrazovce je dialog list zespodu;
+  - soubor rodokmenu a soubor, ze kterého vznikl platný pramen, popisuje [A3.5.17](#A3.5.17).
 - **Ovládání:** okno **Materiály** → výběr → ⋯ → **Smazat natrvalo…** (poslední položka); prohlížeč souboru
   (poslední akce). Terminál: `strom input delete` ([R11.5.6](R11-material-from-the-user.md#R11.5.6)).
 - **Platí od:** aplikace 3.30.0, výzkum 1.35.0
 
 <!-- zdroj: app:05e13ef7 src/ui/material-delete-ui.ts openDeleteDialog (suchý běh, potvrzení mostu, zaškrtnutí, Zrušit s fokusem, hideInstead, changed, expired, toast bez Zpět, list zespodu), src/material-delete.ts deletableFiles (origin ≠ tree, file), src/materials.ts DELETE_MAX_FILES=500, MATERIAL_DELETE_FEATURE · src/ui/materials-window.ts sel-delete (caps.delete, ne jen ke čtení, bridgeUp), src/ui/material-viewer-ui.ts (inArchive, poslední akce) · app:6949d833, f214eda6 (množné číslo, understandHint) · strings.ts materials.del.* · research:0cc2cfca src/core/materialdelete.ts DELETE_MOST_FILES, DELETE_CONFIRM_MS -->
+
+<a id="A3.5.17"></a>
+### A3.5.17 Soubor rodokmenu v Materiálech
+
+Okno **Materiály** ukazuje i soubory rodokmenu, které výzkum má: importovaný GEDCOM nebo soubor JSON aplikace.
+Jde je prohlédnout a smazat natrvalo; když z nich vznikl pramen, jen spolu s ním.
+
+- Dlaždice a řádek **Seznam** ukáže druh a velikost („Soubor rodokmenu · 184 kB“) a štítek **Zdroj pramene**,
+  když z něj pramen vznikl ([A3.5.14](#A3.5.14)). Soubor rodokmenu není nikdy **Ve stromu**: nemá ten štítek
+  a filtr **Ve stromu** ho nepočítá, ani když pramen z něj ve stromu je. Filtr **Druh** má řádek **Soubory
+  rodokmenu**, jen když nějaký je.
+- Soubory rodokmenu jsou mimo třídění agentem, hromadné akce, **Bez osoby** a počty **Projít**. Titulek, druh,
+  datum ani osoby se u nich nemění.
+- Nabídka souboru (na úzké obrazovce list zespodu) má jen **Podrobnosti** a **Smazat natrvalo…**. **Podrobnosti**
+  jsou bez náhledu a jmenují pramen, který ze souboru vznikl („zdrojem pramene …“).
+- **Smazat natrvalo…** u souboru, ze kterého pramen nevznikl: dialog jako [A3.5.16](#A3.5.16), s větou „Soubor
+  rodokmenu se smaže z archivu výzkumu. V aplikaci to nejde vrátit.“ a „Na soubor nic neodkazuje: nevznikl z něj
+  pramen.“, bez **Jen skrýt – jde vrátit**.
+- **Smazat natrvalo…** u souboru, ze kterého vznikl pramen, který stále platí: dvoudílný dialog **Smazat pramen
+  i soubor?** („Ze souboru vznikl pramen …. Soubor se smaže až po pramenu, obojí najednou.“):
+  - **Nejdřív se smaže pramen**: co na pramenu stojí, jako v dialogu **Smazat pramen?**
+    ([A3.1.2](#A3.1.2));
+  - **Pak se smaže soubor**: co na soubor odkazuje; pramen „smaže se v prvním kroku“;
+  - „Pramen jde později obnovit ve výzkumu, ale už bez souboru.“, jedno zaškrtnutí **Rozumím, soubor nejde
+    v aplikaci vrátit** a tlačítko **Smazat pramen i soubor**.
+
+  Obojí se zapíše najednou, jedním zápisem ve výzkumu. Oznámení „Smazán pramen … i soubor ….“ nemá **Zpět**
+  a pramen pak ze stromu zmizí.
+- **Hlídá kód:** když se výčet mezitím změnil, dialog ukáže nový, zaškrtnutí zruší a smazání je třeba potvrdit
+  znovu. Nepovedený zápis nesmaže nic („Zápis ve výzkumu se nepovedl. Nic se nesmazalo.“) a dovolí to zkusit znovu.
+- **Hranice:** jen s výzkumem, který soubory rodokmenu v materiálu hlásí; bez něj je okno neukazuje. Mazání jako
+  v [A3.5.16](#A3.5.16): jen s běžícím mostem a nikdy ve stromu jen ke čtení.
+- **Ovládání:** okno **Materiály** → soubor rodokmenu → ⋯ → **Podrobnosti** / **Smazat natrvalo…**; filtr **Druh →
+  Soubory rodokmenu**. Terminál: `strom input delete I… --retract-sources S…`
+  ([R11.5.6](R11-material-from-the-user.md#R11.5.6)).
+- **Platí od:** aplikace 3.31.0 s výzkumem 1.36.0
+
+<!-- zdroj: app:36601947 src/materials-overview.ts (druh tree za bránou material.trees, trees=1; mimo třídění, hromadné akce, bez osoby, počty Projít; podrobnosti nejdou upravit), src/material-delete.ts treeFileSource, retractSources, blockedBy (409 material.source-live) · 2a406d67 dlaždice a řádek (Soubor rodokmenu · velikost, štítek zdroje), filtr Druh, nabídka Podrobnosti + Smazat natrvalo… (list zespodu), Podrobnosti bez náhledu, dialog bez pramene bez Jen skrýt · b40b22e4 dvoudílný dialog · d9af4b16 (ne Ve stromu, ani štítek, ani filtr) · e2e/material-tree-delete.spec.ts (hlavička) · strings.ts materials.treeFile, kindTrees, treeFileOf, treeDetails, del.textTree, noRefsTree, bothTitle, bothIntro, partSource, partFile, laterNoFile, fileSourceSub, understandFile, bothGo, bothChanged, bothNone, bothToast · SPEC.md 1120-app-117-smazani, 1120-app-108-diry · spec 117 §5–§7 -->
 
 <a id="A3.6"></a>
 ## A3.6 Prameny osoby
@@ -828,8 +962,11 @@ když archiv změní adresy snímků nebo kniha nemá čísla stran.
 - **Ovládání:** editor pramene (**Upravit pramen**, **Přidat pramen**): **Archiv**, **Signatura**, **Folium/strana**,
   **Snímek**, **Další umístění**, **URL**; návrh **Z umístění:** s **Převzít** a **Vrátit**.
 - **Platí od:** aplikace 3.27.0
+- **Od aplikace 3.31.0:** u snímku, který výzkum zjistil ze svých evidovaných skenů, GEDCOM jiný snímek z umístění
+  nevystřihne: dostane umístění celé a snímek z pole za ním, když ho umístění neříká
+  ([A2.6](A2-loading-a-family-tree.md#A2.6)).
 
-<!-- zdroj: app:c3278633 src/types.ts Source.callNumber/folio/image (reference = další umístění), src/source-location.ts hasPlaceFields, recognizeLocation, locatorOverlap, composePage, sourcePlaceParts, sourcePlaceLine (short: imageShort), test/fixtures/source-locations.json (38 případů společných s výzkumem) · 9732853b src/ui/sources.ts:1269 (návrh sleduje psaní), :1363-1400 řádek pod poli (taken/conflict/proposal jen při prázdném foliu i snímku), :1429 Vrátit; prázdná pole odebrána · 2f4a9c2f prohlížeč (viewerBook/viewerEntry/viewerLocation/viewerNoUrl), Správa a výběr, bublina čipu, person-page.ts, book-blocks.ts, family-pages-html.ts · strings.ts sources.fieldRepository(Ph)/fieldCallNumber(Ph)/fieldFolio(Ph)/fieldImage(Ph)/fieldImageHelp/imageHelpLabel/fieldReference(Ph)/proposalFrom/proposalRest/proposalTake/proposalTaken/proposalUndo/conflictImage/conflictFolio/conflictFix/conflictFixEmpty/imageShort · spec 075 K1.1, rozhodnutí 1, 2, 5 · dirigent:prace/1111-app-citace-pole -->
+<!-- zdroj: app:c3278633 src/types.ts Source.callNumber/folio/image (reference = další umístění), src/source-location.ts hasPlaceFields, recognizeLocation, locatorOverlap, composePage, sourcePlaceParts, sourcePlaceLine (short: imageShort), test/fixtures/source-locations.json (38 případů společných s výzkumem) · 9732853b src/ui/sources.ts:1269 (návrh sleduje psaní), :1363-1400 řádek pod poli (taken/conflict/proposal jen při prázdném foliu i snímku), :1429 Vrátit; prázdná pole odebrána · 2f4a9c2f prohlížeč (viewerBook/viewerEntry/viewerLocation/viewerNoUrl), Správa a výběr, bublina čipu, person-page.ts, book-blocks.ts, family-pages-html.ts · strings.ts sources.fieldRepository(Ph)/fieldCallNumber(Ph)/fieldFolio(Ph)/fieldImage(Ph)/fieldImageHelp/imageHelpLabel/fieldReference(Ph)/proposalFrom/proposalRest/proposalTake/proposalTaken/proposalUndo/conflictImage/conflictFolio/conflictFix/conflictFixEmpty/imageShort · spec 075 K1.1, rozhodnutí 1, 2, 5 · dirigent:prace/1111-app-citace-pole · 3.31.0: app:2e68d373 src/source-location.ts composePage (imageDerived) -->
 
 <a id="A3.9.1"></a>
 ### A3.9.1 Rozdělit umístění podle návrhu

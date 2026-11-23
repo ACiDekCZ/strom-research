@@ -63,6 +63,7 @@ import { WEB_SOFT } from "../core/metrics.ts";
 import { indexBriefLines } from "../core/indexfirst.ts";
 import { activeFetches, endedFetches, heavySaid, withRegistered } from "../core/fetching.ts";
 import { needsBooks, sameBookLine } from "../core/books.ts";
+import { addressLabel, contactOnlyEvent } from "../core/contact.ts";
 
 /** What strom tuned for the session's agent and model (core/tune.ts), as at the session's start: it holds for all of it. */
 interface BriefTuning {
@@ -168,7 +169,7 @@ function eventLine(tree: Tree, e: Person["events"][number]): string {
   const cites = citesOf(orderCitations(e.citations, (id) => tree.get<Source>(id), { kind: e.kind, date: e.date }));
   // what the user removed from the fact: never cited there again without a reason (strom cite … --reason)
   const removed = (e.uncited ?? []).filter((u) => !u.cleared).map((u) => u.source);
-  return `    ${e.id} ${e.kind}${e.label ? ` ${e.label}` : ""}${e.date ? ` ${e.date}` : ""}${e.place ? ` ${e.place}` : ""}${e.house ? `, house ${e.house}` : ""}${e.value ? ` "${e.value}"` : ""} [${e.status}]${cites ? ` ← ${cites}` : ""}${removed.length ? ` (removed by the user: ${[...new Set(removed)].join(", ")})` : ""}`;
+  return `    ${e.id} ${e.kind}${e.label ? ` ${e.label}` : ""}${e.date ? ` ${e.date}` : ""}${e.place ? ` ${e.place}` : ""}${e.house && !addressLabel(e.house) ? `, house ${e.house}` : ""}${e.value ? ` "${e.value}"` : ""} [${e.status}]${cites ? ` ← ${cites}` : ""}${removed.length ? ` (removed by the user: ${[...new Set(removed)].join(", ")})` : ""}`;
 }
 
 function citesOf(citations: Citation[] | undefined): string {
@@ -188,7 +189,8 @@ function personBlock(tree: Tree, p: Person, depth: number, short = false): strin
   // other names, and where any name comes from
   if (p.names.length > 1 || p.names.some((n) => n.citations?.length))
     out.push(`    names: ${p.names.map((n) => `${formatName(n)}${n.kind ? ` (${n.kind})` : ""}${n.primary ? " (shown by it)" : ""}${n.citations?.length ? ` ← ${citesOf(n.citations)}` : ""}`).join("; ")}`);
-  for (const e of p.events.filter((x) => !x.retracted)) out.push(eventLine(tree, e));
+  // a residence of nothing but a contact is no fact to work on (spec 134 U11): never shown, its e-mail never in a brief
+  for (const e of p.events.filter((x) => !x.retracted && !contactOnlyEvent(x))) out.push(eventLine(tree, e));
   const parents = parentsOf(tree, p.id);
   const birthFamily = familiesAsChild(tree, p.id)[0];
   out.push(`    parents: ${parents.length ? parents.map(label).join(" & ") : "unknown"}${birthFamily?.citations?.length ? ` (${birthFamily.id} ← ${citesOf(birthFamily.citations)})` : ""}`);
@@ -211,7 +213,9 @@ const NOTE_SHOWN = 300;
 
 /** Where a person lived and what they did, the years with each: what tells namesakes apart. */
 function identifying(p: Person, vitalToo: boolean): { houses: string[]; work: string[]; more: number } {
-  const facts = p.events.filter((e) => !e.retracted && !VITAL.has(e.kind));
+  // a residence of nothing but a contact (spec 134 U11) is neither where they lived nor a fact more
+  const kept = p.events.filter((e) => !e.retracted && !contactOnlyEvent(e));
+  const facts = kept.filter((e) => !VITAL.has(e.kind));
   const grouped = (list: [string, string | undefined][]) => {
     const by = new Map<string, Set<number>>();
     for (const [what, date] of list) {
@@ -226,8 +230,10 @@ function identifying(p: Person, vitalToo: boolean): { houses: string[]; work: st
     });
   };
   // where they lived: a house in a place, or the place of a residence
-  const lived = (e: Person["events"][number]) => !!e.house || (e.kind === "RESI" && !!e.place);
-  const houses = grouped((vitalToo ? p.events.filter((e) => !e.retracted) : facts).filter(lived).map((e) => [[e.place, e.house].filter(Boolean).join(" "), e.date]));
+  // (a label of an address, "Email", is no house)
+  const house = (e: Person["events"][number]) => (e.house && !addressLabel(e.house) ? e.house : undefined);
+  const lived = (e: Person["events"][number]) => !!house(e) || (e.kind === "RESI" && !!e.place);
+  const houses = grouped((vitalToo ? kept : facts).filter(lived).map((e) => [[e.place, house(e)].filter(Boolean).join(" "), e.date]));
   const work = grouped(facts.filter((e) => e.kind === "OCCU" && e.value).map((e) => [e.value!, e.date]));
   const more = facts.filter((e) => !lived(e) && !(e.kind === "OCCU" && e.value)).length;
   return { houses, work, more };

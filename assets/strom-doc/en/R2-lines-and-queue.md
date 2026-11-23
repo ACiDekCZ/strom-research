@@ -74,6 +74,36 @@ The lines have one order, and work comes to them in it: the first line has prece
 
 <!-- zdroj: research:src/core/order.ts workOrder, orderMode · src/core/queue.ts:237-240 lineBonus, :396 priority lineRank · src/commands/research.ts:215 research edit, :303 research order, :326 research move -->
 
+<a id="R2.1.5"></a>
+### R2.1.5 Moving tasks into a narrower line
+
+A line lies inside a wider line when its person belongs to the wider one (the ancestors of a grandfather inside the
+ancestors of his grandson). Open tasks of the wider line that concern only people of the narrower line can be moved
+into the narrower line. The move is a person's decision and can be undone.
+
+- **Enforced by the code:**
+  - only tasks that name the wider line as their own, are open or wait for a person, and whose people all belong to
+    the narrower line are moved. A task with no line of its own already counts for the narrowest line
+    ([R2.1.3](#R2.1.3));
+  - never a task being worked on (started or held by an open session, [R7.9](R7-when-the-agent-works.md#R7.9)), a
+    parked or a done task, a task with no people, nor a task with someone outside the narrower line;
+  - nothing is moved from a paused wider line;
+  - the move is one operation of the history that remembers where each task came from. Undoing takes the line's last
+    move and returns each task that still has the line to the line it came from.
+- **Limits:**
+  - when creating a line inside a wider one: `--move-tasks` moves the tasks, `--keep-tasks` leaves them; without
+    either, a person at the terminal is asked (yes proposed). An agent, `--yes` or a run without a terminal leaves the
+    tasks and says how many would be moved and that `strom research gather G…` moves them;
+  - the agent starts a move only when a person asks for it;
+  - for a run of a line ([R7.10](R7-when-the-agent-works.md#R7.10)) this means that the moved tasks are taken by its
+    run, not by the run of the wider line.
+- **Controls:** terminal: `strom research new … --move-tasks|--keep-tasks`, `strom research gather G…` (`--dry-run`
+  shows what would change), `strom research gather G… --undo`. App: the form **New direction**, **Undo the move**
+  ([S4.3.1](S4-research-from-the-app.md#S4.3.1)).
+- **Since:** research 1.36.0
+
+<!-- zdroj: research:src/core/gather.ts widerLines (bez pozastavených a vzatých zpět), gatherable (MOVABLE open, waiting; ne doing, držené sezením, odložené, hotové, bez lidí, s někým mimo), gatherPreview, gather, lastGather, ungather; operace research.gather / research.ungather · src/commands/research.ts research new --move-tasks|--keep-tasks (dotaz u terminálu, jinak movable {count, from}), research gather [--undo] · src/core/live.ts directions/preview, POST directions moveTasks, gather/undo (409 gather.none) · help research gather, research new · dirigent:spec/126 U11 -->
+
 <a id="R2.2"></a>
 ## R2.2 The queue sets which task comes next
 
@@ -102,8 +132,15 @@ before all others.
   ([S4.2.1](S4-research-from-the-app.md#S4.2.1)).
 - **From research 1.35.0:** with `queue.sameBook yes`, between keys 7 and 8 the next task of the book the last
   session worked in goes first ([R2.2.4](#R2.2.4)).
+- **From research 1.36.0:** the tasks of a trial of bulk verification (`strom verify bulk --try N`) get a place like
+  a task **Do next** ([R2.3.1](#R2.3.1)) and the next session takes them; two trials in a row go in the order they were
+  given, the older first ([S7.5.1](S7-reliability-and-verification.md#S7.5.1)). `strom task list --kind <type>` shows
+  only the tasks of one kind of work: `verify` (verification), `records` (registers), `material` (material), `places`
+  (places), `enrich` (beyond the registers), `request` (requests), `story` (stories), `history` (history), `census`
+  (census records, [R9.12](R9-archives.md#R9.12)), `other` (other); an unknown type ends with an error listing the
+  types. In the app the row **Task type** in the **Queue** ([S4.2.4](S4-research-from-the-app.md#S4.2.4)).
 
-<!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 · 1.33.0: research:c50f80f5 task list --all (= --state all), strom help task list -->
+<!-- zdroj: 1.36.0: research:7116bb60 src/core/taskkind.ts (TASK_KINDS, taskKind; census: research:c7b117cd), src/commands/task.ts list --kind, src/core/verify.ts verifyBulk try (priority 3, queueAt next) · CHANGELOG.cs.md 1.36.0 · research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 · 1.33.0: research:c50f80f5 task list --all (= --state all), strom help task list -->
 
 <a id="R2.2.1"></a>
 ### R2.2.1 The queue strategy

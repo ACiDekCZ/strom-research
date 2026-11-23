@@ -176,6 +176,26 @@ nazwisk i miejscowości.
 
 <!-- zdroj: app:src/family-pages.ts · strings.ts familyPages.menuItem, familyPages.treePages, familyPages.treePagesAction, familyPages.indexTitle · spec 026 · CHANGELOG.cs.md 3.20.0, 3.21.0 -->
 
+<a id="A7.5.1"></a>
+### A7.5.1 Historia na osi czasu rodu
+
+Oś czasu rodu (**Oś czasu rodu →** na stronie rodu) pokazuje historię w miejscowościach rodu z symbolem jej rodzaju.
+
+- **Historia kraju lub regionu** to pionowe pasy przez wykres z symbolem rodzaju u góry.
+- **Historia lokalna** (**Historia miejsca**, **Ze źródeł badania**) miejscowości, która ma na wykresie własny
+  wiersz, to symbol na wierszu miejscowości w kolorze pochodzenia. Miejscowość bez wiersza ma pionowy pas jak historia
+  kraju.
+- **Lista:** wiersz historii ma symbol rodzaju w kolorze pochodzenia. Po tekście stoi miejscowość; przy historii
+  kraju lub regionu jego nazwa, tylko gdy historia rodu pochodzi z co najmniej dwóch krajów lub regionów.
+- **Rodzaje historii:** drugi rząd chipów **Rodzaje wydarzeń** pod pierwszym: **Wszystko** i rodzaje historii na
+  stronie, każdy z symbolem. Wybrane rodzaje zostawiają tylko swoje wiersze, pasy i symbole. Rząd jest tylko przy co
+  najmniej dwóch rodzajach i tylko ze skryptem strony; przy wyłączonym chipie **Historia** znika.
+- Chip **Historia** w **Rodzaje wydarzeń** ma symbol rodzaju „inne”.
+- **Obsługa:** strony rodu: **Oś czasu rodu →**, oba rzędy chipów **Rodzaje wydarzeń**
+- **Obowiązuje od:** aplikacja 3.31.0
+
+<!-- zdroj: app:6caa471e src/family-pages-html.ts tlSymHtml, tlScopeClass, onRow (scope ≠ region a obec s řádkem → symbol na řádku, jinak pruh se symbolem sp-tl-bandsym), histChips (rodTimelineHistKinds > 1, js-only, Vše + druhy), řádek seznamu (symbol, place ?? region), čip hist se symbolem other, skript data-hk-off · src/rod-timeline.ts RodTimelineHistory scope, region (jen při ≥ 2 regionech), rodTimelineHistKinds · src/family-pages-css.ts (skrytí s vypnutými Dějinami) · strings.ts familyPages.tlLink, tlKindsLabel, tlKinds.hist, tlHistNote, tlHistKindsLabel, history.filterAll · dirigent:spec/121 „Časová osa rodu stejně jako hlavní osa“, Rozhodnutí 20. 11. (místní na řádku obce) -->
+
 <a id="A7.6"></a>
 ## A7.6 Strona osoby
 

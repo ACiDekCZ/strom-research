@@ -398,6 +398,16 @@ export interface Person extends BaseRecord {
   refs?: ExternalRef[];
   /** The IDs the person had in the family trees they came from (spec 066 K3.2). */
   originalIds?: OriginalIds[];
+  /**
+   * How to reach the person (spec 134 U11): the user's data — the e-mails another family tree or the Strom app gives
+   * them. No evidence, no citation, no origin; empty never written.
+   */
+  contact?: PersonContact;
+}
+
+/** A person's contact: e-mail addresses, each once. */
+export interface PersonContact {
+  emails?: string[];
 }
 
 export const CHILD_RELATIONS = ["birth", "adopted", "step", "foster", "unknown"] as const;

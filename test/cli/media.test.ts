@@ -257,7 +257,7 @@ test("images the user saves by hand: the folder is made and shown with the link,
   const folder = "B0002 Žďár N 1784–1820";
   const dir = path.join(w.home, "shared", "inbox", folder);
   const asked = await w.ok(["task", "wait", "T1", "--images", "B2:9-10", "--on", "snímky 9–10 knihy Žďár (https://archive.example.org/book/5359)"]);
-  assert.match(asked.out, /the user saves images 9–10 of B0002 into .*B0002 Žďár N 1784–1820, each named by its number \(9\.jpg; named otherwise, they are taken by their order when as many as asked for\)/);
+  assert.match(asked.out, /the user saves images 9–10 of B0002 into .*B0002 Žďár N 1784–1820, each named by its number \(9\.jpg; the number in the name is enough, __09\.jpg; named otherwise, they are taken by their order when as many as asked for\)/);
   assert.ok(fs.statSync(dir).isDirectory(), "the folder is there before the user looks for it");
   const t = (await w.ok(["task", "show", "T1", "--json"])).json.task;
   assert.deepEqual(t.awaits, { recordset: "B0002", images: "9–10", folder });

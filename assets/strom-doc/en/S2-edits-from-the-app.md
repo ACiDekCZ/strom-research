@@ -385,6 +385,45 @@ nothing by itself; it can be deleted in the research". A Strom archive mirrors t
 
 <!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 „What the app no longer has is only reported“, gone :2355 · app:src/ui/research-removed-ui.ts :1-14 · strings.ts sync.notWrittenReport, conflict.person.* · CHANGELOG.cs.md 3.16.0 -->
 
+<a id="S2.6.1"></a>
+### S2.6.1 A source deleted in the app
+
+A source that a person deletes in the app in a tree from the research that the app edits (not follows) is retracted by
+the research with the next write of changes ([R3.10](R3-verification-and-citation.md#R3.10)): the citations are kept
+in the source and `strom source restore` brings it back. A followed tree deletes the source straight in the research
+([A3.1.2](A3-evidence-in-the-app.md#A3.1.2)).
+
+- **What the app shows on deleting:**
+  - a research that can delete sources, with the bridge running: the dialog **Delete source?** with a preview from
+    the research as in a followed tree. The source is deleted only in the app and can be brought back with **Undo**;
+  - a research that can do it, without the bridge: the previous confirmation and the sentence "The research retracts
+    the source with the next write of changes.";
+  - a research that cannot do it: the previous confirmation and the sentence "The research keeps the source; it comes
+    back with the next load.";
+  - when the app does not know the research, the previous confirmation.
+- The file for the research names the deleted sources: only sources of the research that are missing from the file,
+  at most 50. A source brought back with **Undo** is not named.
+- **Enforced by the code:** the research retracts the source only when:
+  - the write was started by a person, not an agent;
+  - the file is the whole tree the research gave the app, and it carries the research state it came from;
+  - nobody cites the source in the file;
+  - the research has the source and has not retracted it yet.
+
+  Otherwise it deletes nothing. A deleted source no longer comes back with a later file from the app or an import.
+- **Changes** and **What was written:**
+  - the line **Deleted source**; when the send waits in the research for confirmation, with the note "waiting in the
+    research for confirmation";
+  - a deletion not taken, with the reason: "source not retracted: the file is only part of the tree", "… it is still
+    cited in the tree", "… it is not in the research", "… it is already retracted", "… the file does not carry the
+    research state it came from", "… the write was not started by a person";
+  - a citation of a source the research has already retracted is not written ("the source is retracted in the
+    research; a citation of it is not written"). Such a line has **Restore the source in the research** (through the
+    bridge), without the bridge the sentence "the source can be restored in the research".
+- **Controls:** app: **Sources** → the bin at the source, then **Send** ([S2.2](#S2.2)).
+- **Since:** app 3.31.0 with research 1.36.0
+
+<!-- zdroj: app:810319cb src/source-retract.ts sourceRetractEditModeIn (preview / plain / old / unknown), ResearchLink.deletedSources, deletedSourcesToSend (_STROM_SOURCE_DELETED, jen chybějící, max 50, zapomene se po Zpět a po odvolání) · src/ui/research-changes-ui.ts (sourceDeleted, reviewWait při sent.state pending, nwSourceRow, restoreTail now/later) · strings.ts sources.retract.editMode, editModeOld, changes.sourceDeleted, reviewWait, restoreSource, restoreLater, sync.notWritten source.retract-skipped:*, source.retracted · research:e6bbfb40 src/core/sync.ts sourcesDeleted, plan source.retract (notPerson, noHead, partial, stillCited, unknown, retracted), withholdDeleted (spec 117 J6) · SPEC.md 1120-app-117-smazani · spec 117 K1.4, §4 -->
+
 <a id="S2.7"></a>
 ## S2.7 Undoing a send
 
@@ -421,10 +460,14 @@ what changes or goes in the app.
   through and added or changed lines are marked (a changed line: the old one struck through, then the new one).
   A paragraph the research only added strikes nothing through. Spaces at the end of a line and Windows line ends
   are no change. A note on one side only keeps **here → from research**. The same data is loaded as before.
+- **An image number or folio added:** a source to whose place the research's version only adds an image number or a
+  folio (missing here, the location otherwise the same) gives no row at any of its citations. Below the list there is
+  only the sentence "Image number added in 3 sources." (for a folio "Folio added in 3 sources."), and it does not count
+  as a change. A changed location, a changed image number and its removal still give a row.
 - **Limits:** for a tree that only loads from the research ([S2.2](#S2.2)), and when something of the last send was
   not written, the dialog says that loading overwrites those edits; the buttons are **Load and overwrite** and
   **Open as copy**.
 - **Controls:** app: **Load the research's version**
-- **Since:** app 3.9.0; a note line by line from 3.29.0
+- **Since:** app 3.9.0; a note line by line from 3.29.0; an image number or folio added from 3.31.0
 
-<!-- zdroj: app:src/ui/research-load-ui.ts askResearchLoad (ROWS_SHOWN 8, overwrite: sendMode off nebo nezapsané z posledního poslání → loadOverwrite + research.openCopy), src/ui/research-ui.ts:2377 · 03352a9c src/line-diff.ts diffLines (LCS po řádcích, mezery na konci a CRLF nejsou změna), research-load-ui.ts notes · strings.ts sync.loadTitle, loadColChange, loadMore, loadAdded, loadBackupNote, loadOverwrite, loadOverNotWritten · CHANGELOG.cs.md 3.29.0 „Načíst verzi výzkumu?“ · v3.9.0 (loadColChange) -->
+<!-- zdroj: app:src/ui/research-load-ui.ts askResearchLoad (ROWS_SHOWN 8, overwrite: sendMode off nebo nezapsané z posledního poslání → loadOverwrite + research.openCopy), src/ui/research-ui.ts:2377 · 03352a9c src/line-diff.ts diffLines (LCS po řádcích, mezery na konci a CRLF nejsou změna), research-load-ui.ts notes · strings.ts sync.loadTitle, loadColChange, loadMore, loadAdded, loadBackupNote, loadOverwrite, loadOverNotWritten · CHANGELOG.cs.md 3.29.0 „Načíst verzi výzkumu?“ · v3.9.0 (loadColChange) · 3.31.0: app:2e68d373 src/research-changes.ts placeNumberAdded, pageMoved, diffValues numbersAdded; src/ui/research-load-ui.ts (věta pod seznamem, nepočítá se); strings.ts sync.loadImageNumbers, loadFolioNumbers · CHANGELOG.cs.md 3.31.0 „Načtení verze výzkumu“ -->

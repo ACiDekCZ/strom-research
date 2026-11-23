@@ -56,8 +56,21 @@ through the bridge.
   arrow writes it. An open overview no longer unfolds the panel behind it. A phone neither reads nor writes the choice
   (the strip opens the overview as before). Without the browser's storage (private window) it lasts until the page is
   closed.
+- **From app 3.31.0:** on a phone held sideways the unfolded panel of a followed research folds to its strip when the
+  indicator of loading photos **Photos k / n** ([S1.4.1](S1-connecting-app-and-research.md#S1.4.1)) or a notice appears (not the **Undo** pill nor the confirmation of the
+  focus). It does not unfold again by itself, not even when the indicator or the notice goes; a tap on its header
+  unfolds it. The folding is not remembered as the device's choice. On a computer, a tablet and a phone held upright
+  nothing changes.
+- **From app 3.31.0 with research 1.36.0:** **At work** and **Now** also show an agent working directly in the
+  research ("Claude Code working directly"). For work that holds a task ([R7.9](R7-when-the-agent-works.md#R7.9)),
+  it says "last sign 14:31; free by 15:01 at the latest" (the last sign only when it differs from the start; for a
+  process on this computer without the time of release). A run waiting for a restricted archive
+  ([R9.13](R9-archives.md#R9.13)) has the state "Paused · waiting for the archive … (at most until 14:40)". With an
+  older research everything is as before.
+- **From app 3.31.0 with research 1.36.0:** with several runs **Now** has a block for each run; each is followed and
+  stopped on its own ([S4.1.8](#S4.1.8)).
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:223 PANEL_CHANGES, (3.28.0: app 8da3f11e MINI_OPEN_KEY strom-research-mini-open, miniPanelFolded, rememberMiniPanelFolded, ne na telefonu; otevřený Přehled panel nerozbalí), :227 AUTO_FOLD, :3326 appendQueueSection(…, 3), renderLivePanel, renderIdleResearchPanel · src/ui/research-overview-ui.ts:5 (≥1280), :51 FOLDED_BY_DEFAULT, :53 GROUP_MS, :59 MAX_STEPS, :74, :309-311 · strings.ts live.overviewTitle, research.panelLabel, research.stop, research.atWork, research.queue · 3.27.0 Teď: app 4e4f6d8c src/research-link.ts WORKING_HELPS_FEATURE (working.helps), sanitizeWorking (helps jen s linií, branch) · src/ui/research-offline-ui.ts workingWhyText (helps → qWhyHelps + qWhyHow / qWhyHowBranch; větev mimo linie → qWhyOutBranch, ve skupině qWhyHowBranch) · src/ui/research-overview-ui.ts (Teď: důvod místo názvu linie) · strings.ts live.qWhyHelps, qWhyHow.*, qWhyHowBranch, qWhyOutBranch · spec 036 K1.8 · malý panel: app 2c018779 src/ui/research-ui.ts, research-directions-ui.ts (pod nadpisem linie jen jak) · 3.27.0 spec 057: app f05fff8e src/ui/research-actions-ui.ts overviewRows (research-item-overview první; stop při sledování, jinak followLive, ne bez agenta), src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (live.researchLink v záhlaví focus) · 28bbebeb src/ui/live-section-prefs.ts TOP_DEFAULTS (month.price false), research-overview-ui.ts appendOverviewSummary, strings.ts live.spendSessions, spendAmount · 87a6ea88 live.dirWorkedOn · strings.ts live.openOverview -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:223 PANEL_CHANGES, (3.28.0: app 8da3f11e MINI_OPEN_KEY strom-research-mini-open, miniPanelFolded, rememberMiniPanelFolded, ne na telefonu; otevřený Přehled panel nerozbalí), :227 AUTO_FOLD, :3326 appendQueueSection(…, 3), renderLivePanel, renderIdleResearchPanel · src/ui/research-overview-ui.ts:5 (≥1280), :51 FOLDED_BY_DEFAULT, :53 GROUP_MS, :59 MAX_STEPS, :74, :309-311 · strings.ts live.overviewTitle, research.panelLabel, research.stop, research.atWork, research.queue · 3.27.0 Teď: app 4e4f6d8c src/research-link.ts WORKING_HELPS_FEATURE (working.helps), sanitizeWorking (helps jen s linií, branch) · src/ui/research-offline-ui.ts workingWhyText (helps → qWhyHelps + qWhyHow / qWhyHowBranch; větev mimo linie → qWhyOutBranch, ve skupině qWhyHowBranch) · src/ui/research-overview-ui.ts (Teď: důvod místo názvu linie) · strings.ts live.qWhyHelps, qWhyHow.*, qWhyHowBranch, qWhyOutBranch · spec 036 K1.8 · malý panel: app 2c018779 src/ui/research-ui.ts, research-directions-ui.ts (pod nadpisem linie jen jak) · 3.27.0 spec 057: app f05fff8e src/ui/research-actions-ui.ts overviewRows (research-item-overview první; stop při sledování, jinak followLive, ne bez agenta), src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (live.researchLink v záhlaví focus) · 28bbebeb src/ui/live-section-prefs.ts TOP_DEFAULTS (month.price false), research-overview-ui.ts appendOverviewSummary, strings.ts live.spendSessions, spendAmount · 87a6ea88 live.dirWorkedOn · strings.ts live.openOverview · 3.31.0: app 7be40d24 src/ui/landscape-panel-fold.ts (MQ_PHONE_LANDSCAPE, jen rozbalený panel, images nebo toast message, nerozbalí se sám, nepamatuje se) · SPEC.md 1120-app-108-diry · spec 116 · 3.31.0 spec 127: app:f89b5166, 040e42e6 src/research-holds.ts workingHoldText, waitsText, src/ui/research-ui.ts pausedText (statePaused · waitsArchive), workingHoldEl, src/ui/research-overview-ui.ts:921, src/research-link.ts features task.holds, archive.holds · strings.ts live.holdLast, holdFreeBy, waitsArchive · research cs.json who.agent -->
 
 <a id="S4.1.1"></a>
 ### S4.1.1 Follow the agent in the tree
@@ -360,7 +373,7 @@ something else meanwhile; the other windows keep following. All windows are read
   and it jumps to the agent at once. Detaching survives reloading the window (F5) and is forgotten when following
   ends.
 - **A choice from another window:** a following window that is not paused only marks a person chosen in another window,
-  even with **Selection** → **This window**: **switch** ([A6.8.1](A6-views.md#A6.8.1)); the centre stays with the agent.
+  even with **Chosen person** → **This window**: **switch** ([A6.8.1](A6-views.md#A6.8.1)); the centre stays with the agent.
   The Table selects that person's row but does not scroll to it. The jump after the agent is not sent to the other
   windows as a choice of a person. A paused or detached window goes by the choice **This window** as outside following.
   A choice sent to the main window with **focus** is only marked by a main window following the agent
@@ -392,6 +405,60 @@ something else meanwhile; the other windows keep following. All windows are read
 - **Since:** app 3.30.0
 
 <!-- zdroj: app:9cec9c30 (od 3714c539) src/windows/agent-follow-state.ts AgentFollow attached/paused/detached, agentFollowKey (sessionStorage jen detached), setLive (konec sezení zapomene odpojení), detach, attach, setPaused · src/windows/agent-state.ts, agent-mirror.ts, src/ui/agent-window-ui.ts (stav agenta z hlavního okna bez adresy a tokenu mostu, K1.3) · src/windows/sat-states.ts SatStrip, liveStrip (lost › paused › detached › idle › attachedNoJump › attached), STRIP_ICON, AMBER, writeStrip (tlačítka, goToMain poslední) · src/main.ts noJump (descendants, timeline) · src/ui/live-follow-ui.ts (další okno: pohled okna, Zpět pohled nepřepne, bez štítku pauzy ani mapPaused, pauza jen v okně, návrat po 20 s) · src/windows/window-selection.ts (připojené okno výběr jen vyznačí; skok agenta se nerozesílá) · src/windows/takeover.ts TAKEOVER_STEP_MS 400, takeoverOrder (sledující, pak odpojená; okno bez vlastního sledování ne), hasBridge (storedResearchBridge) · src/windows/become-main.ts, window-start.ts (◎ jako v zavřeném hlavním okně) · strings.ts win.agentAttached, agentAttachedNoJump, agentIdle, agentPaused, agentDetached, detach, attach, bridgeLost, followEnded, takingOver, takenOver, takeoverFailed, goToMain; live.followOff, followBack; research.stop · CHANGELOG.cs.md 3.30.0 „Sledování agenta ve všech oknech“ · spec 097 K1.1–K1.4, K2.1–K2.6, Rozhodnutí 16. 11. O1–O5, dotazy 3–5, 8 · app:docs/ZADANI_DEV_sledovani-ve-vsech-oknech.md §1–§4, §6, §7; ZADANI_UIX dotazy 10, 12 · prace/1116-app-097-sledovani-okna -->
+
+<a id="S4.1.8"></a>
+### S4.1.8 Now with several runs
+
+With a research that can do runs of lines ([R7.10](R7-when-the-agent-works.md#R7.10)), the section **Now** in the
+**Research overview** shows one block for each run: the run of the whole queue and the run of each direction
+separately. Each run can be followed and stopped on its own.
+
+- **A run's block:**
+  - the heading: the direction's mark, its name and number (G…), for the run of the whole queue **Whole queue**; on
+    the right the state: **working**, **starting…**, **waiting for the subscription limit until 14:00**, **waiting
+    for the archive until 14:40**, **waiting for the archive browser** (“Another run has the archive browser; this
+    one waits until it is free.”), **waiting for a download**, **waiting until …**, **finishing – the agent writes up
+    findings**, **ended at 11:52**;
+  - under the heading the agent, since when and for how long, and the last step (person – task) as before
+    ([S4.1](#S4.1));
+  - a run of the whole queue beside which directions have runs of their own: “Skips: Ancestors of Jan Horák,
+    Descendants of Marie Vlková”. When it is finishing a task of a direction that has meanwhile got a run of its own:
+    “Finishes T0103 of the direction …, then skips it.”;
+  - an ended run stays in **Now** for 60 s with the state **ended at …**. Under it, only at an end by the limit,
+    **The subscription limit ran out.** and at an error **The agent stopped with an error; the details are in the
+    research terminal.**; at a run of a direction also **The whole queue takes the direction again.** Then the block
+    goes. A new opening of the app does not show ended blocks.
+- **Order of the blocks:** the run of the whole queue first, then the runs of directions in the order of the
+  directions ([R2.1.4](R2-lines-and-queue.md#R2.1.4)). The section's heading is “Now · 3 agents”; the summary
+  **State** with two or more runs “3 agents working” and possibly “1 waiting for the limit until 14:00”.
+- **The block's actions:**
+  - **Show in tree**: the people of the direction, at the run of the whole queue the person the agent works on;
+  - **Follow this run** / **● Followed**: only with two or more runs and with following switched on;
+  - **Stop** (“Finishes the task in progress and starts no other”): right through the bridge, without a terminal, at
+    a working or waiting run; while it is written **Stopping…**, at a refusal **The agent was not stopped.** The
+    meaning is that of `strom run stop` ([R7.10.2](R7-when-the-agent-works.md#R7.10.2));
+  - **Finish and stop**: opens the research terminal and asks that run to finish and end
+    ([R7.3](R7-when-the-agent-works.md#R7.3)); at a working run and at a run waiting for the archive browser or a
+    download. A run waiting for the limit or an archive does not have it;
+  - a finishing run has only **Show in tree**. Stopping one run does not change the others; stopping all at once is
+    not possible.
+- **Following:** one run is followed. The default is the first run not paused in the order of **Now**; a new run does
+  not switch the following. When the followed run ends, the default one is followed again.
+  - in the tree, with two or more runs, there is the pill **Following: Ancestors of Jan Horák ▾** with the menu
+    **Follow run** (the block's number and name, under them the agent and the person; a waiting run grey with its
+    state; at the end **Stop following here**);
+  - the people of all runs are marked as before ([S4.1.1](#S4.1.1)); the followed run has the first colour of
+    following, the others the second. Instead of the session's number they carry the run's label: the direction's
+    mark and the block's number in **Now** (“↑ 2”), the run of the whole queue only the number;
+  - other windows of the tree ([S4.1.7](#S4.1.7)) follow the same run as the main window.
+- **Phone:** the blocks and states are the same, without **Stop**, **Finish and stop** and the choice of the followed
+  run; the pill only says which run is followed, and only the people of the followed run are marked.
+- **Limits:** with an older research or with a single run of the whole queue, **Now** is as before.
+- **Controls:** app: **Research overview → Now**; the pill **Following:** in the tree. Terminal:
+  `strom run stop <run-…> [--finish]`.
+- **Since:** app 3.31.0 (research 1.36.0)
+
+<!-- zdroj: app:4de0835a src/research-runs.ts (run.lines, RUN_ENDED_MS 60 s, orderRuns obecný první a linie v pořadí, runCount, noteEndedRuns jen v paměti) · src/ui/research-overview-ui.ts vykreslení bloku (runStateWorking/Starting/Limit/Archive/Waiting/WaitingUntil/Browser/Download/Finishing/Ended, runBrowserNote, runSkips, runFinishesThen, runEndedText jen limit|error, runAfterStop), overviewRunActions (Ukázat ve stromu; Sledovat tento běh jen ≥ 2 běhy a sledování, ne telefon; Zastavit s run.stop u working|waiting, ne telefon; Dokončit a skončit finish?run= u working a čekání na prohlížeč nebo stahování) · src/ui/live-follow-ui.ts pilulka followRunPill, followRunMenu, followOff · strings.ts live.nowAgents, stateAgents, stateAgentsWaiting, runWhole, run*, followRun* · app:docs/ZADANI_DEV_beh-po-liniich.md §3, §4, §7, Kolo 2 C2 · dirigent:spec/126 K2.1, K2.2, K2.5, prace/1121-app-126-linie, 1122-app-126-kolo2 · research: /status runs[], runsEnded[] (POST runs/stop) -->
 
 <a id="S4.2"></a>
 ## S4.2 The queue in the app
@@ -429,8 +496,25 @@ The app shows the beginning of the research's queue in the order in which the ag
   undone ([S4.2.2](#S4.2.2)), and the agent's work on the queue asked for ([S4.2.3](#S4.2.3)). The unfolded
   **Queue** then has the number of tasks in its heading ("Queue · 1,240") instead of on the right. With an older
   research the Queue is as before.
+- **From app 3.31.0 with research 1.36.0:** a task in the queue held by another session has the note "The task is
+  held by Claude Code (session N0040) since 14:05, last sign 14:31; free by 15:01 at the latest." A task whose
+  restricted archive another session is using now has "The archive … is used by another research now (since 14:05,
+  last sign 14:31); free by 15:01 at the latest."; instead of "another research" it can say "session N0040",
+  "another session" or "a bulk download". When other work has waited longer for the archive: "Other work has waited
+  longer for the archive …; its turn by 15:01 at the latest." The research refuses to start a task another session
+  holds ([R7.9](R7-when-the-agent-works.md#R7.9), [R9.13](R9-archives.md#R9.13)). With an older research without
+  the notes.
+- **From app 3.31.0 with research 1.36.0:** the tasks of a direction with a run of its own
+  ([R7.10](R7-when-the-agent-works.md#R7.10)), and the tasks that help it, are not in the numbered rows without a
+  filter. In their place one row per direction stands above the rows: the mark, the direction's name, the number of
+  tasks, “done by the direction's own agent (Claude)” and **Show ›** (the direction's filter). The count in the
+  **Queue** and in the chip **All directions** and the ordinal numbers cover only the tasks for the run of the whole
+  queue. In the filter of such a direction its tasks are numbered in its order, and above them stands “This direction
+  has its own agent at work (Claude, since 10:42). The whole queue skips it.” Work outside the directions, branches
+  and local history stay with the run of the whole queue.
+  On a phone the **Queue** is the same.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear · 3.27.0: app 2ee3718d (queue[].kind ze /status i ze stránek fronty, jiná hodnota zahozena) strings.ts live.queueKind · research 5f48cdaf src/core/queue.ts RUN_TURNS, runOrder (most /status queue[], GET /queue, menu před strom run), kind story|history · 3.28.0: app 4ad34832 src/ui/research-ui.ts appendQueueSection (counted: queueTitleCount místo summary, když je pole nebo akce záhlaví) · spec 052 -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear · 3.27.0: app 2ee3718d (queue[].kind ze /status i ze stránek fronty, jiná hodnota zahozena) strings.ts live.queueKind · research 5f48cdaf src/core/queue.ts RUN_TURNS, runOrder (most /status queue[], GET /queue, menu před strom run), kind story|history · 3.28.0: app 4ad34832 src/ui/research-ui.ts appendQueueSection (counted: queueTitleCount místo summary, když je pole nebo akce záhlaví) · spec 052 · 3.31.0 spec 127: app:f89b5166 src/research-holds.ts heldByText, archiveHeldText, queueHoldText (linie vynechána), src/ui/research-ui.ts queueHoldNote · strings.ts live.heldByTask, archiveHeld, archiveHolderOther, archiveHolderFetch, archiveHolderOwn, archiveHolderSession, archiveHeldWaiting · app:docs/ZADANI_VYZKUM_rezervace.md Odpověď aplikace -->
 
 <a id="S4.2.1"></a>
 ### S4.2.1 Searching the queue
@@ -549,8 +633,45 @@ work uses the AI subscription.
   session's row then takes its place. Without confirmation within 30 s **Now** asks **Did the queue work not
   start?** (“The terminal did not respond within 30 s.”) with **Try again** and the hint, and the buttons are free
   again.
+- **From app 3.31.0 with research 1.36.0:** when directions have runs of their own
+  ([R7.10](R7-when-the-agent-works.md#R7.10)):
+  - **Work on the queue…** is taken (**● At work ›**) only during a run of the whole queue, not during runs of
+    directions;
+  - at the full number of runs ([S4.4.12](#S4.4.12)) the button is unavailable with “3 agents are working; the
+    settings allow no more.” and **Settings ›**; in the menu **Research** the item is grey with the same explanation;
+  - the dialog shows the queue without the tasks of directions with a run of their own, and under the task of
+    **First up** “Skips the direction Ancestors of Jan Horák (its own agent works on it).”; when a run is already
+    working, also “1 agent is already working. Subscription usage adds up.”
 
 <!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) · 3.29.0: app:a0a66d45 Teď nabízí Pracovat na frontě… (bez práce agenta a běhu; okno přehledu; fokus zpět) · 3c8f4128 src/ui/queue-work-dialog.ts Další (n) (pořadí: ruční další, místo ve frontě; bez odložených a mimo linie, které se neberou; queue.page; zbytek, Přehled výzkumu ›; sbalené při otevření) · strings.ts live.queueWorkMore, queueWorkLess, queueWorkByQueue, queueWorkByQueueHint, queueWorkRest, queueWorkRestUnknown, queueWorkOverview, queueTagNext · 3.30.0: app:574e7ef9 src/ui/queue-start.ts (QUEUE_START_MS 30 s, důkaz handoff nebo sezení/běh, silent → queueNotStarted, proven bez sezení zmizí potichu) · src/ui/research-overview-ui.ts (live-now-starting, terminalSilent) · strings.ts busy.queueStarting, queueStartingSub, queueNotStarted, terminalSilent -->
+
+<a id="S4.2.4"></a>
+### S4.2.4 The queue by task type
+
+With a research that gives the kind of work of its tasks, the **Queue** in the Research overview has a row **Task
+type** under the direction chips: a chip for each type that has a task in the queue, with its count (“Verification
+12”). The type is set by the research ([R2.2](R2-lines-and-queue.md#R2.2)).
+
+- **Types** in this order: **Verification**, **Registers**, **Census**, **Material**, **Places**, **Beyond the
+  registers**, **Requests**, **Stories**, **History**, **Other**.
+- **Limits:**
+  - the chosen chip narrows the queue to tasks of that type and shows ×; a second click clears the choice (“Show all
+    task types”). The chosen type stays in the row even at zero when its last task goes;
+  - the filter combines with a direction or branch and with the search in the queue ([S4.2.1](#S4.2.1)): “12 tasks
+    found · type Verification”; with no result “Nothing found among tasks of type Verification.” with **Search all
+    task types**;
+  - the choice holds for the research it was made with, until it is cleared or following ends;
+  - with an older research the row is not shown and the queue is as before;
+  - **Census** only with a research that offers census records ([R9.12](R9-archives.md#R9.12)); census tasks are then
+    not under **Other**. Census tasks set aside ([R9.12.4](R9-archives.md#R9.12.4)) are not in the queue.
+- **From the section Verifying:** the row “Waiting to be verified” in What the research knows › **Verifying**
+  ([S7.5](S7-reliability-and-verification.md#S7.5)) has **Show in the queue**. It opens the **Queue** in the Research
+  overview narrowed to **Verification**. It stays in the app and has no mark.
+- **Controls:** app: **Research overview** → **Queue** → the row **Task type**; What the research knows ›
+  **Verifying** → **Show in the queue**. Terminal: `strom task list --kind verify` ([R2.2](R2-lines-and-queue.md#R2.2)).
+- **Since:** app 3.31.0, research 1.36.0
+
+<!-- zdroj: dirigent:spec/065-spolehlivost-a-znovu-overeni K7.4 · app:53ef9cbe src/ui/queue-kind-ui.ts (queueKindChips: jen druhy s úkolem v pevném pořadí, vybraný i s 0; queueKindRow aria-pressed, ×, taskKindClear; volba pro bridge.base) · src/research-link.ts QUEUE_KIND_FEATURE queue.kind, QUEUE_TASK_KINDS · src/research-queue-pages.ts (kind= s linií, větví a q) · src/ui/research-ui.ts queueSearchInKind, queueSearchNoneKind, queueSearchAllKinds · src/ui/verify-person-ui.ts verifyRowsHtml (pendingQueue, bez značky), showOverviewQueueKind('verify') · strings.ts live.taskKinds, taskKindLabel, taskKindClear, queueSearchFound, verify.pendingQueue · research:7116bb60 src/core/taskkind.ts, GET /queue?kind=, queueCounts.kind · CHANGELOG.cs.md 3.31.0 · sčítání: app:6edc7dc7 src/research-link.ts QUEUE_TASK_KINDS (census za records), CENSUS_FEATURE · src/research-queue-pages.ts queuePageQuery (kind=census jen s funkcí census, other + known=census) · strings.ts live.taskKinds.census · research:c7b117cd src/core/taskkind.ts (census, KINDS_065, kindMatches known) -->
 
 <a id="S4.3"></a>
 ## S4.3 Directions in the app
@@ -579,6 +700,10 @@ got. In app 3.21.2 directions are only read; every change is confirmed in the re
   (**Last N days:** sessions, people, sources); it shows the people in the tree. Ended directions are collapsed at
   the end (**Ended · N**). In a narrow window and on a phone the overview is a sheet: arrows ▲▼ instead of the
   order handle.
+- **From app 3.31.0 with research 1.36.0:** each direction can be given an agent of its own, **Put an agent on this
+  direction** ([S4.3.3](#S4.3.3)). The row of a direction with a run of its own says “Agent at work: Claude” with the
+  link **In Now ›**, which unfolds **Now** and highlights the run's block ([S4.1.8](#S4.1.8)). The conversation
+  **Work on this direction** has the hint “A conversation with the agent about the direction in the terminal”.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-directions-ui.ts:156 linesMulti, :350-353 appendOverviewDirections, :385 canDo, :528 dirWork · strings.ts live.dirTitle, live.dirOutside, live.dirInactive, live.dirWork · research:v1.25.2 assets/lang/cs.json ui.link.what.direction.pause/done/resume · 3.22.0: research-directions-ui.ts:703 dirEnded, :852 dirNow, :878 dirFoundIn, :720 sheet; strings.ts live.dirLimitGen, dirLimitBefore, dirFound* -->
 
@@ -610,6 +735,15 @@ nothing is paid.
 - **Controls:** app: **Research overview → Directions**, **+ New direction**, at a direction **⋯**; person menu
   **Research ›**.
 - **Since:** app 3.22.0 (research 1.26.0)
+- **From app 3.31.0 with research 1.36.0:** a new direction inside a wider direction
+  ([R2.1.5](R2-lines-and-queue.md#R2.1.5)): the form **New direction** says “The new direction lies inside the
+  direction Ancestors of Jan Horák. The people in it stay in the wider direction too.” and offers the ticked “Move 7
+  open tasks here from the direction Ancestors of Jan Horák (about the people of this direction)” (with more wider
+  directions “from the wider directions”). After creating it with the move, a bubble stays for 10 s: “Direction
+  created. 7 tasks moved.” with **Undo the move** and **Work on this direction**. **Undo the move** (**Undoing…**)
+  undoes only the move, the direction stays: “Move undone · 7 tasks back in the wider direction”; when the tasks have
+  changed meanwhile, **Nothing to undo.** Without a move (the box unticked, nothing to move, an older research) the
+  bubble is as before; on a phone without **Work on this direction**.
 
 <!-- zdroj: app:HEAD src/ui/research-directions-ui.ts:372 DIRECTIONS_WRITE_SINCE, :628 · src/research-directions-write.ts createDirection, editDirection, setDirectionState, writeDirectionOrder · src/ui/research-actions-ui.ts:1015-1024, :1067 openDirectionForm · strings.ts live.dirNew, dirFormNew, dirFree, dirEditFree, dirLocked, dirOrderWeight, dirOrderStrict, dirArchive, dirPhoneOnly, dirBridgeDown, dirOldResearch, dirBusy, dirRetry, dirDupActive, dirShowIt, dirAnyway · research:src/core/live.ts /directions -->
 
@@ -651,6 +785,51 @@ With two or more directions, the overview shows the work outside the directions 
   the overview's window from app 3.29.0
 
 <!-- zdroj: app:HEAD src/ui/research-offline-ui.ts:3, :104 (caps.offLineBranches, ≥2 linie) · src/research-directions-write.ts setBranchMode, setOffLineTree, answerBranchWaiting · strings.ts live.offModeLink, live.offModeCap, live.branchAddPick, live.branchCreate, live.branchNever, live.branchReset · research-offline-ui.ts:202-228 growingBranchLine, :542 branch choices, :680 branchQueueBeyond, :740 pick · strings.ts live.dirNear, branchGrows, branchOwnChoice, branchQueueHead, branchQueuePos, branchAllTasks, branchTaken, branchDefaultTag, branchAdd(Paused), branchNeverGroup, waitBranchLeave, waitBranchHint, setOutTitle, setOutOcc, setSuggest, setOwnChoice, setManualTasks, menu treeSettings · spec 038 K7 · 3.27.0: strings.ts live.setOutIntro (app 4e4f6d8c, spec 036 K1.8) · 3.29.0: app:70d50162 research-offline-ui.ts openOffLineSettings bez sledování (prohlížený strom), overview-window offline-settings → hlavní okno · 0a00fb2b research-tree-settings-ui.ts offLineSettingsOffered (archiv, čeká na agenta: text, ne odkaz) -->
+
+<a id="S4.3.3"></a>
+### S4.3.3 Put an agent on this direction
+
+At each active direction a run of its own can be asked for: an agent that takes only the tasks of that direction
+([R7.10](R7-when-the-agent-works.md#R7.10)). The app starts nothing: it opens the research terminal in a new window,
+and that starts the run ([R7.10.4](R7-when-the-agent-works.md#R7.10.4)). The agent's work uses the AI subscription.
+
+- **Where:** the direction detail, the button **Put an agent on this direction** (the mark AI and terminal) with the
+  sentence “The agent takes this direction's tasks by itself (7 in the queue), in a new terminal window.”; the menu
+  **⋯** at the direction, the item before **Work on this direction** (hint “The agent takes the direction's tasks by
+  itself”).
+- **A direction with a run:** in the detail, in place of the button, “● Agent at work · Claude · since 10:42” and
+  **In Now ›**; in the menu the item is not there. A second run of the same direction is not possible.
+- **When it is not possible:** the button and the item stay, unavailable, with the reason:
+  - “The direction is paused.” (**Restart** stays beside it);
+  - “Nothing in the direction's queue.”;
+  - “3 agents are working; the settings allow no more.” with **Settings ›** ([S4.4.12](#S4.4.12));
+  - “This computer has no agent installed that the research can start.”;
+  - “An agent started by an older version of the research is working on the tree; a direction's agent cannot start
+    beside it. It can once that one ends.”;
+  - otherwise “An agent cannot be put on this direction now.”
+  At an ended direction the action is not there.
+- **The dialog Put an agent on the direction:** in the heading the direction's mark, name and number.
+  - **Agent** (only when the research knows two or more agents): the choice of the agent, the default one with
+    “(default)”, under it “The choice is kept for this direction.” Preselected is the agent the direction last ran
+    with, otherwise the research's default agent;
+  - **Automatically** (“The agent takes one task of this direction after another as long as the subscription limit
+    allows.”) or **Only 5 tasks**, **First up** and **More (n)** as in [S4.2.3](#S4.2.3), only from the direction's
+    queue; under them “and 12 more of the direction's tasks in the queue”;
+  - when a run is already working: “1 agent is already working. Subscription usage adds up.” This blocks nothing;
+  - **Cancel** and **Start** (the mark AI and terminal) with the sentence “The agent starts in a new terminal window.
+    Ctrl-C in its window or Finish and stop in Now stops the work.” When the direction becomes blocked meanwhile,
+    **Start** is unavailable with the reason.
+- **After Start:** **Now** shows at once “Starting… · Ancestors of Jan Horák (G0002)” with “The agent starts in a new
+  research terminal window.”; without a response within 30 s “Did the direction's run not start? · Ancestors of Jan Horák” with **Try again**
+  as in [S4.2.3](#S4.2.3).
+- **Limits:** only with a research that can do runs of lines, with a bridge that answers, and with an agent; not in a
+  Strom archive, not in a research waiting for an agent, and not on a phone (there runs are only shown,
+  [S4.1.8](#S4.1.8)).
+- **Controls:** app: **Research overview → Directions**, the direction detail or **⋯**. Terminal: `strom run
+  --research G…`, the menu **Let the agent work on its own** ([R7.10](R7-when-the-agent-works.md#R7.10)).
+- **Since:** app 3.31.0 (research 1.36.0)
+
+<!-- zdroj: app:4de0835a src/ui/research-directions-ui.ts (managedDirectionDetail blok běhu, openManagedDirectionMenu položka před dirWork, managedDirectionMeta lineRunWorkingMeta + lineRunInNow, lineRunWhy) · src/research-runs.ts lineRunBlock (ended, running, canStart/why z mostu, paused > empty > limit), atRunLimit · src/ui/queue-work-dialog.ts showLineRunDialog, syncLineRunDialog (lineRunKicker, lineRunAgent, lineRunAgentDefault, lineRunAgentKept, lineRunAutoHint, lineRunRest, runsAddUp, lineRunStart, lineRunConfirm) · beginRunWork (work?research=G&agent=), lineRunStarting, lineRunStartingSub, lineRunNotStarted · strings.ts live.lineRun*, runsLimitReached, runsSettingsLink, dirWorkHint · app:docs/ZADANI_DEV_beh-po-liniich.md §1, §2, Kolo 2 B · dirigent:spec/126 K2.1, K2.2, K2.4, K2.7, K2.8 · research: researches[].run/canStart/why/agent, agents[] -->
 
 <a id="S4.4"></a>
 ## S4.4 Awaiting action in the app
@@ -1078,12 +1257,90 @@ preview.
 
 <!-- zdroj: app:929d7813, ed7f7a04, 287ebc72, 01a1e760 src/ui/waiting-task-ui.ts openWaitingAuditFix (GET waiting/<T>/fix, auditLoading, jeden náhled), náhled (auditChanges, auditThisTask, auditNewTask, auditRemains, chat u první knihy, ne sheet; auditFixNote), confirmWaitingAuditFix (auditBusy, expect = stamp), writeWaitingAuditFix (toast auditFixed / auditFixedWoke 8000 ms, Vrátit = waitingWrite.undo), undoWaitingAuditFix (unfix, auditUndone, auditUndoFailed), cancelWaitingAuditFix (Esc, fokus na audit-fix), auditErrorText (409 auditErr409 + auditReload, 503, locked, disk), AUDIT_SHEET_ID (telefon) · src/research-audit.ts auditChangeLines (wait-images, wait-book, folder, split), auditLeftLines · src/research-link.ts postWaitingAudit (do fix/unfix/keep/unkeep, expect) · strings.ts live.waitingAudit.* · ZADANI_DEV_kontrola-ukolu.md §2 · dirigent:prace/1117-app-109-kontrola (D3 texty náhledu z op/images/title, D5 Vrátit jen v toastu) -->
 
+<a id="S4.4.10"></a>
+### S4.4.10 Research for this tree › Census records
+
+Census records as a source of the research ([R9.12](R9-archives.md#R9.12)) can be switched on and off in the app as
+well. The change is written through the bridge right after the click, both ways, and it is the person's decision in
+the app: no system window is shown.
+
+- **The group Sources** with the switch **Census records** and the sentence “The research may use census records as
+  a source: a household in one year shows who lived together and where each person came from. Most archives only
+  display census records, so the sheets are mostly supplied by hand as screenshots.”
+- **Limits:**
+  - only with a research that offers census records; with an older research the group is not there. Not with the
+    Strom archive nor with a research waiting for an agent; when the research switches to the Strom archive meanwhile,
+    the group disappears;
+  - after the click the new state shows at once, dashed and locked, until the research confirms the write;
+  - off with tasks set aside ([R9.12.4](R9-archives.md#R9.12.4)): under the row “Set aside: 3 census tasks. They come
+    back when this is switched on.”;
+  - without the bridge the switch is inactive: “The research isn't running. This can be changed once it runs.”;
+  - a refusal gives its reason under the row and the switch stays as it was (e.g. “The research is busy. It will work
+    again shortly.”, a locked research, a full disk).
+- **Controls:** app: **Research → Other actions → Research for this tree… → Sources → Census records**. Terminal:
+  [R9.12](R9-archives.md#R9.12).
+- **Since:** research 1.36.0, app 3.31.0
+
+<!-- zdroj: app:6edc7dc7 src/research-link.ts CENSUS_FEATURE census, LiveCensus {on, held}, sanitizeCensus · src/history-bridge.ts postBridgeCensus, censusReply (held, invalid, archive 409 census.archive, busy, locked, full) · app:80d6358c src/ui/research-tree-settings-ui.ts renderResearchCensusRow (jen s funkcí census, ne archiv ani výzkum bez agenta, gone po 409; pend přerušovaně a zamčeno; censusHeld jen vypnuto a held > 0; bez mostu storiesBridgeDown), setResearchCensus · strings.ts history.censusSection, censusTitle, censusDesc, censusHeld, storiesBridgeDown, errBusy · e2e/research-census.spec.ts · research:c7b117cd src/core/live.ts POST /census (config set census --for-tree v prostředí aplikace, bez okna) · CHANGELOG.cs.md 3.31.0 „Sčítání lidu z výzkumu“ · dirigent:spec/106 K1.1, K1.4 -->
+
+<a id="S4.4.11"></a>
+### S4.4.11 Research for this tree › Materials: the agent goes through files by itself
+
+Whether the agent goes through files sent to the research by itself ([R11.6](R11-material-from-the-user.md#R11.6))
+can be switched on and off in the app as well. The change is written through the bridge right after the click, both
+ways, and it is the person's decision in the app.
+
+- **The group Materials** with the switch **The agent goes through files sent to the research by itself** and the
+  sentence “Files sent to the research (batches, single files, scans of sources) get tasks for the agent: it attaches
+  them to people, names them and adds sources. Uses the subscription or credit. Off: the files wait in Materials and
+  are sorted only on request.” It is off by default.
+- **Limits:**
+  - only with a research that offers the setting; with an older research the group is not there and the earlier
+    texts apply. Not with the Strom archive nor with a research waiting for an agent; when the research switches to
+    the Strom archive meanwhile, the group disappears;
+  - after the click the new state shows at once, dashed and locked, until the research confirms the write;
+  - without the bridge the switch is inactive: “The research isn't running. This can be changed once it runs.”;
+  - a refusal gives its reason under the row and the switch stays as the research has it (a busy or locked
+    research, the write held by another, a full disk);
+  - the switch applies to this tree; the same setting applies to photos from the phone too ([S5.4](S5-phone.md#S5.4)).
+- **Controls:** app: **Research → Other actions → Research for this tree… → Materials → The agent goes through files
+  sent to the research by itself**. Terminal: [R11.6](R11-material-from-the-user.md#R11.6).
+- **Since:** research 1.36.0, app 3.31.0
+
+<!-- zdroj: app:74d06317 src/ui/research-tree-settings-ui.ts renderResearchIntakeRow (features intake.auto, /status.intake, researchAgentlessFor, storiesBridgeDown, pend), setResearchIntake (POST /intake, archive → gone, busy, held, locked, full) · src/research-link.ts postBridgeIntake · strings.ts history.intakeSection, intakeTitle, intakeDesc · research:src/core/live.ts POST /intake (intake.body, intake.archive), /status intake · dirigent:spec/130 K2.1 -->
+
+<a id="S4.4.12"></a>
+### S4.4.12 Research for this tree › Agents at once, at most
+
+In the window **Research for this tree…**, under the choice of the agent, there is the row **Agents at once, at
+most**: how many runs may work on the tree at once, the run of the whole queue and the runs of directions together
+([R7.10.1](R7-when-the-agent-works.md#R7.10.1)).
+
+- **Limits:**
+  - a field with **−** and **+**, from 1 up to the cap the research gives (10); under it “Default 3. Work on the
+    whole queue counts too.”;
+  - the app writes a lowering through the bridge at once. Lowering below the number of runs going on stops none; new
+    ones do not start;
+  - raising it from the app is not possible: the value goes back and the row says “Raising it is possible only in the
+    research terminal.” with the command `strom config set run.parallel 4` to copy;
+  - at the full number both **Put an agent on this direction** ([S4.3.3](#S4.3.3)) and **Work on the queue…**
+    ([S4.2.3](#S4.2.3)) are unavailable, and the link **Settings ›** opens this window at this row. The runs going on
+    do not change;
+  - the row is not there with an older research (3 applies), in a Strom archive and at a research waiting for an
+    agent.
+- **Controls:** app: **Research → Other actions → Research for this tree… → Agents at once, at most**. Terminal:
+  `strom config set run.parallel <n>`.
+- **Since:** app 3.31.0 (research 1.36.0)
+
+<!-- zdroj: app:4de0835a src/ui/research-tree-settings-ui.ts renderResearchRunsRow (pod dl.research-tree-agent; bez run.limit, v archivu a bez agenta se nekreslí; RUN_LIMIT_MIN 1, cap z výzkumu), setResearchRunsMax (POST settings/runs, 403 runs.raise → runsMaxRaise + příkaz) · src/research-runs.ts atRunLimit · strings.ts research.runsMax, runsMaxHint, runsMaxRaise, live.runsLimitReached, runsSettingsLink · research:src/core/live.ts runsLimitWrite, src/core/liveruns.ts runLimits (cap 10) · app:docs/ZADANI_DEV_beh-po-liniich.md §5 · dirigent:spec/126 K2.3 -->
+
 <a id="S4.5"></a>
 ## S4.5 Actions that open the research
 
 Most research actions in the app are a `strom-research://` link. The link opens the research's terminal on the same
 computer. The terminal says what the app asks for and asks. Without confirmation in the terminal nothing is written
-or paid.
+or paid. The only exception is the agent's work on the subscription or AI credit, when this computer is set so
+([S4.5.5](#S4.5.5)).
 
 - **Limits:**
   - An action is visible only on a computer (not on a touch device), only when the research has announced the link and
@@ -1091,7 +1348,8 @@ or paid.
   - The link carries only record numbers and fixed values, no names and no free text.
   - The terminal begins **The Strom app asks for: … / Research: …** and asks **Go on?** For the agent's work
     it adds **The agent works on the subscription or AI credit of its account.**, for assigning tasks **The research
-    writes tasks for the agent — nothing is searched and nothing is paid now.**
+    writes tasks for the agent — nothing is searched and nothing is paid now.** With **Starting the agent from the
+    Strom app: without the question** the agent's work starts without asking ([S4.5.5](#S4.5.5)).
   - A Strom archive and a research waiting for an agent refuse the agent's work (conversation, review, search,
     places, history).
   - When the same active direction already exists, **Find ancestors** only says **This research is there already:
@@ -1177,6 +1435,9 @@ with it now.
   the source ([R8.8.3](R8-reading-scans.md#R8.8.3)). Terminal: `strom chat --task T…` takes the task from the queue
   straight into a conversation.
 - **Since:** research 1.29.0, app 3.25.0
+- **From research 1.36.0:** with **Starting the agent from the Strom app: without the question** the conversation
+  starts without asking only while the price of similar sessions is not known yet. With a known price it still asks
+  ([S4.5.5](#S4.5.5)).
 
 <!-- zdroj: research:c2a690ea src/cli/menu-links.ts (odkaz task bez do, úkol open) · assets/lang/cs.json ui.link.open.title/why/done/pick/chat/ahead/keep/already/kept/busy/estimate/estimate.none, ui.chat.task.open.say · strom help chat (--task: „a task in the queue (open): gone through now, taken up in the conversation“) · commit 9bd14e84 · test/cli/link-open-task.test.ts · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 7; klik v aplikaci neověřen) · app:6bd8609e strings.ts read.openTaskN, src/__tests__/read-source-state-view.test.ts:75 (researchLinkMark task) -->
 
@@ -1220,6 +1481,45 @@ done. The app then stops waiting at once and speaks up only when nothing opened 
 
 <!-- zdroj: research:fbae81fc src/core/handoffs.ts (HANDOFF tvar UUID, HANDOFF_MS 60 s, HANDOFF_MAX 64, handoffsNow úklid, noteHandoff) · src/core/links.ts parseLink (handoff malými písmeny, jiná hodnota vynechána), linkText · src/commands/links.ts link open noteTaken (tty hned; bez terminálu done: true; researchesWithId) · src/core/live.ts withHandoffs (/status i parts=1, mimo stav), BRIDGE_FEATURES handoffs · test/cli/link-handoffs.test.ts · CHANGELOG.cs.md 1.35.0 (odkaz aplikace Strom … výzkum aplikaci potvrdí) · app:574e7ef9, f63cc742 src/ui/research-open-busy.ts (handoffProven: handoffs s feature handoffs, jinak nové sezení; OPEN_ASK_MS 1000, OPEN_LATE_ASK_MS 2000, OPEN_LATE_WATCH_MS 60 s, OPEN_REPEAT_MS 400, bridgeDown 30 s, quietLimit new?app=) · src/research-link.ts HANDOFFS_FEATURE · app:docs/ZADANI_VYZKUM_tlacitka-cekani.md „Odpověď výzkumu“ · app:c3e09951 (79a05311) src/ui/research-open-busy.ts unprovable (poslední status bez feature handoffs → quietEnd: po limitu bez věty a bez pozdního hlídání; most dole → věta hned; opts.proof fronty beze změny) · dirigent:prace/1118-app-tlacitka-n1 (N2, Milan 18. 11.) -->
 
+<a id="S4.5.5"></a>
+### S4.5.5 Starting the agent from the app without confirmation
+
+The setting of this computer **Starting the agent from the Strom app** decides whether the terminal asks **Go on?** before
+agent's work that the app asked for. The default is **asked first**: the terminal says what the app asks for, that the
+agent works on the subscription or AI credit, and waits for a yes ([S4.5](#S4.5)). **Without the question** the
+agent's work starts at once and the terminal says so in one line: **▶ Started without the question (research …): …**
+and where the question is turned on again.
+
+- **Enforced by the code:**
+  - only actions that start the agent on the subscription or AI credit start without asking: a conversation with the
+    agent (also about a person or a direction), a conversation about a task in the queue ([S4.5.3](#S4.5.3)) or in
+    **Awaiting action**, a conflict left to the agent ([R5.6](R5-conflicts.md#R5.6)), the work on the queue
+    ([R7.1.2](R7-when-the-agent-works.md#R7.1.2)) and the identification of places;
+  - still asked:
+    - a question that says a price in money: the estimate of a task in the queue, the identification of places with
+      a measured price of sessions;
+    - every link opened by an agent or by a script without a person's terminal;
+    - a request sent, consents of archives and hosts (`strom allow`), deletions, assigning tasks to the agent and the
+      history of a place;
+    - the condition of working alone (`run.gate`): the work on the queue asks it as before
+      ([R7.4](R7-when-the-agent-works.md#R7.4), [R7.4.1](R7-when-the-agent-works.md#R7.4.1));
+  - when another session or run is already running in the research, nothing more starts, not even without the
+    question;
+  - the setting applies to every research on this computer, not to one tree. In a Strom archive the menu does not
+    offer it;
+  - only a person turns on **without the question**: the terminal says what is still asked and wants a second yes
+    (Enter = no). When an agent or a command without a terminal sets it, a system window asks the person; without a
+    window strom refuses the setting. Anyone may go back to **asked first**, without a question;
+  - the Strom app has no such setting and does not change it. The value is shown by `strom config` and by the report
+    `strom error` ([R13](R13-reporting-a-problem.md#R13)).
+- **Controls:** terminal: the menu **Settings** → **Language, agent, model, what the agent may do alone, stories… (the
+  setup)** → **Starting the agent from the Strom app: …** → **Ask before it starts (default)** or **Start without the
+  question**; `strom config set run.confirm no`, back `strom config unset run.confirm`. The value in force is shown by
+  `strom config where`.
+- **Since:** research 1.36.0
+
+<!-- zdroj: research:8aa0f374 src/core/config.ts run.confirm (ask|no, tree: false, env žádná), Settings.runConfirm · src/cli/menu-links.ts asksToStart (priced || runConfirm !== no || !ctx.interactive || isAgent → asks; jinak ui.link.noconfirm) u openTask (priced = taskEstimate), waitingDo chat, placesRun (priced = est.session.usd || fronta), workRun, workOn · src/commands/links.ts conflict do=agent, chat (direction/person) · placeSearch dál asks (placeCost), review/research ui.link.tasks dál asks · src/commands/setup.ts setUserSetting run.confirm no → requireHumanYes (ui.consent.run.confirm), FALLBACKS run.confirm ask · src/cli/context.ts requireHuman (terminál → humanYes, jinak okno systému, jinak odmítnutí) · src/cli/menu-settings.ts runConfirmStep (ui.runconfirm.*, ui.runconfirm.about; jen !archive), unset pro ask · src/core/report.ts CONFIG_PLAIN runConfirm · cs.json ui.settings.runconfirm, ui.runconfirm.*, ui.link.noconfirm · strom help link · CHANGELOG.cs.md 1.36.0 „Agent z aplikace Strom bez potvrzení“ · test/cli/run-confirm.test.ts, test/cli/gates.test.ts · spec 123 K1.1–K1.5 (K1.4 bez zápisu do logu výzkumu: rozhodnutí dirigenta 20. 11.) -->
+
 <a id="S4.6"></a>
 ## S4.6 What is only in the terminal
 
@@ -1231,7 +1531,8 @@ research's terminal, even when it starts with a click in the app.
     the condition, the choice of agent, the queue settings and the items **Only here in the terminal (not in the
     Strom app)** ([R6.1.1](R6-awaiting-action.md#R6.1.1)).
   - Confirmed in the terminal: everything with the mark terminal or AI ([S4.5.1](#S4.5.1)), in 3.21.2 also the
-    actions of directions and of the queue.
+    actions of directions and of the queue. From research 1.36.0 the agent's work without a price in money can start
+    without confirmation ([S4.5.5](#S4.5.5)); only a person turns this on, in the terminal.
   - On a phone there are no links; answers are given in the research on the computer ([S5](S5-phone.md)).
 - **Since:** app 3.4.0 (research 1.6.0)
 - **From app 3.22.0:** with research 1.26.0 directions ([S4.3.1](#S4.3.1)), work outside the directions by branches

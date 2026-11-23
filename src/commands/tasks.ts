@@ -1389,7 +1389,7 @@ register(
           text: lines(
             written(tree),
             `waits  ${waitSaid(tree, t)}`,
-            `images of ${byBook!.recordset} the user saves into ${shown} (each named by its number as the viewer counts it, 40.jpg) bring it back by themselves — as they are saved while the bridge runs, else at the next session's start; so does the user's answer`,
+            `images of ${byBook!.recordset} the user saves into ${shown} (each named by its number as the viewer counts it, 40.jpg, or with it in the name, __0040.jpg) bring it back by themselves — as they are saved while the bridge runs, else at the next session's start; so does the user's answer`,
             `the numbers known: strom task wait ${t.id} --images ${byBook!.recordset}:<numbers> --on "…" — the user sees which images and what is missing`,
             checkWaitLine(tree, t, s),
           ),
@@ -1398,7 +1398,7 @@ register(
       return {
         text: lines(
           written(tree),
-          `the user saves images ${awaits.images} of ${b!.id} into ${shown}, each named by its number (${parseImageList(awaits.images)![0]}.jpg; named otherwise, they are taken by their order when as many as asked for)`,
+          `the user saves images ${awaits.images} of ${b!.id} into ${shown}, each named by its number (${parseImageList(awaits.images)![0]}.jpg; the number in the name is enough, __0${parseImageList(awaits.images)![0]}.jpg; named otherwise, they are taken by their order when as many as asked for)`,
           "once all of them are saved the task comes back by itself — as they are saved while the bridge runs, else at the next session's start (strom media add --inbox --waiting takes them now); a part of them, it waits on and says which are missing; the user sees it in strom's menu (What waits) and the Strom app",
           // an archive only a person's browser goes to: what the agent's own browser would do there (spec 048 K5.2)
           ((a) => (a ? `its archive only through a person's browser — ${agentBrowserAdvice(ctx.env, detectAgent(ctx.env) ?? ctx.settings.agent(tree.config).value, a, t.id, b!.id, false, tree.root)}` : undefined))(bookBrowserArchive(tree, b!.url, s)),

@@ -81,6 +81,11 @@ znacznik na karcie w drzewie i weryfikację danych według oryginałów opisuje 
   [S7.2](S7-reliability-and-verification.md#S7.2)).
 - **Od aplikacji 3.26.0:** dwie pełne kropki przy **Udokumentowane** dostaje dana, przy której podczas weryfikacji przez
   badanie zgodzili się dwaj czytelnicy aktu; karta w drzewie ma jeden znacznik zamiast dawnych dwóch opcji.
+- **Od aplikacji 3.31.0 z badaniem 1.36.0:** imię i nazwisko z drzewa nie zostaje już na zawsze **Z drzewa**:
+  badanie nadaje mu stopień według aktów, które je dokumentują, i można je zweryfikować oraz potwierdzić według skanu
+  ([S7.10](S7-reliability-and-verification.md#S7.10), [R10.5.2](R10-people-and-hypotheses.md#R10.5.2)). Gdy żadna
+  dana osoby nie jest już tylko z drzewa, wiersz przy osobie mówi „Dane osoby pochodzą z {program} (plik {data},
+  wczytano {data}); żadna nie jest już tylko z drzewa.”
 - **Obowiązuje od:** aplikacja 3.26.0, badanie 1.30.0
 
 <!-- zdroj: app:7b0471f8 src/reliability.ts (pořadí human, proven, probable, possible, import, lead, none; tečky, ✓ a rámeček, ne barva; feature origin; bez záznamu o importu žádné Z rodokmenu; readers z _STROM_CHECKED, noSource nekrmeno) · src/ui/fact-status.ts · src/ui/person-reliability-ui.ts · src/settings.ts display.reliabilityCard (ON) · src/ui/card-signals-ui.ts (signál status, výchozí zapnuto) · index.html settings-group-card · strings.ts reliability.settingCard, cardDensity.cardStatus, settings.groupCard · app:669c08f0 src/reliability.ts userTreeOrigin (_STROM_ORIGIN tree) -->

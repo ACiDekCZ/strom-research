@@ -43,6 +43,7 @@ import { create, csvOpt, normId, requireRecord, update } from "../core/records.t
 import { finishTask, nextAwake, offTreeLine, taskQueue, waitingLines, wakesBy } from "./tasks.ts";
 import { takenLines, takeWaiting, type TakenFolder } from "./media.ts";
 import { clockUp } from "../core/net.ts";
+import { fullWebSites, webFullInputs, webFullOfTask, type WebFull } from "../core/webfull.ts";
 import { resolveResearch } from "./research.ts";
 import { writeGedcoms } from "./output.ts";
 import { auditLine, auditOf, audited, WAIT_CHECKLIST } from "../core/taskaudit.ts";
@@ -991,6 +992,11 @@ register(
     "A task whose archive is not answering now (left alone for a while: it went silent, or asked to slow down) waits\n" +
     "out of the queue until then; when only such tasks are left, --loop and --until wait for that time (within\n" +
     "--until), any other run ends saying when.\n" +
+    "A task whose work goes to a site through the agent's web tools (its browser, its web fetch: no connector here the\n" +
+    "direct way, or an image of it saved through the browser waits) while that site's pages for this computer are used\n" +
+    "up (web.perHost within run.minutes, every session here) is left for now and other work taken; when only such tasks\n" +
+    "are left, --loop and --until wait until a third of web.perHost is free again (no agent, nothing sent), any other\n" +
+    "run ends saying when (stop reason: web).\n" +
     "Tasks another session holds (its agent alive: strom started it, or a strom command of it within task.hold) are\n" +
     "left out; a session whose holder gave no sign of life for task.hold (default 30 min, 5 min–24 h) is taken over\n" +
     "at the start of each session — closed as interrupted, what it wrote kept, its task back in the queue. A task on\n" +
@@ -1124,7 +1130,7 @@ register(
     // Why the run stopped: a code for the exit status and for data, words for the user (their language — the run's
     // --lang or STROM_LANG before the tree's own, as for every command)
     const lang = ctx.settings.lang(Tree.open(root, runEnv).config).value;
-    type Stop = "done" | "tasks" | "sessions" | "user" | "time" | "empty" | "asleep" | "archive" | "problems" | "denied" | "denied.codex" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
+    type Stop = "done" | "tasks" | "sessions" | "user" | "time" | "empty" | "asleep" | "web" | "archive" | "problems" | "denied" | "denied.codex" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
     // The plan's limits as the agent said them last (Claude Code), for the gate; and the window a cap of the gate holds.
     let lastLimits: AgentLimit[] | undefined;
     let watch: GateAnswer["watch"];
@@ -1134,6 +1140,8 @@ register(
     let retaken = false;
     // the restricted archives the run waits for (spec 127 K2.3): in their queues while it waits, left when it ends
     const queued = new Set<string>();
+    // the tasks the run left for now because their site's pages are used up here: said once each
+    const webSaid = new Set<string>();
     const runShared = ctx.settings.shared()?.value;
     const leaveQueues = () => {
       for (const site of queued) if (runShared) leaveQueue(runShared, site, root);
@@ -1295,13 +1303,28 @@ register(
           if (site && !archiveOut.some((k) => k.task === t.id)) archiveOut.push(archiveSkip(t.id, site, held.get(site)!, root));
           return !!site;
         };
+        // the sites whose pages for the agents' web tools are used up on this computer (core/webfull.ts): the tasks whose
+        // work goes there left for now — a session on one would be refused its first page and wait for nothing
+        const webFull = fullWebSites(tree, runShared);
+        const webIn = webFull.size ? webFullInputs(tree, runShared) : undefined;
+        const webOut = new Map<string, WebFull>();
+        const onWebFull = (t: Task): boolean => {
+          const f = webIn && webFullOfTask(tree, t, webFull, webIn);
+          if (!f) return false;
+          webOut.set(t.id, f);
+          if (!webSaid.has(t.id)) {
+            webSaid.add(t.id);
+            out(ui(lang, "ui.run.skip.web", { task: t.id, site: f.site, at: clockUp(f.until) }));
+          }
+          return true;
+        };
         // the lines other runs hold (spec 126): a run of a line takes its line's work and shared work no run's line is;
         // a run of the whole queue leaves every line with a run of its own
         const lineOk = lineRunFilter(tree, line?.id, worker);
         const freeOf = (busy: Set<string>) =>
           placesOnly
             ? tree.list<Task>("task").find((t) => t.origin === PLACES_IDENTIFY_ORIGIN && (t.state === "open" || t.state === "doing") && !busy.has(t.id))
-            : taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config), ...(historyOnly ? { history: "only" as const } : RUN_TURNS) }).find((t) => !busy.has(t.id) && lineOk(t) && !onHeld(t));
+            : taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config), ...(historyOnly ? { history: "only" as const } : RUN_TURNS) }).find((t) => !busy.has(t.id) && lineOk(t) && !onHeld(t) && !onWebFull(t));
         const free = () => freeOf(others);
         let task: Task | undefined;
         if (placesOnly) {
@@ -1334,6 +1357,34 @@ register(
           // spent on being told so, nothing sent meanwhile; one the user started for a session or a few ends and says
           // when. Tasks the user named are never held.
           const back = i < picked.length || historyOnly ? undefined : nextAwake(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config) }, others);
+          // Nothing now but tasks whose site's pages for the agents' web tools are used up here: the run waits for the
+          // first of them to have enough free (no agent, nothing asked of any archive) — a run that goes on by itself;
+          // one that ends before then, or one the user started for a session or a few, ends and says when.
+          const web = i < picked.length ? undefined : [...webOut.values()].sort((a, b) => a.until - b.until)[0];
+          if (web && !(back && back.until < web.until)) {
+            const at = web.until + 1000; // its oldest page out of the window, and a second for the clock
+            const values = { site: web.site, at: clockUp(web.until) };
+            if (gateHolds && !(until && at > until)) {
+              out(ui(lang, "ui.run.web.wait", values));
+              stopAwake(); // nothing to do meanwhile: the computer may sleep
+              markPaused(root, worker, { until: new Date(at).toISOString(), reason: ui(lang, "ui.run.web.why", values) });
+              try {
+                await pause(at - Date.now(), stopWaits);
+              } finally {
+                markPaused(root, worker, undefined);
+              }
+              stopAwake = keepAwake(ctx.env);
+              if (stop.signal.aborted || finishing || stopAsked) {
+                stopCode = "user";
+                break;
+              }
+              i--; // this was no session: the queue again, as it is then
+              continue;
+            }
+            stopCode = "web";
+            stopValues = values;
+            break;
+          }
           if (back) {
             const at = back.until + 1000; // its time off over, and a second for the clock
             const values = { host: back.host, at: clockUp(back.until) };

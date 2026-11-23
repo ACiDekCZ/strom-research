@@ -21,8 +21,9 @@ import { safeFolderName } from "../core/text.ts";
 import { humanAge } from "../core/age.ts";
 import { now, Tree } from "../core/tree.ts";
 import { actsAsArchive } from "../core/state.ts";
-import { applySync, asksPerson, mediaWritten, guardedChange, houseWords, discardReceived, nothingSince, notWrittenList, withoutImages, planSync, readTreeFile, treeFileKept, receivedAll, receivedPending, receivedSince, receivedOf, removedByItsDecision, settleReceived, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput, type SyncProposal } from "../core/sync.ts";
+import { applySync, asksPerson, mediaWritten, guardedChange, houseWords, discardReceived, nothingSince, notWrittenList, withoutImages, planSync, readTreeFile, treeFileKept, receivedAll, receivedPending, receivedSince, receivedOf, removedByItsDecision, settleReceived, countedReceived, planState, type PlanTimes, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput, type SyncProposal } from "../core/sync.ts";
 import { labels, type LabelKey } from "../gedcom/labels.ts";
+import { mediaResolver } from "../core/appmedia.ts";
 import { startLive } from "../core/live.ts";
 import { appSendsChanges, sendAppUrl, stromAppUrl } from "../core/stromapp.ts";
 import { appWindow, openAppIn, replaceGone } from "../core/appbrowser.ts";
@@ -209,6 +210,9 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
       ? !tree.personWrites ? "ui.sync.do.main.kept" : `ui.sync.do.main${c.mainOff ? ".off" : ""}`
       : c.kind === "fact.uncite" && c.action === "user"
       ? !tree.personWrites ? "ui.sync.do.uncite.kept" : "ui.sync.do.uncite"
+      // the person's contact (spec 134 U11)
+      : c.kind === "contact.email"
+      ? `ui.sync.do.contact.${c.action !== "remove" ? "add" : tree.personWrites ? "remove" : "kept"}`
       : c.kind === "ids.add"
       ? "ui.sync.do.ids"
       : c.kind === "child.parents"
@@ -351,6 +355,18 @@ function numbers(v: unknown, max: number): Set<number> | undefined {
   return out;
 }
 
+/**
+ * Tests only: a pause once planned, before the count is said and the lock taken (STROM_TEST_SYNC_PLANNED=<file>) — the
+ * file made, waited for until it is gone (at most a minute): a test looks at the send being counted, writes meanwhile.
+ */
+function heldAfterPlan(file: string | undefined): void {
+  if (!file) return;
+  fs.writeFileSync(file, "planned\n");
+  const until = Date.now() + 60_000;
+  const pause = new Int32Array(new SharedArrayBuffer(4));
+  while (fs.existsSync(file) && Date.now() < until) Atomics.wait(pause, 0, 0, 50);
+}
+
 register(
   {
     path: ["sync"],
@@ -434,12 +450,41 @@ register(
       const syncs = tree.list<SyncInput>("input").filter((i) => i.sync && !i.sync.undone);
       const last = syncs.reduce<SyncInput | undefined>((a, i) => (!a || i.id > a.id ? i : a), undefined);
       const before = last?.sha === sha ? last : undefined;
+      // the bridge that leaves a send to this strom to count (STROM_SYNC_TELL): told as it reads it (a refusal from
+      // here on is the send's) and how many changes it brings, once planned — the app hears it while it is written
+      const tell = ctx.env.STROM_SYNC_TELL === "1" && opts.apply && !tree.dryRun ? (line: string) => ctx.io.stderr(`strom-sync: ${line}\n`) : undefined;
+      const writes = !!opts.apply && !tree.dryRun;
       if (before && !opts.again) {
         // the app sent the very same tree again: nothing waits of it
-        if (opts.apply && !tree.dryRun) settleReceived(tree.root, file, { state: "nothing" });
-        return { text: ui(lang, "ui.sync.again", { input: before.id }), data: { input: before.id, changes: [] } };
+        if (writes) {
+          countedReceived(tree.root, file, 0);
+          tell?.("planned 0");
+          settleReceived(tree.root, file, { state: "nothing" });
+        }
+        return { text: ui(lang, "ui.sync.again", { input: before.id }), data: { input: before.id, changes: [], plans: 0 } };
       }
-      const incoming = readTreeFile(file, tree.config.lang);
+      // where the time goes (ms; the bridge's line in live.log): the file read, planned (each time), the lock waited
+      // for, written, the send settled — planned once: again under the lock only when the research changed meanwhile
+      const phases = { read: 0, plan: 0, lock: 0, apply: 0, settle: 0 };
+      const planParts: PlanTimes = {};
+      let plans = 0;
+      const clocked = <T>(phase: keyof typeof phases, fn: () => T): T => {
+        const from = performance.now();
+        try {
+          return fn();
+        } finally {
+          phases[phase] += performance.now() - from;
+        }
+      };
+      const timing = () => ({ phases: Object.fromEntries(Object.entries(phases).map(([k, v]) => [k, Math.round(v)])), plans, planParts: Object.fromEntries(Object.entries(planParts).map(([k, v]) => [k, Math.round(v ?? 0)])) });
+      // the research as the plan finds it: the same under the lock, and the plan holds (nothing written between)
+      const planned = writes ? planState(tree) : undefined;
+      tell?.("reading");
+      // written: the files of the app's tree it carries are kept in the shared store as they are read (spec 108 P8)
+      // a file it names by its hash (spec 133) found in the store or the research's own files, as the bridge's check found it
+      const store = ctx.settings.shared()?.value;
+      const reading = { store, resolve: mediaResolver(tree, store) };
+      const incoming = clocked("read", () => readTreeFile(file, tree.config.lang, writes ? { media: reading } : {}));
       // a Windows program's code page it was read in, characters it could not read: said, and in --json
       const said = decodingSaid(lang, path.basename(file), incoming.decoding ?? {});
       const decoding = incoming.decoding ?? {};
@@ -447,14 +492,20 @@ register(
       const sent = !!receivedOf(tree.root, file);
       // the app said it sends every file of its tree (POST /sync?media=app): a place of one it was given and no longer has goes
       const mediaApp = !!receivedOf(tree.root, file)?.mediaApp;
-      const plan = planSync(tree, incoming, edits, { force: !!opts.force, sent, mediaApp });
+      const plan = clocked("plan", () => planSync(tree, incoming, edits, { force: !!opts.force, sent, mediaApp, times: planParts }));
+      plans++;
+      if (writes) {
+        heldAfterPlan(ctx.env.STROM_TEST_SYNC_PLANNED);
+        countedReceived(tree.root, file, plan.changes.length);
+        tell?.(`planned ${plan.changes.length}`);
+      }
       // a send of the app that brings nothing the research has not: nothing waits of it any more
-      if (opts.apply && !plan.changes.length && !tree.dryRun) settleReceived(tree.root, file, { state: "nothing" });
+      if (writes && !plan.changes.length) clocked("settle", () => settleReceived(tree.root, file, { state: "nothing" }));
       if (!opts.apply || !plan.changes.length || tree.dryRun) {
         if (opts.only !== undefined && !opts.apply) throw new UsageError("--only goes with --apply");
         return {
           text: lines(got ? ui(lang, "ui.sync.got") : undefined, ...said, planText(tree, plan, incoming, shownAs, lang, edits, ctx.settings.hypothesesDecide(tree.config) === "person")),
-          data: { ...(got ? { received: got } : {}), ...decoding, base: plan.base, head: plan.head ?? null, partial: plan.partial, changes: plan.changes, strangers: plan.identity.strangers, ...(plan.mended ? { mended: plan.mended } : {}), ...(plan.waiting ? { waiting: plan.waiting } : {}) },
+          data: { ...(got ? { received: got } : {}), ...decoding, base: plan.base, head: plan.head ?? null, partial: plan.partial, changes: plan.changes, strangers: plan.identity.strangers, ...(plan.mended ? { mended: plan.mended } : {}), ...(plan.waiting ? { waiting: plan.waiting } : {}), ...timing() },
         };
       }
       const only = numbers(opts.only, plan.changes.length);
@@ -464,12 +515,17 @@ register(
       let proposed: SyncProposal[] = [];
       let retracted: string[] = [];
       let written: Plan = plan;
+      const waited = performance.now();
       tree.withTreeLock(() => {
+        phases.lock += performance.now() - waited;
         // what another process wrote meanwhile counts: the changes again, now that the tree is ours — the ones picked by
-        // number must be the ones shown; all of them are what the file brings now
-        // the files of the app's tree it carries: their bytes kept in the shared store as they are read (spec 108 P8)
-        const now1 = readTreeFile(file, tree.config.lang, { media: { store: ctx.settings.shared()?.value } });
-        const fresh = planSync(tree, now1, edits as "conflict" | "user", { force: !!opts.force, sent, mediaApp });
+        // number must be the ones shown; all of them are what the file brings now. Nothing written meanwhile (the same
+        // commit, nothing of data/ or strom.json apart from it): the plan made holds, with the file as it planned it
+        const held = planned !== undefined && planState(tree) === planned;
+        const now1 = held ? incoming : clocked("read", () => readTreeFile(file, tree.config.lang, { media: reading }));
+        const fresh = held ? plan : clocked("plan", () => planSync(tree, now1, edits as "conflict" | "user", { force: !!opts.force, sent, mediaApp, times: planParts }));
+        if (!held) plans++;
+        const applyFrom = performance.now();
         if (only && (fresh.changes.length !== plan.changes.length || fresh.changes.some((c, i) => c.kind !== plan.changes[i]!.kind || c.person !== plan.changes[i]!.person)))
           throw new UsageError("the research changed while this was shown — look again", { hint: `strom sync ${args[0] ?? file}` });
         written = fresh;
@@ -534,15 +590,16 @@ register(
         });
         // a fact the sync brought with its original cited: queued to be verified against it (core/verify.ts)
         if (changes) queueVerify(tree);
+        phases.apply += performance.now() - applyFrom;
       });
       if (!input) {
-        settleReceived(tree.root, file, { state: "nothing", kept: written.changes.filter((c) => c.kept).length, notWritten: notWrittenList(written.changes), skipped });
-        return { text: lines(...said, planText(tree, written, incoming, shownAs, lang, edits), "", ui(lang, "ui.sync.nothing.taken", { file: path.basename(file) })), data: { input: null, ...decoding, applied: [], changes: written.changes } };
+        clocked("settle", () => settleReceived(tree.root, file, { state: "nothing", kept: written.changes.filter((c) => c.kept).length, notWritten: notWrittenList(written.changes), skipped }));
+        return { text: lines(...said, planText(tree, written, incoming, shownAs, lang, edits), "", ui(lang, "ui.sync.nothing.taken", { file: path.basename(file) })), data: { input: null, ...decoding, applied: [], changes: written.changes, ...timing() } };
       }
       // a send of the app waited in the inbox: written now (the app hears it through the bridge)
       // the app's files it wrote, with the records they are (the bridge's answer: `media`)
       const media = mediaWritten(written.changes, skipped);
-      settleReceived(tree.root, file, { state: "written", input: input.id, kept: written.changes.filter((c) => c.kept).length, notWritten: notWrittenList(written.changes), skipped, media, ...(retracted.length ? { retracted } : {}) }, input.sync?.applied ?? []);
+      clocked("settle", () => settleReceived(tree.root, file, { state: "written", input: input!.id, kept: written.changes.filter((c) => c.kept).length, notWritten: notWrittenList(written.changes), skipped, media, ...(retracted.length ? { retracted } : {}) }, input!.sync?.applied ?? []));
       // each send of the app a little more history: packed in the background once it has grown
       compactSoon(tree.root, ctx.env);
       // a question to the person is no change of the research: counted as what it is
@@ -562,7 +619,7 @@ register(
             ? [`${proposed.length} change(s) of the user's or an imported family tree's values proposed, not written — the user decides (strom conflict list):`, ...proposed.map((x) => `  change ${x.n}: ${x.line}`)]
             : []),
         ),
-        data: { input: input.id, ...decoding, applied: input.sync?.applied ?? [], changes: written.changes, conflicts: syncConflicts(tree, input.id), ...(skipped.length ? { skipped } : {}), ...(proposed.length ? { proposed } : {}), ...(media.length ? { media } : {}), ...(retracted.length ? { retracted } : {}) },
+        data: { input: input.id, ...decoding, applied: input.sync?.applied ?? [], changes: written.changes, conflicts: syncConflicts(tree, input.id), ...(skipped.length ? { skipped } : {}), ...(proposed.length ? { proposed } : {}), ...(media.length ? { media } : {}), ...(retracted.length ? { retracted } : {}), ...timing() },
       };
     },
   },

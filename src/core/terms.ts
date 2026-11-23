@@ -528,6 +528,10 @@ export interface ArchiveLevel {
   milder?: { connector: string; from: Claim; to: Claim };
   /** The tree's archive that gave a stricter level. */
   repository?: string;
+  /** Its name as the research records it. */
+  repositoryName?: string;
+  /** The archive holds the host through a record set of its on this site (not its own address): the set and the host of its address. */
+  recordset?: { id: string; host: string };
   /** What strom's known terms say the level covers ("catalogue only"), for the agent. */
   scope?: string;
   /**
@@ -566,19 +570,54 @@ function urlHost(u: string | undefined): string | undefined {
   }
 }
 
-/** The tree's archive for a host's site (its registrable domain, its address or a record set's): only to be stricter. */
-function treeLevel(tree: LevelInput["tree"], host: string): { level: Level; repo: Repository } | undefined {
+/** The entries of strom's own list that state the terms of a host (a level other than unknown). */
+function listStating(host: string): KnownTerms[] {
+  return shippedTerms().filter((k) => within(host, k.host) && k.level !== "unknown");
+}
+
+/**
+ * The archive of a research's record is the one whose terms the list gives for a portal of its: every entry of the
+ * list stating the portal's terms has them (its terms or its terms page) on the site of the archive's own address —
+ * the archive's portal under another domain (ebadatelna.soapraha.cz, its terms on soapraha.gov.cz). K051 N1.
+ */
+function listedAsOwn(stating: KnownTerms[], own: string | undefined): boolean {
+  if (!own || !stating.length) return false;
+  const site = webDomain(own);
+  return stating.every((k) => [k.terms, k.termsPage].some((u) => {
+    const h = urlHost(u);
+    return !!h && webDomain(h) === site;
+  }));
+}
+
+/**
+ * The tree's archive for a host's site (its registrable domain), only to be stricter: by the archive's own address, or
+ * by the address of a record set of its — the latter only where strom's own list does not state the host's terms (a
+ * portal of the list follows its terms and the other sources, never the level of an archive whose book it shows; K051),
+ * or where the list gives the portal the terms of that very archive (its own portal under another domain; K051 N1).
+ * At the same level its own address before a record set's.
+ */
+function treeLevel(tree: LevelInput["tree"], host: string): { level: Level; repo: Repository; recordset?: { id: string; host: string } } | undefined {
   if (!tree) return undefined;
   const site = webDomain(host);
   const repos = tree.list<Repository>("repository").filter((r) => !r.retracted && r.automation !== "unknown");
   if (!repos.length) return undefined;
+  const stating = listStating(host);
   const sets = tree.list<RecordSet>("recordset").filter((b) => !b.retracted && b.repository);
-  let best: { level: Level; repo: Repository } | undefined;
+  let best: { level: Level; repo: Repository; recordset?: { id: string; host: string } } | undefined;
   for (const r of repos) {
-    const sites = [urlHost(r.url), ...sets.filter((b) => b.repository === r.id).map((b) => urlHost(b.url))].filter((x): x is string => !!x).map(webDomain);
-    if (!sites.includes(site)) continue;
-    const l = r.automation as Level;
-    if (!best || rank(l) > rank(best.level)) best = { level: l, repo: r };
+    const own = urlHost(r.url);
+    let hit: { level: Level; repo: Repository; recordset?: { id: string; host: string } } | undefined;
+    if (own && webDomain(own) === site) hit = { level: r.automation as Level, repo: r };
+    else if (!stating.length || listedAsOwn(stating, own))
+      for (const b of sets) {
+        const h = b.repository === r.id ? urlHost(b.url) : undefined;
+        if (h && webDomain(h) === site) {
+          hit = { level: r.automation as Level, repo: r, recordset: { id: b.id, host: h } };
+          break;
+        }
+      }
+    if (!hit) continue;
+    if (!best || rank(hit.level) > rank(best.level) || (rank(hit.level) === rank(best.level) && best.recordset && !hit.recordset)) best = hit;
   }
   return best;
 }
@@ -701,13 +740,14 @@ export function archiveLevel(env: Env, input: LevelInput): ArchiveLevel {
     ...(permission ? { permission } : {}),
     ...(permission === "browser" && rec.range ? { range: true as const } : {}),
     ...(!trust.verified ? { unverified: trust.why ?? "the settings are not verified as the person's" } : {}),
-    title: known?.name ?? t?.repo.name ?? c?.manifest.title ?? host,
+    // through a record set the archive is not the site's: never named by it (K051)
+    title: known?.name ?? (t && !t.recordset ? t.repo.name : undefined) ?? c?.manifest.title ?? host,
     // robots.txt said so (strom's list quotes it, or strom read it): said as robots.txt, never as the terms (with its address)
     ...(known?.terms ? { terms: known.terms } : robotsSaid ? { terms: `https://${rec.robots?.host ?? other.robots?.host ?? host}/robots.txt` } : c?.manifest.policy.terms ? { terms: c.manifest.policy.terms } : t?.repo.terms ? { terms: t.repo.terms } : {}),
     ...(known?.quote ? { quote: known.quote, quoteBy: known.quoteFrom === "robots" || known.quoteFrom === "reply" ? known.quoteFrom : ("strom" as const), ...(known.quoteFrom === "reply" && known.replied ? { replied: known.replied } : {}) } : robotsSaid ? { ...(browserOnly?.line ? { quote: browserOnly.line } : {}), quoteBy: "robots" as const } : summary ? { quote: summary, quoteBy: "connector" as const } : {}),
     ...(known?.scope ? { scope: known.scope } : {}),
     ...(milder ? { milder } : {}),
-    ...(t ? { repository: t.repo.id } : {}),
+    ...(t ? { repository: t.repo.id, ...(t.repo.name ? { repositoryName: t.repo.name } : {}), ...(t.recordset ? { recordset: t.recordset } : {}) } : {}),
     ...(browserOnly ? { browserOnly } : {}),
     ...(net?.robots ? { robots: net.robots } : {}),
     ...(refused ? { refused } : {}),

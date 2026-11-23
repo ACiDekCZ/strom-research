@@ -860,9 +860,9 @@ export function appReadsMainCitation(settings: Settings, version?: string, gate:
 /**
  * The Strom app version that reads how sure a name is and confirms it (spec 066 P5): under a NAME the Strom file's
  * `_STROM_STATUS`, and under the name of a person's identity `_STROM_EID P….N` (+ `_TXT`), `_STROM_CONFIRMED` and
- * `_STROM_CHECKED` (+ `_STROM_VERIFY`). None yet: waits for the app's first release that reads them (3.31.0).
+ * `_STROM_CHECKED` (+ `_STROM_VERIFY`): the app's 3.31.0 (out 2026-11-22).
  */
-export const APP_READS_NAME_STATUS: string | undefined = undefined;
+export const APP_READS_NAME_STATUS: string | undefined = "3.31.0";
 /** The beta of the Strom app that reads them first (another copy of the app: anotherCopy; its answer: 3.31.0-beta.5). */
 export const APP_READS_NAME_STATUS_BETA: string | undefined = "3.31.0-beta.5";
 

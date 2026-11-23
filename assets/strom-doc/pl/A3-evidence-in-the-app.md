@@ -61,8 +61,91 @@ ustawienie **Moje transkrypcje źródeł** określa, jak traktuje ją badanie
   jest pod transkrypcją jako zwinięta sekcja **Tłumaczenie transkrypcji**: w podglądzie źródła i na karcie źródła na
   stronie osoby. Notatka źródła się przez to nie zmienia; edytor notatki pokazuje ją całą. Źródło bez tłumaczenia
   wygląda jak wcześniej.
+- **Od aplikacji 3.25.0:** transkrypcję, którą czytało tylko badanie, można w podglądzie źródła potwierdzić bez zmiany
+  tekstu ([A3.1.3](#A3.1.3)).
 
 <!-- zdroj: app:src/research-sync.ts:357 researchReadSource, :365 isOlderSource, :377 verifiedOffer, :385 unverifiedOlderSources · src/ui/sources.ts:618 renderSourceReading, :658 sourceVerifiedValue, :296 renderSourcesFilter, :377 renderSourceViewer · strings.ts sources.verified/verifiedHintGuide/verifiedHintOlder/verifiedByTree/readBy/userReadingNote/filterUnverified · překlad (od 3.24.0): src/source-translation.ts SOURCE_TRANSLATION_LABELS, splitSourceTranslation · strings.ts viewerTranslation, translation · commit c2942b0 -->
+
+<a id="A3.1.2"></a>
+### A3.1.2 Usuń źródło w śledzonym drzewie
+
+Przy drzewie, które aplikacja śledzi na żywo z badania, źródło można usunąć bezpośrednio w badaniu. Badanie wycofuje
+źródło ([R3.10](R3-verification-and-citation.md#R3.10)): z danych i opowieści znikają jego cytaty, daty, miejsca,
+imiona ani tekst opowieści się nie zmieniają, a usunięcie można cofnąć.
+
+- Okno **Źródła** jest przy śledzonym drzewie tylko do odczytu: bez edycji i dodawania, w wierszu źródła jest tylko
+  kosz. Gdy badanie nie odpowiada, kosz jest nieaktywny i po najechaniu mówi „Usunięcie źródła działa, gdy badanie
+  jest uruchomione.” Na urządzeniu dotykowym w wierszu zamiast kosza jest **⋯** z arkuszem od dołu: **Otwórz
+  źródło** i **Usuń źródło…**.
+- Okno **Usunąć źródło?** najpierw sprawdza w badaniu, co opiera się na źródle („Sprawdzanie w badaniu, co odwołuje
+  się do źródła…”), i dopiero potem pozwala usunąć. Pod nagłówkiem **Co opiera się na źródle** mówi, ile cytatów
+  przy danych i ile opowieści cytuje źródło, oraz po wierszach:
+  - **Dane** i **Bez źródła**: które dane zostaną bez źródła („Dane pozostaną, tylko bez cytowania.”) i które mają
+    też inne źródło;
+  - **Mniej pewne**: ile danych stanie się mniej pewnych;
+  - **Opowieści**: „Tekst opowieści pozostanie; źródło wypadnie tylko z listy źródeł opowieści.” Kod źródła
+    w tekście pozostanie, tylko już nie jako odnośnik;
+  - **Rozbieżności**: rozbieżność pozostaje i zostanie oznaczona „źródło wycofane – do przejrzenia”
+    ([S3.4.1](S3-what-the-research-knows.md#S3.4.1)); przy rozstrzygniętej „decyzja pozostaje”. Rozbieżność nie
+    zamyka się sama;
+  - **Zadania** (otwarte, w toku, odłożone, czeka): zadanie tylko na tym źródle zakończy się jako porzucone, z innego
+    zadania źródło wypadnie z miejsc zadania; mówi też, gdy nad zadaniem właśnie pracuje agent. **Cofnij** przywróci
+    zadania do obecnego stanu;
+  - **Pliki**: plik pozostanie w Materiałach, tylko bez powiązania ze źródłem; obrazy z archiwum pozostaną przy
+    źródle. Gdy źródło powstało z pliku drzewa genealogicznego, okno to mówi; usunąć także plik można w Materiałach
+    ([A3.5.17](#A3.5.17)).
+
+  Źródło, którego nic nie cytuje, ma tylko „Nic nie cytuje źródła.”
+- Po **Usuń źródło** powiadomienie mówi „Źródło … usunięte w badaniu.” z **Cofnij**. **Cofnij** przywraca źródło
+  wraz z cytatami; cytatu, którego dana w międzyczasie się zmieniła, przywrócić nie można, a powiadomienie mówi, ile
+  ich jest. Później źródło można przywrócić w badaniu (`strom source restore`).
+- **Pilnuje kod:**
+  - usunięcie obowiązuje tylko dla wykazu, który okno pokazało, i najwyżej 15 minut. Gdy wykaz w międzyczasie się
+    zmienił albo potwierdzenie wygasło, okno pokazuje nowy wykaz i usunięcie trzeba potwierdzić ponownie;
+  - gdy badanie właśnie zapisuje, usunięcie zostanie za chwilę ponowione. Przy źródle, którego w badaniu już nie ma,
+    drzewo wczyta się ponownie; źródło już wycofane okno zgłosi;
+  - badanie tylko do odczytu (zapieczętowane na innym komputerze) usunięcia nie zaoferuje.
+- **Granice:**
+  - tylko przy śledzonym drzewie badania, które umie usuwać źródła, i tylko przy źródle z badania; nie przy kopii
+    drzewa. Usunięcie przy edycji drzewa z badania opisuje [S2.6.1](S2-edits-from-the-app.md#S2.6.1);
+  - **Cofnij** potrzebuje uruchomionego badania; inaczej powiadomienie mówi, że źródło można przywrócić w badaniu.
+    Źródła scalonego albo wycofanego w badaniu inaczej przywrócić nie można.
+- **Obsługa:** aplikacja: **Akcje → Źródła** → kosz (na urządzeniu dotykowym **⋯** → **Usuń źródło…**) → **Usuń
+  źródło**; powiadomienie → **Cofnij**. Pozycja **Źródła** jest przy śledzonym drzewie w menu tylko wtedy, gdy
+  usunięcie można zaoferować.
+- **Obowiązuje od:** aplikacja 3.31.0 z badaniem 1.36.0
+
+<!-- zdroj: app:d527ffdd src/source-retract.ts sourceRetractOfferedIn (null bez sledování, jen ke čtení, kopie link.copy, bez brány source.retract; off když most neodpovídá), RETRACT stavy · 9d91f035, 4178ef85 src/ui/sources.ts sourcesReadOnly, openSourceRowSheet, source-retract-ui.ts (dialog, toast Vrátit, /source/restore) · src/ui/tree-management.ts isSourcesMenuOffered (zamčený strom jen se sourceRetractOffered) · strings.ts sources.retract.* (trashOff, rowMenu, menuDelete, menuOpen, title, intro, loading, usesTitle, counts, rows, bare, hasOther, lowered, storyKeep, storyCode, conflictReview, conflictDecided, conflictNever, taskState, taskDropped, taskNarrowed, taskDoing, tasksBack, filesStay, images, fileTree, undoLater, noCites, go, changed, expired, busyWait, gone, already, readonly, toast, undo, restored, restoredPart, restoreDown, notRestorable) · SPEC.md 1120-app-117-smazani · research:e6bbfb40 src/core/sourceretract.ts RETRACT_CONFIRM_MS · spec 117 §1–§3, J3 -->
+
+<a id="A3.1.3"></a>
+### A3.1.3 Potwierdzenie transkrypcji badania
+
+Transkrypcję, którą czytało tylko badanie, może użytkownik potwierdzić: sam przeczytał zapis i transkrypcja się
+zgadza. Tekst się nie zmienia; transkrypcja obowiązuje wtedy także jako odczyt użytkownika
+([R3.5.2](R3-verification-and-citation.md#R3.5.2)).
+
+- W podglądzie źródła na końcu wiersza „Transkrypcję odczytało badanie“ jest mały przycisk **Potwierdź
+  transkrypcję** („Transkrypcja zgadza się z zapisem. Będzie obowiązywać także jako odczyt użytkownika.“). Po
+  potwierdzeniu wiersz brzmi „Transkrypcję odczytało badanie, użytkownik potwierdził ją ‹data›“, a przycisk to
+  **Cofnij potwierdzenie** („Transkrypcja znów będzie obowiązywać tylko jako odczyt badania.“).
+- **Granice:**
+  - tylko przy źródle z transkrypcją, którą badanie zna i czytało tylko ono; transkrypcji, którą użytkownik
+    przeczytał inaczej, potwierdzić nie można;
+  - tylko w drzewie połączonym z badaniem, którego most przyjmuje potwierdzenia; nie w Archiwum Strom, w badaniu
+    czekającym na agenta ani w drzewie otwartym tylko do odczytu;
+  - gdy badanie nie działa, przycisk jest w spoczynku ze zdaniem „Potwierdzić można, gdy badanie działa.“ (przy
+    cofnięciu „Cofnąć potwierdzenie można, gdy badanie działa.“);
+  - potwierdzenie zapisuje badanie, nie aplikacja. Odpowiedź widać od razu; do drzewa trafi z następną wersją
+    badania;
+  - badanie może odmówić, a aplikacja powie dlaczego: transkrypcja w międzyczasie się zmieniła („Nowe brzmienie
+    można potwierdzić, gdy dotrze.“), źródło jest scalone, wycofane albo nie ma go już w badaniu, albo badanie
+    zapisała ostatnio nowsza wersja Strom Research;
+  - potwierdzenie nie zmienia stopnia pewności w aplikacji; decyduje badanie.
+- **Obsługa:** aplikacja: **Akcje → Źródła** → źródło → **Potwierdź transkrypcję** / **Cofnij potwierdzenie**;
+  dotyczy także drzewa, które aplikacja śledzi na żywo z badania.
+- **Obowiązuje od:** aplikacja 3.25.0, badanie 1.29.0
+
+<!-- zdroj: app:v3.30.0 src/source-confirm.ts (SOURCES_CONFIRM_FEATURE sources.confirm, SOURCE_CONFIRM_TIMEOUT_MS, sourceConfirmAction, sourceConfirmOffer: agentless, readOnly, rest) · src/ui/source-confirm-ui.ts (prohlížeč pramene, odpověď hned, strom až s další verzí výzkumu _STROM_READ/_CONF/_TXT) · strings.ts sources.readConfirmed, sources.confirm.action/actionTitle/undo/undoTitle/restConfirm/restUndo/changed/merged/retracted/reader/none/archive/locked · CHANGELOG.cs.md 3.25.0 · research:src/core/confirm.ts -->
 
 <a id="A3.2"></a>
 ## A3.2 Cytat: co źródło dokumentuje
@@ -299,6 +382,23 @@ w archiwum**).
   z filtrem na osobę).
 - **Obowiązuje od:** aplikacja 3.9.0; sekcja i okno **Materiały** 3.16.0; 3.30.0: okno przy każdym drzewie, plik
   drzewa jako jeden materiał z miejscami (wersja danych 24)
+- **Od aplikacji 3.31.0 z badaniem 1.36.0:** badanie przegląda pliki samo tylko z włączonym ustawieniem **Pliki
+  wysłane do badania agent przejrzy sam** ([S4.4.11](S4-research-from-the-app.md#S4.4.11),
+  [R11.6](R11-material-from-the-user.md#R11.6)). Wyłączone (domyślnie):
+  - **Wyślij materiał…** mówi „Do drzewa nic nie zostanie dodane. Badanie zapisze pliki przy osobie. Czekają
+    w Materiałach; agent przejrzy je tylko na żądanie.” (przy źródle „… przy źródle.”). Po wysłaniu komunikat
+    „Wysłano do badania: 1 plik dla osoby Jan Horák. Czeka w Materiałach nieuporządkowany.” z **Uporządkuj agentem…**
+    (na komputerze z oknem **Materiały**, [A3.5.8](#A3.5.8)) i **Pokaż**;
+  - potwierdzenie partii **Dodaj materiały…** nie ma bloków **Prywatność** i **Szacowany koszt**, tylko „Pliki
+    zostaną zapisane w badaniu, poza gitem, i czekają w Materiałach nieuporządkowane. Agent uporządkuje je tylko na
+    żądanie; koszt jest podawany wcześniej.”;
+  - koniec partii mówi „Pliki czekają w Materiałach nieuporządkowane. Agent uporządkuje je tylko na żądanie.” i oferuje
+    **Uporządkuj agentem…** dla plików partii; gdy nie da się tego zrobić od razu, odsyła do **Uporządkuj agentem…**
+    w Materiałach. Włączone: „Badanie samo uporządkuje paczkę. …” z liczbą **Zadania porządkowania**;
+  - plik, którego agent jeszcze nie przejrzał, ma w Materiałach stan **nieuporządkowane** (włączone: **czeka na
+    przetworzenie**).
+
+  Ze starszym badaniem obowiązują dotychczasowe teksty.
 
 <!-- zdroj: dirigent:spec/102-sprava-materialu-a-pramenu · app:2b66d7cf src/types.ts STROM_DATA_VERSION 24, Attachment.places (MediaPlace), migrace v23→v24 (stejný soubor u více osob jeden záznam) · src/media.ts allMedia, treeMedia · app:1ebf7896 src/ui/materials-ui.ts materialsWindowOn, materialsListOn · src/ui/tree-management.ts (Akce › Materiály) · src/ui/research-actions-ui.ts:373 · src/ui/attachments-ui.ts attachments-all-materials · app:a275d977 menu osoby Materiály · src/ui/material-ui.ts MATERIAL_MAX_FILES, MATERIAL_NOTE_MAX, REFUSED_EXT, materialAvailable · strings.ts material.*, materials.desktopOnlyResearch, treeReadOnly, olderEdit, assignNewer, agentSort.older · app:CHANGELOG.cs.md 3.30.0 -->
 
@@ -327,8 +427,10 @@ badania.
   Na tablecie i w oknie do 1024 px jest w **Filtry**.
 - **Obsługa:** zob. [A3.5](#A3.5); zaznaczanie plików: **Zaznacz**, Ctrl/Cmd+A zaznacza to, co pokazują filtry.
 - **Obowiązuje od:** aplikacja 3.30.0
+- **Od aplikacji 3.31.0:** na telefonie okno otwiera się też z **Więcej → Dla rodziny**: pierwszy wiersz **Materiały**
+  z liczbą plików. Na tablecie **Materiały** zostają na pierwszym poziomie **Więcej**.
 
-<!-- zdroj: app:c9775287 src/materials-overview.ts chooseSort, sortOverviewGroups (uvnitř skupin), src/ui/materials-window.ts mwSortChipHtml, mwSortMenu, mwSortColumns (intree jen model archive), mwSetSort → writeListPrefs (localStorage), filtry ≤ 1024 · strings.ts materials.sortBy, sortChip, sortDefault, sortAscending, sortDescending · app:1ebf7896 src/ui/materials-ui.ts, src/ui/materials-window.ts (skupiny, Kde soubory jsou) · app:a1127378 sloupce seznamu, Ctrl/Cmd+A · app:b198b1c2 src/media-uses.ts materialPersonLabel (Neznámá osoba) · app:e6e16634 staleEdit · app:prace/1117-app-102-materialy D1 (telefon: bez řádku Materiály ve Více) · strings.ts materials.groupAdded, groupPerson, groupBatch, groupDate, whereTitle, whereApp, whereArchiveResearch, whereEncryptedResearch, search, showHidden, unknownPerson, staleEdit -->
+<!-- zdroj: app:c9775287 src/materials-overview.ts chooseSort, sortOverviewGroups (uvnitř skupin), src/ui/materials-window.ts mwSortChipHtml, mwSortMenu, mwSortColumns (intree jen model archive), mwSetSort → writeListPrefs (localStorage), filtry ≤ 1024 · strings.ts materials.sortBy, sortChip, sortDefault, sortAscending, sortDescending · app:1ebf7896 src/ui/materials-ui.ts, src/ui/materials-window.ts (skupiny, Kde soubory jsou) · app:a1127378 sloupce seznamu, Ctrl/Cmd+A · app:b198b1c2 src/media-uses.ts materialPersonLabel (Neznámá osoba) · app:e6e16634 staleEdit · app:prace/1117-app-102-materialy D1 (telefon: bez řádku Materiály ve Více) · strings.ts materials.groupAdded, groupPerson, groupBatch, groupDate, whereTitle, whereApp, whereArchiveResearch, whereEncryptedResearch, search, showHidden, unknownPerson, staleEdit · 3.31.0: app:122a5096 src/ui/bottom-sheet.ts materialsRow (s počtem materialsAppCount) jako první řádek stránky menu.forFamily jen isPhoneBar, jinak v první úrovni · strings.ts materials.menu, menu.forFamily · dirigent:prace/1122-app-mobil-drobnosti -->
 
 <a id="A3.5.2"></a>
 ### A3.5.2 Tytuł, rodzaj i data
@@ -388,8 +490,11 @@ Każdy wiersz to odnośnik do osoby lub źródła.
 - **Obsługa:** podgląd pliku (**Połącz z…** lub P; strzałki zmieniają cel, Enter łączy); zaznaczenie w oknie
   **Materiały**.
 - **Obowiązuje od:** aplikacja 3.30.0
+- **Od aplikacji 3.31.0:** osoba, do której należą już wszystkie wybrane pliki (miejscem w drzewie lub przypisaniem
+  w badaniu), stoi nad listą jako chip z oznaczeniem „już połączono”, bez ×, a na liście jest zaznaczona i nie da
+  się jej zmienić. „Na razie nikt” obok niej się nie pokazuje.
 
-<!-- zdroj: app:a275d977 src/ui/material-attach-ui.ts openAttachDialog, MAX_PEOPLE=50, materialKeptByArchive, dup dialog · strings.ts materials.attach, attachTarget, coupleNote, archiveOnlyResearch, dupTitle, dupAttach, dupNew, dupLinkedToast, assignMax, noRefnTreeResearch -->
+<!-- zdroj: app:a275d977 src/ui/material-attach-ui.ts openAttachDialog, MAX_PEOPLE=50, materialKeptByArchive, dup dialog · strings.ts materials.attach, attachTarget, coupleNote, archiveOnlyResearch, dupTitle, dupAttach, dupNew, dupLinkedToast, assignMax, noRefnTreeResearch · 3.31.0: app:9eee6b2c src/ui/material-attach-ui.ts attachFixedPeople (místo ve stromu nebo REFN ve výzkumu, u všech souborů), src/person-picker.ts fixedChips · strings.ts materials.attachAlready, noneChosen · dirigent:prace/1122-app-portret-dev -->
 
 <a id="A3.5.5"></a>
 ### A3.5.5 Źródło z pliku i dowód źródła
@@ -725,12 +830,52 @@ odwołuje się do plików; w aplikacji nie da się tego cofnąć.
     ([A3.5.6](#A3.5.6));
   - najwyżej 500 plików naraz („Naraz można usunąć najwyżej 500 plików.”);
   - tylko z badaniem, które umie usuwać, i z działającym mostem; nigdy w drzewie tylko do odczytu;
-  - na wąskim ekranie okno jest arkuszem od dołu.
+  - na wąskim ekranie okno jest arkuszem od dołu;
+  - plik drzewa genealogicznego i plik, z którego powstało obowiązujące źródło, opisuje [A3.5.17](#A3.5.17).
 - **Obsługa:** okno **Materiały** → zaznaczenie → ⋯ → **Usuń trwale…** (ostatnia pozycja); podgląd pliku (ostatnia
   akcja). Terminal: `strom input delete` ([R11.5.6](R11-material-from-the-user.md#R11.5.6)).
 - **Obowiązuje od:** aplikacja 3.30.0, badanie 1.35.0
 
 <!-- zdroj: app:05e13ef7 src/ui/material-delete-ui.ts openDeleteDialog (suchý běh, potvrzení mostu, zaškrtnutí, Zrušit s fokusem, hideInstead, changed, expired, toast bez Zpět, list zespodu), src/material-delete.ts deletableFiles (origin ≠ tree, file), src/materials.ts DELETE_MAX_FILES=500, MATERIAL_DELETE_FEATURE · src/ui/materials-window.ts sel-delete (caps.delete, ne jen ke čtení, bridgeUp), src/ui/material-viewer-ui.ts (inArchive, poslední akce) · app:6949d833, f214eda6 (množné číslo, understandHint) · strings.ts materials.del.* · research:0cc2cfca src/core/materialdelete.ts DELETE_MOST_FILES, DELETE_CONFIRM_MS -->
+
+<a id="A3.5.17"></a>
+### A3.5.17 Plik drzewa genealogicznego w Materiałach
+
+Okno **Materiały** pokazuje też pliki drzew genealogicznych, które ma badanie: zaimportowany GEDCOM albo plik JSON
+aplikacji. Można je obejrzeć i usunąć trwale; gdy powstało z nich źródło, tylko razem z nim.
+
+- Kafelek i wiersz w **Lista** pokazują rodzaj i rozmiar („Plik drzewa genealogicznego · 184 kB”) oraz etykietę
+  **Plik źródła**, gdy powstało z niego źródło ([A3.5.14](#A3.5.14)). Plik drzewa genealogicznego nigdy nie jest **W
+  drzewie**: nie ma tej etykiety i filtr **W drzewie** go nie liczy, nawet gdy źródło z niego jest w drzewie. Filtr
+  **Rodzaj** ma wiersz **Pliki drzew genealogicznych** tylko wtedy, gdy jakiś jest.
+- Pliki drzew genealogicznych są poza porządkowaniem przez agenta, akcjami zbiorczymi, **Bez osoby** i liczbami
+  **Przejrzyj**. Tytuł, rodzaj, data ani osoby się przy nich nie zmieniają.
+- Menu pliku (na wąskim ekranie arkusz od dołu) ma tylko **Szczegóły** i **Usuń trwale…**. **Szczegóły** są bez
+  podglądu i wymieniają źródło, które z pliku powstało („plik źródła …”).
+- **Usuń trwale…** przy pliku, z którego nie powstało źródło: okno jak w [A3.5.16](#A3.5.16), ze zdaniami „Plik
+  drzewa zostanie usunięty z archiwum badania. W aplikacji nie da się tego cofnąć.” i „Nic nie odwołuje się do
+  pliku: nie powstało z niego źródło.”, bez **Tylko ukryj – można cofnąć**.
+- **Usuń trwale…** przy pliku, z którego powstało źródło, które nadal obowiązuje: dwuczęściowe okno **Usunąć źródło
+  i plik?** („Z pliku powstało źródło …. Plik zostanie usunięty po źródle, oba naraz.”):
+  - **Najpierw zostanie usunięte źródło**: co opiera się na źródle, jak w oknie **Usunąć źródło?**
+    ([A3.1.2](#A3.1.2));
+  - **Potem zostanie usunięty plik**: co odwołuje się do pliku; źródło „zostanie usunięte w pierwszym kroku”;
+  - „Źródło można później przywrócić w badaniu, ale już bez pliku.”, jedno pole **Rozumiem, pliku nie da się
+    przywrócić w aplikacji** i przycisk **Usuń źródło i plik**.
+
+  Oba zapisują się naraz, jednym zapisem w badaniu. Powiadomienie „Usunięto źródło … i plik ….” nie ma **Cofnij**,
+  a źródło potem znika z drzewa.
+- **Pilnuje kod:** gdy wykaz w międzyczasie się zmienił, okno pokazuje nowy, odznacza pole i usunięcie trzeba
+  potwierdzić ponownie. Nieudany zapis niczego nie usuwa („Zapis w badaniu się nie powiódł. Nic nie zostało
+  usunięte.”) i pozwala spróbować ponownie.
+- **Granice:** tylko z badaniem, które zgłasza pliki drzew genealogicznych w materiale; bez niego okno ich nie
+  pokazuje. Usuwanie jak w [A3.5.16](#A3.5.16): tylko z działającym mostem i nigdy w drzewie tylko do odczytu.
+- **Obsługa:** okno **Materiały** → plik drzewa genealogicznego → ⋯ → **Szczegóły** / **Usuń trwale…**; filtr
+  **Rodzaj → Pliki drzew genealogicznych**. Terminal: `strom input delete I… --retract-sources S…`
+  ([R11.5.6](R11-material-from-the-user.md#R11.5.6)).
+- **Obowiązuje od:** aplikacja 3.31.0 z badaniem 1.36.0
+
+<!-- zdroj: app:36601947 src/materials-overview.ts (druh tree za bránou material.trees, trees=1; mimo třídění, hromadné akce, bez osoby, počty Projít; podrobnosti nejdou upravit), src/material-delete.ts treeFileSource, retractSources, blockedBy (409 material.source-live) · 2a406d67 dlaždice a řádek (Soubor rodokmenu · velikost, štítek zdroje), filtr Druh, nabídka Podrobnosti + Smazat natrvalo… (list zespodu), Podrobnosti bez náhledu, dialog bez pramene bez Jen skrýt · b40b22e4 dvoudílný dialog · d9af4b16 (ne Ve stromu, ani štítek, ani filtr) · e2e/material-tree-delete.spec.ts (hlavička) · strings.ts materials.treeFile, kindTrees, treeFileOf, treeDetails, del.textTree, noRefsTree, bothTitle, bothIntro, partSource, partFile, laterNoFile, fileSourceSub, understandFile, bothGo, bothChanged, bothNone, bothToast · SPEC.md 1120-app-117-smazani, 1120-app-108-diry · spec 117 §5–§7 -->
 
 <a id="A3.6"></a>
 ## A3.6 Źródła osoby
@@ -875,8 +1020,11 @@ ponownie także wtedy, gdy archiwum zmieni adresy skanów albo księga nie ma nu
 - **Obsługa:** edytor źródła (**Edycja źródła**, **Dodaj źródło**): **Archiwum**, **Sygnatura**, **Folio/strona**,
   **Skan**, **Dalsza lokalizacja**, **URL**; propozycja **Z lokalizacji:** z **Przejmij** i **Cofnij**.
 - **Obowiązuje od:** aplikacja 3.27.0
+- **Od aplikacji 3.31.0:** przy skanie, który badanie ustaliło ze swoich zarejestrowanych skanów, GEDCOM nie wycina
+  z lokalizacji innego skanu: dostaje całą lokalizację, a za nią skan z pola, gdy lokalizacja go nie podaje
+  ([A2.6](A2-loading-a-family-tree.md#A2.6)).
 
-<!-- zdroj: app:c3278633 src/types.ts Source.callNumber/folio/image (reference = další umístění), src/source-location.ts hasPlaceFields, recognizeLocation, locatorOverlap, composePage, sourcePlaceParts, sourcePlaceLine (short: imageShort), test/fixtures/source-locations.json (38 případů společných s výzkumem) · 9732853b src/ui/sources.ts:1269 (návrh sleduje psaní), :1363-1400 řádek pod poli (taken/conflict/proposal jen při prázdném foliu i snímku), :1429 Vrátit; prázdná pole odebrána · 2f4a9c2f prohlížeč (viewerBook/viewerEntry/viewerLocation/viewerNoUrl), Správa a výběr, bublina čipu, person-page.ts, book-blocks.ts, family-pages-html.ts · strings.ts sources.fieldRepository(Ph)/fieldCallNumber(Ph)/fieldFolio(Ph)/fieldImage(Ph)/fieldImageHelp/imageHelpLabel/fieldReference(Ph)/proposalFrom/proposalRest/proposalTake/proposalTaken/proposalUndo/conflictImage/conflictFolio/conflictFix/conflictFixEmpty/imageShort · spec 075 K1.1, rozhodnutí 1, 2, 5 · dirigent:prace/1111-app-citace-pole -->
+<!-- zdroj: app:c3278633 src/types.ts Source.callNumber/folio/image (reference = další umístění), src/source-location.ts hasPlaceFields, recognizeLocation, locatorOverlap, composePage, sourcePlaceParts, sourcePlaceLine (short: imageShort), test/fixtures/source-locations.json (38 případů společných s výzkumem) · 9732853b src/ui/sources.ts:1269 (návrh sleduje psaní), :1363-1400 řádek pod poli (taken/conflict/proposal jen při prázdném foliu i snímku), :1429 Vrátit; prázdná pole odebrána · 2f4a9c2f prohlížeč (viewerBook/viewerEntry/viewerLocation/viewerNoUrl), Správa a výběr, bublina čipu, person-page.ts, book-blocks.ts, family-pages-html.ts · strings.ts sources.fieldRepository(Ph)/fieldCallNumber(Ph)/fieldFolio(Ph)/fieldImage(Ph)/fieldImageHelp/imageHelpLabel/fieldReference(Ph)/proposalFrom/proposalRest/proposalTake/proposalTaken/proposalUndo/conflictImage/conflictFolio/conflictFix/conflictFixEmpty/imageShort · spec 075 K1.1, rozhodnutí 1, 2, 5 · dirigent:prace/1111-app-citace-pole · 3.31.0: app:2e68d373 src/source-location.ts composePage (imageDerived) -->
 
 <a id="A3.9.1"></a>
 ### A3.9.1 Podziel według propozycji

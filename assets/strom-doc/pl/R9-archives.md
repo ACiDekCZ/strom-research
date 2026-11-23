@@ -20,6 +20,7 @@ Przebieg w skrócie:
    w badaniu są wszystkie ([R9.6](#R9.6)).
 5. **Decyzja:** tabela i przebieg zadania są w [R9.8](#R9.8), kroki człowieka w [R9.9](#R9.9) i przykłady w
    [R9.10](#R9.10).
+6. **Spisy ludności:** źródło opcjonalne, które włącza tylko człowiek; od badania 1.36.0 ([R9.12](#R9.12)).
 
 > **Uwaga: gdzie dokładnie obowiązuje przeglądarka agenta.** Przeglądarki agenta strom pilnuje przy **Claude Code**
 > z rozszerzeniem **Claude in Chrome**, we wbudowanej przeglądarce aplikacji Claude
@@ -650,3 +651,225 @@ z badania 1.35.0. Rodzina Horáków jest zmyślona.
 - **Obowiązuje od:** badanie 1.35.0
 
 <!-- zdroj: research:465c54ea assets/archives.json blha-recherche.brandenburg.de (restricted, browserOnly, terms robots.txt, quoteFrom reply, replied 2026-11-18, robots Disallow / zrušeno odpovědí pro jednotlivé snímky, nejvýš 2 požadavky, imagesFrom blha-digi.brandenburg.de, scope: nikdy prohledávání databáze ani celá kniha, adresa prohlížeče snímek nejmenuje, citace „BLHA, Rep. 5KB Nr. <n>“; bez wholeBook), blha-digi.brandenburg.de (restricted, IIIF, po jednom), blha.brandenburg.de (unknown, pace 10 s) · src/core/net.ts HUMAN_PACE 10 s · src/commands/archives.ts paceFor · src/core/terms.ts allows (browserOnly + restricted) · src/core/books.ts downloadOf (bez údaje range) · CHANGELOG.cs.md 1.35.0 (BLHA podle odpovědi z 18. 11. 2026) · commit d013df1c -->
+
+<a id="R9.12"></a>
+## R9.12 Spisy ludności jako źródło
+
+Spis ludności zapisuje jedno gospodarstwo domowe w jednym roku: kto mieszkał w domu, jaki był jego stosunek do głowy
+gospodarstwa, wiek lub rok urodzenia, często miejsce urodzenia, gminę przynależności i zawód. Badanie korzysta ze
+spisów tylko wtedy, gdy człowiek je dla badania włączy.
+
+- **Pilnuje kod:**
+  - ustawienie `census` (**Spisy ludności w tym badaniu**) jest domyślnie wyłączone. Nieustawione ustawienie oznacza
+    wyłączone, także w badaniach założonych wcześniej;
+  - ustawienie obowiązuje dla wszystkich badań na tym komputerze albo z `--for-tree` tylko dla jednego. Wartość badania
+    ma pierwszeństwo w obu kierunkach (włączone i wyłączone). Menu terminala i aplikacja Strom zapisują wartość
+    badania. Ani zmienna środowiskowa, ani przełącznik polecenia ustawienia nie zmienia;
+  - włącza je tylko człowiek: w menu, w swoim terminalu albo przełącznikiem w aplikacji Strom
+    ([S4.4.10](S4-research-from-the-app.md#S4.4.10)). Gdy włączenie uruchamia agent w rozmowie, człowieka pyta okno
+    systemu. Bez okna (samodzielna praca agenta) strom włączenie odrzuca i mówi agentowi, aby spisy zaproponował
+    ([R9.12.1](#R9.12.1)). Wyłączyć może każdy, bez pytania;
+  - włączone: można zakładać zadania spisu (`strom task add … --census <rok>[:<dom>]`), a agent dostaje przy nich
+    stronę metodyki o spisach i listę spisów, które strom zna ([R9.12.2](#R9.12.2));
+  - wyłączone: zadania spisu nie można założyć (odmowa mówi, jak spisy zaproponować), strony `strom guide census` strom
+    nie daje, a zadania spisu są odłożone ([R9.12.4](#R9.12.4)). Zapisane wydarzenia spisu zostają;
+  - Archiwum Strom nie ma tego ustawienia w menu. Most odrzuca je w Archiwum Strom i w badaniu, które czeka na agenta.
+- **Dlaczego:** metryki zapisują pojedyncze wydarzenia. Spis pokazuje całe gospodarstwo domowe w jednym roku, dokąd
+  rodzina się przeprowadziła i skąd kto przyszedł, czego metryki często nie mówią. Większość archiwów spisy tylko
+  wyświetla, dlatego arkusze zwykle dostarcza człowiek jako zrzut ekranu.
+- **Obsługa:** terminal: menu **Ustawienia** → **Język, agent, model, co agent może sam, opowieści… (kreator
+  ustawień)** → **Spisy ludności w tym badaniu: …**. Najpierw zdanie, co dają spisy, potem pytanie **Włączyć spisy
+  ludności w tym badaniu?** lub **Wyłączyć spisy ludności w tym badaniu? Ich zadania zostaną odłożone i wrócą po
+  włączeniu.** (Enter = nic się nie zmienia). Polecenie `strom config set census on|off [--for-tree]`, obowiązującą
+  wartość pokazuje `strom config where`. Aplikacja: [S4.4.10](S4-research-from-the-app.md#S4.4.10).
+- **Obowiązuje od:** badanie 1.36.0, aplikacja 3.31.0
+
+<!-- zdroj: research:c7b117cd src/core/config.ts SETTINGS census (env "", tree: true, off|on), censusSwitch (strom.json oběma směry, jinak config uživatele; nenastaveno = off) · src/commands/setup.ts censusDecision (requireHuman: terminál člověka; agent → okno systému, bez okna NeedsConsentError s návodem census propose; STROM_FOR_APP bez okna; vypnutí bez dotazu), effective census off · src/commands/tasks.ts censusOrigin (--census <rok>[:<dům>], census.off s návodem) · src/commands/meta.ts guide census (census.off) · src/brief/brief.ts (podmínka census / census-off) · src/core/live.ts POST /census (409 census.archive) · research:5a73905e src/cli/menu-settings.ts censusLabel, censusStep (ui.settings.census.about, .on, .off; --for-tree; jen mimo archiv) · cs.json ui.settings.census* · assets/method/census.md (úvod) · test/cli/census.test.ts · CHANGELOG.cs.md 1.36.0 „Sčítání lidu“ · dirigent:spec/106-vyzkum-scitani-lidu Proč, K1.1–K1.4, rozhodnutí 19. 11. a 20. 11. M2 -->
+
+<a id="R9.12.1"></a>
+### R9.12.1 Propozycja włączenia spisów ludności
+
+Przy wyłączonych spisach agent może zaproponować człowiekowi spisy, raz na badanie.
+
+- **Pilnuje kod:**
+  - `strom census propose --why "…" [--person P…]` zakłada jedną pozycję Co czeka ([R6.2](R6-awaiting-action.md#R6.2))
+    w języku badania: „Spisy ludności mogłyby pomóc w badaniu: … Włączyć je można w ustawieniach tego badania.”
+    (z osobą „… mogłyby pomóc w sprawie osoby …”). Czeka na decyzję: włączyć spisy czy nie;
+  - drugą propozycję strom odrzuca, jakkolwiek skończyła się pierwsza (załatwiona, anulowana, odrzucona). Przy
+    włączonych spisach odrzuca każdą propozycję;
+  - `--why` to jedno lub dwa zdania w języku badania, najwyżej 600 znaków, i nie może zwracać się do człowieka;
+  - włączenie spisów zamyka propozycję („Spisy ludności włączone”). Przy włączonych spisach otwarta propozycja nigdzie
+    się nie pokazuje;
+  - podsumowanie sesji, w której propozycja powstała, mówi o niej zdaniem „Zaproponowano włączenie spisów ludności
+    (T…).”;
+  - propozycja jest zadaniem rodzaju **Inne**, nie zadaniem spisu.
+- **Tylko metodyka:** propozycja tylko w ślepym punkcie, gdzie spis by pomógł: pochodzenie osoby nieznane, luka między
+  wydarzeniami z metryk. Po propozycji agent kontynuuje bez spisów i nie pyta ponownie.
+- **Obsługa:** aplikacja: **Czeka na załatwienie**. Terminal: menu Co czeka, włączenie w [R9.12](#R9.12).
+- **Obowiązuje od:** badanie 1.36.0
+
+<!-- zdroj: research:5a73905e src/commands/census.ts census propose (census.on, census.proposed, census.addresses, --why max 600, state waiting, wait kind other, origin census:propose) · src/core/census.ts censusProposal, censusHidden · src/commands/setup.ts closeCensusProposal (census.propose.done) · src/commands/session.ts censusSummary (census.propose.session) · src/core/taskkind.ts (census:propose → other) · assets/method/core.md „Census records are off“ · cs.json census.propose.* · dirigent:spec/106 rozhodnutí 20. 11. M1 -->
+
+<a id="R9.12.2"></a>
+### R9.12.2 Kiedy i gdzie agent szuka spisów ludności
+
+Zadanie spisu to jedno gospodarstwo domowe w jednym roku i domu. Gdzie szukać spisów, mówi agentowi lista archiwów
+dostarczona z badaniem.
+
+- **Pilnuje kod:**
+  - brief zadania spisu (tylko przy włączonych spisach) wymienia spisy z listy archiwów: lata, obszar, indeks nazwisk,
+    jak szuka się gospodarstwa i drogę dla stromu. Poziom i warunki archiwum obowiązują jak przy każdym wpisie
+    ([R9.1](#R9.1)), a droga nigdy nie jest łagodniejsza niż poziom archiwum;
+  - spisy na liście archiwów (badanie 1.36.0):
+
+| Archiwum | Lata | Obszar | Wyszukiwanie | Droga |
+|---|---|---|---|---|
+| Moravský zemský archiv (Acta Publica) | 1857, 1869, 1880, 1890, 1900, 1910, 1921 | Morawy Południowe i Wysoczyna | gmina, ulica; bez indeksu nazwisk | ręcznie: arkusz zapisuje człowiek ([R9.10.1](#R9.10.1)) |
+| SOA v Třeboni (DigiArchiv) | jak MZA | Czechy Południowe | gmina | ręcznie |
+| Východočeské archivy (ARON) | jak MZA | Czechy Wschodnie | gmina; bez indeksu nazwisk | agent sam |
+| FamilySearch | jak MZA | wybrane miejsca | gmina | tylko odnośnik i zadanie dla człowieka |
+| Archiv hlavního města Prahy | 1869, 1880, 1890 | Praga | – | ręcznie |
+| MyHeritage | 1900, 1910, 1921 | Czechy | nazwisko (indeks nazwisk) | ręcznie |
+| Archiv města Brna | 1850, 1857, 1870, 1880, 1890, 1900, 1921 | Brno | nazwisko, dom (indeks nazwisk) | powoli, po jednym wpisie |
+| Archiv města Ostravy | nie podano | Ostrawa | – | powoli, po jednym wpisie |
+
+- **Tylko metodyka:**
+  - **kiedy:** pochodzenie osoby nieznane (chrztu nie znaleziono tam, gdzie żyła), luka między wydarzeniami z metryk
+    (przeprowadzka, dzieci zmarłe gdzie indziej, drugi ślub) albo dom znany z chrztu, ślubu lub pochówku w roku
+    bliskim roku spisu;
+  - tylko ludzie, do których prowadzi drzewo (nic poza drzewem), nigdy żyjący. Jedno zadanie na gospodarstwo domowe,
+    rok i dom, nigdy na osobę;
+  - **gdzie:** spis gminy i roku w katalogu archiwum jednym wyszukiwaniem, nigdy przeglądaniem numerów. W nim dom
+    według numeru; gdzie jest indeks nazwisk, szukać nazwiskiem i sprawdzić numer domu. Nigdy nie przeglądać numerów
+    domów ani nie szukać ludzi, których drzewo nie potrzebuje;
+  - archiwum, które spisy tylko wyświetla: zadanie czeka na człowieka, z adresem spisu gminy i tym, co zapisać
+    („gmina, rok, numer domu: cały arkusz, obie strony”), albo na skany księgi ([R9.6](#R9.6)). Arkusz większy niż
+    jeden ekran przychodzi w częściach;
+  - nie znaleziono (spis gminy zaginął, brak domu, rodzina gdzie indziej): negatywne wyszukiwanie z tym, co dokładnie
+    przejrzano, i agent do tego nie wraca.
+- **Obsługa:** terminal: `strom task add … --census <rok>:<dom>`, `strom task wait T… --kind web --url <adres>
+  --on "…"` lub `--images B…:<numery>`, `strom search add … --result negative`.
+- **Obowiązuje od:** badanie 1.36.0
+
+<!-- zdroj: research:5a73905e assets/archives.json census (years, area, nameIndex, search, how, says, checked 2026-11-04 až 2026-11-20: mza.cz by-hand, digi.ceskearchivy.cz by-hand, aron.vychodoceskearchivy.cz agent, familysearch.org link, digi.ahmp.cz by-hand, myheritage.com by-hand, digiarchiv.brno.cz slow, badatelna.ostrava.cz slow bez let), censusDays · src/core/census.ts censusHoldings · src/brief/brief.ts (oddíl census jen pro úkol sčítání při zapnutí) · src/core/assets.ts methodFor (census.md) · test/unit/known-terms.test.ts (how nikdy mírnější než úroveň) · assets/method/census.md „When“, „Where“ · dirigent:spec/106 K2.1–K2.4 -->
+
+<a id="R9.12.3"></a>
+### R9.12.3 Gospodarstwo domowe: jedno wspólne wydarzenie
+
+`strom census add` zapisuje jeden arkusz (jeden dom, jedno gospodarstwo domowe) naraz. W aplikacji Strom gospodarstwo
+jest jednym wspólnym wydarzeniem **Spis ludności** ([A10.1](A10-shared-events.md#A10.1)).
+
+- **Pilnuje kod:**
+  - każdy członek gospodarstwa, który jest osobą drzewa, dostaje wydarzenie spisu ze swoim stosunkiem do głowy
+    gospodarstwa i wiekiem według arkusza. Data, miejsce, dom, notatka i cytat arkusza są we wszystkich kopiach takie
+    same. Jedyny członek z drzewa dostaje zwykły spis osoby, a jego stosunek jest w notatce;
+  - ludzie z arkusza, którzy nie są w drzewie (czeladź, komornicy, lokatorzy), są tylko w notatce gospodarstwa; osoba
+    z nich nie powstaje. Nic więcej się nie zapisuje: rok i miejsce urodzenia z arkusza nie są urodzeniem;
+  - **data:** sam rok oznacza dzień spisu danego roku, gdy strom go zna: w Czechach 31.10.1857, 31.12.1869, 1880,
+    1890, 1900 i 1910 oraz 15.2.1921. W przeciwnym razie zostaje rok. Pełna data ma pierwszeństwo;
+  - **miejsce** to gmina lub wpis miejsca, nigdy ulica ani numer domu. Dom pisze się tak, jak podaje go arkusz („14”,
+    „Dlouhá 12”);
+  - **stosunek:** stałe słowa (głowa gospodarstwa domowego, żona, mąż, syn, córka, ojciec, matka, teść, teściowa, zięć,
+    synowa, wnuk, wnuczka, brat, siostra, pasierb, pasierbica, wychowanek, krewny, służący, służąca, parobek, dziewka,
+    lokator, komornik, dożywotnik, uczeń, czeladnik) są rozpoznawane po czesku, angielsku, niemiecku i polsku
+    i zapisują się słowem języka badania. Inny stosunek zostaje tak, jak jest napisany;
+  - stosunek, jak piszą go formularze i odczyty arkusza: „přednosta [domácnosti]”, „hlava rodiny”,
+    „Haushaltungsvorstand”, „głowa rodziny” i „head of the household” to głowa gospodarstwa domowego. Dopisek, który
+    mówi tylko, do kogo stosunek się odnosi („manželka přednosty”, „son of the head”, „Tochter des
+    Haushaltungsvorstandes”, „v domácnosti”), zostaje odcięty. Z wyliczenia po przecinku obowiązuje głowa
+    gospodarstwa domowego, jeśli w nim jest; w przeciwnym razie zostaje całe;
+  - **odrzuca się:** członka, który nie jest osobą drzewa (albo jest scalony lub wycofany), osobę podaną dwukrotnie,
+    członka bez stosunku, osobę, która najpewniej żyje, dwie głowy gospodarstwa i gospodarstwo już zapisane (ten sam
+    rok, gmina i dom);
+  - **ostrzega:** w tym samym domu i roku są inne osoby drzewa (inne gospodarstwo domu albo to samo zapisane
+    dwukrotnie); spis tego samego roku gdzie indziej (przeprowadzka albo dwie osoby wzięte za jedną);
+  - kopie pozostają jednym wydarzeniem: wspólna dana poprawiona w jednej kopii (`strom event edit`, `strom cite`,
+    `strom note edit|retract|restore`, `strom event main`) i propozycja poprawki przyjęta w jednej kopii obowiązują
+    dla wszystkich. Wiek, stosunek, weryfikację i potwierdzenie człowieka ma każda kopia własne; stan badań trafia do
+    wszystkich kopii tylko wyraźnie (`--status`). Do wspólnej notatki nie trafia nic, co należy do jednej kopii;
+  - zapisać gospodarstwo można także przy wyłączonych spisach: polecenie zapisuje dostarczony arkusz, niczego nie
+    szuka.
+- **Tylko metodyka:**
+  - arkusz czytać jak wpis metrykalny, całe gospodarstwo i głowę domu; zapisać raz. Każdy rok to osobne gospodarstwo,
+    nigdy się ich nie scala;
+  - **wskazówka, nie dowód:** rok lub miejsce urodzenia, gmina przynależności i zawód ze spisu nigdy nie zastąpią
+    urodzenia ani chrztu. Prowadzą do metryk: zadanie znaleźć parafię miejsca urodzenia. Gdzie spis i metryka się
+    rozchodzą, powstaje notatka lub hipoteza; danej z metryki ze względu na spis się nie zmienia;
+  - **przenumerowane domy:** dom rozpoznawać także po sąsiadach i nazwiskach, nie tylko po numerze; niepewność podać
+    w notatce.
+- **Obsługa:** terminal: `strom census add --source S… --date <rok|dzień> --place <gmina|L…> --house <nr>`
+  `--member P…:<stosunek>:<wiek> … [--others "…"] [--note "…"] [--locator "…"] [--transcript "…"]`. Aplikacja:
+  gospodarstwo przy każdej osobie i na **Osi czasu** ([A10.2](A10-shared-events.md#A10.2), [A6.3](A6-views.md#A6.3)).
+  Przykład (zmyślony): `strom census add --source S0004 --date 1890 --place L0007 --house 14`
+  `--member P0002:"głowa rodziny":41 --member P0003:"żona głowy rodziny":36 --others "parobek, 19 lat"`
+  zapisze Janowi Horákowi głowę gospodarstwa domowego (41), a Marie Horákovej żonę (36), oba na dzień 31.12.1890.
+- **Obowiązuje od:** badanie 1.36.0, aplikacja 3.31.0
+
+<!-- zdroj: research:8dba2e52 src/commands/household.ts census add (--source, --date, --place, --house, --member, --others, --note, --locator, --transcript/--quote, --information, --status, --country; sameHouse, elsewhere) · src/core/household.ts addHousehold (census.member.none, record.none, merged/retracted, census.member.twice, census.living, relace chybí, census.head.twice, domácnost už zapsaná; jeden člen bez share id, vztah do poznámky; others jen v poznámce), parseMember, alignCopies · src/gedcom/export.ts (2 NOTE bez řádků kopie) · src/commands/people.ts alignCopies u note edit/retract/restore, cite, event edit, event main · research:ece404b9 src/core/origin.ts (přijatý návrh na všechny kopie), censusDay jedna tabulka · research:5a73905e assets/archives.json censusDays CZ · research:d2bef48e src/core/household.ts householdRoleOf, src/core/phrases.ts HOUSEHOLD_ROLES, HOUSEHOLD_ROLES_ALSO, HOUSEHOLD_OF_HEAD · test/cli/census-household.test.ts, census-reader.test.ts · assets/method/census.md „Reading and recording“ · CHANGELOG.cs.md 1.36.0 · dirigent:spec/106 K3.1–K3.3 · dirigent:prace/1120-vyzkum-106-scitani Výsledek (census add i při vypnutí, stav jen výslovně) -->
+
+<a id="R9.12.4"></a>
+### R9.12.4 Spisy ludności wyłączone: odłożone zadania
+
+Wyłączenie spisów odkłada zadania spisu, nie usuwa ich. Po włączeniu wracają same.
+
+- **Pilnuje kod:**
+  - przy wyłączonych spisach zadania spisu otwarte lub czekające (także na skany) są poza kolejką, jej liczbami, Co
+    czeka i stanem dla aplikacji. Nic się nie zapisuje ani nie usuwa: odłożenie wylicza się z ustawienia;
+  - zadanie, nad którym sesja właśnie pracuje, nie zostaje odłożone: sesja je dokończy. Jeśli zostanie niedokończone,
+    jest znów otwarte i od tej chwili odłożone. Agent słyszy to przy zamykaniu sesji;
+  - zadanie, które człowiek odłożył na później, zostaje odłożone jak dotąd. Załatwione i anulowane zadania się nie
+    zmieniają;
+  - `strom task list` mówi, ile zadań spisu jest odłożonych; `strom task list --kind census` pokazuje je z oznaczeniem
+    „held: census off”. Przy odłożonym zadaniu uruchomionym według numeru (`strom session start T…`) agent słyszy, że
+    zadanie jest odłożone, aby zamknął sesję i wziął inne zadanie;
+  - menu ustawień pokazuje przy ustawieniu np. „wyłączone, odłożone 3 zadania spisu”, a po wyłączeniu zdanie
+    „Odłożone: 3 zadania spisu. Wrócą po włączeniu.”
+- **Obsługa:** terminal: ustawienie w [R9.12](#R9.12), `strom task list --kind census`. Aplikacja: przełącznik
+  [S4.4.10](S4-research-from-the-app.md#S4.4.10) ze zdaniem o odłożonych zadaniach.
+- **Obowiązuje od:** badanie 1.36.0
+
+<!-- zdroj: research:c7b117cd src/core/census.ts censusHeld (open, parked do uplynulého dne, waiting; nikdy doing ani parked člověkem), censusHidden, censusHeldCount · src/core/queue.ts rankTasks censusHide · src/core/waiting.ts (Co čeká) · src/core/live.ts censusStatus (/status.census {on, held}) · src/commands/tasks.ts task list (censusHeldNow, „held: census off“, --kind census) · src/commands/session.ts censusLine, censusCloseLine · research:5a73905e src/cli/menu-settings.ts censusLabel (ui.settings.census.held), censusStep (ui.settings.census.back) · test/cli/census.test.ts (M3) · dirigent:spec/106 K1.3, rozhodnutí 20. 11. M3 -->
+
+<a id="R9.13"></a>
+## R9.13 Archiwum z ograniczeniami: jedna sesja naraz
+
+Archiwum, które ogranicza zautomatyzowany dostęp, używa naraz tylko jedna sesja ze wszystkich badań ze wspólnym
+folderem na komputerze. Archiwum nie zablokuje więc dostępu, a jeden wykonawca idzie pełnym dozwolonym tempem, zamiast
+żeby kilku dzieliło się tempem.
+
+- **Archiwum z ograniczeniami:** warunki archiwum wymagają ludzkiego tempa albo tylko przeglądarki, człowiek dał zgodę
+  „powoli” lub „przez przeglądarkę” ([R9.2](#R9.2)), albo program pobierający archiwum ma limit godzinowy. Odrzucenie
+  przez archiwum (401, 403, 429) nie czyni archiwum archiwum z ograniczeniami: archiwum zostaje na chwilę zostawione
+  w spokoju jak dotąd. Archiwum rozpoznaje się po domenie witryny.
+- **Pilnuje kod:**
+  - zadanie, którego księgi leżą tylko w archiwum z ograniczeniami, przy zajęciu zadania bierze także archiwum.
+    Archiwum trzyma sesja; agent, który dopiero zabłądzi do archiwum, zajmuje je pierwszym zapytaniem;
+  - trzymanie archiwum kończy się z sesją, z wygaśnięciem sesji ([R7.9](R7-when-the-agent-works.md#R7.9)) albo po
+    `archive.hold` (domyślnie 30 min) bez zapytania do archiwum, nawet gdy sesja dalej trwa. Kto tylko czyta pobrane
+    skany, zwalnia tak archiwum;
+  - zadanie w archiwum, które trzyma inna sesja, zostaje na razie pominięte i bierze się inną pracę („pominięte:
+    archiwum … ogranicza zautomatyzowany dostęp i używa go teraz inna sesja”). Zapytanie agenta do takiego archiwum
+    zostaje odrzucone;
+  - samodzielna praca, której zostały tylko takie zadania, czeka najwyżej `archive.wait` (domyślnie 30 min). Do
+    archiwum podczas czekania nic się nie wysyła. Potem przebieg kończy się z powodem „nic więcej do zrobienia –
+    pozostałe zadania potrzebują archiwum …, którego przez cały czas oczekiwania używała inna sesja”;
+  - `strom session start T…` przy zadaniu zajętego archiwum zostaje odrzucone jednym zdaniem: „Archiwum … używa teraz
+    inne badanie (od 9:10, ostatnio 9:40); zwolni się najpóźniej o 10:10.” W tym samym badaniu zamiast „inne badanie”
+    stoi numer sesji;
+  - kto czeka na archiwum, stoi w kolejce; po zwolnieniu pierwszeństwo ma ten, kto czeka najdłużej. Sesja, która
+    archiwum puściła, nie zajmie go od razu ponownie, gdy ktoś na nie czeka.
+- **Pobieranie zbiorcze:** na komputerze działa naraz tylko jedno zbiorcze pobieranie skanów z archiwum
+  z ograniczeniami (`strom fetch`). Kolejne ustawia się w kolejce („queued behind …”) i czeka samo najwyżej
+  `archive.wait`; potem kończy się z godziną, kiedy spróbować ponownie. Pobieranie trzyma też archiwum, więc agenci
+  innych badań je pomijają. Archiwa bez ograniczeń się nie zmieniają: ich tempa dalej pilnuje tylko ogranicznik
+  zapytań.
+- **Granice:** trzymanie nie mówi, jak szybko się pobiera, tylko kto; tempo archiwum się nie zmienia. Starszy strom obok
+  tego archiwów nie trzyma i trzyma się tylko tempa.
+- **W aplikacji:** kto używa archiwum i na które archiwum praca czeka, pokazuje Przegląd badania
+  ([S4.1](S4-research-from-the-app.md#S4.1), [S4.2](S4-research-from-the-app.md#S4.2)).
+- **Obsługa:** terminal: `strom config set archive.hold <minuty>`, `strom config set archive.wait <minuty>` (np. `45m`,
+  `2h`; od 5 min do 24 h, obowiązuje dla tego komputera); menu pokazuje „Praca samodzielna czeka na archiwum …
+  (najdłużej do …).”
+- **Obowiązuje od:** badanie 1.36.0
+
+<!-- zdroj: research:10894288, 9408c7ea, 41dcd8eb src/core/archiveholds.ts (hlavička; restrictedLevel: browserOnly, permission slow|browser, allows(…).human; ne forbidden/refused; cappedConnector policy.pace.perHour; siteOf webDomain; siteLife: proces, sezení, archive.hold; PRIORITY_MS 2 min; joinQueue, releaseSite; BULK) · src/commands/connectors.ts:1443-1448 (help fetch), :3085-3190 holdArchive (fetch obrázků čeká ve frontě ≤ archive.wait, ostatní exit 7 data.held) · src/commands/session.ts:985-997, :1355-1389 (stop archive) · src/core/errors.ts:142 archive.held(.own) · src/core/config.ts:336-337 archive.hold, archive.wait · cs.json ui.run.skip.archive, ui.run.archive.wait, ui.run.stop.archive, ui.error.archive.held(.own), ui.menu.working.archive · CHANGELOG.cs.md 1.36.0 · dirigent:spec/127 K2.1–K2.5, K5.1, rozhodnutí 21. 11. (1)–(3), navrh-rezervace.md kap. 5 -->

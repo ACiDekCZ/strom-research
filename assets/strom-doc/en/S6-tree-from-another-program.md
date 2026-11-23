@@ -82,6 +82,11 @@ mark on the card in the tree and verifying facts against the originals are descr
   [S7.2](S7-reliability-and-verification.md#S7.2)).
 - **From app 3.26.0:** two full dots at **Proven** go to a fact for which two readers of the record agreed when the
   research verified it; the card in the tree has one mark instead of the earlier two settings.
+- **From app 3.31.0 with research 1.36.0:** a name from the family tree no longer stays **From family tree** for
+  good: the research gives it a degree by the records that support it, and it can be verified and confirmed against
+  the scan ([S7.10](S7-reliability-and-verification.md#S7.10), [R10.5.2](R10-people-and-hypotheses.md#R10.5.2)).
+  When no fact of the person is from the family tree alone any more, the line at the person says “This person's
+  facts came from {program} (file {date}, loaded {date}); none is from the family tree alone any more.”
 - **Since:** app 3.26.0, research 1.30.0
 
 <!-- zdroj: app:7b0471f8 src/reliability.ts (pořadí human, proven, probable, possible, import, lead, none; tečky, ✓ a rámeček, ne barva; feature origin; bez záznamu o importu žádné Z rodokmenu; readers z _STROM_CHECKED, noSource nekrmeno) · src/ui/fact-status.ts · src/ui/person-reliability-ui.ts · src/settings.ts display.reliabilityCard (ON) · src/ui/card-signals-ui.ts (signál status, výchozí zapnuto) · index.html settings-group-card · strings.ts reliability.settingCard, cardDensity.cardStatus, settings.groupCard · app:669c08f0 src/reliability.ts userTreeOrigin (_STROM_ORIGIN tree) -->

@@ -73,7 +73,7 @@ strom pilnuje obu tak samo.
   ocenić każdy adres jak przy Chrome.
 - **Obsługa:** aplikacja Claude: ustawienie **Preferred browser**. Terminal: `strom doctor`, wiersz **przeglądarka
   aplikacji desktopowych**, a przy przeglądarce w Chrome **w rozmowie w aplikacji Claude: tak; praca samodzielna
-  (strom run --chrome): tylko z Claude Code w terminalu**.
+  (strom run): tylko z Claude Code w terminalu**.
 - **Obowiązuje od:** badanie 1.29.0
 
 <!-- zdroj: research:src/core/browser.ts (matcher mcp__(remote-devices__)?Claude_Browser__*) · src/core/chromehook.ts · src/core/webgate.ts browserGate · assets/lang/pl.json ui.doc.desktop.unwatched, ui.doc.browser.apponly · CHANGELOG.pl.md 1.29.0 · test/vysledek-062-u4-desktop.md kroky 1–3 · test/vysledek-1106-vyzkum-062-desktop.md bod 3 · test/vysledek-desktop-chrome.md bod 4, bod 6 -->

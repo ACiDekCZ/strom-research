@@ -60,8 +60,93 @@ setting **My source transcriptions** decides how the research takes it
   ([R3.4](R3-verification-and-citation.md#R3.4)) is under the transcription as a folded section **Translation of the
   transcript**: in the source viewer and on the source card on a person's page. The note of the source does not
   change; the note editor shows it whole. A source without a translation looks as before.
+- **From app 3.25.0:** a transcript only the research read can be confirmed in the source viewer without changing the
+  text ([A3.1.3](#A3.1.3)).
 
 <!-- zdroj: app:src/research-sync.ts:357 researchReadSource, :365 isOlderSource, :377 verifiedOffer, :385 unverifiedOlderSources · src/ui/sources.ts:618 renderSourceReading, :658 sourceVerifiedValue, :296 renderSourcesFilter, :377 renderSourceViewer · strings.ts sources.verified/verifiedHintGuide/verifiedHintOlder/verifiedByTree/readBy/userReadingNote/filterUnverified · překlad (od 3.24.0): src/source-translation.ts SOURCE_TRANSLATION_LABELS, splitSourceTranslation · strings.ts viewerTranslation, translation · commit c2942b0 -->
+
+<a id="A3.1.2"></a>
+### A3.1.2 Delete source in a followed tree
+
+In a tree the app follows live from the research, a source can be deleted directly in the research. The research
+retracts the source ([R3.10](R3-verification-and-citation.md#R3.10)): its citations leave the facts and stories, the
+dates, places, names and the text of stories do not change, and the deletion can be undone.
+
+- The window **Sources** is read-only in a followed tree: no editing and no adding, the row of a source has only a
+  bin. When the research does not answer, the bin is inactive and on hover says "Deleting a source works while the
+  research runs." On a touch device the row has **⋯** instead of the bin, with a sheet from the bottom: **Open
+  source** and **Delete source…**.
+- The dialog **Delete source?** first checks in the research what rests on the source ("Checking in the research
+  what refers to the source…"), and only then allows deleting. Under the heading **What rests on the source** it
+  says how many citations on facts and how many stories cite the source, and by rows:
+  - **Facts** and **Without a source**: which facts are left without a source ("The facts stay, only without a
+    citation.") and which also have another source;
+  - **Less certain**: how many facts become less certain;
+  - **Stories**: "The story text stays; the source only leaves the story’s list of sources." The source's code in
+    the text stays, only no longer as a link;
+  - **Conflicts**: a conflict stays and is marked "source retracted – to review"
+    ([S3.4.1](S3-what-the-research-knows.md#S3.4.1)); a decided one shows "the decision stays". A conflict does not
+    close by itself;
+  - **Tasks** (open, in progress, parked, waiting): a task only on this source ends as given up, from another task
+    the source leaves the task's places; it also says when an agent is working on the task right now. **Undo**
+    returns the tasks to their current state;
+  - **Files**: a file stays in Materials, only without the link to the source; archive images stay with the source.
+    When the source was made from a family tree file, the dialog says so; the file itself can be deleted in
+    Materials ([A3.5.17](#A3.5.17)).
+
+  A source nothing cites has only "Nothing cites the source."
+- After **Delete source** the notice says "Source … deleted in the research." with **Undo**. **Undo** returns the
+  source with its citations; a citation whose fact has changed meanwhile cannot be returned, and the notice says how
+  many. Later the source can be restored in the research (`strom source restore`).
+- **Enforced by the code:**
+  - the deletion holds only for the list the dialog showed, and for at most 15 minutes. When the list has changed
+    meanwhile or the confirmation has expired, the dialog shows the new list and the deletion must be confirmed
+    again;
+  - when the research is writing right now, the deletion is tried again in a moment. For a source that is no longer
+    in the research, the tree is loaded again; a source already retracted is reported by the dialog;
+  - a read-only research (sealed on another computer) does not offer the deletion.
+- **Limits:**
+  - only in a followed tree of a research that can delete a source, and only for a source from the research; not in
+    a copy of the tree. Deleting while editing a tree from the research is described in
+    [S2.6.1](S2-edits-from-the-app.md#S2.6.1);
+  - **Undo** needs a running research; otherwise the notice says that the source can be restored in the research.
+    A source merged or retracted otherwise in the research cannot be restored.
+- **Controls:** app: **Actions → Sources** → the bin (on touch **⋯** → **Delete source…**) → **Delete source**;
+  the notice → **Undo**. In a followed tree the item **Sources** is in the menu only when the deletion can be
+  offered.
+- **Since:** app 3.31.0 with research 1.36.0
+
+<!-- zdroj: app:d527ffdd src/source-retract.ts sourceRetractOfferedIn (null bez sledování, jen ke čtení, kopie link.copy, bez brány source.retract; off když most neodpovídá), RETRACT stavy · 9d91f035, 4178ef85 src/ui/sources.ts sourcesReadOnly, openSourceRowSheet, source-retract-ui.ts (dialog, toast Vrátit, /source/restore) · src/ui/tree-management.ts isSourcesMenuOffered (zamčený strom jen se sourceRetractOffered) · strings.ts sources.retract.* (trashOff, rowMenu, menuDelete, menuOpen, title, intro, loading, usesTitle, counts, rows, bare, hasOther, lowered, storyKeep, storyCode, conflictReview, conflictDecided, conflictNever, taskState, taskDropped, taskNarrowed, taskDoing, tasksBack, filesStay, images, fileTree, undoLater, noCites, go, changed, expired, busyWait, gone, already, readonly, toast, undo, restored, restoredPart, restoreDown, notRestorable) · SPEC.md 1120-app-117-smazani · research:e6bbfb40 src/core/sourceretract.ts RETRACT_CONFIRM_MS · spec 117 §1–§3, J3 -->
+
+<a id="A3.1.3"></a>
+### A3.1.3 Confirm the research's transcription
+
+A transcription only the research read can be confirmed by the user: they read the entry themselves and the
+transcription matches. The text does not change; the transcription then also counts as the user's reading
+([R3.5.2](R3-verification-and-citation.md#R3.5.2)).
+
+- In the source viewer, at the end of the line "Transcription read by the research", is a small button **Confirm
+  transcription** ("The transcription matches the record. It will also count as read in the app."). After
+  confirming, the line reads "Transcription read by the research and confirmed in the app on ‹date›" and the button
+  is **Undo confirmation** ("The transcription counts again as read by the research only.").
+- **Limits:**
+  - only for a source with a transcription the research knows and only the research read; a transcription the user
+    read in another way cannot be confirmed;
+  - only in a tree connected to the research whose bridge takes confirmations; not in a Strom archive, in a research
+    waiting for its agent, or in a tree opened read-only;
+  - when the research is not running, the button is at rest with the sentence "Confirming is possible while the
+    research is running." (for undoing "Undoing the confirmation is possible while the research is running.");
+  - the research writes the confirmation, not the app. The answer is shown at once; it comes into the tree with the
+    research's next version;
+  - the research may refuse and the app says why: the transcription changed meanwhile ("The new wording can be
+    confirmed once it arrives."), the source is merged, withdrawn or no longer in the research, or the research was
+    last written by a newer version of Strom Research;
+  - a confirmation does not change the level of certainty in the app; the research decides.
+- **Controls:** app: **Actions → Sources** → a source → **Confirm transcription** / **Undo confirmation**; also in a
+  tree the app follows live from the research.
+- **Since:** app 3.25.0, research 1.29.0
+
+<!-- zdroj: app:v3.30.0 src/source-confirm.ts (SOURCES_CONFIRM_FEATURE sources.confirm, SOURCE_CONFIRM_TIMEOUT_MS, sourceConfirmAction, sourceConfirmOffer: agentless, readOnly, rest) · src/ui/source-confirm-ui.ts (prohlížeč pramene, odpověď hned, strom až s další verzí výzkumu _STROM_READ/_CONF/_TXT) · strings.ts sources.readConfirmed, sources.confirm.action/actionTitle/undo/undoTitle/restConfirm/restUndo/changed/merged/retracted/reader/none/archive/locked · CHANGELOG.cs.md 3.25.0 · research:src/core/confirm.ts -->
 
 <a id="A3.2"></a>
 ## A3.2 Citation: what a source supports
@@ -302,6 +387,23 @@ nowhere in the tree (**only in the archive**).
   attachments and **Materials** in the person menu (the window filtered to the person).
 - **Since:** app 3.9.0; the section and window **Materials** 3.16.0; 3.30.0: the window in every tree, a file of the
   tree as one material with its places (data version 24)
+- **From app 3.31.0 with research 1.36.0:** the research goes through the files by itself only with the setting
+  **The agent goes through files sent to the research by itself** switched on
+  ([S4.4.11](S4-research-from-the-app.md#S4.4.11), [R11.6](R11-material-from-the-user.md#R11.6)). Off (the default):
+  - **Send material…** says "Nothing is added to the tree. The research stores the files with the person. They wait
+    in Materials; the agent goes through them only on request." (at a source "… with the source."). After sending,
+    the message "Sent to the research: 1 file for Jan Horák. It waits in Materials, not sorted yet." with **Sort with
+    the agent…** (on a computer with the window **Materials**, [A3.5.8](#A3.5.8)) and **Show**;
+  - the confirmation of a batch **Add materials…** has no blocks **Privacy** and **Estimated cost**, only "The files
+    are stored in the research, outside git, and wait in Materials unsorted. The agent sorts them only on request;
+    the cost is shown before that.";
+  - the end of the batch says "The files wait in Materials, not sorted yet. The agent sorts them only on request."
+    and offers **Sort with the agent…** for the batch's files; when that cannot be done at once, it points to **Sort
+    with the agent…** in Materials. On: "The research sorts the batch by itself. …" with the count **Sorting tasks**;
+  - a file the agent has not gone through yet has the state **not sorted** in Materials (on: **waiting to be
+    processed**).
+
+  With an older research the earlier texts apply.
 
 <!-- zdroj: dirigent:spec/102-sprava-materialu-a-pramenu · app:2b66d7cf src/types.ts STROM_DATA_VERSION 24, Attachment.places (MediaPlace), migrace v23→v24 (stejný soubor u více osob jeden záznam) · src/media.ts allMedia, treeMedia · app:1ebf7896 src/ui/materials-ui.ts materialsWindowOn, materialsListOn · src/ui/tree-management.ts (Akce › Materiály) · src/ui/research-actions-ui.ts:373 · src/ui/attachments-ui.ts attachments-all-materials · app:a275d977 menu osoby Materiály · src/ui/material-ui.ts MATERIAL_MAX_FILES, MATERIAL_NOTE_MAX, REFUSED_EXT, materialAvailable · strings.ts material.*, materials.desktopOnlyResearch, treeReadOnly, olderEdit, assignNewer, agentSort.older · app:CHANGELOG.cs.md 3.30.0 -->
 
@@ -330,8 +432,10 @@ research's files too.
   tablet and in a window up to 1024 px it is in **Filters**.
 - **Controls:** see [A3.5](#A3.5); selecting files: **Select**, Ctrl/Cmd+A selects what the filters show.
 - **Since:** app 3.30.0
+- **From app 3.31.0:** on a phone the window also opens from **More → For the family**: the first row **Materials**
+  with the number of files. On a tablet **Materials** stays on the first level of **More**.
 
-<!-- zdroj: app:c9775287 src/materials-overview.ts chooseSort, sortOverviewGroups (uvnitř skupin), src/ui/materials-window.ts mwSortChipHtml, mwSortMenu, mwSortColumns (intree jen model archive), mwSetSort → writeListPrefs (localStorage), filtry ≤ 1024 · strings.ts materials.sortBy, sortChip, sortDefault, sortAscending, sortDescending · app:1ebf7896 src/ui/materials-ui.ts, src/ui/materials-window.ts (skupiny, Kde soubory jsou) · app:a1127378 sloupce seznamu, Ctrl/Cmd+A · app:b198b1c2 src/media-uses.ts materialPersonLabel (Neznámá osoba) · app:e6e16634 staleEdit · app:prace/1117-app-102-materialy D1 (telefon: bez řádku Materiály ve Více) · strings.ts materials.groupAdded, groupPerson, groupBatch, groupDate, whereTitle, whereApp, whereArchiveResearch, whereEncryptedResearch, search, showHidden, unknownPerson, staleEdit -->
+<!-- zdroj: app:c9775287 src/materials-overview.ts chooseSort, sortOverviewGroups (uvnitř skupin), src/ui/materials-window.ts mwSortChipHtml, mwSortMenu, mwSortColumns (intree jen model archive), mwSetSort → writeListPrefs (localStorage), filtry ≤ 1024 · strings.ts materials.sortBy, sortChip, sortDefault, sortAscending, sortDescending · app:1ebf7896 src/ui/materials-ui.ts, src/ui/materials-window.ts (skupiny, Kde soubory jsou) · app:a1127378 sloupce seznamu, Ctrl/Cmd+A · app:b198b1c2 src/media-uses.ts materialPersonLabel (Neznámá osoba) · app:e6e16634 staleEdit · app:prace/1117-app-102-materialy D1 (telefon: bez řádku Materiály ve Více) · strings.ts materials.groupAdded, groupPerson, groupBatch, groupDate, whereTitle, whereApp, whereArchiveResearch, whereEncryptedResearch, search, showHidden, unknownPerson, staleEdit · 3.31.0: app:122a5096 src/ui/bottom-sheet.ts materialsRow (s počtem materialsAppCount) jako první řádek stránky menu.forFamily jen isPhoneBar, jinak v první úrovni · strings.ts materials.menu, menu.forFamily · dirigent:prace/1122-app-mobil-drobnosti -->
 
 <a id="A3.5.2"></a>
 ### A3.5.2 Title, kind and date
@@ -394,8 +498,11 @@ a link to the person or the source.
 - **Controls:** the file viewer (**Link to…** or P; the arrows change the target, Enter links); a selection in the
   window **Materials**.
 - **Since:** app 3.30.0
+- **From app 3.31.0:** a person who already has all the chosen files (by a place in the tree or by an assignment in
+  the research) stands above the list as a chip marked "already linked", without ×, and is ticked in the list and
+  cannot be changed. "Nobody yet" is not shown beside them.
 
-<!-- zdroj: app:a275d977 src/ui/material-attach-ui.ts openAttachDialog, MAX_PEOPLE=50, materialKeptByArchive, dup dialog · strings.ts materials.attach, attachTarget, coupleNote, archiveOnlyResearch, dupTitle, dupAttach, dupNew, dupLinkedToast, assignMax, noRefnTreeResearch -->
+<!-- zdroj: app:a275d977 src/ui/material-attach-ui.ts openAttachDialog, MAX_PEOPLE=50, materialKeptByArchive, dup dialog · strings.ts materials.attach, attachTarget, coupleNote, archiveOnlyResearch, dupTitle, dupAttach, dupNew, dupLinkedToast, assignMax, noRefnTreeResearch · 3.31.0: app:9eee6b2c src/ui/material-attach-ui.ts attachFixedPeople (místo ve stromu nebo REFN ve výzkumu, u všech souborů), src/person-picker.ts fixedChips · strings.ts materials.attachAlready, noneChosen · dirigent:prace/1122-app-portret-dev -->
 
 <a id="A3.5.5"></a>
 ### A3.5.5 A source from a file and the evidence of a source
@@ -735,12 +842,52 @@ dialog that first says what refers to the files; it cannot be undone in the app.
     **Remove from the tree…** ([A3.5.6](#A3.5.6));
   - at most 500 files at once ("At most 500 files can be deleted at once.");
   - only with a research that can delete and with a running bridge; never in a read-only tree;
-  - on a narrow screen the dialog is a sheet from the bottom.
+  - on a narrow screen the dialog is a sheet from the bottom;
+  - a family tree file and a file a valid source was made from are described in [A3.5.17](#A3.5.17).
 - **Controls:** the window **Materials** → a selection → ⋯ → **Delete permanently…** (the last item); the file
   viewer (the last action). Terminal: `strom input delete` ([R11.5.6](R11-material-from-the-user.md#R11.5.6)).
 - **Since:** app 3.30.0, research 1.35.0
 
 <!-- zdroj: app:05e13ef7 src/ui/material-delete-ui.ts openDeleteDialog (suchý běh, potvrzení mostu, zaškrtnutí, Zrušit s fokusem, hideInstead, changed, expired, toast bez Zpět, list zespodu), src/material-delete.ts deletableFiles (origin ≠ tree, file), src/materials.ts DELETE_MAX_FILES=500, MATERIAL_DELETE_FEATURE · src/ui/materials-window.ts sel-delete (caps.delete, ne jen ke čtení, bridgeUp), src/ui/material-viewer-ui.ts (inArchive, poslední akce) · app:6949d833, f214eda6 (množné číslo, understandHint) · strings.ts materials.del.* · research:0cc2cfca src/core/materialdelete.ts DELETE_MOST_FILES, DELETE_CONFIRM_MS -->
+
+<a id="A3.5.17"></a>
+### A3.5.17 A family tree file in Materials
+
+The window **Materials** also shows the family tree files the research has: an imported GEDCOM or a JSON file of the
+app. They can be viewed and deleted permanently; when a source was made from one, only together with the source.
+
+- The tile and the row of **List** show the kind and size ("Family tree file · 184 kB") and the tag **File of a
+  source** when a source was made from the file ([A3.5.14](#A3.5.14)). A family tree file is never **In the tree**:
+  it does not have that tag and the filter **In the tree** does not count it, not even when the source from it is in
+  the tree. The filter **Type** has the row **Family tree files** only when there is one.
+- Family tree files are outside the agent's sorting, bulk actions, **No person** and the counts of **Go through**.
+  Their title, kind, date and people do not change.
+- The file's menu (on a narrow screen a sheet from the bottom) has only **Details** and **Delete permanently…**.
+  **Details** are without a preview and name the source made from the file ("the file of the source …").
+- **Delete permanently…** for a file no source was made from: a dialog as in [A3.5.16](#A3.5.16), with the sentences
+  "The family tree file is deleted from the research archive. This cannot be undone in the app." and "Nothing refers
+  to the file: no source was made from it.", without **Only hide – can be undone**.
+- **Delete permanently…** for a file a still valid source was made from: a two-part dialog **Delete the source and
+  the file?** ("The source … was made from this file. The file is deleted after the source, both at once."):
+  - **First the source is deleted**: what rests on the source, as in the dialog **Delete source?**
+    ([A3.1.2](#A3.1.2));
+  - **Then the file is deleted**: what refers to the file; the source "deleted in the first step";
+  - "The source can be restored in the research later, but without the file.", one checkbox **I understand the file
+    cannot be brought back in the app** and the button **Delete source and file**.
+
+  Both are written at once, in one write in the research. The notice "Deleted the source … and the file …." has no
+  **Undo**, and the source then disappears from the tree.
+- **Enforced by the code:** when the list has changed meanwhile, the dialog shows the new one, clears the tick and
+  the deletion must be confirmed again. A failed write deletes nothing ("Writing to the research failed. Nothing was
+  deleted.") and allows trying again.
+- **Limits:** only with a research that reports family tree files in the material; without it the window does not
+  show them. Deleting as in [A3.5.16](#A3.5.16): only with a running bridge and never in a read-only tree.
+- **Controls:** the window **Materials** → a family tree file → ⋯ → **Details** / **Delete permanently…**; the
+  filter **Type → Family tree files**. Terminal: `strom input delete I… --retract-sources S…`
+  ([R11.5.6](R11-material-from-the-user.md#R11.5.6)).
+- **Since:** app 3.31.0 with research 1.36.0
+
+<!-- zdroj: app:36601947 src/materials-overview.ts (druh tree za bránou material.trees, trees=1; mimo třídění, hromadné akce, bez osoby, počty Projít; podrobnosti nejdou upravit), src/material-delete.ts treeFileSource, retractSources, blockedBy (409 material.source-live) · 2a406d67 dlaždice a řádek (Soubor rodokmenu · velikost, štítek zdroje), filtr Druh, nabídka Podrobnosti + Smazat natrvalo… (list zespodu), Podrobnosti bez náhledu, dialog bez pramene bez Jen skrýt · b40b22e4 dvoudílný dialog · d9af4b16 (ne Ve stromu, ani štítek, ani filtr) · e2e/material-tree-delete.spec.ts (hlavička) · strings.ts materials.treeFile, kindTrees, treeFileOf, treeDetails, del.textTree, noRefsTree, bothTitle, bothIntro, partSource, partFile, laterNoFile, fileSourceSub, understandFile, bothGo, bothChanged, bothNone, bothToast · SPEC.md 1120-app-117-smazani, 1120-app-108-diry · spec 117 §5–§7 -->
 
 <a id="A3.6"></a>
 ## A3.6 Sources of a person
@@ -889,8 +1036,11 @@ found again even when the archive changes the addresses of its images or the boo
 - **Controls:** the source editor (**Edit source**, **Add source**): **Archive**, **Call number**, **Folio/page**,
   **Image**, **Other location**, **URL**; the proposal **From the location:** with **Use** and **Undo**.
 - **Since:** app 3.27.0
+- **From app 3.31.0:** for an image the research found from its registered scans, GEDCOM cuts no other image out of
+  the location: it gets the whole location and the image from the field after it, when the location does not name it
+  ([A2.6](A2-loading-a-family-tree.md#A2.6)).
 
-<!-- zdroj: app:c3278633 src/types.ts Source.callNumber/folio/image (reference = další umístění), src/source-location.ts hasPlaceFields, recognizeLocation, locatorOverlap, composePage, sourcePlaceParts, sourcePlaceLine (short: imageShort), test/fixtures/source-locations.json (38 případů společných s výzkumem) · 9732853b src/ui/sources.ts:1269 (návrh sleduje psaní), :1363-1400 řádek pod poli (taken/conflict/proposal jen při prázdném foliu i snímku), :1429 Vrátit; prázdná pole odebrána · 2f4a9c2f prohlížeč (viewerBook/viewerEntry/viewerLocation/viewerNoUrl), Správa a výběr, bublina čipu, person-page.ts, book-blocks.ts, family-pages-html.ts · strings.ts sources.fieldRepository(Ph)/fieldCallNumber(Ph)/fieldFolio(Ph)/fieldImage(Ph)/fieldImageHelp/imageHelpLabel/fieldReference(Ph)/proposalFrom/proposalRest/proposalTake/proposalTaken/proposalUndo/conflictImage/conflictFolio/conflictFix/conflictFixEmpty/imageShort · spec 075 K1.1, rozhodnutí 1, 2, 5 · dirigent:prace/1111-app-citace-pole -->
+<!-- zdroj: app:c3278633 src/types.ts Source.callNumber/folio/image (reference = další umístění), src/source-location.ts hasPlaceFields, recognizeLocation, locatorOverlap, composePage, sourcePlaceParts, sourcePlaceLine (short: imageShort), test/fixtures/source-locations.json (38 případů společných s výzkumem) · 9732853b src/ui/sources.ts:1269 (návrh sleduje psaní), :1363-1400 řádek pod poli (taken/conflict/proposal jen při prázdném foliu i snímku), :1429 Vrátit; prázdná pole odebrána · 2f4a9c2f prohlížeč (viewerBook/viewerEntry/viewerLocation/viewerNoUrl), Správa a výběr, bublina čipu, person-page.ts, book-blocks.ts, family-pages-html.ts · strings.ts sources.fieldRepository(Ph)/fieldCallNumber(Ph)/fieldFolio(Ph)/fieldImage(Ph)/fieldImageHelp/imageHelpLabel/fieldReference(Ph)/proposalFrom/proposalRest/proposalTake/proposalTaken/proposalUndo/conflictImage/conflictFolio/conflictFix/conflictFixEmpty/imageShort · spec 075 K1.1, rozhodnutí 1, 2, 5 · dirigent:prace/1111-app-citace-pole · 3.31.0: app:2e68d373 src/source-location.ts composePage (imageDerived) -->
 
 <a id="A3.9.1"></a>
 ### A3.9.1 Split as suggested

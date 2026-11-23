@@ -154,6 +154,87 @@ odczytu, aby zmiana w aplikacji nie spotkała się z pracą agenta.
 
 <!-- zdroj: app:src/ui/research-ui.ts startLiveFollow :2376 (opts.auto), researchReconnectOnly · strings.ts live.followLive, live.followingTree, live.followStarted, live.followMoved, live.liveEndedArchive, live.liveEndedNoAgent · CHANGELOG.cs.md 3.13.1 · spec 011 · app:669c08f0 src/research-tree-file.ts (ged.stale → tree.ged?stale=1, treeFileState preparing; ged.etag → If-None-Match jen u stromu přesně z toho souboru, 304 = strom zůstává), src/ui/research-ui.ts livePreparing, strings.ts research.newerPreparing · research:94d75934 src/core/liveged.ts (strom pro aplikaci jednou pro stav a variantu, na disku i po restartu mostu), src/core/live.ts (change až s hotovým stromem; ETag u tree.ged) · CHANGELOG.cs.md 1.30.0 -->
 
+<a id="S1.4.1"></a>
+### S1.4.1 Drzewo od razu, zdjęcia dochodzą
+
+Drzewo otwarte przez **Śledź na żywo** pokazuje się od razu, ze zdjęciami, które aplikacja już ma. Pozostałe portrety,
+zdjęcia par, załączniki i kadry źródeł przychodzą z badania potem, w tle. Imiona, relacje i karty można przeglądać od
+razu.
+
+- **Kolejność:** najpierw zdjęcia kart na ekranie, potem wokół centrum. Przesunięcie lub przybliżenie drzewa zmienia
+  kolejność. Pierwsza partia ma 30 zdjęć, kolejne po 500, najwyżej 2 zapytania naraz. Każde zdjęcie przed wstawieniem
+  do drzewa jest sprawdzane według swojego odcisku.
+- **Zdjęcie w drodze:** karta pokazuje inicjały pod spokojną, powoli pulsującą zasłoną; karta ze starszym zdjęciem
+  pokazuje je pod zasłoną, dopóki nie przyjdzie nowe. Podpowiedź mówi „Wczytywanie zdjęcia…” albo „Wczytywanie nowego
+  zdjęcia…”. Zdjęcie, które przyjdzie, płynnie pojawia się na miejscu; drzewo nie jest z jego powodu przerysowywane.
+  - Taką samą zasłonę mają okno osoby, strona osoby i strony rodziny w oknie aplikacji, okno **Materiały**, pliki
+    i materiał osoby, podglądy źródeł i kadrów oraz zdjęcie pary w Tabeli. Pokaz slajdów, zmiany z badania i konflikt
+    przy scalaniu pokazują inicjały, dopóki portret nie przyjdzie.
+- **Zdjęcie, które nie przyszło:** karta wygląda jak karta bez zdjęcia; podpowiedź „Zdjęcie nie zostało wczytane.”
+  Kafelek na listach pokazuje przekreślony obrazek, od 64 px z napisem **Nie wczytano**. Okno osoby i strona osoby
+  mają przy zdjęciu **Spróbować ponownie**.
+- **Wskaźnik Zdjęcia k / n:** pojawia się, gdy zdjęcia wczytują się dłużej niż 400 ms, i liczy zdjęcia całego drzewa
+  („Zdjęcia 846 / 860”, z „· nie wczytano: 3”) z paskiem postępu. Na komputerze stoi u góry, w oknie do szerokości
+  1024 px na dole nad komunikatami. Kliknięcie pokazuje szczegóły: „Pozostało N · nie wczytano: M” i co można w tym
+  czasie robić z drzewem: przy śledzeniu na żywo „Drzewo można w tym czasie przeglądać.” (drzewo jest tylko do
+  odczytu, [S1.4](#S1.4)), w przeciwnym razie „Drzewo można w tym czasie edytować.” Gdy przyjdą wszystkie, pokazuje
+  przez 2 s ✓ i znika.
+- **Niektóre się nie wczytały:** wskaźnik znika i zostaje jeden komunikat „Niektóre zdjęcia nie zostały wczytane (N).”
+  z powodem („Badanie nie działa. Trzeba uruchomić Strom Research.”, „Badanie nie odpowiedziało w ciągu 60 s.” albo
+  „Badanie nie ma tych zdjęć.”) i **Spróbować ponownie**. To wczyta niewczytane zdjęcia jeszcze raz, a wskaźnik liczy
+  znowu całe drzewo.
+- **Pilnuje kod:** zdjęcie w drodze nigdy nie usunie ani nie nadpisze zapisanego zdjęcia.
+  - Zapisanie drzewa przed przyjściem zdjęć zostawia przy portrecie i zdjęciu pary dotychczasowe zdjęcie (albo
+    żadne). Zdjęcia, które jeszcze nie przyszły, aplikacja zapamiętuje przy drzewie i pobiera je przy następnym
+    połączeniu z badaniem.
+  - Okno osoby zapisuje zdjęcie tylko wtedy, gdy zostało w oknie zmienione. Zdjęcie, które przyjdzie przy otwartym
+    oknie, uzupełni się w nim.
+  - **Cofnij**, **Ponów**, porzucone okno, codzienna kopia zapasowa i kolejne okna zachowują zdjęcia, które już
+    przyszły.
+  - **Edytuj kadr** portretu lub zdjęcia pary czeka na zdjęcie: „Kadr można edytować po wczytaniu zdjęcia.”
+  - Przyjście zdjęcia nie jest zmianą drzewa: nie da się go cofnąć jako kroku, a drzewo zgodne z badaniem zgodne
+    zostaje.
+  - Zdjęć, które nie przyszły, badanie nie traktuje jako usuniętych: do ich przyjścia zapisy drzewa tylko dodają
+    ([S8.5](S8-where-the-data-are.md#S8.5)).
+- **Granice:**
+  - tylko przy otwarciu drzewa przez **Śledź na żywo**. Nowsza wersja podczas śledzenia, przejęcie drzewa i inne
+    wczytania wersji z badania przynoszą zdjęcia razem z drzewem jak dotąd;
+  - badanie do 1.29 wysyła drzewo ze zdjęciami w pliku: drzewo pokaże się dopiero z nimi;
+  - inne drzewo otwarte w trakcie wczytywania przerywa wczytywanie i wskaźnik znika. Zdjęcie trafia tylko do drzewa
+    i wczytania, dla którego było pobierane;
+  - kolejne okna aplikacji ([A6.8](A6-views.md#A6.8)) nie mają stanów wczytywania i pokazują drzewo bez zasłony;
+  - przy zaszyfrowanym drzewie pliki i kadry źródeł, które nie przyszły do zamknięcia strony, przyjdą dopiero
+    z następną wersją z badania;
+  - na telefonie trzymanym poziomo rozwinięty panel badania zwija się przy wskaźniku
+    ([S4.1](S4-research-from-the-app.md#S4.1)).
+- **Obsługa:** aplikacja: **Śledź na żywo**; wskaźnik **Zdjęcia k / n** (kliknięcie: szczegóły, Esc je zamyka);
+  komunikat → **Spróbować ponownie**; okno osoby i strona osoby → **Spróbować ponownie**.
+- **Obowiązuje od:** aplikacja 3.31.0, badanie 1.30.0
+
+<!-- zdroj: dirigent:spec/116-fotky-nacitat-pozdeji K1.2–K1.6, K2.1 · prace/1119-app-116-fotky (Výsledek, odchylky) · app:45dd3426 src/image-loads.ts (ImageLoadQueue, IMAGE_FIRST_BATCH 30, takePendingImages, write jen do současného stromu a načtení, bez kroku zpět), src/research-image-refs.ts IMAGE_BATCH 500, IMAGE_CONCURRENCY 2, IMAGE_ANSWER_MS 60 s · src/ui/research-ui.ts startLiveFollow (ged.imagesByHash → later, priority TreeRenderer.imagePriority: na obrazovce, pak kolem středu; setPendingImages I1; researchResumePendingImages) · research:33ac2e38 (1.30.0) src/core/live.ts ged.imagesByHash · app:95e68ac7 (K1.5 I1–I7: TreeMetadata.pendingImages, notes(records) bez záznamů u šifrovaného stromu) · 87b9ec30 src/ui/image-slot.ts (data-img-state loading/refresh/failed, IMG_PULSE_MS, TILE_NOTE_MIN_PX 64) · ad9e82a0 src/ui/person-modal.ts renderPhotoState, photoModel · 05cf608c, e188236f (další místa) · 4afeb434, b1bcb476 src/ui/image-load-chip.ts CHIP_SHOW_MS 400, BUSY_DONE_MS, detailNote(readOnly), failedReasonText (offline → timeout → missing), treeSwitched · 4afeb434 src/image-loads.ts abort (strom už není současný) · strings.ts photos.loading, loadingNew, failed, failedNew, tileFailed, recropWait, chipLabel, chipFailed, detailLeft, detailEditable, detailViewOnly, someFailed, whyMissing · busy.errOffline, errTimeout, retry · a2feee6b (≤ 1024 dole nad oznámením) · 7be40d24 src/ui/landscape-panel-fold.ts · CHANGELOG.cs.md 3.31.0 -->
+
+<a id="S1.4.2"></a>
+### S1.4.2 Wydruki i pliki czekają na zdjęcia
+
+Wydruk lub plik zamówiony w chwili, gdy zdjęcia drzewa jeszcze przychodzą ([S1.4.1](#S1.4.1)), czeka na nie i powstaje
+dopiero z nimi. Bez zdjęć powstaje tylko na wyraźny wybór.
+
+- **Które:** drukowanie plakatu, obraz PNG i wektor SVG, strona osoby, strony rodziny, księga rodu, kopia danych
+  (**Zapisz do pliku**, zapis do połączonego pliku, plik do udostępnienia, **Eksportuj** kopię) i eksport GEDCOM. Plik
+  CSV nie ma zdjęć i nie czeka.
+- **Czekanie:** przycisk lub wiersz mówi „Oczekiwanie na zdjęcia · k z n”, a drugie kliknięcie niczego nie uruchamia.
+  Komunikat z nazwą wyniku („Drukowanie plakatu”, „Księga rodu”…) liczy zdjęcia z paskiem i ma **Anuluj**. Wskaźnik
+  **Zdjęcia k / n** w tym czasie się chowa.
+- **Gdy niektóre nie przyszły:** jeden komunikat „Niektóre zdjęcia nie zostały wczytane (N).” z powodem i trzema
+  wyborami: **Spróbować ponownie**, **Kontynuuj bez N zdjęć** (wynik z danych, jakie są) i **Anuluj**.
+- **Pilnuje kod:** wynik nigdy nie zawiera zasłony ani znaku niewczytanego zdjęcia. Druk przed otwarciem drukowania
+  wczyta i narysuje także obrazy, które strona wczytuje dopiero przy przewijaniu.
+- **Obsługa:** aplikacja: wydruk lub plik jak zawsze; w komunikacie **Anuluj**; w ostrzeżeniu **Spróbować ponownie**,
+  **Kontynuuj bez N zdjęć**, **Anuluj**.
+- **Obowiązuje od:** aplikacja 3.31.0
+
+<!-- zdroj: dirigent:spec/116-fotky-nacitat-pozdeji K1.7 · app:9d326239 src/ui/output-images.ts imagesBeforeOutput, waitingLine, someFailedText, toastImagesView (retry, without, cancel; suspendImageLoadChip), imagesReadyForPrint · src/image-loads.ts awaitTreeImages · volající: src/ui/export-image-ui.ts (poster, png, svg), person-page-ui.ts (personPage, familyPages), book-ui.ts (book, familyPages), file-copy-ui.ts, file-access-ui.ts, share-ui.ts (backup), encryption-ui.ts (backup, gedcom; csv ne) · src/ui/fan-view.ts (live false: fotka nebo nic) · strings.ts photos.waiting, continueWithout, out.*, busy.kOfN, buttons.cancel · CHANGELOG.cs.md 3.31.0 -->
+
 <a id="S1.5"></a>
 ## S1.5 Gdy badanie nie działa albo połączenie się nie udaje
 

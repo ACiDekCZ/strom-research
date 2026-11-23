@@ -24,7 +24,7 @@ person menu; what concerns the whole tree is in the bar and in the **Actions** m
 | the Map view and other views | the view switch in the bar; on a phone, a tablet and in a window up to 1024 px the bottom bar and **More → View** | [A6](A6-views.md), [A9.5](#A9.5) |
 | the whole tree in rows, CSV and XLSX export | **Table** in the view switch; on a phone, a tablet and in a window up to 1024 px **Table** on the bottom bar | [A6.7](A6-views.md#A6.7) |
 | lists of people (fixed, automatic, checklists) | **Actions → Lists of people…**; on a phone **More → Lists of people** | [A11](A11-lists-of-people.md) |
-| portrait crop, couple's photo | editing a person → **Choose photo**, **Edit crop**; editing a person → **Manage relationships** → the row **Photo** | [A12](A12-portrait-and-couple-photo.md) |
+| portrait crop, couple's photo | editing a person → **Choose photo**, **Edit crop**; editing a person → **Manage relationships** → the row **Photo**; from app 3.31.0 also **Portrait from a photo…** in the header of editing a person and on the page of a person without a portrait, on the person page ⋯ **Change portrait…** | [A12](A12-portrait-and-couple-photo.md) |
 | fold the minimap or the tree legend | the tab above the minimap; **◯** in the legend | [A9.6](#A9.6) |
 | full screen (phone and tablet) | **More → Full screen**; on an iPhone in Safari **More → Full screen…** | [A9.5](#A9.5) |
 | a view or the Research overview in a separate window (on a computer) | ⧉ **Open in a new window** next to the view switch; Ctrl+click (macOS ⌘+click) on a view's tab; ⧉ in the Table's bar and in the overview's heading | [A6.8](A6-views.md#A6.8), [S4.1.6](S4-research-from-the-app.md#S4.1.6) |
@@ -117,8 +117,9 @@ views and actions are in the **More** sheet.
 - **Bottom bar:** **Family** | **Descendants** | **＋** (add a person; only in a tree that can be edited) | **Table** |
   **More**. An open Family, Descendants or Table view is highlighted on the bar; an open Fan, Map or Timeline
   highlights **More**.
-- **More → View:** **Fan** | **Map** | **Timeline**. On a phone the choice of the family line ([A6.6](A6-views.md#A6.6))
-  is under them when the tree offers it; not in the Timeline, the Map and the Table.
+- **More → View:** **Fan** | **Map** | **Timeline**. On a phone the row **Selection** ([A6.6.1](A6-views.md#A6.6.1))
+  is under them in Family, Descendants and the Fan of every tree with people; not in the Timeline, the Map and the
+  Table. Up to app 3.30.0 the choice of the family line was there, only when the tree offered it.
 - **Full screen:** the **More** sheet has **Full screen**, in full screen **Exit full screen**. The browser's bars
   then take no room.
   - It is offered only where the browser allows a page full screen, and only with the bottom bar. A phone held
@@ -164,8 +165,10 @@ all trees. Folding is not switching off: whether the element shows at all is sti
 - **Controls:** the tab above the minimap; **◯** in the legend, the chip "◯ Legend". Switching off: the settings
   **Minimap**, **Tree legend**.
 - **Since:** app 3.28.0
+- **From app 3.31.0:** on a phone (upright and held sideways) **Settings** has no row **Minimap**, because the
+  minimap does not show there.
 
-<!-- zdroj: app:f5d56ed3 src/ui/minimap.ts readMinimapOpen (strom-minimap-open, výchozí otevřeno), setMinimapFold (ouško jen když je minimapa nabízená), updateMinimap (isMinimapEnabled, mobil a telefon na šířku bez minimapy, STANDALONE_VIEWS, sbaleno: display none, nic se nekreslí) · src/ui/tree-legend.ts readTreeLegendOpen (strom-tree-legend-open, výchozí otevřeno), readTreeLegendSeen / noteTreeLegendSeen (strom-tree-legend-seen), syncTreeLegendFold (tečka, aria-label title + newMark, telefon vždy čip), openTreeLegendSheet (Hotovo = tour.done, klepnutí vedle, tažení 80 px dolů / doprava na šířku, nečte ani nepíše volbu), paměť bez úložiště · src/ui/misc.ts updateLegendMarks (data-marks: story-own, story-other, action, cross) · src/storage-keys.ts TREE_UI_STORAGE_KEYS · index.html .minimap-toggle (hover / pointer coarse), #tree-legend .tree-legend-toggle, pointer-events · strings.ts minimap.title, collapse, expand, settingLabel; legend.title, collapse, expand, newMark; settings legendLabel · app d78ba58b · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §2 -->
+<!-- zdroj: app:f5d56ed3 src/ui/minimap.ts readMinimapOpen (strom-minimap-open, výchozí otevřeno), setMinimapFold (ouško jen když je minimapa nabízená), updateMinimap (isMinimapEnabled, mobil a telefon na šířku bez minimapy, STANDALONE_VIEWS, sbaleno: display none, nic se nekreslí) · src/ui/tree-legend.ts readTreeLegendOpen (strom-tree-legend-open, výchozí otevřeno), readTreeLegendSeen / noteTreeLegendSeen (strom-tree-legend-seen), syncTreeLegendFold (tečka, aria-label title + newMark, telefon vždy čip), openTreeLegendSheet (Hotovo = tour.done, klepnutí vedle, tažení 80 px dolů / doprava na šířku, nečte ani nepíše volbu), paměť bez úložiště · src/ui/misc.ts updateLegendMarks (data-marks: story-own, story-other, action, cross) · src/storage-keys.ts TREE_UI_STORAGE_KEYS · index.html .minimap-toggle (hover / pointer coarse), #tree-legend .tree-legend-toggle, pointer-events · strings.ts minimap.title, collapse, expand, settingLabel; legend.title, collapse, expand, newMark; settings legendLabel · app d78ba58b · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §2 · 3.31.0: app:8bbd45cb index.html #minimap-setting-row skrytý při max-width 640px nebo telefonu na šířku · dirigent:prace/1122-app-mobil-drobnosti -->
 
 <a id="A9.7"></a>
 ## A9.7 An action that takes a while

@@ -73,6 +73,9 @@ Inhalt, mit ihren Stellen im Stammbaum ([R11.5.1](R11-material-from-the-user.md#
 - Das Original eines Porträts geht in die Forschung als Original eines Anhangs mit der Markierung **Porträt**, das
   Original eines Paarfotos als Material beider Partner. Ein Original erzeugt eine Aufgabe Unterlagen; im
   Strom-Archiv wartet es zurückgestellt.
+  - **Ab Forschung 1.36.0:** die Aufgabe Unterlagen entsteht nur, wenn die Einstellung **An die Forschung gesendete
+    Dateien geht der Agent selbst durch** eingeschaltet ist; sonst wartet das Original unsortiert unter Materialien
+    ([R11.6](R11-material-from-the-user.md#R11.6)).
 - Das Laden des Stammbaums aus der Forschung gibt die Dateien nach ihrem Fingerabdruck zurück: die App bekommt
   Porträts, Paarfotos und Anhänge an ihre Stellen. Eine in der App entfernte Datei blendet die Forschung aus, sie
   löscht sie nicht ([A3.5.6](A3-evidence-in-the-app.md#A3.5.6)).
@@ -107,8 +110,16 @@ Stammbaum mit Forschung am Computer leuchtet sie nicht, wenn die Forschung alle 
   Aktualisierung der App nicht geöffnet wurde, zählt wie bisher, bis er geöffnet wird.
 - **Bedienung:** App: die Anzeige in der Leiste öffnet **Wo die Daten liegen**; **In Datei speichern**.
 - **Gilt seit:** App 3.0.0; 3.30.0: Fotos und Anhänge in der Anzeige
+- **Ab App 3.31.0:** hält die Forschung den Stammbaum bis auf die Porträts, Paarfotos und Anhänge, sagt die Anzeige
+  **Fotos nur im Browser**, der Text beim Überfahren „Die Forschung hält den Stammbaum, nicht seine Porträts,
+  Paarfotos und Anhänge. Diese gibt es nur im Browser, noch nicht in einer Datei — der Browser kann sie löschen“.
+  Dasselbe sagen die Zeile in **Mehr** („Mehr – Fotos nicht gespeichert“), der Hinweis („Den Stammbaum regelmäßig
+  in eine Datei speichern.“) und der Dialog **Wo die Daten liegen** („Die Forschung hält den Stammbaum, aber seitdem
+  hinzugefügte Porträts, Paarfotos und Anhänge gibt es nur im Browser.“). Das gilt nur, wenn alle Stammbäume, die
+  die Anzeige zählt, so sind. Bleibt auch eine Änderung länger als 10 Minuten ungesendet, sagt die Anzeige wieder
+  **Nur im Browser**.
 
-<!-- zdroj: app:e434e730, a678b253 src/browser-media.ts browserMediaFingerprint, browserMediaSafe, archiveHoldsAppMedia · src/ui/research-sync-ui.ts researchHoldsTree, RESEARCH_HOLD_MS=10 min, researchArchiveHoldsMedia · src/tree-manager.ts noteFileCopy (export bez fotek), learnMediaFingerprints · src/ui/file-copy-ui.ts unsavedOutsideResearch · strings.ts fileCopy.indicatorShort, indicatorTitle · dirigent:spec/108-kde-se-co-uklada K1b.1, K2.6 -->
+<!-- zdroj: app:e434e730, a678b253 src/browser-media.ts browserMediaFingerprint, browserMediaSafe, archiveHoldsAppMedia · src/ui/research-sync-ui.ts researchHoldsTree, RESEARCH_HOLD_MS=10 min, researchArchiveHoldsMedia · src/tree-manager.ts noteFileCopy (export bez fotek), learnMediaFingerprints · src/ui/file-copy-ui.ts unsavedOutsideResearch · strings.ts fileCopy.indicatorShort, indicatorTitle · dirigent:spec/108-kde-se-co-uklada K1b.1, K2.6 · 3.31.0: app 110f4109 src/ui/research-sync-ui.ts researchHoldsTree → photos, src/file-copy.ts unsavedKind (všechny stromy photos), strings.ts fileCopy.photosShort, photosTitle, photosMoreHint, noticePhotos, copyPhotosSince, copyPhotosNever · SPEC.md 1120-app-108-diry -->
 
 <a id="S8.5"></a>
 ## S8.5 Die Fotos aus der Forschung konnten nicht geladen werden
@@ -124,8 +135,13 @@ Fingerabdruck nicht laden lassen, lädt die App den Stammbaum ohne sie und entfe
   inzwischen geändert, fragt es.
 - **Bedienung:** App: die Meldung → **Erneut versuchen**.
 - **Gilt seit:** App 3.30.0, Forschung 1.35.0
+- **Ab App 3.31.0:** beim Öffnen mit **Live verfolgen** kommen die Fotos nach dem Stammbaum
+  ([S1.4.1](S1-connecting-app-and-research.md#S1.4.1)). Fotos, die nicht kamen, meldet dort „Einige Fotos wurden
+  nicht geladen (N).“ mit **Erneut versuchen**; nach 5 s und 30 s wird es
+  nicht von selbst wiederholt. Bis sie kommen, fügen
+  Schreibvorgänge des Stammbaums weiterhin nur hinzu.
 
-<!-- zdroj: app:6bbc2f82 src/ui/research-ui.ts noteResearchMediaMissed (zápisy jen přidávají), 61ef1bdd MEDIA_RETRY_MS=[5000, 30000], researchMediaMissed, tellResearchMediaMissed, researchRetryMedia · strings.ts sync.mediaMissed, sync.retry -->
+<!-- zdroj: app:src/ui/research-ui.ts startLiveFollow onDone (failed → noteResearchMediaMissed, bez researchMediaMissed a MEDIA_RETRY_MS), src/ui/image-load-chip.ts showFailed · spec 116 · app:6bbc2f82 src/ui/research-ui.ts noteResearchMediaMissed (zápisy jen přidávají), 61ef1bdd MEDIA_RETRY_MS=[5000, 30000], researchMediaMissed, tellResearchMediaMissed, researchRetryMedia · strings.ts sync.mediaMissed, sync.retry -->
 
 <a id="S8.6"></a>
 ## S8.6 Paket und Entfernen eines Stammbaums: Scans und Familienfotos
@@ -138,7 +154,10 @@ lassen sich aus dem Archiv wieder laden, Familienfotos und Originale nicht.
 - `strom pack` nennt beides getrennt. Von den Scans packt es die mit Einträgen und die, die niemand wieder lädt (oder
   alle); Familienfotos und Originale immer alle, auch mit den verkleinerten Kopien der Dateien des Stammbaums. Das
   Paket trägt auch die Stapel aus der App.
-- `strom trees remove` bietet zuerst eine Sicherung als Paket an, fragt dann getrennt nach den Scans und getrennt
+- Die Stapel aus der App gehen ins Paket auch mit Namen, Personen und Notiz; `strom unpack` holt sie samt den Dateien
+  des Stapels zurück ([R11.4](R11-material-from-the-user.md#R11.4)).
+- `strom trees remove` bietet zuerst eine Sicherung als Paket mit allen Scans aus Archiven, Familienfotos und
+  Originalen an (zurück holt sie `strom unpack`), fragt dann getrennt nach den Scans und getrennt
   nach den Familienfotos und Originalen, die kein anderer Stammbaum verwendet; bei den Familienfotos ist die
   Standardantwort nein. Das Entfernen bestätigt der eingetippte Name des Stammbaums. Die Dateien gehen als ein Ordner
   „<Name> – Dateien“ in den Papierkorb.
@@ -150,4 +169,4 @@ lassen sich aus dem Archiv wieder laden, Familienfotos und Originale nicht.
 - **Bedienung:** Terminal: `strom pack [--all-images]`, `strom unpack "<Datei>"`, `strom trees remove`.
 - **Gilt seit:** Forschung 1.35.0
 
-<!-- zdroj: research:31def74a src/commands/pack.ts (ui.pack.images, ui.pack.family, ui.pack.batches, pack.too-large), src/core/pack.ts (bez ZIP64), src/core/zip.ts ZIP_MAX_FILES=0xffff · src/commands/trees.ts:271-287 (záloha výchozí ano, skeny ano jen se zálohou, rodinné ne, název), ui.remove.images.folder · research:771d8af0 (zmenšené kopie v balíku) · assets/lang/cs.json ui.pack.*, ui.remove.*, ui.error.pack.too-large -->
+<!-- zdroj: research:31def74a src/commands/pack.ts (ui.pack.images, ui.pack.family, ui.pack.batches, pack.too-large), src/core/pack.ts (bez ZIP64), src/core/zip.ts ZIP_MAX_FILES=0xffff · src/commands/trees.ts:271-287 (záloha výchozí ano, skeny ano jen se zálohou, rodinné ne, název), ui.remove.images.folder · research:771d8af0 (zmenšené kopie v balíku) · assets/lang/cs.json ui.pack.*, ui.remove.*, ui.error.pack.too-large · ui.pack.batches, ui.unpack.batches (v1.35.0) · trees remove: strom pack --all-images · e6bbfb40 ui.pack.which, ui.remove.backup (1.36.0 jen texty) -->

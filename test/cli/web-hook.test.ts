@@ -587,7 +587,12 @@ test("near the threshold the agent hears it after each call: from the threshold 
   assert.match(notes[11]!, /Never go round it/);
   // the same lines as the refusal that comes next
   const refusal = (await hook(w, fetchEvent(w, "https://soupis-example.org/13", { use: "n13" }), env)).json!.permissionDecisionReason;
-  assert.ok(refusal.endsWith(notes[11]!.slice(notes[11]!.indexOf("Build its connector"))), "the refusal's way on, word for word");
+  // the refusal's way on word for word; between it and the last sentence, when the site's pages go through the web tools again
+  const way = notes[11]!.slice(notes[11]!.indexOf("Build its connector"));
+  const cut = way.indexOf("Never go round it");
+  assert.ok(refusal.includes(way.slice(0, cut)), "the refusal's way on, word for word");
+  assert.ok(refusal.endsWith(way.slice(cut)));
+  assert.match(refusal, /No page of soupis-example\.org through the web tools in this session — the way above instead/u);
   // too little time left in the session: the task's line
   const late = { ...env, STROM_DEADLINE: new Date(Date.now() + 5 * 60_000).toISOString() };
   assert.equal((await hook(w, fetchEvent(w, "https://ukazka-example.org/1", { use: "g0" }), late)).out, "");

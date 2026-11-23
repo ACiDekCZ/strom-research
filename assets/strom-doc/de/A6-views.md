@@ -4,11 +4,14 @@
 Wie die Strom-App auswählt, welche Personen sie zeigt, und wie die einzelnen Ansichten sie zeigen. Beschrieben wird
 die App 3.21.2. Änderungen aus einer neueren Version tragen deren Nummer.
 
-Eine Ansicht ist eine andere Lesart **derselben Auswahl der Personen**. Die Auswahl bestimmen die zentrale Person
-(die angeklickte) und die Tiefe **Vorfahren** und **Nachkommen**. Familie, Nachkommen, Zeitleiste und Karte zeigen
+Eine Ansicht ist eine andere Lesart **desselben Umfelds der zentralen Person**. Das Umfeld bestimmen die zentrale
+Person (die angeklickte) und die Tiefe **Vorfahren** und **Nachkommen**. Familie, Nachkommen, Zeitleiste und Karte zeigen
 dasselbe Umfeld der zentralen Person. Der Fächer berechnet Vorfahren und Nachkommen selbst nach der Zahl der
 Generationen ([A6.4](#A6.4)). Die Tabelle zeigt den ganzen Stammbaum ([A6.7](#A6.7)),
 ab App 3.30.0 auch nur eine Personenliste ([A6.7.19](#A6.7.19)).
+Ab App 3.31.0 hat das Fenster außerdem eine **Auswahl**: eine benannte Gruppe von Personen (Stammlinie, Vorfahren oder
+Nachkommen einer Person, Forschungslinie, Personenliste), die Familie, Nachkommen und Fächer hervorheben und die Karte
+allein zeigt ([A6.6](#A6.6)).
 Am Computer lässt sich jede Ansicht auch in einem eigenen Fenster öffnen ([A6.8](#A6.8)).
 
 Ansichten: **Familie**, **Nachkommen**, **Zeitleiste**, **Fächer**, **Karte**, **Tabelle**.
@@ -20,7 +23,7 @@ Ansichten: **Familie**, **Nachkommen**, **Zeitleiste**, **Fächer**, **Karte**, 
 
 Die Ansicht Familie zeigt die zentrale Person in ihrer Familie, nicht den ganzen Stammbaum.
 
-- Zur Auswahl gehören:
+- Zum Umfeld gehören:
   1. die zentrale Person und alle ihre Partner;
   2. ihre Nachkommen bis zur Tiefe **Nachkommen**, mit Partnern;
   3. die direkten Vorfahren über beide Eltern bis zur Tiefe **Vorfahren**;
@@ -29,7 +32,7 @@ Die Ansicht Familie zeigt die zentrale Person in ihrer Familie, nicht den ganzen
   5. Tanten und Onkel (Geschwister der Eltern) mit Partnern;
   6. Cousins und Cousinen, also Kinder der Tanten und Onkel, die in deren Partnerschaft erfasst sind, mit
      Nachkommen bis zur Tiefe Nachkommen.
-- **Grenzen:** Vorfahren eines Partners der zentralen Person kommen nie in die Auswahl. Wer nicht zum Umfeld gehört,
+- **Grenzen:** Vorfahren eines Partners der zentralen Person kommen nie ins Umfeld. Wer nicht zum Umfeld gehört,
   bleibt im Stammbaum, die Ansicht zeigt ihn nur nicht; eine neue zentrale Person zeigt ihn.
 - **Tiefe:** nach der Wahl einer neuen zentralen Person stehen Vorfahren und Nachkommen auf der größten Tiefe, die der
   Stammbaum bei dieser Person hat. Das Angebot reicht von 1 bis zu dieser größten Tiefe. Kinder eines Partners aus
@@ -304,9 +307,14 @@ Die Zeitleiste zeigt die Personen der Ansicht als Lebensbalken auf einer Jahresa
 - Der Balken einer lebenden Person reicht bis heute. Eine verstorbene Person ohne Sterbedatum hat einen Balken bis
   zum letzten bekannten Ereignis und ein offenes Ende.
 - Das Jahr der Hochzeit stammt aus dem Anfangsdatum der Partnerschaft. Die Achse ist auf Jahrzehnte gerundet.
-- Unter der Jahresachse läuft die Zeile der Geschichte der zentralen Person (Ereignisse der Zeit und der Orte ihres
-  Lebens, Symbole der Arten). Ohne Forschung oder ohne solche Ereignisse gibt es die Zeile nicht.
-- **Gilt seit:** Zeitleiste App 1.5.0; Zeile der Geschichte App 3.19.0
+- Unter der Jahresachse läuft die Zeile der Geschichte ([A6.3.1](#A6.3.1)). Ohne Forschung oder ohne Ereignisse der
+  Geschichte gibt es die Zeile nicht.
+- Ein gemeinsames Ereignis von zwei oder mehr Zeilen ([A10.2](A10-shared-events.md#A10.2)) ist eine Markierung über
+  die Zeilen seiner Personen, mit Beschriftung; Überfahren der Beschriftung nennt die Personen. Liegt über der ersten
+  Zeile die Zeile der Geschichte, steht die Beschriftung einer Markierung aus der ersten Zeile nicht in ihr, sondern
+  tiefer neben der Markierung.
+- **Gilt seit:** Zeitleiste App 1.5.0; Zeile der Geschichte App 3.19.0, über die ganze Zeitleiste App 3.31.0;
+  Markierung eines gemeinsamen Ereignisses App 3.28.0
 - **Ab App 3.30.0:** mit eingeschalteter **Linienmarkierung** ([A6.1.5](#A6.1.5)) steht vor dem Namen der Person ein
   Linienzeichen in der gewählten Form (eine Person in beiden Linien zwei Zeichen, bei Eltern gleichen Geschlechts 1
   und 2); Überfahren des Zeichens nennt die Linie in Worten. Der Lebensbalken behält die Farbe des Geschlechts und
@@ -314,6 +322,103 @@ Die Zeitleiste zeigt die Personen der Ansicht als Lebensbalken auf einer Jahresa
 
 <!-- zdroj: app:src/timeline.ts computeTimelineModel, :59 TimelineHistory · strings.ts timeline.omitted · CHANGELOG.cs.md 3.19.0 -->
 <!-- zdroj: app:cecd72a4 src/renderer.ts timelineBranchSigns (znak legendy před jménem, title linie slovy, dvě značky R4, číslice R5; plakát SVG) · CHANGELOG.cs.md 3.30.0 „Značení linií“ · dirigent:spec/112-znaceni-linii -->
+<!-- zdroj: app:55ac8a08 src/timeline-chart.ts sharedMarkSvg (jedna značka přes řádky, popisek jednou, jména v title) · app:f8531340 placeSharedLabels · app:cc6f3104 placeSharedLabels topTaken (s řádkem dějin popisek značky z prvního řádku níž, ne v řádku dějin) · dirigent:spec/085 §2e -->
+
+<a id="A6.3.1"></a>
+### A6.3.1 Die Zeile der Geschichte über die ganze Zeitleiste
+
+Die Zeile der Geschichte zeigt die Geschichte der ganzen Zeit und aller Personen auf der Zeitleiste: jedes Ereignis
+eines Landes oder einer Region, in dem oder der in seinem Jahr mindestens eine Person mit Zeile lebte.
+
+- **Welche Ereignisse:** Ereignisse des Umfangs Land oder Region (**Regionalgeschichte**). Ein Ereignis wird
+  genommen, wenn die Person im Jahr des Ereignisses an einem Ort lebte, dem die Forschung das Ereignis zugeordnet
+  hat. Bei einem Zeitraum genügt eines seiner Jahre, und nur in den Lebensjahren der Person. Wo eine Person in
+  welchem Jahr lebte, wird wie bei der Geschichte in der Personenkarte bestimmt.
+- Jedes Ereignis steht einmal in der Zeile, auch wenn es mehrere Personen betrifft. Eine Person ohne Zeile (ohne
+  Geburtsjahr, Platzhalter) zählt nicht.
+- **Ausblenden:** Ein im ganzen Stammbaum oder für die ganze Region ausgeblendetes Ereignis ist nirgends. Ein an
+  einem Ort ausgeblendetes Ereignis zeigt ein anderer Ort der Person, der es nicht ausblendet.
+- **Aussehen:** Der Hintergrund der Zeile reicht über die ganze Achse. Das Leben der zentralen Person ist eine dünne
+  Linie unten in der Zeile. Zeiträume haben Streifen auf zwei Spuren.
+- **Gruppen:** Nahe Ereignisse bilden eine Gruppe (am Computer 16 px, am Telefon 22 px). Eine Gruppe hat das Symbol
+  der Art, die in ihr am häufigsten ist (bei Gleichstand die frühere), in der Farbe ihrer Herkunft. Mehr Ereignisse
+  zeigen ein Abzeichen mit der Anzahl. Zwei Gruppen, deren Zeichen sich berühren würden, werden eins.
+- **Das Land oder die Region** wird in der Beschriftung und im Detail nur genannt, wenn die Ereignisse der Zeile aus
+  mindestens zwei Ländern oder Regionen stammen.
+- **Detail einer Gruppe:** Überfahren zeigt eine Zeile je Ereignis (Jahr, Art, Land oder Region, Text).
+  - Computer: Ein Klick öffnet ein Fenster an der Gruppe. Darin jedes Ereignis mit Jahren, Symbol, Text, „Art · Land
+    oder Region“ und „Betrifft:“ mit höchstens zwei Namen und „und N weitere“; die zentrale Person steht vorn. Ein
+    Name öffnet die Personenkarte in der Zeile des Ereignisses. Esc, ein Klick daneben oder Scrollen schließt das
+    Fenster.
+  - Telefon und Touchscreen: ein unteres Blatt „Geschichte 1880–1891“ mit den Ereignissen und unter **In der
+    Personenkarte öffnen** eine Zeile für jede Person, die die Gruppe betrifft (höchstens vier und „und N weitere ›“).
+    Eine Person öffnet die Karte beim ersten Ereignis der Gruppe, das sie betrifft.
+- **Wann es die Zeile gibt:** Der Stammbaum hat eine Forschung mit Geschichte, in den Einstellungen ist
+  **Zeitgeschehen im Lebenslauf** eingeschaltet und in der Zeitleiste der Personenkarte der Chip **Zeitgeschehen**.
+  In den Einstellungen ausgeschaltete Herkünfte (**Regionalgeschichte**, **Ortsgeschichte**, **Aus
+  Forschungsquellen**) werden nicht gezeichnet.
+- **Grenzen:** Die Zeile der Geschichte gibt es nur auf dem Bildschirm. Druck und Plakat der Zeitleiste zeichnen sie
+  nicht.
+- **Bedienung:** App: Ansicht **Zeitleiste**, Zeile **Geschichte ▾** ([A6.3.2](#A6.3.2))
+- **Gilt seit:** App 3.31.0 (bis dahin die Zeile der Geschichte nur der zentralen Person)
+
+<!-- zdroj: app:e843ab70 src/history.ts computeTimelineHistory (místa života personResidence, livedYear v letech života, období jeden rok, jednou na osobu, skrytí treeHidden/regionHidden/hidingFor, scope region → řádek, place/local → čáry; kinds z Nastavení) · src/timeline.ts timelineHistoryRow (jen řádky, které se kreslí; region jen při ≥ 2), timelineClusterKind, timelinePeriodTracks · app:a7391d4f src/timeline-chart.ts historyRowSvg (podklad přes celou osu, tl-hist-life, jen obrazovka) · app:79312e31 clusterTimelineHistory clearance, historyClusterClearance · app:1d2f8b55 src/ui/timeline-history-ui.ts showTimelineHistoryPopover, timelineConcernPersons (max 2, ústřední první), showTimelineHistorySheet, timelineClusterPersons (4 a „a N další ›“) · src/ui/history-ui.ts historyTimelineSource (vrstva, výzkum, čip Dějiny karty) · strings.ts history.timelineRowLabel, timelineClusterAria, timelineEventLine, timelineYearsTitle, timelineConcerns, timelinePeopleMore, openInCard, settingLabel, kindRegion, kindPlace, kindLocal · dirigent:spec/121 K1.1–K1.4, Rozhodnutí 20. 11. · prace/1120-app-121-casova-osa -->
+
+<a id="A6.3.2"></a>
+### A6.3.2 Optionen der Geschichte: Arten und Land
+
+Die Beschriftung der Zeile **Geschichte ▾** öffnet die Optionen der Geschichte der Zeitleiste. Die Optionen gelten
+für den Stammbaum, und das Gerät merkt sie sich.
+
+- **Arten von Ereignissen:** **Alle** und neun Arten (Krieg, Epidemie, Volkszählung, Staat und Grenzen,
+  Auswanderung, Recht, Wirtschaft, Katastrophe, Sonstiges), jede mit Symbol und der Anzahl der Ereignisse auf der
+  Zeitleiste. Die Anzahl zählt die Zeile der Geschichte und die Ortsgeschichte auf den Lebenslinien zusammen; ein
+  Ereignis auf mehreren Linien ist eines. Eine Art ohne Ereignis lässt sich wählen; der Filter bleibt für andere
+  Zeitleisten.
+- **Land oder Region:** nur, wenn die Ereignisse der Zeile aus mindestens zwei Ländern
+  oder Regionen stammen. **Alle** und jedes Land
+  oder jede Region nach der Anzahl der Ereignisse, eine Wahl. Gilt nur für die Zeile der Geschichte.
+- **Auf den Lebenslinien:** die Option **Ortsgeschichte auf den Lebenslinien** ([A6.3.3](#A6.3.3)).
+- **Der Filter in der Beschriftung:** „Geschichte · 3 Arten“ (die gewählten Arten, die die Zeitleiste hat),
+  „Geschichte · Land oder Region“, bei beiden „Geschichte · 2 Filter“. Eine Beschriftung mit Filter ist getönt.
+- **Nichts bleibt:** Die Zeile schreibt „Keine Ereignisse für die gewählten Arten“ (am Telefon „Keine Ereignisse“)
+  und **Filter aufheben**. **Filter aufheben** hebt Arten und Land auf einmal auf; die Ortsgeschichte auf den
+  Lebenslinien bleibt.
+- **Grenzen:** Die Optionen sind keine Daten des Stammbaums: Sie gehen in keinen Export, kein GEDCOM und keine
+  Sicherung. Ein Land, das die Forschung nicht mehr kennt, wird nicht verwendet. Ein weiteres Fenster ([A6.8](#A6.8))
+  übernimmt die Änderung.
+- **Bedienung:** App: **Geschichte ▾** → **Arten von Ereignissen**, **Land oder Region**, **Auf den Lebenslinien**,
+  **Filter aufheben**. Am Computer ein Fenster unter der Beschriftung, am Telefon und Touchscreen ein unteres Blatt.
+- **Gilt seit:** App 3.31.0
+
+<!-- zdroj: app:3e3e4949 src/ui/timeline-history-ui.ts showTimelineHistoryOptions, drawTimelineHistoryOptions (oblast jen hist.regions ≥ 2 nebo uložená; místní off/none), clearTimelineHistoryFilter · src/timeline.ts filterTimelineHistory (oblast jen řádek), timelineHistoryRowState, toggleTimelineKind, clearTimelineFilter (local zůstane), timelineFilterKindCount · app:601f52d4 timelineHistoryFacets (počty jednou podle id, řádek + místní), .tl-hist-btn.is-filtered · src/timeline-chart.ts historyFilterText · src/settings.ts getTimelineHistory/setTimelineHistory (lifelineByTree.timeline, jen zařízení), TimelineHistoryOptions · src/history.ts timelineHistoryRegion (neznámá oblast → všechny) · strings.ts history.timelineOptKinds, timelineOptRegion, timelineOptAllRegions, timelineOptLines, timelineFilterKinds, timelineFilterBoth, timelineClearFilter, timelineEmptyFilter, timelineEmptyFilterShort, kinds.* · dirigent:spec/121 K3.1 -->
+
+<a id="A6.3.3"></a>
+### A6.3.3 Ortsgeschichte auf den Lebenslinien
+
+Die Option **Ortsgeschichte auf den Lebenslinien** zeichnet die Ortsgeschichte und die Funde der Forschung aus
+Quellen direkt auf den Lebensbalken der Person, im Jahr des Ereignisses.
+
+- **Welche Ereignisse:** **Ortsgeschichte** und **Aus Forschungsquellen** ([R4.7](R4-places.md#R4.7)) im Ort, in
+  dem die Person im Jahr des Ereignisses lebte. Bei einem Zeitraum ab dem ersten Jahr, in dem sie dort lebte; unter
+  dem Balken läuft dann ein Streifen bis zum Ende des Zeitraums (höchstens bis zum Ende des Balkens).
+- **Aussehen:** das Symbol der Art in einem Rahmen in der Farbe der Herkunft. Ein Symbol näher als 10 px am Punkt
+  eines Ereignisses oder an der Markierung eines gemeinsamen Ereignisses rückt 11 px zur Seite. Nahe Symbole
+  gruppieren sich wie in der Zeile der Geschichte, mit Abzeichen der Anzahl. Unter 1,5 px pro Jahr (lange Achse am
+  Telefon) hat eine Linie ein Symbol mit allen Ereignissen.
+- **Detail:** Überfahren zeigt eine Zeile je Ereignis mit dem Ort und bei einem Fund die Quelle. Ein Klick am
+  Computer öffnet die Personenkarte in der Zeile des Ereignisses. Am Telefon und Touchscreen ein unteres Blatt mit den
+  Ereignissen und **In der Personenkarte öffnen ›**.
+- **Standard:** aus. Die Option gilt für den Stammbaum und wird gemerkt ([A6.3.2](#A6.3.2)). Der Filter der Arten
+  gilt auch für sie.
+- **Grenzen:** Sind in den Einstellungen **Ortsgeschichte** und **Aus Forschungsquellen** beide aus, lässt sich die
+  Option nicht einschalten. Ohne Ortsgeschichte auf der Zeitleiste schreibt die Option „Auf der Zeitleiste gibt es
+  keine Ortsgeschichte.“ Die Symbole gibt es nur auf dem Bildschirm; Druck und Plakat zeichnen sie nicht. Die
+  Tastatur erreicht sie nicht (Tab).
+- **Bedienung:** App: **Geschichte ▾** → **Ortsgeschichte auf den Lebenslinien**
+- **Gilt seit:** App 3.31.0
+
+<!-- zdroj: app:967b6b97 src/history.ts computeTimelineHistory (place/local → čáry, rok příchodu moved, year2, source) · src/timeline.ts layoutTimelineLocal, timelineLocalX (LOCAL_CLEAR_PX 10, LOCAL_STEP_PX 11), LOCAL_DENSE_PX_PER_YEAR 1.5, timelineLocalOptionState (off/none), timelineHistoryRow (filtr druhů i na čáry) · src/timeline-chart.ts localSvg (jen screen, tl-loc-box, tl-loc-period, title se zdrojem LOCAL_SOURCE_MAX 60, role img mimo Tab) · src/ui/timeline-history-ui.ts openTimelineHistory, showTimelineLocalSheet · src/settings.ts TimelineHistoryOptions.local (výchozí false) · strings.ts history.timelineOptLocal, timelineOptLocalHint, timelineOptLocalOff, timelineOptLocalNone, timelineLocalAria, timelineLocalSource, openInCard · dirigent:spec/121 K2.1–K2.3 -->
 
 <a id="A6.4"></a>
 ## A6.4 Fächer
@@ -389,7 +494,8 @@ Orangetöne, die Nachkommen (Form Beidseitig) Ocker.
   Sektoren der Stammlinie haben einen gestrichelten Umriss, die übrigen sind gedämpft. Die Hervorhebung bleibt beim
   Neuzentrieren. Ein zweiter Klick, **Hervorhebung der Stammlinie aufheben**, × am Etikett oder Esc heben sie auf.
   Beim Einpassen hält der Fächer den Streifen mit dem Etikett der Hervorhebung frei; eine vergrößerte Ansicht bleibt,
-  wie sie ist.
+  wie sie ist. Ab App 3.31.0 ist die hervorgehobene Stammlinie die Auswahl des Fensters ([A6.6](#A6.6)): Sie gilt auch
+  in Familie und Nachkommen, und das Aufheben der Hervorhebung hebt die Auswahl des Fensters auf.
 - **Telefon:** ein Tippen auf eine Zeile im Blatt der Legende hebt die Stammlinie hervor (oder hebt das auf) und
   schließt das Blatt. Der Farben-Chip zeigt dann statt der Punkte Muster und Namen der Stammlinie. **Tablet:** die
   Zeilen der Legende haben die Größe eines Bedienelements.
@@ -403,14 +509,86 @@ Orangetöne, die Nachkommen (Form Beidseitig) Ocker.
 - **Gilt seit:** App 3.30.0 (Farben **Stammlinien** seit App 3.20.0; bis 3.29.0 nur die zehn größten Stammlinien
   farbig, die übrigen grau)
 
-<!-- zdroj: app:src/fan-rod-assign.ts (strany P/M/D: rod středu P, jen potomci D, jinak nejnižší prstenec, shoda P; pořadí počet výsečí › velikost › id; FAN_ROD_MAX_STRONG 10, FAN_ROD_LEGEND_MAIN 20, tier S/T; opakování odstínů ne na sousedních výsečích ani o jednu dál, výpůjčka jiné strany) · src/fan-colors.ts paleta P/M/D světlá, tmavá, tisk, fanRodLegend, fanRodOtherSwatch (K1.7), legendOther, legendNoRod · src/ui/fan-view.ts legenda (FAN_STORAGE_KEYS.legendOtherOpen, náhled jen při (hover: hover)), setRodSelection(…, 'legend'), forgetRodColors · strings.ts fan.legendFatherSide, legendMotherSide, legendDescendants, legendOther, legendNoRod, legendCentre, colorsChipRod, menuHighlightRod, menuUnhighlightRod, posterHighlighted · app:1d9dad0f, 7231dd13 (legenda po stranách), 77282e4e (telefon, tablet), b31c74a9 (štítky se netisknou), defe20a6, 7821ea72 (vějíř mimo štítek), 1ad91795 (paleta P/M/D), a265a3cc (paměť barev při návratu, další okna) · dirigent:spec/114-vejir-barvy-rodu · test/vysledek-1119-app-vejir-rody, vysledek-1119-app-vejir-barvy-vse · CHANGELOG.cs.md 3.30.0 -->
+<!-- zdroj: app:src/fan-rod-assign.ts (strany P/M/D: rod středu P, jen potomci D, jinak nejnižší prstenec, shoda P; pořadí počet výsečí › velikost › id; FAN_ROD_MAX_STRONG 10, FAN_ROD_LEGEND_MAIN 20, tier S/T; opakování odstínů ne na sousedních výsečích ani o jednu dál, výpůjčka jiné strany) · src/fan-colors.ts paleta P/M/D světlá, tmavá, tisk, fanRodLegend, fanRodOtherSwatch (K1.7), legendOther, legendNoRod · src/ui/fan-view.ts legenda (FAN_STORAGE_KEYS.legendOtherOpen, náhled jen při (hover: hover)), setRodSelection(…, 'legend'), forgetRodColors · strings.ts fan.legendFatherSide, legendMotherSide, legendDescendants, legendOther, legendNoRod, legendCentre, colorsChipRod, menuHighlightRod, menuUnhighlightRod, posterHighlighted · app:1d9dad0f, 7231dd13 (legenda po stranách), 77282e4e (telefon, tablet), b31c74a9 (štítky se netisknou), defe20a6, 7821ea72 (vějíř mimo štítek), 1ad91795 (paleta P/M/D), a265a3cc (paměť barev při návratu, další okna) · dirigent:spec/114-vejir-barvy-rodu · test/vysledek-1119-app-vejir-rody, vysledek-1119-app-vejir-barvy-vse · CHANGELOG.cs.md 3.30.0 · 3.31.0: src/ui/rod-view.ts selectRodFromFan → setRodSelection / clearRodSelection = clearSelection (app:51ad8fd6) -->
+
+<a id="A6.4.2"></a>
+### A6.4.2 Darstellung des Fächers
+
+Die Schaltfläche **Darstellung** in der Leiste des Fächers (in einer schmalen Leiste nur ein Symbol) öffnet den
+Bereich **Darstellung des Fächers**. Er ändert, wie der Fächer aussieht, nicht den Stammbaum: er wirkt auch in einem
+schreibgeschützten Stammbaum, beim Verfolgen einer Forschung und in der gespeicherten Seite.
+
+- **Stil:**
+  - **Farbig** (für den Bildschirm): Standard, die Zeichnung wie bisher;
+  - **Pastell** (weniger Tinte);
+  - **Antik** (als Geschenk): Sepia und Pergament, die Schrift Strom Serif;
+  - **Schwarzweiß** (Schwarzweißdrucker): Graustufen und Muster (Linien, Gitter, Punkte, Ringe, Kreuze, Striche),
+    keines schräg. Die schräge Schraffur bleibt nur einer wiederholten Person (Ahnenschwund).
+
+  Jeder Stil hat eine Form für das helle und das dunkle Erscheinungsbild und für den Druck.
+- **Farben der Stammlinien** (nur bei den Farben **Stammlinien**, sonst „Nur bei Farben nach Stammlinien.“):
+  - **Alle Stammlinien**: Farben wie in [A6.4.1](#A6.4.1);
+  - **Hauptstammlinien**: „die 10 größten im Fächer farbig, die übrigen grau.“ Die Stammlinie der zentralen Person
+    ist immer unter den Hauptstammlinien (sie ersetzt die zehnte). Die Legende hat eine graue Zeile **Weitere
+    Stammlinien (N)**, der Untertitel des Plakats „Farben der Hauptstammlinien“. Die Farben der Hauptstammlinien und
+    das Gedächtnis der Farben ändern sich nicht.
+- **Text in den Segmenten:** **Name und Jahre** (Standard) · **Name, Daten und Orte** (Geburt und Tod mit Datum und
+  Ort, vom Ort nur der Teil vor dem ersten Komma, zum Beispiel „* 22.11.1888 Kessenau“; nur wo es passt) · **Nur
+  Namen** (in etwas größerer Schrift). „Wo der Text nicht passt, wird er gekürzt.“
+- **Porträts** „In der Mitte, bei Eltern und Großeltern“ (standardmäßig aus): ein rundes Porträt in der Mitte und in
+  den ersten zwei Ringen. Eine geschützte lebende Person hat kein Porträt. Der Text hat Vorrang: ein Porträt, für das
+  kein Platz bliebe, wird nicht gezeichnet. Während des Ladens sagt der Bereich „Porträts werden geladen (k / n)“;
+  „Im Fächer hat noch niemand ein Porträt.“
+- **Drei Ebenen der Darstellung:**
+  - die **Standarddarstellung** ist in **Einstellungen → Fächer** (Stil, Farben der Stammlinien, Text, Porträts),
+    und das Gerät hält sie: „Jeder Start beginnt mit dieser Darstellung; im Bereich „Darstellung“ lässt sie sich nur
+    für die aktuelle Arbeit ändern.“ Ein Fächer, der die Standarddarstellung zeigt, übernimmt eine Änderung in den
+    Einstellungen sofort;
+  - die **aktuelle** Darstellung aus dem Bereich gilt bis zum Schließen der App; das Neuladen der Seite behält sie;
+  - die **Darstellung der Ausgabe** (Plakat, Bild, Druck) wird nicht gespeichert ([A6.4.3](#A6.4.3)).
+
+  Eine niedrigere Ebene überschreibt nie eine höhere, nur **Als Standard speichern**.
+- **Fuß des Bereichs:** weicht die Darstellung vom Standard ab, „Weicht von der Standarddarstellung ab.“ mit **Als
+  Standard speichern** („Als Standarddarstellung des Fächers gespeichert.“) und **Auf Standard zurücksetzen**; die
+  Schaltfläche **Darstellung** trägt dann einen Punkt. Sonst „Standarddarstellung · änderbar in den Einstellungen“;
+  der Link öffnet die Einstellungen bei der Gruppe **Fächer**.
+- Ein weiteres Fenster ([A6.8](#A6.8)) beginnt mit der aktuellen Darstellung des Hauptfensters und behält seine
+  Änderungen nur für sich.
+- **Telefon:** **Farben** und **Darstellung** sind Reiter eines Blatts von unten; das Blatt öffnet sich auf dem
+  zuletzt benutzten.
+- **Grenzen:** der Fächer auf der Seite der Person ändert sich nicht (nur die Geschlechtsfarben).
+- **Bedienung:** Leiste des Fächers → **Darstellung**; **Einstellungen → Fächer**.
+- **Gilt seit:** App 3.31.0
+
+<!-- zdroj: app:53ad42f1 src/fan-look.ts (hlavička: tři úrovně, ne úprava stromu, další okno; FAN_LOOK_DEFAULT color/all/years/portraits false), storage-keys.ts FAN_STORAGE_KEYS, FAN_LOOK_SESSION_KEY · 2236bbd4 src/fan-rod-assign.ts (rodScope main: 10 největších, rod středu vždy), src/fan-colors.ts FAN_STYLES, FAN_PATTERNS (vl, hl, grid, dot, dot2, ring, plus, dash), palety světlá/tmavá/tisk · c2dc2520 src/fan-labels.ts (content years/places/names, místo před čárkou), src/fan-chart.ts portréty prstence 1–2, chránění žijící, text má přednost · 2e9d8ad0 Nastavení → Vějíř (index.html settings-group-fan, setFanDefaultLook; vějíř s výchozím vzhledem změnu převezme) · e07ed419 (stránka osoby) · strings.ts fan.look*, style*, scope*, content*, portraits*, lookDiffers, lookIsDefault, lookSaveDefault, lookResetDefault, lookSavedToast, defaultsDesc, textNote, legendOtherGrey, posterColorsMain · SPEC.md 1120-app-vejir-vzhled · spec 118 K1.1–K2.6 · CHANGELOG.cs.md 3.31.0 -->
+
+<a id="A6.4.3"></a>
+### A6.4.3 Darstellung des Posters
+
+Der Dialog **Als Poster exportieren** (Menü **Poster exportieren**: SVG, PNG, Druck / PDF) hat beim Fächer die Gruppe
+**Darstellung des Posters** mit denselben Optionen wie der Bereich **Darstellung** ([A6.4.2](#A6.4.2)) und mit
+**Vorschau**.
+
+- Die Optionen sind mit der Darstellung vom Bildschirm vorausgefüllt. „Gilt nur für diese Ausgabe; Bildschirm und
+  Standard bleiben unverändert.“ Eine geänderte Option trägt „nur für diese Ausgabe geändert“; **Wie auf dem
+  Bildschirm** bringt die Darstellung des Bildschirms zurück.
+- Die Stammlinien behalten in einem anderen Stil oder einer anderen Farbgebung die Farben vom Bildschirm.
+- Auf dem Telefon ist die Gruppe in eine Zeile zugeklappt.
+- **Grenzen:** die Darstellung der Ausgabe wird nicht gespeichert; der nächste Export beginnt wieder mit der
+  Darstellung des Bildschirms.
+- **Bedienung:** **Poster exportieren** → **Darstellung des Posters**.
+- **Gilt seit:** App 3.31.0
+
+<!-- zdroj: app:2e9d8ad0 src/ui/export-image-ui.ts (PosterLook předvyplněný z obrazovky, náhled toutéž funkcí plakátu, Jako na obrazovce, sloty rodů z obrazovky, telefon jeden řádek), src/fan-look.ts (vzhled výstupu se nepamatuje) · e2e/fan-look-output.spec.ts · strings.ts poster.menu, title, lookTitle, lookPreview, lookOnlyHere, lookAsScreen, lookChanged · SPEC.md 1120-app-vejir-vzhled · spec 118 -->
 
 <a id="A6.5"></a>
 ## A6.5 Karte
 
 Die Karte zeigt die Orte der Ereignisse der Personen.
 
-- **Umfang:** **Diese Ansicht** (Standard, Personen der Ansicht) · **Ganzer Stammbaum**.
+- **Umfang:** **Diese Ansicht** (Standard, Personen der Ansicht) · **Ganzer Stammbaum**. Ab App 3.31.0 steht
+  dazwischen **Auswahl**, die Personen der Auswahl des Fensters ([A6.5.7](#A6.5.7)), und das Hauptfenster merkt sich
+  den gewählten Bereich für jeden Stammbaum.
 - **Arten:** **Geburten** · **Sterbefälle** · **Eheschließungen** · **Weitere Ereignisse**. Standardmäßig sind alle
   eingeschaltet; die Auswahl wird auf dem Gerät gespeichert.
   - Die Taufe zählt zur Geburt, Beerdigung und Einäscherung zum Tod.
@@ -423,7 +601,7 @@ Die Karte zeigt die Orte der Ereignisse der Personen.
   ([A6.5.3](#A6.5.3)).
 - **Gilt seit:** Karte App 1.10.0; Arten der Ereignisse und Punkte der Gemeinden App 3.21.0
 
-<!-- zdroj: app:src/places.ts collectPlaces, groupTownPoints · src/ui/map-ui.ts (localStorage strom.map.kinds) · strings.ts map.scopeView, map.scopeTree, map.kinds · CHANGELOG.cs.md 3.21.0 -->
+<!-- zdroj: app:src/places.ts collectPlaces, groupTownPoints · src/ui/map-ui.ts (localStorage strom.map.kinds) · strings.ts map.scopeView, map.scopeTree, map.kinds · CHANGELOG.cs.md 3.21.0 · 3.31.0: app:src/settings.ts mapScopeByTree, getMapScopeForTree, setMapScopeForTree · src/ui/map-scope-ui.ts (jen hlavní okno) · spec 098 -->
 
 <a id="A6.5.1"></a>
 ### A6.5.1 Woher die Karte die Lage eines Ortes nimmt
@@ -678,27 +856,220 @@ gewählten Person.
 
 <!-- zdroj: app:src/map-lines.ts pathPlaySchedule (PATH_PLAY_MS 24000, PATH_EVENT_WEIGHT 5, krok rok, součet 24 000), pathAddedIn (nejbližší generace, pak rel, cíl poslední), pathLastAdded · src/ui/map-path-ui.ts playMapPath (konec u cíle), panMapToPathEnd (framed, jednou), renderMapTimeMarks (čtvrtiny podle firstYear, cíl), renderMapTimeCaption (cíl, jinak items[0]; aria-live, aria-valuetext; bez cesty skryto) · src/ui/map-ui.ts toggleMapTimePlay (na konci od začátku), setMapTimeYear (pozastaví), značky → setMapTimeYear · strings.ts map.timeMarkTitle, pathGoalEnd · app cce82a89, 34e82d43 (app:81f2adf0) · ZADANI_UIX_mapa-rody-v-case D5 (ponechat) · spec 054 K2.2 · CHANGELOG.cs.md 3.28.0 -->
 
+<a id="A6.5.7"></a>
+### A6.5.7 Die Karte mit dem Bereich Auswahl
+
+Mit dem Bereich **Auswahl** arbeitet die Karte nur mit den Personen der Auswahl des Fensters ([A6.6](#A6.6)).
+
+- **Was aus der Auswahl berechnet wird:** die Punkte der Orte, die Anzahlen in der Leiste, die Orte zum Suchen in der
+  Forschung ([A6.5.2](#A6.5.2)), **Migration im Zeitverlauf** samt dem Bereich der Jahre ([A6.5.3](#A6.5.3)) und der
+  Weg der Vorfahren ([A6.5.4](#A6.5.4)).
+- **Teil Auswahl** im Umschalter des Bereichs trägt den Namen der Auswahl und die Zahl der Personen („Stammlinie Horák
+  · 14“); ein Fenster ohne Auswahl hat nur **Auswahl ▾**. Ein Klick auf einen Teil, der nicht gewählt ist, schaltet den
+  Bereich sofort um. Ein Klick auf den gewählten Teil oder auf den Teil ohne Auswahl öffnet das Menü der Auswahl
+  ([A6.6](#A6.6)). Eine auf der Karte gewählte Auswahl ist die Auswahl des Fensters: Familie hebt sie dann hervor.
+- **Ort mit Personen außerhalb der Auswahl:** die Blase des Ortes zeigt nur die Personen der Auswahl und darunter „und
+  {n} Personen außerhalb der Auswahl ·“ mit **Ganzer Stammbaum** (schaltet den Bereich um). Eine Heirat, von der nur
+  ein Partner in der Auswahl ist, wird auf der Karte gezeigt; in der Blase steht nur dieser Partner.
+- **Suche einer Person auf der Karte:** eine Person außerhalb der Auswahl hat im Ergebnis das Etikett „außerhalb der
+  Auswahl“ und den Link **Im ganzen Stammbaum zeigen** (schaltet den Bereich auf **Ganzer Stammbaum** um).
+- **Weg zu einer Person:** die Wahl der Person des Weges bietet nur Personen der Auswahl an. Ist das Ziel des Weges
+  außerhalb der Auswahl, ist der Chip des Weges gedämpft mit „· außerhalb der Auswahl“, der Weg wird nicht gezeichnet,
+  und die Leiste sagt „Die Person des Weges ist außerhalb der Auswahl – der Weg wird nicht gezeigt.“
+- **Leere Auswahl:** in der Mitte der Karte „Die Auswahl ist leer.“; eine Auswahl, in der niemand einen Ort hat: „Noch
+  niemand aus der Auswahl hat einen Ort.“ mit einem Link auf die Personen ohne Ort ([A6.5.8](#A6.5.8)). Die
+  Statusleiste wird dann nicht gezeigt.
+- **Aufheben oder Wegfall der Auswahl** setzt den Bereich auf **Diese Ansicht** zurück. Der für den Stammbaum
+  gespeicherte Bereich **Auswahl** gilt nur, wenn das Fenster nach dem Öffnen des Stammbaums eine Auswahl hat.
+- **Fenster Orte**, von der Karte geöffnet, hat denselben Umschalter des Bereichs (Teil **Auswahl** nur, wenn das
+  Fenster eine Auswahl hat) und ändert den Bereich der Karte und die Liste der Orte. Von anderswo geöffnet zeigt es
+  die Orte des ganzen Stammbaums.
+- **Telefon:** statt des Umschalters steht die Schaltfläche **Bereich: {Name} ▾** neben den Arten der Ereignisse. Sie
+  öffnet das Blatt **Bereich**: Abschnitt **Kartenbereich** (drei Bereiche mit der Zahl der Personen), **Auswahl
+  ändern** (höchstens 5 Auswahlen: Stammlinien, Vorfahren der zentralen Person, Listen) und **Alle Auswahlen…** (das
+  ganze Menü der Auswahl). Ein Telefon im Querformat hat den Umschalter wie der Computer.
+- **Bedienung:** App: Karte → Umschalter des Bereichs **Diese Ansicht** · **Auswahl** · **Ganzer Stammbaum**
+  (Telefon **Bereich: … ▾**); **Auf der Karte** bei einer Personenliste ([A11.3](A11-lists-of-people.md#A11.3)) und
+  im **⋯** der Tabelle ([A6.7.19](#A6.7.19)).
+- **Gilt seit:** App 3.31.0
+
+<!-- zdroj: app:src/map-scope.ts mapScopePersonIds · src/ui/map-ui.ts mapScopePersons (body, počty, mapMissingPlaces, mapTimeHarvest, map-lines) · src/ui/map-scope-ui.ts (díl Výběr: nezvolený → rozsah hned, zvolený nebo bez výběru → nabídka; vyprázdnění selEmpty / selNoPlaces; mimo výběr popupOutside, popupWhole, outside, showInTree; zrušený / zaniklý výběr → 'view'; zapamatovaný 'sel' jen s výběrem; list Rozsah s selectionQuickRows(5)) · src/ui/selection-picker-ui.ts selectionQuickRows (2 rody, předci, seznamy, další rody) · src/places.ts collectPlaces (fact.persons.filter(kept): sňatek jen s osobou výběru) · src/ui/map-path-ui.ts (osoby cesty z výběru, pathOutside) · src/ui/places-manager-ui.ts (rozsah okna Místa jen z mapy) · strings.ts map.scopeSel, scopeSelNamed, scopeAria, scopeGroup, scopeBtn, scopeSheet, scopeSheetSec, scopeViewHint, scopeChange, scopeAll, selEmpty, selNoPlaces, selUnplacedLink, outside, showInTree, popupOutside, popupWhole, popupSelCount, pathOutside · app:90c09692, 95752f6d, 74d3a34e · ZADANI_DEV_vyber-osob §3, §4, §10 · spec 098 (spec 120 K1.1–K1.3) · dirigent:test/vysledek-1121-app-098-vyber-p1.md -->
+
+<a id="A6.5.8"></a>
+### A6.5.8 Personen der Auswahl ohne Ort
+
+Im Bereich **Auswahl** hat die Statusleiste der Karte eine zweite Zeile „{n} Personen der Auswahl haben keinen Ort ›“,
+wenn mindestens eine Person der Auswahl in keiner Art der Karte einen Ort hat (Geburt, Tod, Heirat oder Scheidung,
+weitere Ereignisse der Person und des Paares). Ein Ort ohne Koordinaten zählt als Ort.
+
+- Ein Klick öffnet die **Tabelle** mit den Personen der Auswahl und dem eingeschalteten Chip **Ohne Ort**
+  ([A6.7.6](#A6.7.6)): bei einer Liste im Umfang dieser Liste, bei einer anderen Auswahl im Umfang „Auswahl: {Name}“
+  ([A6.7.19](#A6.7.19)). Der Chip lässt sich wie andere Filter ausschalten.
+- **Grenzen:** die Zeile erscheint nicht, wenn alle einen Ort haben, während die Koordinaten nachgeschlagen werden und
+  bei einem Fehler oder ohne Internet.
+- **Bedienung:** App: Karte → Statusleiste → „… haben keinen Ort ›“; bei leerer Karte der Link „{n} Personen ohne
+  Ort ›“.
+- **Gilt seit:** App 3.31.0
+
+<!-- zdroj: app:src/places.ts personHasMapPlace (narození, úmrtí, události osoby, svazek start/end/události; místo bez souřadnic se počítá) · src/ui/map-ui.ts renderMapStatus (map-status-unplaced, ne při geocodingu, chybě, offline) · src/ui/map-scope-ui.ts (Tabulka v rozsahu výběru s filter noPlace) · src/ui/table-view/table-ui.ts openTableForSelection · src/ui/table-view/table-filter.ts CHIP_ORDER noPlace · strings.ts map.selUnplaced, selUnplacedLink, table.chip.noPlace, chipNoPlaceTitle · app:2a578474, 39020cf1 · ZADANI_DEV_vyber-osob §5 · spec 120 K1.4 -->
+
 <a id="A6.6"></a>
-## A6.6 Stammlinie in der Ansicht
+## A6.6 Personenauswahl
 
-Eine Ansicht kann eine Stammlinie hervorheben ([A4](A4-surnames-and-families.md)): ihre Mitglieder voll, Ehefrauen
-und Ehemänner, die durch Heirat in die Stammlinie kamen, schwächer, die übrigen gedämpft. Das gilt in den Ansichten
-Familie, Nachkommen und Fächer.
+Die Auswahl ist eine benannte Gruppe von Personen, die ein Fenster hat. Sie gilt in allen Ansichten des Fensters:
+Familie, Nachkommen und Fächer heben sie hervor, die Karte kann sie allein zeigen ([A6.5.7](#A6.5.7)), und die
+Tabelle kann sie als Umfang haben ([A6.7.19](#A6.7.19)). In die Daten des Stammbaums wird die Auswahl nicht
+gespeichert; die Personenlisten ([A11](A11-lists-of-people.md)) bleiben, wie sie sind.
 
-- Die Auswahl wird für jeden Stammbaum auf dem Gerät gespeichert. Eine Stammlinie, die es im Stammbaum nicht mehr
-  gibt, wird still aufgehoben.
-- Wenn in der Ansicht kein Mitglied der Stammlinie gezeichnet ist:
-  - Familie und Fächer verschieben die zentrale Person auf das nächste Mitglied der Stammlinie (über Eltern, Kinder
-    und Partner; bei Gleichstand auf das ältere), und wenn die Person mit ihm nicht verbunden ist, auf den
-    Stammvater;
-  - Nachkommen verschiebt die zentrale Person immer auf den Stammvater;
-  - die Leiste bietet **↩ Zurück** an.
-- **Grenzen:** das Wiederherstellen der Auswahl aus dem Speicher verschiebt die zentrale Person nicht.
-- **Bedienung:** **Stammlinien** in der Leiste; im Angebot der Person **Nur Stammlinie …** (die Herkunftslinie der
-  Person steht zuerst); Ende über × am Etikett oder **Ganzen Stammbaum zeigen**.
-- **Gilt seit:** App 3.21.0
+| Auswahl | Wen sie enthält | Name im Etikett und im Menü |
+|---|---|---|
+| Stammlinie | die tatsächlichen Mitglieder der Stammlinie ([A4](A4-surnames-and-families.md)) | Stammlinie {Stammlinie} |
+| Vorfahren einer Person | die Vorfahren der Person wie die Regel **Vorfahren einer Person** ([A11.2](A11-lists-of-people.md#A11.2)): alle Generationen oder 1 bis 10 | Vorfahren: {Person} |
+| Nachkommen einer Person | die Nachkommen der Person wie die Regel **Nachkommen einer Person**, alle Generationen oder 1 bis 10 | Nachkommen: {Person} |
+| Forschungslinie | die Personen der Forschungslinie wie die Regel **Forschungslinie** | Linie: {Linie} |
+| Personenliste | die Personen der Liste | Liste: {Liste} |
 
-<!-- zdroj: app:src/ui/rod-view.ts · src/rod-focus.ts (BFS přes rodiče, děti, partnery) · strings.ts rodView.only, rodView.whole, rodView.moved · spec 039 · CHANGELOG.cs.md 3.21.0 -->
+- Ein Fenster hat höchstens eine Auswahl. Die Personen der Auswahl werden nach jeder Änderung des Stammbaums neu
+  berechnet (automatische Liste und die Regeln für Vorfahren, Nachkommen und Linie). Platzhalterpersonen und Personen,
+  die nicht mehr im Stammbaum sind, gehören nicht zur Auswahl.
+- **Hervorhebung** in Familie, Nachkommen und Fächer: die Personen der Auswahl voll, die übrigen gedämpft. Bei einer
+  Stammlinie werden Ehefrauen und Ehemänner, die durch Heirat in die Stammlinie kamen, schwächer gezeigt; zur Auswahl
+  gehören sie nicht.
+- **Etikett der Auswahl** über dem Stammbaum: „{Name} · {n} Personen ▾“ (öffnet das Menü der Auswahl,
+  [A6.6.1](#A6.6.1)), **Andere ausblenden** ([A6.6.2](#A6.6.2)), **Nächste Person ›** (fokussiert die nächste Person
+  der Auswahl) und × **Auswahl aufheben** (auch Esc). Eine leere Auswahl hat ein Etikett mit der Zahl 0, und **Nächste
+  Person ›** lässt sich nicht verwenden. Auf der Zeitleiste und auf der Karte wird das Etikett nicht gezeigt.
+- **Eine andere Hervorhebung** (Belege, Prüfung, Live-Änderungen) überdeckt die Auswahl vorübergehend, und das Etikett
+  gehört ihr. Nach ihrem Ende kehrt die Auswahl zurück; **Andere ausblenden** gilt während der Überdeckung nicht. Die
+  Wahl einer Auswahl beendet eine andere Hervorhebung.
+- **Aus der Auswahl ist nichts gezeichnet** (nach der Wahl einer Auswahl, nicht nach dem Wiederherstellen aus dem
+  Speicher):
+  - Familie und Fächer verschieben die zentrale Person auf die Person der Auswahl mit den wenigsten Schritten zu ihr
+    (über Eltern, Kinder und Partner; bei Gleichstand auf die früher geborene). Ist die Auswahl mit ihr nicht
+    verbunden, geht die zentrale Person auf den Stammvater der Stammlinie oder auf die Person, deren Vorfahren oder
+    Nachkommen es sind; bei Linie und Liste auf die am frühesten geborene Person der Auswahl;
+  - Nachkommen verschiebt die zentrale Person immer auf den Stammvater der Stammlinie, die Person der Vorfahren oder
+    Nachkommen, sonst auf die am frühesten geborene;
+  - die Meldung „Fokus: {Person}, Auswahl {Name}“ hat **↩ Zurück**.
+  - Auf der Zeitleiste, auf der Karte und in der Tabelle wird die zentrale Person nicht verschoben.
+- **Bedienung:** App: **Auswahl ▾** in der Leiste von Familie, Nachkommen und Fächer; im Menü der Person **Auswählen
+  ›**; Etikett der Auswahl; auf dem Telefon **Mehr → Auswahl** ([A6.6.1](#A6.6.1)).
+- **Gilt seit:** App 3.21.0 (nur Stammlinie: **Stammlinien** in der Leiste, im Menü der Person **Nur Stammlinie …**);
+  3.31.0: Personenauswahl (Stammlinie, Vorfahren, Nachkommen, Forschungslinie, Liste), Menü **Auswahl ▾**, **Andere
+  ausblenden**
+
+<!-- zdroj: app:src/view-selection.ts (SelectionRef rod / ancestors / descendants / line / list; selectionPersonIds: realRodMembers, rulePersonIds, listPersonIds; cache na lineage index = změnu dat; selectionLabel předpony) · src/ui/view-selection-ui.ts (jeden výběr okna, selectionGroup: rod faint realRodSpouses, zakrytí jinou skupinou a návrat selectionUncovered, setSelection ukončí jinou skupinu, ne přesun při 'restore') · src/ui/evidence-ui.ts (kind 'selection': štítek ▾ otevře nabídku, Skrýt ostatní, Další osoba, × a Esc = clearSelection; prázdný výběr 0 a Další nedostupné) · src/ui/rod-view.ts moveFocusToSelection (ne timeline, map, table) · src/rod-focus.ts selectionFocusTarget (nejméně kroků, shoda dříve narozený; root = zakladatel / osoba předků a potomků; jinak nejdříve narozený; Potomci vždy root) · strings.ts selection.pill, hideOthers, clear, moved, prefix · app:51ad8fd6, cb97070c, 61873988, 39e84ca0, e5da4a61 · ZADANI_DEV_vyber-osob §0, §1, §8, §9, §12 · spec 098 Rozhodnutí 1–5 (Milan 21. 11. „jak doporucujes“) · dřív: src/ui/rod-view.ts, spec 039, CHANGELOG.cs.md 3.21.0 -->
+
+<a id="A6.6.1"></a>
+### A6.6.1 Das Menü Auswahl ▾
+
+Ein Menü wählt die Auswahl des Fensters überall: in der Leiste des Stammbaums, im Etikett der Auswahl, im Teil
+**Auswahl** des Umschalters des Kartenbereichs und auf dem Telefon im Blatt **Mehr**.
+
+- **Inhalt** von oben nach unten:
+  1. Feld **Stammlinie, Person, Liste suchen…**;
+  2. bei einer Auswahl von Vorfahren oder Nachkommen der Block **Auswahl des Fensters**: Name und Zahl, „Person:
+     {Person}“ mit **Ändern…** und **Generationen** (− und +: alle oder 1 bis 10);
+  3. **Keine Auswahl** (ganzer Stammbaum, Zahl der Personen des Stammbaums);
+  4. Abschnitt **Stammlinien** wie die frühere Liste **Stammlinien** ([A4.4](A4-surnames-and-families.md#A4.4)):
+     Stammlinien mit dem Balken des Zeitraums und der Zahl und **Weitere Familien**; nur wenn der Stammbaum eine
+     Stammlinie hat, die nicht klein ist;
+  5. Abschnitt **Vorfahren und Nachkommen**: „Vorfahren: {zentrale Person}“ und „Nachkommen: {zentrale Person}“ mit
+     Zahlen, im Kopf **Andere Person…**;
+  6. Abschnitt **Forschungslinien**, nur in einem Stammbaum mit Linien;
+  7. Abschnitt **Personenlisten**: Listen nach Namen mit dem Symbol der Art, der Art (bei einer automatischen mit der
+     Regel, bei einer Arbeitsliste „a von b offen“) und der Zahl; ohne Listen „Der Stammbaum hat noch keine Listen.“;
+  8. **Auswahl als Liste speichern…** (eine Auswahl, die keine Liste ist; nicht in einem schreibgeschützten
+     Stammbaum) öffnet eine neue Liste mit der Regel der Auswahl ([A11.6](A11-lists-of-people.md#A11.6));
+     **Personenlisten…** öffnet die Verwaltung der Listen.
+- **Suche** geht durch Stammlinien (auch Namensformen), Linien, Listen und Personen, ohne Rücksicht auf diakritische
+  Zeichen. Gefundene Personen (höchstens 5, mit Jahren und Ort) stehen im Abschnitt **Personen** mit den Zeilen
+  „Vorfahren: …“ und „Nachkommen: …“.
+- **Menü der Person:** **Auswählen ›** bietet die Stammlinien der Person an (die Herkunftslinie zuerst, dann
+  Stammlinien, in die sie eingeheiratet hat, mit mindestens zwei tatsächlichen Mitgliedern), **Vorfahren** und
+  **Nachkommen** mit Zahlen (ohne sie, wenn die Person keine Vorfahren oder Nachkommen hat). Gehört die Person zur
+  Auswahl des Fensters, steht darunter **Auswahl aufheben**.
+- **Telefon:** die Leiste des Stammbaums hat die Schaltfläche nicht; in Familie, Nachkommen und Fächer steht im Blatt
+  **Mehr** die Zeile **Auswahl** mit dem Namen der Auswahl (ohne Auswahl **Keine Auswahl**), auf der Zeitleiste, der
+  Karte und in der Tabelle nicht. Das Menü ist ein Blatt mit dem Suchfeld oben. Ein Telefon im Querformat hat die
+  Zeile **Auswahl** am Ende der Zeile **Ansicht**. Das Tablet hat **Auswahl ▾** rechts in der oberen Leiste.
+- **Bedienung:** App: **Auswahl ▾** in der Leiste von Familie, Nachkommen und Fächer; Name ▾ im Etikett der Auswahl;
+  Menü der Person **Auswählen ›**; Telefon **Mehr → Auswahl**.
+- **Gilt seit:** App 3.31.0
+
+<!-- zdroj: app:src/ui/selection-picker-ui.ts (lišta Rodiny, Potomků, Vějíře, ne timeline/map/table; tablet vpravo; každý strom s osobami; MAX_GENERATIONS 10 pak všechny; FOUND_LIMIT 5; rody jen když rodPickerOffered – ne jen malé rody; pole hledání vždy (rod-picker.ts:382); canSave ref ≠ list && !listsReadOnly; saveListOptions; Seznamy osob…) · src/rod-picker.ts selectionPickerHtml (pořadí oddílů, patička) · src/ui/rod-picker-ui.ts wireRodPicker (hledání přes oddíly, bez diakritiky) · src/ui/context-menu.ts (Vybrat ›: rodný rod první, rody sňatkem s ≥ 2 skutečnými členy, Předky / Potomky s počty, Zrušit výběr když osoba patří do výběru) · src/ui/bottom-sheet.ts (řádek Výběr v Rodině, Potomcích, Vějíři; na šířku valueInPair na konci řádku Pohled) · strings.ts selection.* · app:61873988, 07fd4946, a273ef05, 1eb97c1f, 8cfb01da · ZADANI_DEV_vyber-osob §2, §10 -->
+
+<a id="A6.6.2"></a>
+### A6.6.2 Andere ausblenden
+
+**Andere ausblenden** im Etikett der Auswahl lässt in Familie und Nachkommen nur die Personen der Auswahl: die übrigen
+Karten verschwinden, und der Stammbaum wird nur aus ihnen neu angeordnet, in den Grenzen der zentralen Person und der
+Tiefe **Vorfahren** und **Nachkommen** ([A6.1](#A6.1)). Die Auswahl **Vorfahren: {Person}** zeigt so die reine Ahnentafel
+der Person.
+
+- Die zentrale Person wird immer gezeichnet ([A6.6.3](#A6.6.3)). Die Ansicht zeichnet nie mehr Karten als ohne Filter.
+- Bei einer Stammlinie bleiben Ehefrauen und Ehemänner, die durch Heirat in die Stammlinie kamen, bei ihrem Mitglied.
+- Linien gibt es nur zwischen Personen, die beide gezeichnet sind. Eine Familie, von der nur ein Elternteil gezeichnet
+  ist, hängt unter ihm. Personen der Auswahl ohne Verbindung zu den übrigen stehen in der Reihe ihrer Generation als
+  eigene Gruppen, in der Reihenfolge, die sie in der vollen Ansicht hätten.
+- Die Reiter verborgener Verwandter an den Karten und **Kinder und Geschwister** ([A6.1.3](#A6.1.3)) zählen nur
+  Personen der Auswahl.
+- Die Karte, die der Mitte des Bildschirms am nächsten ist, bleibt nach dem Neuanordnen an ihrem Platz (sonst die
+  zentrale Person); der Zoom ändert sich nicht.
+- Die Option wird mit der Auswahl gespeichert ([A6.6.4](#A6.6.4)) und mit dem Aufheben der Auswahl ausgeschaltet.
+- Der **Fächer** bietet die Option nur bei der Auswahl **Vorfahren: {Person}**. Die Sektoren der übrigen Personen
+  bleiben an ihrem Platz als leere gestrichelte Umrisse (ohne Namen, Jahre, Füllung und **+**) und lassen sich weder
+  öffnen noch mit der Tastatur erreichen; die Sektoren der Auswahl und die Mitte bleiben, wo sie waren.
+- **Grenzen:** bei jeder anderen Auswahl hat der Fächer die Option nicht (die Auswahl wird nur hervorgehoben);
+  **Andere ausblenden**, in Familie eingeschaltet, ändert dort nichts und bleibt eingeschaltet. Ausgaben (Bild,
+  Druck, Export) zeichnen die ganze Ansicht.
+- **Bedienung:** App: Etikett der Auswahl → **Andere ausblenden** (Kontrollkästchen); auf dem Telefon steht das
+  Etikett in einer Zeile, und **Andere ausblenden** ist nur ein Kontrollkästchen ohne Text.
+- **Gilt seit:** App 3.31.0
+
+<!-- zdroj: app:src/layout/pipeline/person-filter.ts (filtr při sběru osob: jen osoby celého pohledu a jejich generace a pořadí, ústřední vždy; restrictSelection: čáry jen mezi nakreslenými, rodina s jedním rodičem pod ním; nespojené osoby ve vlastních skupinách vedle sebe v pořadí celého pohledu) · src/layout/pipeline/index.ts drawnOrder · src/renderer.ts setPersonFilter (Rodina a Potomci; záložky a bulk-family jen osoby výběru tabInView; karta nejblíž středu zůstane, jinak ústřední; přiblížení beze změny; výstupy kreslí celý pohled) · src/ui/evidence-ui.ts (rod: faint partneři do filtru; ve vějíři jen předci: setPersonFilter fan = ref.kind ancestors, syncEvidencePillHide evidence-pill--no-hide) · src/fan-chart.ts buildFanSvg keepOnly (offSector: prázdný čárkovaný obrys, bez +, pointer-events none, aria-hidden; střed vždy) · src/ui/fan-view.ts svgExtras keepOnly (jen obrazovka; výstup fan-chart.ts:1249 bez keepOnly), klávesnice přeskočí · app:493f330c · src/ui/view-selection-ui.ts setHideOthers (pamatuje s výběrem, bez výběru vypnuto) · strings.ts selection.hideOthers, hideOthersTitle · app:39e84ca0, e5da4a61 · ZADANI_DEV_vyber-osob §8 · dirigent:prace/1121-app-098-vyber-p1 (telefon: štítek v jednom řádku, Skrýt ostatní čtvereček 44 px), test/vysledek-1121-app-098-vyber-p1.md -->
+
+<a id="A6.6.3"></a>
+### A6.6.3 Die zentrale Person außerhalb der Auswahl
+
+Eine zentrale Person, die nicht zur Auswahl gehört, bleibt in Familie und Nachkommen voll sichtbar, auch mit **Andere
+ausblenden**. Am oberen Rand der Karte hat sie das Etikett „außerhalb der Auswahl“; ein Bildschirmleser liest „{Name} –
+außerhalb der Auswahl“.
+
+- Im Fächer ist die Mitte nicht gedämpft; ein Etikett hat sie nicht.
+- Das Folgen des Agenten der Forschung ([S4.1.7](S4-research-from-the-app.md#S4.1.7)) ändert nur die zentrale Person,
+  die Auswahl bleibt und hält die Sprünge zum Agenten nicht auf. Ein Sprung auf eine Person außerhalb der Auswahl
+  erscheint mit dem Etikett „außerhalb der Auswahl“.
+- **Bedienung:** Klick auf die Karte einer Person außerhalb der Auswahl.
+- **Gilt seit:** App 3.31.0
+
+<!-- zdroj: app:src/renderer.ts setEvidenceHighlight (ústřední osoba nikdy dim; mimo výběr card-tag „mimo výběr“, aria; ve vějíři jen střed bez dim) · src/layout/pipeline/person-filter.ts (ústřední vždy) · src/ui/live-follow-ui.ts (skok agenta mění zaměření, výběr nechá a skoky nezdržuje) · strings.ts selection.outside, outsideAria · app:39e84ca0, e5da4a61 · ZADANI_DEV_vyber-osob §7 (sledování), §9 -->
+
+<a id="A6.6.4"></a>
+### A6.6.4 Die Auswahl in Fenstern und im Speicher
+
+Die Auswahl gehört dem Fenster und gilt darin über alle Ansichten. Für den Stammbaum wird die Auswahl des
+Hauptfensters gespeichert.
+
+| Was | Hauptfenster | Weiteres Fenster ([A6.8](#A6.8)) |
+|---|---|---|
+| Auswahl und **Andere ausblenden** | wird für jeden Stammbaum auf dem Gerät gespeichert; nach dem Öffnen des Stammbaums kehrt sie zurück, und die zentrale Person bewegt sich nicht | übernimmt beim Öffnen die Auswahl des Fensters, aus dem es entstand; danach hat es eine eigene und hält sie bis zum Schließen (auch nach F5) |
+| Kartenbereich ([A6.5](#A6.5)) | wird für jeden Stammbaum gespeichert | übernimmt ihn beim Öffnen, danach einen eigenen |
+
+- Eine Änderung der Auswahl in einem Fenster ändert die anderen Fenster nicht. Ausnahme ist **Auf der Karte** aus der
+  Tabelle eines weiteren Fensters: das führt das Hauptfenster aus ([A6.7.19](#A6.7.19)).
+- **Weggefallene Auswahl** (gelöschte Liste, weggefallene Stammlinie, entfernte Forschungslinie, gelöschte Person der
+  Vorfahren oder Nachkommen): die Auswahl wird aufgehoben, **Andere ausblenden** ausgeschaltet, und der Kartenbereich
+  **Auswahl** kehrt auf **Diese Ansicht** zurück. War die Auswahl zu sehen (Hervorhebung in Familie, Nachkommen oder
+  Fächer, Karte mit dem Bereich **Auswahl**), sagt die Meldung warum: „Auswahl aufgehoben: Die Liste „{Liste}“ wurde
+  gelöscht.“, „Auswahl aufgehoben: Die Stammlinie {Stammlinie} existiert nicht mehr.“, „Auswahl aufgehoben: Die
+  Forschungslinie wurde entfernt.“, „Auswahl aufgehoben: {Person} wurde gelöscht.“
+- Ein gesperrter Stammbaum oder einer, der noch lädt, verwirft die gespeicherte Auswahl nicht; sie wird nach dem
+  Entsperren oder Laden angewandt.
+- Die frühere Wahl einer Stammlinie (bis App 3.30.0) wird als Auswahl der Stammlinie übernommen.
+- **Gilt seit:** App 3.31.0
+
+<!-- zdroj: app:src/settings.ts selectionByTree (migrace rodByTree → { ref rod, hideOthers false }), mapScopeByTree · src/ui/view-selection-ui.ts (hlavní okno zapisuje, další okno jen stav okna; adoptWindowSelection; obnova bez přesunu; selectionDataChanged: zaniklý výběr zrušen, hideOthers vypnuto, toast jen když byl vidět; zapomenout jen u skutečně načtených dat; pending u zamčeného stromu) · src/windows/view-window-state.ts (selection, mapScope v přenášeném stavu; F5) · src/windows/window-show-on-map.ts · src/ui/map-scope-ui.ts (zrušený / zaniklý → 'view') · strings.ts selection.goneList, goneRod, goneLine, gonePerson · app:9f1fe7c4, 27e6a511, 287d10d5, f5e531e9 · ZADANI_DEV_vyber-osob §7, §12 -->
 
 <a id="A6.7"></a>
 ## A6.7 Tabelle
@@ -733,7 +1104,8 @@ Tabelle von Ondřej Chrpa.
   Quelle ändert die zentrale Person nicht.
 - **Grenzen:**
   - die Hervorhebung einer Stammlinie ([A6.6](#A6.6)) wird in der Tabelle nicht verwendet; einen Stamm wählt der
-    Chip **Stamm** ([A6.7.6](#A6.7.6));
+    Chip **Stamm** ([A6.7.6](#A6.7.6)), ab App 3.31.0 auch die Auswahl des Fensters als Umfang
+    ([A6.7.19](#A6.7.19));
   - Spalten, Chips und Ansichten der Forschung gibt es nur in einem Stammbaum aus der Forschung
     ([A6.7.14](#A6.7.14));
   - einen schreibgeschützten Stammbaum (verfolgter Stammbaum, von einer neueren Version der App gespeicherter
@@ -954,6 +1326,8 @@ Der Filter wählt die Zeilen aus, die Suche engt sie weiter ein, die Sortierung 
   (Geburt oder Tod), **Ohne Quelle**, **Mit Befund** (Fehler oder zu prüfen; Spur nicht), **Ungewöhnlich**,
   **Unbestätigt (Forschung)** (nur Stammbaum aus der Forschung). Die Chips der Befunde warten auf die Prüfung
   („Sobald die Prüfungen fertig sind“). Was nicht hineinpasst, steht unter **Weitere (n)**.
+  - **Ab App 3.31.0:** nach **Ohne Geburtsdatum** steht der Chip **Ohne Ort**: Personen ohne Ort für Geburt, Heirat,
+    Tod und anderes Ereignis, also ohne einen Ort, den die Karte zeigen würde ([A6.5.8](#A6.5.8)).
 - **Filter in der Spalte** (**Filter…** im Spaltenkopf) nach der Art der Spalte:
   - Werte aus einer Liste (Geschlecht, Stand der Verbindung, Stufe des Befunds, Stamm …);
   - Bereich **von**–**bis** (beim Datum **Jahr**, bei Alter, Anzahl und Prozent eine Zahl);
@@ -1672,7 +2046,21 @@ die Zeilen auf die Personen der Liste ein; Filter, Suche und Chips gelten dann i
   Zeichen. Auf dem Telefon **⋯ → Umfang ›**. Aus einer Liste: **In Tabelle öffnen**
   ([A11.3](A11-lists-of-people.md#A11.3)).
 - **Gilt seit:** App 3.30.0
+- **Ab App 3.31.0:**
+  - die **Auswahl des Fensters** ([A6.6](#A6.6)), die keine Liste ist (Stammlinie, Vorfahren, Nachkommen,
+    Forschungslinie), steht unter **Umfang ▾** als Abschnitt **Auswahl des Fensters** mit der Zeile „Auswahl: {Name} ·
+    {Zahl}“; die Leiste der Tabelle zeigt dann „Auswahl: {Name}“. Die Zeilen sind wie im Umfang einer Liste, nur ohne
+    eigene Reihenfolge: ohne die Spalten **#** und **Erledigt**. Person außerhalb der Auswahl: „Nicht in der Auswahl:
+    {Name}.“;
+  - der Umfang einer Auswahl folgt der Auswahl des Fensters: eine andere Auswahl ersetzt ihn, die Auswahl einer Liste
+    schaltet auf den Umfang dieser Liste um, eine aufgehobene oder weggefallene Auswahl stellt **Ganzer Stammbaum**
+    wieder her. Der Umfang einer Auswahl gehört dem Fenster und wird nicht mit der Ansicht der Tabelle gespeichert;
+  - im Umfang einer Liste oder Auswahl ist im **⋯** der Tabelle die letzte Zeile **Auf der Karte**: die Auswahl des
+    Fensters wird auf diese Liste oder Auswahl gesetzt, und die Karte öffnet sich mit dem Bereich **Auswahl**
+    ([A6.5.7](#A6.5.7)). In einem weiteren Fenster ([A6.8](#A6.8)) führt das das Hauptfenster aus; ohne Hauptfenster
+    ist die Zeile nicht verfügbar („Das Hauptfenster ist nicht geöffnet.“).
 
+<!-- zdroj 3.31.0: app:src/ui/table-view/table-scope.ts (kind 'selection', klíč sel:…, jen pos, bez # a Hotovo) · table-ui.ts (oddíl scopeSelGroup jen pro výběr, který není seznam; rozsah sleduje výběr okna; openTableForSelection; ⋯ Na mapě jen v rozsahu seznamu nebo výběru, poslední řádek) · table-views.ts (rozsah výběru se s pohledem neukládá) · table-bar.ts (název výběru a ikona druhu) · table-notice.ts notInSelection · src/windows/window-show-on-map.ts (další okno → hlavní okno) · strings.ts table.scopeSelGroup, scopeSel, notInSelection, onMap, onMapNoMain · app:2a578474, 39020cf1 · ZADANI_DEV_vyber-osob §5, §6 · spec 098 -->
 <!-- zdroj: app:src/ui/table-view/table-scope.ts tableScopeOf, scopeRows (Osoby v pořadí, svazek s partnerem, událost s osobou, prameny nikdy), scopeCounts, outsideScope, applyScopeCells · table-ui.ts setTableScope (Osoby, Svazky, Události najednou; LIST_SORT # ↑; zpět bez num), dropGoneScopes + scopeGone, tableScopeRows (Spravovat seznamy… ne v isReadOnly), showTableScopeMenu, tableScopeSheetRows, toggleTableDone, tableRowRemoveIds, hiddenJump.outsideList (:2204), leadColumnsOf (# a Hotovo), export :3125 scopeRows · table-notice.ts:60 (scopeGone, notInList, Celý strom) · table-views.ts:258, :272 view.scope · table-bar.ts tv-scope-btn · strings.ts table.scope, scopeWhole, scopeManage, scopeSources, scopeGone, notInList, outsideList, sortList, col.num, col.done, chip.left, chip.done, lists.toast.removed · app:211323e8, 33fa6cd4 (# a Hotovo v exportu), 9681a1f4 (N1 jeden řádek lišty) · ZADANI_DEV §9, §13d · spec 084 K3.* -->
 
 <a id="A6.7.20"></a>
@@ -1724,7 +2112,8 @@ schicken ihm ihre Änderungen und bekommen von ihm den Stammbaum.
 - **Was das Fenster hat:** statt der Leiste der App einen Kopf: Name des Stammbaums, Ansichtsumschalter (unter
   960 px als „{Ansicht} ▾“), **Auswahl folgen** ([A6.8.1](#A6.8.1)), **Rückgängig**, **Wiederholen** und ⧉ **Weiteres Fenster
   öffnen**. Stammbaum-Umschalter, Menü **Forschung**, Einstellungen und das kleine Forschungspanel hat das Fenster
-  nicht. Ab App 3.30.0 steht statt **Auswahl folgen** der Schalter **Auswahl** ([A6.8.4](#A6.8.4)).
+  nicht. Ab App 3.30.0 steht statt **Auswahl folgen** der Schalter **Auswahl** ([A6.8.4](#A6.8.4)), ab App 3.31.0
+  heißt er **Gewählte Person** ([A6.8.1](#A6.8.1)). Eine Personenauswahl ([A6.6](#A6.6)) hat das Fenster für sich.
 - **Änderungen:** im Fenster lässt sich eine Person bearbeiten (Menü der Person, **Bearbeiten**) und eine Zelle der
   Tabelle. Das Hauptfenster speichert sie, sie lassen sich als seine Schritte rückgängig machen und erscheinen sofort in allen Fenstern.
   **Rückgängig** und **Wiederholen** im Kopf des Fensters nehmen Schritte des Hauptfensters zurück oder wiederholen sie. Wurde
@@ -1757,7 +2146,7 @@ schicken ihm ihre Änderungen und bekommen von ihm den Stammbaum.
 <!-- zdroj: app:4b1373a7 src/windows/window-open.ts isDesktopSystem, windowsOffered (role main, ne isViewMode, > MOBILE_MAX 640, ne isPhoneBar), openInNewWindow · src/windows/window-controls.ts openWindow (BLOCKED_TOAST_MS 10 s, win.retry; MANY_WINDOWS 5, manyWindows), INDICATOR_TEXT_MIN_WIDTH 1280, renderMenu (6 pohledů, thisView, overview jen UI.canOpenResearchOverview), wireTabs (ctrl/meta click, auxclick button 1, contextmenu, Shift+F10 / ContextMenu) · src/windows/view-window-state.ts (přenos stavu, F5 satelitu) · src/windows/sat-header.ts · src/windows/satellite.ts readOnly (live, locked) · src/windows/sat-states.ts (live strip readOnlyLive, goToMain; CONFLICT_TOAST_MS) · src/windows/window-drafts.ts (draftKept) · src/windows/window-research-menu.ts (researchInMain) · src/windows/window-title.ts · index.html html.window-satellite .toolbar skryto · strings.ts win.* · CHANGELOG.cs.md 3.28.0 · spec 079 K1.1–K1.4, K1.7 · prace/1112-app-okna-zaklad, 1112-app-okna-pohledy -->
 
 <a id="A6.8.1"></a>
-### A6.8.1 Auswahl folgen
+### A6.8.1 Gewählte Person
 
 Die gewählte Person ist zwischen den Fenstern geteilt. Was eine Wahl in einem anderen Fenster in diesem Fenster
 bewirkt, bestimmt der Schalter **Auswahl folgen** im Kopf des Fensters.
@@ -1784,8 +2173,12 @@ bewirkt, bestimmt der Schalter **Auswahl folgen** im Kopf des Fensters.
 - **Ab App 3.30.0:** der Schalter heißt **Auswahl ▾**, und diese Modi stehen in seiner Gruppe **Dieses Fenster** ·
   Auswahl aus anderen Fenstern. Die zweite Gruppe **Hauptfenster** sagt, was eine Wahl in diesem Fenster im
   Hauptfenster bewirkt ([A6.8.4](#A6.8.4)).
+- **Ab App 3.31.0:** der Schalter heißt **Gewählte Person ▾**, seine Gruppen heißen **Dieses Fenster** · in einem
+  anderen Fenster gewählte Person und **Hauptfenster** · in diesem Fenster gewählte Person. Bei **aus** steht „Das Fenster
+  behält seine gewählte Person und sendet keine.“ Das Wort **Auswahl** bedeutet in der App nur die Personenauswahl
+  ([A6.6](#A6.6)).
 
-<!-- zdroj: app:4b1373a7 src/windows/follow-mode.ts RECENTERING (family, descendants, fan), defaultFollowMode, followModesFor, effectiveFollowMode, followChoiceToStore (sessionStorage pro okno) · src/windows/window-selection.ts (origin, bez smyčky) · src/windows/sat-header.ts · strings.ts win.followSelectionState, followModeSwitch, followModeMark, followModeOff, followModeSwitchNote, followModeMarkNote, followSelectionOff · spec 079 K1.3, K2.1 · prace/1112-app-okna-sledovat (7bb1b8b2) -->
+<!-- zdroj: app:4b1373a7 src/windows/follow-mode.ts RECENTERING (family, descendants, fan), defaultFollowMode, followModesFor, effectiveFollowMode, followChoiceToStore (sessionStorage pro okno) · src/windows/window-selection.ts (origin, bez smyčky) · src/windows/sat-header.ts · strings.ts win.followSelectionState, followModeSwitch, followModeMark, followModeOff, followModeSwitchNote, followModeMarkNote, followSelectionOff · spec 079 K1.3, K2.1 · prace/1112-app-okna-sledovat (7bb1b8b2) · 3.31.0: strings.ts satFollow.menu, label, groupThisSub, groupMainSub, recvOffNote, sendDisabled, agentNote (app:51ad8fd6, ZADANI_DEV_vyber-osob §1.1) -->
 
 <a id="A6.8.2"></a>
 ### A6.8.2 Wenn das Hauptfenster fehlt
@@ -1838,8 +2231,8 @@ speichert, damit sich Änderungen nicht gegenseitig überschreiben. Weitere Fens
 ### A6.8.4 Was eine Wahl in einem weiteren Fenster im Hauptfenster bewirkt
 
 Eine in der Tabelle, in der Zeitleiste oder auf der Karte eines weiteren Fensters gewählte Person wird im Hauptfenster
-markiert oder wird zu seiner Mitte. Das bestimmt die Gruppe **Hauptfenster** im Schalter **Auswahl** im Kopf des
-weiteren Fensters.
+markiert oder wird zu seiner Mitte. Das bestimmt die Gruppe **Hauptfenster** im Schalter **Auswahl** (ab App 3.31.0
+**Gewählte Person**) im Kopf des weiteren Fensters.
 
 | Wahl | Was im Hauptfenster geschieht |
 |---|---|
@@ -1863,9 +2256,9 @@ weiteren Fensters.
   Mitte) und ×.
 - **Grenzen:**
   - ein Hauptfenster, das dem Agenten der Forschung folgt, markiert die Person nur; die Mitte bleibt beim Agenten
-    ([S4.1.7](S4-research-from-the-app.md#S4.1.7)). Einmal je Reihe sagt es „Agent wird verfolgt – eine Auswahl aus
-    einem anderen Fenster wird nur markiert.“; das weitere Fenster hat bei der Wahl „(Agent)“ und im Menü „Das
-    Hauptfenster folgt dem Agenten – die Auswahl wird dort nur markiert.“ Nach einer Pause oder dem Ende des Folgens
+    ([S4.1.7](S4-research-from-the-app.md#S4.1.7)). Einmal je Reihe sagt es „Agent wird verfolgt – eine in einem
+    anderen Fenster gewählte Person wird nur markiert.“; das weitere Fenster hat bei der Wahl „(Agent)“ und im Menü
+    „Das Hauptfenster folgt dem Agenten – die gewählte Person wird dort nur markiert.“ Nach einer Pause oder dem Ende des Folgens
     wird nichts nachträglich umgestellt: **fokussieren** gilt ab der nächsten Wahl;
   - eine Person, die inzwischen nicht mehr im Stammbaum ist: die Mitte bleibt, „Die gewählte Person ist nicht mehr im
     Baum.“ Eine Meldung ohne × verschwindet nach 6 s;
@@ -1875,15 +2268,15 @@ weiteren Fensters.
     Fächer blenden niemanden aus;
   - eine Person, die schon die Mitte ist: nichts geschieht;
   - bei **aus** in der Gruppe **Dieses Fenster** und wenn das Hauptfenster nicht geöffnet ist, ist die Gruppe
-    **Hauptfenster** ausgegraut mit dem Hinweis „Nicht verfügbar – das Teilen der Auswahl ist in diesem Fenster aus.“
+    **Hauptfenster** ausgegraut mit dem Hinweis „Nicht verfügbar – das Teilen der gewählten Person ist in diesem Fenster aus.“
     oder „Das Hauptfenster ist nicht geöffnet.“; die Wahl bleibt gespeichert;
   - die Wahl gilt für ein Fenster und seine Tabelle, Zeitleiste und Karte und übersteht das Neuladen des Fensters
     (F5); jedes weitere Fenster hat seine eigene. Solange keine gewählt ist, entscheidet die Ansicht: die Tabelle
     fokussiert, Zeitleiste und Karte markieren. Ein gewähltes **nur markieren** gilt auch in der Tabelle und
     übersteht das Neuladen des Fensters.
-- **Bedienung:** App: im Kopf eines weiteren Fensters **Auswahl ▾** → **Hauptfenster** · Auswahl in diesem Fenster:
-  **nur markieren**, **fokussieren**. Der geschlossene Schalter zeigt, was gewählt ist (in einem schmalen Fenster
-  verkürzt mit Symbolen); den ganzen Wortlaut hat sein Tooltip.
+- **Bedienung:** App: im Kopf eines weiteren Fensters **Gewählte Person ▾** → **Hauptfenster** · in diesem Fenster
+  gewählte Person: **nur markieren**, **fokussieren**. Der geschlossene Schalter zeigt, was gewählt ist (in einem
+  schmalen Fenster verkürzt mit Symbolen); den ganzen Wortlaut hat sein Tooltip.
 - **Gilt seit:** App 3.30.0
 
 <!-- zdroj: app:e7d3bb11 src/windows/follow-mode.ts SendMode mark|focus, SENDING table/timeline/map, sendModeKey (sessionStorage okna), getSendModeChoice · src/windows/sat-header.ts followControlParts (FOLLOW_LABEL_MIN_WIDTH 1280, FOLLOW_BOTH_MIN_WIDTH 1100), followSendGroupState (off, no-main, agent), sendModeName = contextMenu.focus malým písmenem, followControlAria · src/windows/satellite.ts sendMode (followSelection && sendModeAvailable), post select intent, seq · app:edaec740 src/windows/window-focus.ts WINDOW_FOCUS_DELAY_MS 200, take (seq), fire (deleted, hidden, followingAgent, focusId), run push/replace, endRun · src/windows/window-selection.ts wireMainSelection (markNotice not-in-view, VIEW_STEP_EVENT, onSendEnded), src/windows/window-start.ts mainFocusDeps (hidden: () => false, drawn family/descendants/fan) · src/ui/window-notice.ts PLAIN_NOTICE_MS 6000 · strings.ts satFollow.*, mainNotice.* · CHANGELOG.cs.md 3.30.0 · dirigent:spec/110 (rozhodnutí 18. 11. 17:35 a 17:45: „Zaměřit“ = nový střed) · app:docs/ZADANI_DEV_vyber-z-okna.md §1–§7 · app:6be873dc src/windows/follow-mode.ts defaultSendMode (table → focus, jinak mark), parseSendMode, setSendMode (ukládá focus i mark) · app:4927ccab src/ui/table-view/table-ui.ts tableHidesPerson (filtr, hledání, seznam; ne pinOutside, tempShown, sources), src/windows/window-start.ts mainFocusDeps hidden, src/windows/window-focus.ts { kind: 'hidden' }, strings.ts mainNotice (skrytá osoba), e2e/windows-send-focus.spec.ts -->

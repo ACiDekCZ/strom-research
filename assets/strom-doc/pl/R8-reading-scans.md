@@ -22,7 +22,8 @@ Przebieg w skrócie:
 6. **Pewność:** stopień pewności według tego, kto i jak wpis czytał; trudne miejsce wymaga drugiego, ślepego odczytu
    ([R8.7](#R8.7)).
 
-Kto co czyta, w skrócie i na przykładzie jednego wpisu, mówi [R8.9](#R8.9).
+Kto co czyta, w skrócie i na przykładzie jednego wpisu, mówi [R8.9](#R8.9). Dlaczego wycinki się powiększa, do czego
+służy ostrzejszy wycinek i dlaczego czyta dwóch czytelników, wyjaśnia [R8.10](#R8.10).
 
 > **Uwaga: odczyt modelem nie jest stuprocentowy.** Stare pismo czyta model AI, a dokładność odczytu zależy od modelu.
 > Metodyka chce do starego pisma najsilniejszego modelu, nigdy szybkiego ani taniego odczytu. Czytelnicy czytają
@@ -37,6 +38,8 @@ Kto co czyta, w skrócie i na przykładzie jednego wpisu, mówi [R8.9](#R8.9).
 > oznaczyć jako **Transkrypcja zweryfikowana** ([A3.1.1](A3-evidence-in-the-app.md#A3.1.1), jak uwzględnia ją badanie:
 > [R3.5.1](R3-verification-and-citation.md#R3.5.1)). Błędną daną można poprawić w aplikacji; zmiana danej potwierdzonej
 > aktem staje się sprzecznością ([S2](S2-edits-from-the-app.md)).
+> Transkrypcję badania, którą człowiek sprawdził z zapisem, można potwierdzić przyciskiem **Potwierdź transkrypcję**
+> ([A3.1.3](A3-evidence-in-the-app.md#A3.1.3)).
 > Odczyt przez model jest tylko propozycją: transkrypcji, którą człowiek napisał lub potwierdził, nie zmieni nikt
 > poza człowiekiem, także nowy odczyt ([R3.4.1](R3-verification-and-citation.md#R3.4.1)).
 
@@ -728,3 +731,50 @@ Daną z drzewa innego programu agent mógłby zmienić według cytowanego aktu; 
 przywrócenia ([S6.3](S6-tree-from-another-program.md#S6.3)).
 
 <!-- zdroj: research:v1.30.0 src/core/sourceread.ts placesOf (fresh, ordered: jistá věcná změna první, s ní ostatní neposouzená místa), decideReading, review · assets/lang/cs.json read.source.why, read.source.unsure.why · src/commands/read.ts --blind --crop · assets/method/verify.md · app:1c9b2392 strings.ts read.check „Co ověřit“, gMajor, gUnsure, gMinor, tAgent, tQueue, origin.proposeUser, origin.conflictOpen · spec 059 ukoly U6 (nové 8. 11.: oddíl se čtenáři a příkladem, jen text) -->
+
+<a id="R8.10"></a>
+## R8.10 Jak model widzi skan: powiększenie, ostrzejszy wycinek i dwóch czytelników
+
+Wyjaśnienie, dlaczego badanie pokazuje czytelnikom skany tak, jak je pokazuje. Opiera się na dokumentacji twórców
+modeli, na badaniach odczytu rękopisów przez modele AI i na pomiarze na próbce wpisów jednego badania projektu.
+Liczby rozmiarów pilnuje kod; wnioski z pomiaru są tylko wskazówką.
+
+- **Jak model widzi obraz:** model nie bierze obrazu piksel po pikselu, lecz w kwadratach (Claude 28 px, GPT 32 px).
+  Małego obrazu sam nie powiększy, a duży sam zmniejszy ([R8.3.2](#R8.3.2)). Gdy na małym wycinku litera jest
+  mniejsza niż jeden kwadrat, model widzi ją tylko częściowo i czyta gorzej; kłopot tkwi w wielkości pisma, nie
+  w tym, że nie znalazłby wpisu.
+- **Dlaczego wycinek się powiększa (pilnuje kod):** wycinek albo połówka mniejsza niż widok, który czytelnik czyta
+  dobrze, się powiększa: dla Claude do 800 px po dłuższym boku, dla czytelnika z modelem GPT (Codex, OpenCode
+  z modelem OpenAI) do 2000 px; zawsze najwyżej 3× i nigdy ponad to, co model weźmie w całości. Powiększenie tylko
+  rozkłada pismo na więcej kwadratów: nowych szczegółów nie dodaje. Widok mówi więc czytelnikowi, z ilu pikseli
+  skanu jest powiększony i że więcej szczegółów nie ma; czego czytelnik nie odczyta na pewno, zapisuje jako `[?]`
+  i nie trafia to do danych.
+- **Ostrzejszy wycinek z archiwum (pilnuje kod):** prawdziwy szczegół da tylko skan w wyższej rozdzielczości. Gdy
+  z archiwum przyszła ostrzejsza część obrazu, która pokazuje całe miejsce (poza nią zostaje najwyżej margines),
+  czyta się z niej. Przy miejscu małym na skanie proponuje się ostrzejszy wycinek z archiwum, sam nigdy się nie
+  pobierze; inaczej widok doradzi agentowi poprosić człowieka o ostrzejszy skan ([R8.2](#R8.2), [R8.5](#R8.5)).
+- **Dwóch czytelników na ślepo:** badania pokazują, że model własnego odczytu sam nie poprawi, odczyt innym modelem
+  jednak błędy ujawnia. Dlatego **Przeczytaj ponownie…** i odczyt dokumentu proponują dwóch czytelników, którzy
+  o sobie nie wiedzą; dla każdego można wybrać agenta i model ([R8.8.1](#R8.8.1)). Miejsca, w których się różnią,
+  są bursztynowe i niepewne ([R8.8](#R8.8), [R8.8.2](#R8.8.2)). Zgodność dwóch czytelników błędu nie wyklucza: obaj
+  mogą pomylić się tak samo.
+- **Opus i GPT na próbce projektu** (listopad 2026):
+  - GPT czytał mały wycinek w oryginalnej wielkości źle, przy jednym wpisie określił nawet błędnie rodzaj wpisu
+    (chrzest zamiast ślubu); po powiększeniu do około 2000 px określił rodzaj dobrze i odczytał wyraźnie więcej słów.
+    Dlatego dla niego wycinek powiększa się bardziej;
+  - Opus czytał ten sam wycinek dobrze już przy 800 px; większy widok ani ostrzejsza część nie dodały mu nic
+    mierzalnego. Na gęstym rękopisie odczytał więcej słów niż GPT, na czytelnym piśmie czytali podobnie;
+  - najsilniejszy sygnał dla GPT dała ostrzejsza część obrazu; połówki zamiast całej strony ani wzmocniony kontrast
+    słów nie dodały, więc badanie nie wprowadziło ich jako domyślnych;
+  - **zastrzeżenia:** chodziło o kilka wpisów jednego badania i mało przebiegów (przy GPT często jeden). Powtórzone
+    przebiegi tego samego odczytu różniły się o 1–3 słowa. Miarą były transkrypcje, które częściowo również
+    utworzyła AI. Wyniki pokazują kierunek, nie dokładność, i przy innym piśmie, języku lub modelu mogą wypaść
+    inaczej.
+- **Weryfikacja przez człowieka:** ani dwóch czytelników, ani powiększenie nie dają pewności. Ważną daną powinien
+  najlepiej sprawdzić człowiek z wycinkiem zapisu: własną transkrypcję oznaczyć jako **Transkrypcja zweryfikowana**
+  ([A3.1.1](A3-evidence-in-the-app.md#A3.1.1)), transkrypcję badania potwierdzić przyciskiem **Potwierdź
+  transkrypcję** ([A3.1.3](A3-evidence-in-the-app.md#A3.1.3)).
+- **Obowiązuje od:** badanie 1.0.0 (powiększenie wycinka do 800 px); odczyt z ostrzejszej części 1.19.0;
+  powiększenie dla GPT i ostrzejsza część z marginesem 1.29.0; **Potwierdź transkrypcję** aplikacja 3.25.0
+
+<!-- zdroj: research:v1.35.0 src/agents/images.ts VIEW_MIN 800, imageMin (GPT min(2000, imageMax)), gptReader, IMAGE_MAX/IMAGE_MAX_LARGE · src/core/views.ts makeView enlarge min(3, …), viewSize, describeView, ENLARGED_HINT, SHARPER_SCAN · src/core/media.ts SHARPER · src/commands/document.ts sharperOf, sharperCover · CHANGELOG.cs.md 1.29.0 · dirigent:analyza/2026-11-07-cteni-obrazku/reserse.md (dlaždice 28/32 px, modely malé obrázky nezvětšují, interpolace nepřidává informaci, Zhang 2025, Humphries 2024/2025 a Crosilla 2025: sebeoprava nepomáhá, oprava jiným modelem ano) · experiment.md (Opus 800 vs 2000 v šumu, GPT ostřejší část nejsilnější signál, poloviny horší, kontrast nezaveden, n malé, rozptyl 1–3 slova) · test/vysledek-1106-simulace-cteni.md (GPT 1× druh zápisu chybně, 2× správně) · spec 059 ukoly U6 (jen text, bez obrázků) -->

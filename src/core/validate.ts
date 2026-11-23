@@ -276,6 +276,22 @@ function checkPerson(p: Partial<Person>, out: Problem[]): void {
   else p.events.forEach((e, i) => checkEvent(e, `events[${i}]`, out));
   checkNotes(p.notes, "notes", out);
   checkOriginalIds(p.originalIds, out);
+  checkContact(p.contact, out);
+}
+
+/** A person's contact (spec 134 U11): e-mail addresses (strings, something@something), never an empty list or object. */
+function checkContact(c: Person["contact"], out: Problem[]): void {
+  if (c === undefined) return;
+  if (!isObj(c)) return void out.push({ path: "contact", message: "must be an object" });
+  if (c.emails === undefined) {
+    if (!Object.keys(c).length) out.push({ path: "contact", message: "must not be empty (left out instead)" });
+    return;
+  }
+  if (!Array.isArray(c.emails) || !c.emails.length) return void out.push({ path: "contact.emails", message: "must be a non-empty array (left out instead)" });
+  c.emails.forEach((e, i) => {
+    if (typeof e !== "string" || !/^\S+@\S+$/u.test(e)) out.push({ path: `contact.emails[${i}]`, message: "must be an e-mail address (a string with @)" });
+  });
+  if (new Set(c.emails.map((e) => (typeof e === "string" ? e.toLowerCase() : e))).size !== c.emails.length) out.push({ path: "contact.emails", message: "each address once" });
 }
 
 function checkFamily(f: Partial<Family>, out: Problem[]): void {

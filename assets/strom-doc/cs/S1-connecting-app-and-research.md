@@ -145,6 +145,80 @@ Při sledování živě přicházejí změny z výzkumu do aplikace samy. Sledov
 
 <!-- zdroj: app:src/ui/research-ui.ts startLiveFollow :2376 (opts.auto), researchReconnectOnly · strings.ts live.followLive, live.followingTree, live.followStarted, live.followMoved, live.liveEndedArchive, live.liveEndedNoAgent · CHANGELOG.cs.md 3.13.1 · spec 011 · app:669c08f0 src/research-tree-file.ts (ged.stale → tree.ged?stale=1, treeFileState preparing; ged.etag → If-None-Match jen u stromu přesně z toho souboru, 304 = strom zůstává), src/ui/research-ui.ts livePreparing, strings.ts research.newerPreparing · research:94d75934 src/core/liveged.ts (strom pro aplikaci jednou pro stav a variantu, na disku i po restartu mostu), src/core/live.ts (change až s hotovým stromem; ETag u tree.ged) · CHANGELOG.cs.md 1.30.0 -->
 
+<a id="S1.4.1"></a>
+### S1.4.1 Strom hned, fotky přibývají
+
+Strom otevřený přes **Sledovat živě** se ukáže hned, s fotkami, které aplikace už má. Ostatní portréty, fotky svazků,
+přílohy a výřezy pramenů přicházejí z výzkumu potom, na pozadí. Jména, vztahy a karty jdou prohlížet hned.
+
+- **Pořadí:** nejdřív fotky karet na obrazovce, pak kolem středu. Posun nebo přiblížení stromu pořadí přeřadí.
+  První dávka má 30 fotek, další po 500, nejvýš 2 dotazy najednou. Každá fotka se před vložením do stromu ověří
+  podle svého otisku.
+- **Fotka na cestě:** karta ukazuje iniciály pod klidným, pomalu pulzujícím závojem; karta se starší fotkou ukazuje
+  pod závojem ji, dokud nepřijde nová. Text při najetí říká „Fotka se načítá…“, nebo „Načítá se nová fotka…“.
+  Fotka, která přijde, se na místě prolne; strom se kvůli ní nepřekresluje.
+  - Stejný závoj mají dialog osoby, stránka osoby a stránky rodiny v okně aplikace, okno **Materiály**, soubory
+    a materiál osoby, náhledy pramenů a výřezů a fotka svazku v Tabulce. Prezentace, změny z výzkumu a rozpor při
+    sloučení ukazují iniciály, dokud portrét nepřijde.
+- **Fotka, která nepřišla:** karta vypadá jako karta bez fotky; text při najetí „Fotka se nenačetla.“ Dlaždice
+  v seznamech ukáže přeškrtnutý obrázek, od velikosti 64 px s nápisem **Nenačteno**. Dialog osoby a stránka osoby
+  mají u fotky **Zkusit znovu**.
+- **Ukazatel Fotky k / n:** objeví se, když se fotky načítají déle než 400 ms, a počítá fotky celého stromu
+  („Fotky 846 / 860“, s „· 3 nenačteno“) s pruhem průběhu. Na počítači stojí nahoře, v okně do šířky 1024 px dole
+  nad oznámeními. Kliknutí ukáže podrobnost: „Zbývá N · nenačteno M“ a co jde se stromem mezitím dělat: při živém
+  sledování „Strom se mezitím dá prohlížet.“ (strom je jen pro čtení, [S1.4](#S1.4)), jinak „Strom lze mezitím
+  upravovat.“ Když přijdou všechny, ukáže na 2 s ✓ a zmizí.
+- **Některé se nenačetly:** ukazatel zmizí a zůstane jedna hláška „Některé fotky se nenačetly (N).“ s důvodem
+  („Výzkum neběží. Je potřeba spustit Strom Research.“, „Výzkum neodpověděl do 60 s.“, nebo „Výzkum tyto fotky
+  nemá.“) a **Zkusit znovu**. To načte nenačtené fotky znovu a ukazatel počítá znovu celý strom.
+- **Hlídá kód:** fotka na cestě nikdy nesmaže ani nepřepíše uloženou fotku.
+  - Uložení stromu před příchodem fotek ponechá u portrétu a fotky svazku dosavadní fotku (nebo žádnou). Fotky,
+    které ještě nepřišly, si aplikace poznamená ke stromu a při dalším připojení k výzkumu je dotáhne.
+  - Dialog osoby zapíše fotku, jen když ji člověk v dialogu změnil. Fotka, která přijde při otevřeném dialogu, se
+    v něm doplní.
+  - **Zpět**, **Znovu**, zahozený dialog, denní záloha i další okna drží fotky, které už přišly.
+  - **Upravit výřez** portrétu nebo fotky svazku počká na fotku: „Výřez půjde upravit po načtení fotky.“
+  - Příchod fotky není úprava stromu: nejde vrátit jako krok a strom v souladu s výzkumem v souladu zůstane.
+  - Fotky, které nepřišly, výzkum nebere jako odebrané: zápisy stromu do jejich příchodu jen přidávají
+    ([S8.5](S8-where-the-data-are.md#S8.5)).
+- **Hranice:**
+  - jen při otevření stromu přes **Sledovat živě**. Novější verze během sledování, převzetí stromu a jiná načtení
+    verze z výzkumu přinášejí fotky najednou se stromem jako dřív;
+  - výzkum do 1.29 posílá strom s fotkami uvnitř souboru: strom se ukáže až s nimi;
+  - jiný strom otevřený během načítání načítání zruší a ukazatel zmizí. Fotka přistane jen ve stromu a v načtení,
+    pro které se stahovala;
+  - další okna aplikace ([A6.8](A6-views.md#A6.8)) stav načítání nemají a ukazují strom bez závoje;
+  - u šifrovaného stromu přijdou soubory a výřezy pramenů, které nepřišly do zavření stránky, až s další verzí
+    výzkumu;
+  - na telefonu drženém na šířku se rozbalený panel výzkumu při ukazateli sbalí ([S4.1](S4-research-from-the-app.md#S4.1)).
+- **Ovládání:** aplikace: **Sledovat živě**; ukazatel **Fotky k / n** (kliknutí: podrobnost, Esc ji zavře);
+  hláška → **Zkusit znovu**; dialog osoby a stránka osoby → **Zkusit znovu**.
+- **Platí od:** aplikace 3.31.0, výzkum 1.30.0
+
+<!-- zdroj: dirigent:spec/116-fotky-nacitat-pozdeji K1.2–K1.6, K2.1 · prace/1119-app-116-fotky (Výsledek, odchylky) · app:45dd3426 src/image-loads.ts (ImageLoadQueue, IMAGE_FIRST_BATCH 30, takePendingImages, write jen do současného stromu a načtení, bez kroku zpět), src/research-image-refs.ts IMAGE_BATCH 500, IMAGE_CONCURRENCY 2, IMAGE_ANSWER_MS 60 s · src/ui/research-ui.ts startLiveFollow (ged.imagesByHash → later, priority TreeRenderer.imagePriority: na obrazovce, pak kolem středu; setPendingImages I1; researchResumePendingImages) · research:33ac2e38 (1.30.0) src/core/live.ts ged.imagesByHash · app:95e68ac7 (K1.5 I1–I7: TreeMetadata.pendingImages, notes(records) bez záznamů u šifrovaného stromu) · 87b9ec30 src/ui/image-slot.ts (data-img-state loading/refresh/failed, IMG_PULSE_MS, TILE_NOTE_MIN_PX 64) · ad9e82a0 src/ui/person-modal.ts renderPhotoState, photoModel · 05cf608c, e188236f (další místa) · 4afeb434, b1bcb476 src/ui/image-load-chip.ts CHIP_SHOW_MS 400, BUSY_DONE_MS, detailNote(readOnly), failedReasonText (offline → timeout → missing), treeSwitched · 4afeb434 src/image-loads.ts abort (strom už není současný) · strings.ts photos.loading, loadingNew, failed, failedNew, tileFailed, recropWait, chipLabel, chipFailed, detailLeft, detailEditable, detailViewOnly, someFailed, whyMissing · busy.errOffline, errTimeout, retry · a2feee6b (≤ 1024 dole nad oznámením) · 7be40d24 src/ui/landscape-panel-fold.ts · CHANGELOG.cs.md 3.31.0 -->
+
+<a id="S1.4.2"></a>
+### S1.4.2 Výstupy čekají na fotky
+
+Výstup vyžádaný ve chvíli, kdy fotky stromu ještě přicházejí ([S1.4.1](#S1.4.1)), na ně počká a vznikne až
+s nimi. Bez fotek vznikne jen na výslovnou volbu.
+
+- **Které výstupy:** tisk plakátu, obrázek PNG a vektor SVG, stránka osoby, stránky rodiny, kniha rodu, záloha
+  dat (**Uložit do souboru**, zápis do propojeného souboru, soubor ke sdílení, **Exportovat** zálohu) a export
+  GEDCOM. Soubor CSV fotky nemá a nečeká.
+- **Čekání:** tlačítko nebo řádek výstupu říká „Čeká se na fotky · k z n“ a druhé kliknutí nic nespustí. Oznámení
+  s názvem výstupu („Tisk plakátu“, „Kniha rodu“…) počítá fotky s pruhem a má **Zrušit**. Ukazatel **Fotky k / n**
+  se mezitím schová.
+- **Když některé nepřišly:** jedna hláška „Některé fotky se nenačetly (N).“ s důvodem a třemi volbami: **Zkusit
+  znovu**, **Pokračovat bez N fotek** (výstup z dat, jak jsou) a **Zrušit**.
+- **Hlídá kód:** výstup nikdy neobsahuje závoj ani znak nenačtené fotky. Tisk před otevřením tisku načte a vykreslí
+  i obrázky, které stránka načítá až při posunu.
+- **Ovládání:** aplikace: výstup jako vždy; v oznámení **Zrušit**; v hlášce **Zkusit znovu**, **Pokračovat bez
+  N fotek**, **Zrušit**.
+- **Platí od:** aplikace 3.31.0
+
+<!-- zdroj: dirigent:spec/116-fotky-nacitat-pozdeji K1.7 · app:9d326239 src/ui/output-images.ts imagesBeforeOutput, waitingLine, someFailedText, toastImagesView (retry, without, cancel; suspendImageLoadChip), imagesReadyForPrint · src/image-loads.ts awaitTreeImages · volající: src/ui/export-image-ui.ts (poster, png, svg), person-page-ui.ts (personPage, familyPages), book-ui.ts (book, familyPages), file-copy-ui.ts, file-access-ui.ts, share-ui.ts (backup), encryption-ui.ts (backup, gedcom; csv ne) · src/ui/fan-view.ts (live false: fotka nebo nic) · strings.ts photos.waiting, continueWithout, out.*, busy.kOfN, buttons.cancel · CHANGELOG.cs.md 3.31.0 -->
+
 <a id="S1.5"></a>
 ## S1.5 Když výzkum neběží nebo spojení nejde
 

@@ -1,6 +1,7 @@
 // Domain write operations. Every change to the evidence goes through here,
 // under the tree lock, validated and sealed by Tree.put.
 
+import { joinEmails } from "./contact.ts";
 import { DirectionExists, UsageError } from "./errors.ts";
 import { workOrder } from "./order.ts";
 import { normalizeDate, reversedRange } from "./gdate.ts";
@@ -1180,9 +1181,12 @@ export function mergePersons(tree: Tree, keepId: string, otherId: string, reason
     const refs = [...(keep.refs ?? []), ...(other.refs ?? []).filter((r) => !(keep.refs ?? []).some((k) => k.system === r.system && k.id === r.id))];
     // the IDs of family trees: both records', the other's as not come of its import (its values are the kept one's now)
     const originalIds = joinIds(keep.originalIds, mergedAway(other.originalIds)).list;
+    // the contact (spec 134 U11): both persons' e-mails, each once
+    const emails = joinEmails(keep.contact?.emails, other.contact?.emails);
     const why = reason.trim();
     const merged: Person = {
       ...keep,
+      ...(emails.length ? { contact: { ...keep.contact, emails } } : {}),
       names,
       sex: keep.sex === "U" ? other.sex : keep.sex,
       events: [...keep.events, ...other.events],

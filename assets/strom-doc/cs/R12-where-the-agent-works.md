@@ -69,8 +69,8 @@ hlídá stejně.
 - **Proč:** aplikace Claude spouští hooky výzkumu i před svým vestavěným prohlížečem, takže strom může každou adresu
   posoudit jako u Chromu.
 - **Ovládání:** aplikace Claude: nastavení **Preferred browser**. Terminál: `strom doctor`, řádek **prohlížeč
-  desktopových aplikací** a u prohlížeče v Chromu **v rozhovoru v aplikaci Claude ano; samostatná práce (strom run
-  --chrome) jen s Claude Code v terminálu**.
+  desktopových aplikací** a u prohlížeče v Chromu **v rozhovoru v aplikaci Claude ano; samostatná práce (strom run)
+  jen s Claude Code v terminálu**.
 - **Platí od:** výzkum 1.29.0
 
 <!-- zdroj: research:src/core/browser.ts (matcher mcp__(remote-devices__)?Claude_Browser__*) · src/core/chromehook.ts · src/core/webgate.ts browserGate · assets/lang/cs.json ui.doc.desktop.unwatched, ui.doc.browser.apponly · CHANGELOG.cs.md 1.29.0 · test/vysledek-062-u4-desktop.md kroky 1–3 (preview_start, navigate: deny; example.com allow) · test/vysledek-1106-vyzkum-062-desktop.md bod 3 (localhost, most, záložky app:) · test/vysledek-desktop-chrome.md bod 4 (Preferred browser), bod 6 -->

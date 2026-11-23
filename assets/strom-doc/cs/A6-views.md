@@ -3,10 +3,12 @@
 
 Jak aplikace Strom vybírá, které osoby ukáže, a jak je ukazují jednotlivé pohledy. Popisuje aplikaci 3.21.2; změny z novější verze mají u sebe její číslo.
 
-Pohled je jiné čtení **téhož výběru osob**. Výběr určuje ústřední osoba (ta, na kterou se klikne) a hloubka
+Pohled je jiné čtení **téhož okolí ústřední osoby**. Okolí určuje ústřední osoba (ta, na kterou se klikne) a hloubka
 **Předci** a **Potomci**. Rodina, Potomci, Časová osa a Mapa ukazují stejné okolí ústřední osoby. Vějíř si
 předky a potomky počítá sám podle počtu generací ([A6.4](#A6.4)). Tabulka ukazuje celý strom ([A6.7](#A6.7)),
 od aplikace 3.30.0 i jen jeden seznam osob ([A6.7.19](#A6.7.19)).
+Od aplikace 3.31.0 má okno navíc **Výběr**: jednu pojmenovanou skupinu osob (rod, předci nebo potomci osoby, linie
+výzkumu, seznam osob), kterou Rodina, Potomci a Vějíř zvýrazní a Mapa ukáže samotnou ([A6.6](#A6.6)).
 Na počítači jde každý pohled otevřít i v samostatném okně ([A6.8](#A6.8)).
 
 Pohledy: **Rodina**, **Potomci**, **Časová osa**, **Vějíř**, **Mapa**, **Tabulka**.
@@ -18,14 +20,14 @@ Pohledy: **Rodina**, **Potomci**, **Časová osa**, **Vějíř**, **Mapa**, **Ta
 
 Pohled Rodina ukazuje ústřední osobu v její rodině, ne celý strom.
 
-- Do výběru patří:
+- Do okolí patří:
   1. ústřední osoba a všichni její partneři;
   2. její potomci do hloubky **Potomci**, s partnery;
   3. přímí předci přes oba rodiče do hloubky **Předci**;
   4. sourozenci, i nevlastní (jejich druhý rodič se nepřidává), s partnery a potomky do hloubky Potomci;
   5. tety a strýcové (sourozenci rodičů) s partnery;
   6. bratranci a sestřenice, tedy děti tet a strýců zapsané v jejich svazku, s potomky do hloubky Potomci.
-- **Hranice:** předci partnera ústřední osoby se do výběru nepřidávají nikdy. Kdo do okolí nepatří, ve stromu
+- **Hranice:** předci partnera ústřední osoby se do okolí nepřidávají nikdy. Kdo do okolí nepatří, ve stromu
   zůstává, jen ho pohled neukazuje; ukáže ho nová ústřední osoba.
 - **Hloubka:** po výběru nové ústřední osoby je Předci i Potomci nastavená na největší hloubku, kterou strom u té
   osoby má. Nabídka dává 1 až tuto největší hloubku. Děti partnera z jiného svazku přidávají jednu generaci dolů.
@@ -270,9 +272,12 @@ a bratranců.
 - Pruh žijící osoby sahá do dneška. Zemřelá osoba bez data úmrtí má pruh do poslední známé události a otevřený
   konec.
 - Rok sňatku se bere z data začátku svazku. Osa je zaokrouhlená na desetiletí.
-- Pod osou let běží řádek dějin ústřední osoby (události doby a míst jejího života, symboly druhů). Bez výzkumu
-  nebo bez takových událostí řádek není.
-- **Platí od:** časová osa aplikace 1.5.0; řádek dějin aplikace 3.19.0
+- Pod osou let běží řádek dějin ([A6.3.1](#A6.3.1)). Bez výzkumu nebo bez událostí dějin řádek není.
+- Společná událost dvou a více řádků ([A10.2](A10-shared-events.md#A10.2)) je jedna značka přes řádky jejích osob
+  s popiskem; jména osob řekne najetí na popisek. Když je nad prvním řádkem řádek dějin, popisek značky z prvního
+  řádku nestojí v něm, ale níž vedle značky.
+- **Platí od:** časová osa aplikace 1.5.0; řádek dějin aplikace 3.19.0, přes celou osu aplikace 3.31.0; značka
+  společné události aplikace 3.28.0
 - **Od aplikace 3.30.0:** se zapnutým **Značením linií** ([A6.1.5](#A6.1.5)) stojí před jménem osoby znak linie ve
   zvoleném tvaru (osoba v obou liniích dva znaky, u rodičů stejného pohlaví 1 a 2); najetí na znak řekne linii
   slovy. Pruh života má dál barvu pohlaví a nepodbarvuje se. Plakát časové osy kreslí znak stejně.
@@ -280,6 +285,88 @@ a bratranců.
 
 <!-- zdroj: app:src/timeline.ts computeTimelineModel, :59 TimelineHistory · strings.ts timeline.omitted · CHANGELOG.cs.md 3.19.0 -->
 <!-- zdroj: app:cecd72a4 src/renderer.ts timelineBranchSigns (znak legendy před jménem, title linie slovy, dvě značky R4, číslice R5; plakát SVG) · CHANGELOG.cs.md 3.30.0 „Značení linií“ · dirigent:spec/112-znaceni-linii -->
+<!-- zdroj: app:55ac8a08 src/timeline-chart.ts sharedMarkSvg (jedna značka přes řádky, popisek jednou, jména v title) · app:f8531340 placeSharedLabels · app:cc6f3104 placeSharedLabels topTaken (s řádkem dějin popisek značky z prvního řádku níž, ne v řádku dějin) · dirigent:spec/085 §2e -->
+
+<a id="A6.3.1"></a>
+### A6.3.1 Řádek dějin přes celou osu
+
+Řádek dějin ukazuje dějiny celé doby a všech osob na ose: každou událost země nebo kraje, kde v jejím roce žila
+aspoň jedna osoba s řádkem.
+
+- **Které události:** události rozsahu země nebo kraj (**Dějiny regionu**). Událost se bere, když osoba v roce
+  události žila v místě, ke kterému výzkum událost přiřadil. U období stačí jeden jeho rok a jen v letech života
+  osoby. Kde osoba v kterém roce žila, se určuje stejně jako u dějin na kartě osoby.
+- Každá událost je v řádku jednou, i když se týká víc osob. Osoba bez řádku (bez roku narození, zástupná) se
+  nepočítá.
+- **Skrytí:** událost skrytá v celém stromu nebo pro celý kraj není nikde. Událost skrytá u jednoho místa se ukáže přes jiné
+  místo osoby, které ji neskrývá.
+- **Podoba:** podklad řádku jde přes celou osu. Život ústřední osoby je tenká čára dole v řádku. Období mají proužky
+  ve dvou stopách.
+- **Shluky:** události blízko sebe tvoří shluk (na počítači do 16 px, na telefonu do 22 px). Shluk má symbol druhu, který
+  v něm je nejčastěji (při shodě ten dřív), v barvě původu. Víc událostí ukáže odznak s počtem. Dva shluky, jejichž
+  značky by se dotkly, se spojí.
+- **Země nebo kraj** se v popisku a v detailu jmenuje, jen když jsou události řádku aspoň ze dvou zemí nebo krajů.
+- **Detail shluku:** najetí ukáže řádek na událost (rok, druh, země nebo kraj, text).
+  - Počítač: klik otevře okno u shluku. V něm každá událost s roky, symbolem, textem, „druh · země nebo kraj“ a
+    „Týká se:“ s nejvýš dvěma jmény a „a N další“; ústřední osoba je první. Jméno otevře kartu osoby na řádku
+    události. Esc, klik vedle nebo posun okno zavře.
+  - Telefon a dotyková obrazovka: spodní list „Dějiny 1880–1891“ s událostmi a pod **Otevřít v kartě osoby** řádek
+    pro každou osobu, které se shluk týká (nejvýš čtyři a „a N další ›“). Osoba otevře kartu na první události
+    shluku, která se jí týká.
+- **Kdy řádek je:** strom má výzkum s dějinami, v Nastavení je zapnuté **Dějiny v časové ose života** a v časové
+  ose karty osoby čip **Dějiny**. Původ vypnutý v Nastavení (**Dějiny regionu**, **Dějiny místa**, **Z pramenů
+  výzkumu**) se nekreslí.
+- **Hranice:** řádek dějin je jen na obrazovce. Tisk a plakát časové osy ho nekreslí.
+- **Ovládání:** aplikace: pohled **Časová osa**, řádek **Dějiny ▾** ([A6.3.2](#A6.3.2))
+- **Platí od:** aplikace 3.31.0 (do té doby řádek dějin jen ústřední osoby)
+
+<!-- zdroj: app:e843ab70 src/history.ts computeTimelineHistory (místa života personResidence, livedYear v letech života, období jeden rok, jednou na osobu, skrytí treeHidden/regionHidden/hidingFor, scope region → řádek, place/local → čáry; kinds z Nastavení) · src/timeline.ts timelineHistoryRow (jen řádky, které se kreslí; region jen při ≥ 2), timelineClusterKind, timelinePeriodTracks · app:a7391d4f src/timeline-chart.ts historyRowSvg (podklad přes celou osu, tl-hist-life, jen obrazovka) · app:79312e31 clusterTimelineHistory clearance, historyClusterClearance · app:1d2f8b55 src/ui/timeline-history-ui.ts showTimelineHistoryPopover, timelineConcernPersons (max 2, ústřední první), showTimelineHistorySheet, timelineClusterPersons (4 a „a N další ›“) · src/ui/history-ui.ts historyTimelineSource (vrstva, výzkum, čip Dějiny karty) · strings.ts history.timelineRowLabel, timelineClusterAria, timelineEventLine, timelineYearsTitle, timelineConcerns, timelinePeopleMore, openInCard, settingLabel, kindRegion, kindPlace, kindLocal · dirigent:spec/121 K1.1–K1.4, Rozhodnutí 20. 11. · prace/1120-app-121-casova-osa -->
+
+<a id="A6.3.2"></a>
+### A6.3.2 Volby dějin: druhy a země
+
+Popisek řádku **Dějiny ▾** otevře volby dějin časové osy. Volby platí pro strom a pamatuje si je zařízení.
+
+- **Druhy dějin:** **Vše** a devět druhů (válka, epidemie, sčítání, stát a hranice, vystěhovalectví, právo,
+  hospodářství, pohroma, jiné), každý se symbolem a počtem událostí na ose. Počet sčítá řádek dějin i místní dějiny
+  na čarách osob; událost na víc čarách je jedna. Druh bez události jde zvolit, filtr zůstane pro jiné osy.
+- **Země nebo kraj:** jen při aspoň dvou zemích nebo krajích v řádku. **Všechny** a země a kraje podle počtu
+  událostí, jedna volba. Platí jen pro řádek dějin.
+- **Na čarách osob:** volba **Místní dějiny na čarách osob** ([A6.3.3](#A6.3.3)).
+- **Filtr v popisku:** „Dějiny · 3 druhy“ (zvolené druhy, které na ose jsou), „Dějiny · země nebo kraj“, při obou
+  „Dějiny · 2 filtry“. Popisek s filtrem je podbarvený.
+- **Nic nezbude:** řádek napíše „Žádné dějiny pro zvolené druhy“ (na telefonu „Žádné dějiny“) a **Zrušit filtr**.
+  **Zrušit filtr** zruší druhy i zemi najednou; místní dějiny na čarách zůstanou.
+- **Hranice:** volby nejsou data stromu: nejdou do exportu, GEDCOM ani zálohy. Země, kterou výzkum už nezná, se
+  nepoužije. Další okno ([A6.8](#A6.8)) převezme změnu.
+- **Ovládání:** aplikace: **Dějiny ▾** → **Druhy dějin**, **Země nebo kraj**, **Na čarách osob**, **Zrušit filtr**.
+  Na počítači okno pod popiskem, na telefonu a dotykové obrazovce spodní list.
+- **Platí od:** aplikace 3.31.0
+
+<!-- zdroj: app:3e3e4949 src/ui/timeline-history-ui.ts showTimelineHistoryOptions, drawTimelineHistoryOptions (oblast jen hist.regions ≥ 2 nebo uložená; místní off/none), clearTimelineHistoryFilter · src/timeline.ts filterTimelineHistory (oblast jen řádek), timelineHistoryRowState, toggleTimelineKind, clearTimelineFilter (local zůstane), timelineFilterKindCount · app:601f52d4 timelineHistoryFacets (počty jednou podle id, řádek + místní), .tl-hist-btn.is-filtered · src/timeline-chart.ts historyFilterText · src/settings.ts getTimelineHistory/setTimelineHistory (lifelineByTree.timeline, jen zařízení), TimelineHistoryOptions · src/history.ts timelineHistoryRegion (neznámá oblast → všechny) · strings.ts history.timelineOptKinds, timelineOptRegion, timelineOptAllRegions, timelineOptLines, timelineFilterKinds, timelineFilterBoth, timelineClearFilter, timelineEmptyFilter, timelineEmptyFilterShort, kinds.* · dirigent:spec/121 K3.1 -->
+
+<a id="A6.3.3"></a>
+### A6.3.3 Místní dějiny na čarách osob
+
+Volba **Místní dějiny na čarách osob** kreslí dějiny místa a nálezy z pramenů výzkumu přímo na pruh života osoby,
+v roce události.
+
+- **Které události:** **Dějiny místa** a **Z pramenů výzkumu** ([R4.7](R4-places.md#R4.7)) v obci, kde osoba v roce
+  události žila. U období od prvního roku, kdy tam žila; pod pruhem pak proužek do konce období (nejdál do konce
+  pruhu).
+- **Podoba:** symbol druhu v rámečku v barvě původu. Symbol blíž než 10 px k tečce události nebo ke značce společné
+  události ustoupí o 11 px vedle. Symboly blízko sebe se seskupí jako v řádku dějin, s odznakem počtu. Pod 1,5 px na
+  rok (dlouhá osa na telefonu) má čára jeden symbol se všemi událostmi.
+- **Detail:** najetí ukáže řádek na událost s místem a u nálezu pramen. Klik na počítači otevře kartu osoby na řádku
+  události. Na telefonu a dotykové obrazovce spodní list s událostmi a **Otevřít v kartě osoby ›**.
+- **Výchozí:** vypnuto. Volba platí pro strom a pamatuje se ([A6.3.2](#A6.3.2)). Filtr druhů platí i pro ni.
+- **Hranice:** když jsou v Nastavení vypnuté **Dějiny místa** i **Z pramenů výzkumu**, volba nejde zapnout.
+  Bez místních dějin na ose volba napíše „Na ose nejsou místní dějiny.“ Symboly jsou jen na obrazovce, tisk a plakát
+  je nekreslí. Klávesnice na ně nejde (Tab).
+- **Ovládání:** aplikace: **Dějiny ▾** → **Místní dějiny na čarách osob**
+- **Platí od:** aplikace 3.31.0
+
+<!-- zdroj: app:967b6b97 src/history.ts computeTimelineHistory (place/local → čáry, rok příchodu moved, year2, source) · src/timeline.ts layoutTimelineLocal, timelineLocalX (LOCAL_CLEAR_PX 10, LOCAL_STEP_PX 11), LOCAL_DENSE_PX_PER_YEAR 1.5, timelineLocalOptionState (off/none), timelineHistoryRow (filtr druhů i na čáry) · src/timeline-chart.ts localSvg (jen screen, tl-loc-box, tl-loc-period, title se zdrojem LOCAL_SOURCE_MAX 60, role img mimo Tab) · src/ui/timeline-history-ui.ts openTimelineHistory, showTimelineLocalSheet · src/settings.ts TimelineHistoryOptions.local (výchozí false) · strings.ts history.timelineOptLocal, timelineOptLocalHint, timelineOptLocalOff, timelineOptLocalNone, timelineLocalAria, timelineLocalSource, openInCard · dirigent:spec/121 K2.1–K2.3 -->
 
 <a id="A6.4"></a>
 ## A6.4 Vějíř
@@ -342,7 +429,8 @@ studené odstíny modré a zelené, matčina teplé růžové a oranžové, poto
 - **Zvýraznění rodu:** klik na řádek legendy nebo **Zvýraznit rod {rod}** v nabídce výseče zvýrazní rod stromu
   ([A6.6](#A6.6)), stejně jako v pohledu Rodina. Výseče rodu mají přerušovaný obrys, ostatní jsou potlačené.
   Zvýraznění zůstane při přecentrování. Zruší ho druhý klik, **Zrušit zvýraznění rodu**, × u štítku nebo Esc.
-  Vějíř se při přizpůsobení vyhne pásu se štítkem zvýraznění; přiblížený pohled zůstane, jak je.
+  Vějíř se při přizpůsobení vyhne pásu se štítkem zvýraznění; přiblížený pohled zůstane, jak je. Od aplikace 3.31.0
+  je zvýrazněný rod výběr okna ([A6.6](#A6.6)): platí i v Rodině a v Potomcích a zrušení zvýraznění výběr okna zruší.
 - **Telefon:** ťuknutí na řádek v listu legendy rod zvýrazní (nebo zruší) a list zavře. Čip barev pak místo teček
   ukazuje vzorek a jméno rodu. **Tablet:** řádky legendy mají velikost ovládacího prvku.
 - **Obrázek, plakát a tisk:** zvýraznění se přenese (přerušovaný obrys, ostatní výplně světlejší), podtitul uvádí
@@ -354,14 +442,75 @@ studené odstíny modré a zelené, matčina teplé růžové a oranžové, poto
 - **Platí od:** aplikace 3.30.0 (barvy **Rody** od aplikace 3.20.0; do 3.29.0 barevně jen deset největších rodů,
   ostatní šedě)
 
-<!-- zdroj: app:src/fan-rod-assign.ts (strany P/M/D: rod středu P, jen potomci D, jinak nejnižší prstenec, shoda P; pořadí počet výsečí › velikost › id; FAN_ROD_MAX_STRONG 10, FAN_ROD_LEGEND_MAIN 20, tier S/T; opakování odstínů ne na sousedních výsečích ani o jednu dál, výpůjčka jiné strany) · src/fan-colors.ts paleta P/M/D světlá, tmavá, tisk, fanRodLegend, fanRodOtherSwatch (K1.7), legendOther, legendNoRod · src/ui/fan-view.ts legenda (FAN_STORAGE_KEYS.legendOtherOpen, náhled jen při (hover: hover)), setRodSelection(…, 'legend'), forgetRodColors · strings.ts fan.legendFatherSide, legendMotherSide, legendDescendants, legendOther, legendNoRod, legendCentre, colorsChipRod, menuHighlightRod, menuUnhighlightRod, posterHighlighted · app:1d9dad0f, 7231dd13 (legenda po stranách), 77282e4e (telefon, tablet), b31c74a9 (štítky se netisknou), defe20a6, 7821ea72 (vějíř mimo štítek), 1ad91795 (paleta P/M/D), a265a3cc (paměť barev při návratu, další okna) · dirigent:spec/114-vejir-barvy-rodu · test/vysledek-1119-app-vejir-rody, vysledek-1119-app-vejir-barvy-vse · CHANGELOG.cs.md 3.30.0 -->
+<!-- zdroj: app:src/fan-rod-assign.ts (strany P/M/D: rod středu P, jen potomci D, jinak nejnižší prstenec, shoda P; pořadí počet výsečí › velikost › id; FAN_ROD_MAX_STRONG 10, FAN_ROD_LEGEND_MAIN 20, tier S/T; opakování odstínů ne na sousedních výsečích ani o jednu dál, výpůjčka jiné strany) · src/fan-colors.ts paleta P/M/D světlá, tmavá, tisk, fanRodLegend, fanRodOtherSwatch (K1.7), legendOther, legendNoRod · src/ui/fan-view.ts legenda (FAN_STORAGE_KEYS.legendOtherOpen, náhled jen při (hover: hover)), setRodSelection(…, 'legend'), forgetRodColors · strings.ts fan.legendFatherSide, legendMotherSide, legendDescendants, legendOther, legendNoRod, legendCentre, colorsChipRod, menuHighlightRod, menuUnhighlightRod, posterHighlighted · app:1d9dad0f, 7231dd13 (legenda po stranách), 77282e4e (telefon, tablet), b31c74a9 (štítky se netisknou), defe20a6, 7821ea72 (vějíř mimo štítek), 1ad91795 (paleta P/M/D), a265a3cc (paměť barev při návratu, další okna) · dirigent:spec/114-vejir-barvy-rodu · test/vysledek-1119-app-vejir-rody, vysledek-1119-app-vejir-barvy-vse · CHANGELOG.cs.md 3.30.0 · 3.31.0: src/ui/rod-view.ts selectRodFromFan → setRodSelection / clearRodSelection = clearSelection (app:51ad8fd6) -->
+
+<a id="A6.4.2"></a>
+### A6.4.2 Vzhled vějíře
+
+Tlačítko **Vzhled** v liště vějíře (v úzké liště jen ikona) otevře panel **Vzhled vějíře**. Mění, jak vějíř
+vypadá, ne strom: funguje i ve stromu jen ke čtení, při sledování výzkumu a v uložené stránce.
+
+- **Styl:**
+  - **Barevný** (na obrazovku): výchozí, kresba jako dosud;
+  - **Pastelový** (méně inkoustu);
+  - **Starobylý** (jako dárek): sépie a pergamen, písmo Strom Serif;
+  - **Černobílý** (černobílá tiskárna): odstíny šedi a vzorky (čáry, mřížka, tečky, kroužky, křížky, čárky), žádný
+    šikmý. Šikmá šrafa zůstává jen opakované osobě (implex).
+
+  Každý styl má podobu pro světlý i tmavý motiv a pro tisk.
+- **Barvy rodů** (jen pro barvy **Rody**, jinak „Jen pro barvy podle rodů.“):
+  - **Všechny rody**: barvy jako v [A6.4.1](#A6.4.1);
+  - **Hlavní rody**: „10 největších ve vějíři barevně, ostatní šedě.“ Rod ústřední osoby je mezi hlavními vždy
+    (nahradí desátý). Legenda má šedý řádek **Ostatní rody (N)**, podtitul plakátu „barvy hlavních rodů“. Barvy
+    hlavních rodů a paměť barev se nemění.
+- **Text ve výsečích:** **Jméno a roky** (výchozí) · **Jméno, data a místa** (narození a úmrtí s datem a místem, z
+  místa jen část před první čárkou, například „* 22. 11. 1888 Kessenau“; jen kde se vejde) · **Jen jména** (o něco
+  větším písmem). „Kde se text nevejde, zkrátí se.“
+- **Portréty** „Ve středu, u rodičů a prarodičů“ (výchozí vypnuto): kulatý portrét ve středu a v prvních dvou
+  prstencích. Chráněná žijící osoba portrét nemá. Text má přednost: portrét, na který by nezbylo místo, se
+  nekreslí. Během načítání panel řekne „Portréty se načítají (k / n)“; „Ve vějíři zatím nikdo nemá portrét.“
+- **Tři úrovně vzhledu:**
+  - **výchozí** vzhled je v **Nastavení → Vějíř** (styl, barvy rodů, text, portréty) a drží ho zařízení: „Každé
+    spuštění začne s tímto vzhledem; v panelu Vzhled jde změnit jen pro aktuální práci.“ Vějíř, který ukazuje
+    výchozí vzhled, změnu v Nastavení hned převezme;
+  - **aktuální** vzhled z panelu platí do zavření aplikace; obnovení stránky ho drží;
+  - **vzhled výstupu** (plakát, obrázek, tisk) se nepamatuje ([A6.4.3](#A6.4.3)).
+
+  Nižší úroveň nikdy nepřepíše vyšší, jen **Uložit jako výchozí**.
+- **Patička panelu:** když se vzhled liší od výchozího, „Liší se od výchozího vzhledu.“ s **Uložit jako výchozí**
+  („Uloženo jako výchozí vzhled vějíře.“) a **Vrátit na výchozí**; tlačítko **Vzhled** pak nese tečku. Jinak
+  „Výchozí vzhled · lze změnit v Nastavení“; odkaz otevře Nastavení u skupiny **Vějíř**.
+- Další okno ([A6.8](#A6.8)) začne z aktuálního vzhledu hlavního okna a své změny drží jen u sebe.
+- **Telefon:** **Barvy** a **Vzhled** jsou záložky jednoho listu zespodu; list se otevře na naposledy použité.
+- **Hranice:** vějíř na stránce osoby se nemění (jen barvy pohlaví).
+- **Ovládání:** lišta vějíře → **Vzhled**; **Nastavení → Vějíř**.
+- **Platí od:** aplikace 3.31.0
+
+<!-- zdroj: app:53ad42f1 src/fan-look.ts (hlavička: tři úrovně, ne úprava stromu, další okno; FAN_LOOK_DEFAULT color/all/years/portraits false), storage-keys.ts FAN_STORAGE_KEYS, FAN_LOOK_SESSION_KEY · 2236bbd4 src/fan-rod-assign.ts (rodScope main: 10 největších, rod středu vždy), src/fan-colors.ts FAN_STYLES, FAN_PATTERNS (vl, hl, grid, dot, dot2, ring, plus, dash), palety světlá/tmavá/tisk · c2dc2520 src/fan-labels.ts (content years/places/names, místo před čárkou), src/fan-chart.ts portréty prstence 1–2, chránění žijící, text má přednost · 2e9d8ad0 Nastavení → Vějíř (index.html settings-group-fan, setFanDefaultLook; vějíř s výchozím vzhledem změnu převezme) · e07ed419 (stránka osoby) · strings.ts fan.look*, style*, scope*, content*, portraits*, lookDiffers, lookIsDefault, lookSaveDefault, lookResetDefault, lookSavedToast, defaultsDesc, textNote, legendOtherGrey, posterColorsMain · SPEC.md 1120-app-vejir-vzhled · spec 118 K1.1–K2.6 · CHANGELOG.cs.md 3.31.0 -->
+
+<a id="A6.4.3"></a>
+### A6.4.3 Vzhled plakátu
+
+Dialog **Export jako plakát** (menu **Export plakátu**: SVG, PNG, Tisk / PDF) má u vějíře skupinu **Vzhled
+plakátu** se stejnými volbami jako panel **Vzhled** ([A6.4.2](#A6.4.2)) a s **Náhledem**.
+
+- Volby jsou předvyplněné vzhledem z obrazovky. „Platí jen pro tento výstup; obrazovka ani výchozí vzhled se
+  nemění.“ Změněná volba nese „změněno jen pro tisk“; **Jako na obrazovce** vrátí vzhled obrazovky.
+- Rody si v jiném stylu nebo barevnosti nechají barvy z obrazovky.
+- Na telefonu je skupina sbalená do jednoho řádku.
+- **Hranice:** vzhled výstupu se nepamatuje; další export začne znovu od vzhledu obrazovky.
+- **Ovládání:** **Export plakátu** → **Vzhled plakátu**.
+- **Platí od:** aplikace 3.31.0
+
+<!-- zdroj: app:2e9d8ad0 src/ui/export-image-ui.ts (PosterLook předvyplněný z obrazovky, náhled toutéž funkcí plakátu, Jako na obrazovce, sloty rodů z obrazovky, telefon jeden řádek), src/fan-look.ts (vzhled výstupu se nepamatuje) · e2e/fan-look-output.spec.ts · strings.ts poster.menu, title, lookTitle, lookPreview, lookOnlyHere, lookAsScreen, lookChanged · SPEC.md 1120-app-vejir-vzhled · spec 118 -->
 
 <a id="A6.5"></a>
 ## A6.5 Mapa
 
 Mapa ukazuje místa událostí osob.
 
-- **Rozsah:** **Tento pohled** (výchozí, osoby pohledu) · **Celý strom**.
+- **Rozsah:** **Tento pohled** (výchozí, osoby pohledu) · **Celý strom**. Od aplikace 3.31.0 je mezi nimi
+  **Výběr**, osoby výběru okna ([A6.5.7](#A6.5.7)), a hlavní okno si zvolený rozsah pamatuje pro každý strom.
 - **Druhy:** **Narození** · **Úmrtí** · **Sňatky** · **Ostatní události**. Výchozí jsou zapnuté všechny; volba
   se pamatuje na zařízení.
   - Křest se počítá k narození, pohřeb a kremace k úmrtí.
@@ -373,7 +522,7 @@ Mapa ukazuje místa událostí osob.
 - **Migrace v čase** ukáže místa podle let a cestu předků k jedné osobě ([A6.5.3](#A6.5.3)).
 - **Platí od:** mapa aplikace 1.10.0; druhy událostí a body obcí aplikace 3.21.0
 
-<!-- zdroj: app:src/places.ts collectPlaces, groupTownPoints · src/ui/map-ui.ts (localStorage strom.map.kinds) · strings.ts map.scopeView, map.scopeTree, map.kinds · CHANGELOG.cs.md 3.21.0 -->
+<!-- zdroj: app:src/places.ts collectPlaces, groupTownPoints · src/ui/map-ui.ts (localStorage strom.map.kinds) · strings.ts map.scopeView, map.scopeTree, map.kinds · CHANGELOG.cs.md 3.21.0 · 3.31.0: app:src/settings.ts mapScopeByTree, getMapScopeForTree, setMapScopeForTree · src/ui/map-scope-ui.ts (jen hlavní okno) · spec 098 -->
 
 <a id="A6.5.1"></a>
 ### A6.5.1 Odkud mapa bere polohu místa
@@ -584,24 +733,188 @@ S vybranou osobou projde **Přehrát** celou lištu za 24 sekund, od nejstarší
 
 <!-- zdroj: app:src/map-lines.ts pathPlaySchedule (PATH_PLAY_MS 24000, PATH_EVENT_WEIGHT 5, krok rok, součet 24 000), pathAddedIn (nejbližší generace, pak rel, cíl poslední), pathLastAdded · src/ui/map-path-ui.ts playMapPath (konec u cíle), panMapToPathEnd (framed, jednou), renderMapTimeMarks (čtvrtiny podle firstYear, cíl), renderMapTimeCaption (cíl, jinak items[0]; aria-live, aria-valuetext; bez cesty skryto) · src/ui/map-ui.ts toggleMapTimePlay (na konci od začátku), setMapTimeYear (pozastaví), značky → setMapTimeYear · strings.ts map.timeMarkTitle, pathGoalEnd · app cce82a89, 34e82d43 (app:81f2adf0) · ZADANI_UIX_mapa-rody-v-case D5 (ponechat) · spec 054 K2.2 · CHANGELOG.cs.md 3.28.0 -->
 
+<a id="A6.5.7"></a>
+### A6.5.7 Mapa s rozsahem Výběr
+
+S rozsahem **Výběr** mapa pracuje jen s osobami výběru okna ([A6.6](#A6.6)).
+
+- **Co se počítá z výběru:** body míst, počty v liště, místa k dohledání ve výzkumu ([A6.5.2](#A6.5.2)), **Migrace
+  v čase** i s rozsahem let ([A6.5.3](#A6.5.3)) a cesta předků ([A6.5.4](#A6.5.4)).
+- **Díl Výběr** v přepínači rozsahu nese jméno výběru a počet osob („Rod Horák · 14“); okno bez výběru má jen
+  **Výběr ▾**. Klik na díl, který zvolený není, rozsah hned přepne. Klik na zvolený díl nebo na díl bez výběru otevře
+  nabídku výběru ([A6.6](#A6.6)). Výběr zvolený na mapě je výběr okna: Rodina ho pak zvýrazní.
+- **Místo s osobami mimo výběr:** panel místa ukáže jen osoby výběru a pod nimi „a {n} osob mimo výběr ·“
+  s **Celý strom** (přepne rozsah). Sňatek, ze kterého je ve výběru jen jeden partner, se na mapě ukáže; v panelu je
+  jen ten partner.
+- **Hledání osoby na mapě:** osoba mimo výběr má ve výsledku štítek „mimo výběr“ a odkaz **Ukázat v celém stromu**
+  (přepne rozsah na **Celý strom**).
+- **Cesta k osobě:** výběr osoby cesty nabízí jen osoby výběru. Když je cíl cesty mimo výběr, čip cesty je ztlumený
+  s „· mimo výběr“, cesta se nekreslí a lišta řekne „Osoba cesty je mimo výběr – cesta se neukazuje.“
+- **Prázdný výběr:** uprostřed mapy „Výběr je prázdný.“; výběr, z něhož nikdo nemá místo: „Z výběru zatím nikdo nemá
+  místo.“ s odkazem na osoby bez místa ([A6.5.8](#A6.5.8)). Stavová lišta se pak neukazuje.
+- **Zrušení nebo zánik výběru** vrátí rozsah na **Tento pohled**. Rozsah **Výběr** zapamatovaný pro strom platí,
+  jen když okno po otevření stromu výběr má.
+- **Okno Místa** otevřené z mapy má týž přepínač rozsahu (díl **Výběr** jen, když okno výběr má) a mění rozsah mapy
+  i seznam míst. Otevřené odjinud ukazuje místa celého stromu.
+- **Telefon:** místo přepínače je tlačítko **Rozsah: {jméno} ▾** vedle druhů událostí. Otevře list **Rozsah**: oddíl
+  **Rozsah mapy** (tři rozsahy s počty osob), **Změnit výběr** (nejvýš 5 výběrů: rody, předci ústřední osoby,
+  seznamy) a **Všechny výběry…** (celá nabídka výběru). Telefon otočený na šířku má přepínač jako počítač.
+- **Ovládání:** aplikace: mapa → přepínač rozsahu **Tento pohled** · **Výběr** · **Celý strom** (telefon **Rozsah:
+  … ▾**); **Na mapě** u seznamu osob ([A11.3](A11-lists-of-people.md#A11.3)) a v **⋯** Tabulky ([A6.7.19](#A6.7.19)).
+- **Platí od:** aplikace 3.31.0
+
+<!-- zdroj: app:src/map-scope.ts mapScopePersonIds · src/ui/map-ui.ts mapScopePersons (body, počty, mapMissingPlaces, mapTimeHarvest, map-lines) · src/ui/map-scope-ui.ts (díl Výběr: nezvolený → rozsah hned, zvolený nebo bez výběru → nabídka; vyprázdnění selEmpty / selNoPlaces; mimo výběr popupOutside, popupWhole, outside, showInTree; zrušený / zaniklý výběr → 'view'; zapamatovaný 'sel' jen s výběrem; list Rozsah s selectionQuickRows(5)) · src/ui/selection-picker-ui.ts selectionQuickRows (2 rody, předci, seznamy, další rody) · src/places.ts collectPlaces (fact.persons.filter(kept): sňatek jen s osobou výběru) · src/ui/map-path-ui.ts (osoby cesty z výběru, pathOutside) · src/ui/places-manager-ui.ts (rozsah okna Místa jen z mapy) · strings.ts map.scopeSel, scopeSelNamed, scopeAria, scopeGroup, scopeBtn, scopeSheet, scopeSheetSec, scopeViewHint, scopeChange, scopeAll, selEmpty, selNoPlaces, selUnplacedLink, outside, showInTree, popupOutside, popupWhole, popupSelCount, pathOutside · app:90c09692, 95752f6d, 74d3a34e · ZADANI_DEV_vyber-osob §3, §4, §10 · spec 098 (spec 120 K1.1–K1.3) · dirigent:test/vysledek-1121-app-098-vyber-p1.md -->
+
+<a id="A6.5.8"></a>
+### A6.5.8 Osoby výběru bez místa
+
+V rozsahu **Výběr** má stavová lišta mapy druhý řádek „{n} osob z výběru nemá žádné místo ›“, když aspoň jedna osoba
+výběru nemá místo v žádném druhu mapy (narození, úmrtí, sňatek nebo rozvod, ostatní události osoby i páru). Místo bez
+souřadnic se počítá jako místo.
+
+- Klik otevře **Tabulku** s osobami výběru a se zapnutým čipem **Bez místa** ([A6.7.6](#A6.7.6)): u seznamu v rozsahu
+  toho seznamu, u jiného výběru v rozsahu „Výběr: {jméno}“ ([A6.7.19](#A6.7.19)). Čip jde vypnout jako jiné filtry.
+- **Hranice:** řádek se neukazuje, když místo mají všichni, během dohledávání souřadnic a při chybě nebo bez internetu.
+- **Ovládání:** aplikace: mapa → stavová lišta → „… nemá žádné místo ›“; při prázdné mapě odkaz „{n} osob bez místa ›“.
+- **Platí od:** aplikace 3.31.0
+
+<!-- zdroj: app:src/places.ts personHasMapPlace (narození, úmrtí, události osoby, svazek start/end/události; místo bez souřadnic se počítá) · src/ui/map-ui.ts renderMapStatus (map-status-unplaced, ne při geocodingu, chybě, offline) · src/ui/map-scope-ui.ts (Tabulka v rozsahu výběru s filter noPlace) · src/ui/table-view/table-ui.ts openTableForSelection · src/ui/table-view/table-filter.ts CHIP_ORDER noPlace · strings.ts map.selUnplaced, selUnplacedLink, table.chip.noPlace, chipNoPlaceTitle · app:2a578474, 39020cf1 · ZADANI_DEV_vyber-osob §5 · spec 120 K1.4 -->
+
 <a id="A6.6"></a>
-## A6.6 Rod v pohledu
+## A6.6 Výběr osob
 
-Pohled může zvýraznit jeden rod ([A4](A4-surnames-and-families.md)): jeho členy plně, manželky a manžele, kteří
-do rodu přišli sňatkem, slaběji, ostatní potlačeně. Platí v pohledech Rodina, Potomci a Vějíř.
+Výběr je jedna pojmenovaná skupina osob, kterou má okno. Platí ve všech pohledech okna: Rodina, Potomci a Vějíř ho
+zvýrazní, Mapa ho může ukázat samotný ([A6.5.7](#A6.5.7)) a Tabulka ho může mít jako rozsah ([A6.7.19](#A6.7.19)).
+Do dat stromu se výběr neukládá; seznamy osob ([A11](A11-lists-of-people.md)) zůstávají, jak jsou.
 
-- Volba se pamatuje pro každý strom na zařízení. Rod, který už ve stromu není, se tiše zruší.
-- Když v pohledu není nakreslený žádný člen rodu:
-  - Rodina a Vějíř přesunou ústřední osobu na nejbližšího člena rodu (přes rodiče, děti a partnery; při shodě
-    na staršího), a když s ním osoba není spojená, na zakladatele rodu;
-  - Potomci přesunou ústřední osobu vždy na zakladatele;
-  - lišta nabídne **↩ Zpět**.
-- **Hranice:** obnovení volby z paměti ústřední osobu nepřesouvá.
-- **Ovládání:** **Rody** v liště; v nabídce osoby **Jen rod …** (rodný rod osoby je první); konec přes × u štítku
-  nebo **Ukázat celý strom**.
-- **Platí od:** aplikace 3.21.0
+| Výběr | Koho obsahuje | Jméno ve štítku a v nabídce |
+|---|---|---|
+| rod | skutečné členy rodu ([A4](A4-surnames-and-families.md)) | Rod {rod} |
+| předci osoby | předky osoby jako pravidlo **Předci osoby** ([A11.2](A11-lists-of-people.md#A11.2)): všechny generace, nebo 1 až 10 | Předci: {osoba} |
+| potomci osoby | potomky osoby jako pravidlo **Potomci osoby**, všechny generace nebo 1 až 10 | Potomci: {osoba} |
+| linie výzkumu | osoby linie výzkumu jako pravidlo **Linie výzkumu** | Linie: {linie} |
+| seznam osob | osoby seznamu | Seznam: {seznam} |
 
-<!-- zdroj: app:src/ui/rod-view.ts · src/rod-focus.ts (BFS přes rodiče, děti, partnery) · strings.ts rodView.only, rodView.whole, rodView.moved · spec 039 · CHANGELOG.cs.md 3.21.0 -->
+- Okno má nejvýš jeden výběr. Osoby výběru se počítají znovu po každé změně stromu (automatický seznam i pravidlo
+  předků, potomků a linie). Zástupné osoby a osoby, které ve stromu už nejsou, do výběru nepatří.
+- **Zvýraznění** v Rodině, Potomcích a Vějíři: osoby výběru plně, ostatní potlačeně. U rodu se manželky a manželé,
+  kteří do rodu přišli sňatkem, ukazují slaběji; do výběru nepatří.
+- **Štítek výběru** nad stromem: „{jméno} · {n} osob ▾“ (otevře nabídku výběru, [A6.6.1](#A6.6.1)), **Skrýt ostatní**
+  ([A6.6.2](#A6.6.2)), **Další osoba ›** (zaměří další osobu výběru) a × **Zrušit výběr** (také Esc). Prázdný výběr
+  má štítek s počtem 0 a **Další osoba ›** nejde použít. Na Časové ose a na Mapě se štítek neukazuje.
+- **Jiné zvýraznění** (doklady, kontrola, živé změny) výběr na čas překryje a štítek patří jemu. Po jeho konci se výběr
+  vrátí; **Skrýt ostatní** po dobu překrytí neplatí. Volba výběru jiné zvýraznění ukončí.
+- **Z výběru není nic nakreslené** (po volbě výběru, ne po obnovení z paměti):
+  - Rodina a Vějíř přesunou ústřední osobu na osobu výběru nejméně kroků od ní (přes rodiče, děti a partnery; při
+    shodě na dříve narozenou). Když s ní výběr spojený není, jde ústřední osoba na zakladatele rodu nebo na osobu,
+    jejíž předci nebo potomci to jsou; u linie a seznamu na nejdříve narozenou osobu výběru;
+  - Potomci přesunou ústřední osobu vždy na zakladatele rodu, osobu předků nebo potomků, jinak na nejdříve narozenou;
+  - oznámení „Zaměření: {osoba}, výběr {jméno}“ má **↩ Zpět**.
+  - Na Časové ose, na Mapě a v Tabulce se ústřední osoba nepřesouvá.
+- **Ovládání:** aplikace: **Výběr ▾** v liště Rodiny, Potomků a Vějíře; v nabídce osoby **Vybrat ›**; štítek výběru;
+  na telefonu **Více → Výběr** ([A6.6.1](#A6.6.1)).
+- **Platí od:** aplikace 3.21.0 (jen rod: **Rody** v liště, v nabídce osoby **Jen rod …**); 3.31.0: výběr osob
+  (rod, předci, potomci, linie výzkumu, seznam), nabídka **Výběr ▾**, **Skrýt ostatní**
+
+<!-- zdroj: app:src/view-selection.ts (SelectionRef rod / ancestors / descendants / line / list; selectionPersonIds: realRodMembers, rulePersonIds, listPersonIds; cache na lineage index = změnu dat; selectionLabel předpony) · src/ui/view-selection-ui.ts (jeden výběr okna, selectionGroup: rod faint realRodSpouses, zakrytí jinou skupinou a návrat selectionUncovered, setSelection ukončí jinou skupinu, ne přesun při 'restore') · src/ui/evidence-ui.ts (kind 'selection': štítek ▾ otevře nabídku, Skrýt ostatní, Další osoba, × a Esc = clearSelection; prázdný výběr 0 a Další nedostupné) · src/ui/rod-view.ts moveFocusToSelection (ne timeline, map, table) · src/rod-focus.ts selectionFocusTarget (nejméně kroků, shoda dříve narozený; root = zakladatel / osoba předků a potomků; jinak nejdříve narozený; Potomci vždy root) · strings.ts selection.pill, hideOthers, clear, moved, prefix · app:51ad8fd6, cb97070c, 61873988, 39e84ca0, e5da4a61 · ZADANI_DEV_vyber-osob §0, §1, §8, §9, §12 · spec 098 Rozhodnutí 1–5 (Milan 21. 11. „jak doporucujes“) · dřív: src/ui/rod-view.ts, spec 039, CHANGELOG.cs.md 3.21.0 -->
+
+<a id="A6.6.1"></a>
+### A6.6.1 Nabídka Výběr ▾
+
+Jedna nabídka volí výběr okna všude: v liště stromu, ve štítku výběru, v díle **Výběr** přepínače rozsahu mapy
+a na telefonu v listu **Více**.
+
+- **Obsah** shora dolů:
+  1. pole **Hledat rod, osobu, seznam…**;
+  2. u výběru předků nebo potomků blok **Výběr okna**: jméno a počet, „Osoba: {osoba}“ s **Změnit…** a **Generací**
+     (− a +: všechny, nebo 1 až 10);
+  3. **Žádný výběr** (celý strom, počet osob stromu);
+  4. oddíl **Rody** jako dřívější seznam **Rody** ([A4.4](A4-surnames-and-families.md#A4.4)): rody s pruhem období
+     a počtem a **Další rodiny**; jen když strom má rod, který není malý;
+  5. oddíl **Předci a potomci**: „Předci: {ústřední osoba}“ a „Potomci: {ústřední osoba}“ s počty, v záhlaví **Jiná
+     osoba…**;
+  6. oddíl **Linie výzkumu**, jen ve stromu s liniemi;
+  7. oddíl **Seznamy osob**: seznamy podle jména s ikonou druhu, druhem (u automatického s pravidlem, u pracovního
+     „zbývá a z b“) a počtem; bez seznamů „Strom zatím nemá seznamy.“;
+  8. **Uložit výběr jako seznam…** (výběr, který není seznam; ne ve stromu jen ke čtení) otevře nový seznam
+     s pravidlem výběru ([A11.6](A11-lists-of-people.md#A11.6)); **Seznamy osob…** otevře správu seznamů.
+- **Hledání** prochází rody (i tvary jména), linie, seznamy a osoby, bez ohledu na diakritiku. Nalezené osoby (nejvýš 5,
+  s roky a místem) jsou v oddílu **Osoby** s řádky „Předci: …“ a „Potomci: …“.
+- **Nabídka osoby:** **Vybrat ›** nabídne rody osoby (rodný první, pak rody, do kterých se přivdala nebo přiženila,
+  s aspoň dvěma skutečnými členy), **Předky** a **Potomky** s počty (bez nich, když osoba předky nebo potomky nemá).
+  Patří-li osoba do výběru okna, je pod tím **Zrušit výběr**.
+- **Telefon:** lišta stromu tlačítko nemá; v Rodině, Potomcích a Vějíři je v listu **Více** řádek **Výběr** se jménem
+  výběru (bez výběru **Žádný výběr**), na Časové ose, Mapě a v Tabulce ne. Nabídka je list s polem hledání nahoře.
+  Telefon otočený na šířku má řádek **Výběr** na konci řádku **Pohled**. Tablet má **Výběr ▾** vpravo v horní
+  liště.
+- **Ovládání:** aplikace: **Výběr ▾** v liště Rodiny, Potomků a Vějíře; jméno ▾ ve štítku výběru; nabídka osoby
+  **Vybrat ›**; telefon **Více → Výběr**.
+- **Platí od:** aplikace 3.31.0
+
+<!-- zdroj: app:src/ui/selection-picker-ui.ts (lišta Rodiny, Potomků, Vějíře, ne timeline/map/table; tablet vpravo; každý strom s osobami; MAX_GENERATIONS 10 pak všechny; FOUND_LIMIT 5; rody jen když rodPickerOffered – ne jen malé rody; pole hledání vždy (rod-picker.ts:382); canSave ref ≠ list && !listsReadOnly; saveListOptions; Seznamy osob…) · src/rod-picker.ts selectionPickerHtml (pořadí oddílů, patička) · src/ui/rod-picker-ui.ts wireRodPicker (hledání přes oddíly, bez diakritiky) · src/ui/context-menu.ts (Vybrat ›: rodný rod první, rody sňatkem s ≥ 2 skutečnými členy, Předky / Potomky s počty, Zrušit výběr když osoba patří do výběru) · src/ui/bottom-sheet.ts (řádek Výběr v Rodině, Potomcích, Vějíři; na šířku valueInPair na konci řádku Pohled) · strings.ts selection.* · app:61873988, 07fd4946, a273ef05, 1eb97c1f, 8cfb01da · ZADANI_DEV_vyber-osob §2, §10 -->
+
+<a id="A6.6.2"></a>
+### A6.6.2 Skrýt ostatní
+
+**Skrýt ostatní** ve štítku výběru nechá v Rodině a v Potomcích jen osoby výběru: ostatní karty zmizí a strom se
+rozloží znovu jen z nich, v mezích ústřední osoby a hloubky **Předci** a **Potomci** ([A6.1](#A6.1)). Výběr **Předci:
+{osoba}** tak ukáže čistý rodokmen osoby.
+
+- Ústřední osoba se kreslí vždy ([A6.6.3](#A6.6.3)). Pohled nikdy nekreslí víc karet než bez filtru.
+- U rodu zůstanou manželky a manželé, kteří do rodu přišli sňatkem, u svého člena.
+- Čáry jsou jen mezi osobami, které jsou nakreslené obě. Rodina, ze které je nakreslený jen jeden rodič, visí pod ním.
+  Osoby výběru bez spojení s ostatními stojí v řadě své generace jako samostatné skupiny, v pořadí, jaké by měly
+  v plném pohledu.
+- Záložky skrytých příbuzných na kartách a **Děti a sourozenci** ([A6.1.3](#A6.1.3)) počítají jen osoby výběru.
+- Karta nejblíž středu obrazovky zůstane po přeskládání na místě (jinak ústřední osoba); přiblížení se nemění.
+- Volba se pamatuje s výběrem ([A6.6.4](#A6.6.4)) a se zrušením výběru se vypne.
+- **Vějíř** volbu nabízí jen u výběru **Předci: {osoba}**. Výseče ostatních osob zůstanou na svých místech jako
+  prázdné čárkované obrysy (bez jména, let, výplně a **+**) a nejdou otevřít ani vybrat klávesnicí; výseče výběru a střed
+  zůstanou, kde byly.
+- **Hranice:** U jiného výběru Vějíř volbu nemá (výběr jen zvýrazní); **Skrýt ostatní** zapnuté v Rodině tam nic
+  nemění a zůstane zapnuté. Výstupy (obrázek, tisk, export) kreslí celý pohled.
+- **Ovládání:** aplikace: štítek výběru → **Skrýt ostatní** (zaškrtávací pole); na telefonu je štítek v jednom řádku
+  a **Skrýt ostatní** je jen zaškrtávací pole bez textu.
+- **Platí od:** aplikace 3.31.0
+
+<!-- zdroj: app:src/layout/pipeline/person-filter.ts (filtr při sběru osob: jen osoby celého pohledu a jejich generace a pořadí, ústřední vždy; restrictSelection: čáry jen mezi nakreslenými, rodina s jedním rodičem pod ním; nespojené osoby ve vlastních skupinách vedle sebe v pořadí celého pohledu) · src/layout/pipeline/index.ts drawnOrder · src/renderer.ts setPersonFilter (Rodina a Potomci; záložky a bulk-family jen osoby výběru tabInView; karta nejblíž středu zůstane, jinak ústřední; přiblížení beze změny; výstupy kreslí celý pohled) · src/ui/evidence-ui.ts (rod: faint partneři do filtru; ve vějíři jen předci: setPersonFilter fan = ref.kind ancestors, syncEvidencePillHide evidence-pill--no-hide) · src/fan-chart.ts buildFanSvg keepOnly (offSector: prázdný čárkovaný obrys, bez +, pointer-events none, aria-hidden; střed vždy) · src/ui/fan-view.ts svgExtras keepOnly (jen obrazovka; výstup fan-chart.ts:1249 bez keepOnly), klávesnice přeskočí · app:493f330c · src/ui/view-selection-ui.ts setHideOthers (pamatuje s výběrem, bez výběru vypnuto) · strings.ts selection.hideOthers, hideOthersTitle · app:39e84ca0, e5da4a61 · ZADANI_DEV_vyber-osob §8 · dirigent:prace/1121-app-098-vyber-p1 (telefon: štítek v jednom řádku, Skrýt ostatní čtvereček 44 px), test/vysledek-1121-app-098-vyber-p1.md -->
+
+<a id="A6.6.3"></a>
+### A6.6.3 Ústřední osoba mimo výběr
+
+Ústřední osoba, která do výběru nepatří, zůstane v Rodině a v Potomcích plně vidět, i se **Skrýt ostatní**. Na horní
+hraně karty má štítek „mimo výběr“; čtečka obrazovky čte „{jméno} – mimo výběr“.
+
+- Ve Vějíři není střed potlačený; štítek nemá.
+- Sledování agenta výzkumu ([S4.1.7](S4-research-from-the-app.md#S4.1.7)) mění jen ústřední osobu, výběr zůstane
+  a skoky za agentem nezdržuje. Skok na osobu mimo výběr se ukáže se štítkem „mimo výběr“.
+- **Ovládání:** klik na kartu osoby mimo výběr.
+- **Platí od:** aplikace 3.31.0
+
+<!-- zdroj: app:src/renderer.ts setEvidenceHighlight (ústřední osoba nikdy dim; mimo výběr card-tag „mimo výběr“, aria; ve vějíři jen střed bez dim) · src/layout/pipeline/person-filter.ts (ústřední vždy) · src/ui/live-follow-ui.ts (skok agenta mění zaměření, výběr nechá a skoky nezdržuje) · strings.ts selection.outside, outsideAria · app:39e84ca0, e5da4a61 · ZADANI_DEV_vyber-osob §7 (sledování), §9 -->
+
+<a id="A6.6.4"></a>
+### A6.6.4 Výběr v oknech a v paměti
+
+Výběr patří oknu a platí v něm napříč pohledy. Pro strom se pamatuje výběr hlavního okna.
+
+| Co | Hlavní okno | Další okno ([A6.8](#A6.8)) |
+|---|---|---|
+| výběr a **Skrýt ostatní** | pamatuje se pro každý strom na zařízení; po otevření stromu se vrátí a ústřední osoba se nehne | při otevření převezme výběr okna, ze kterého vzniklo; pak má vlastní a drží ho do zavření (i po F5) |
+| rozsah mapy ([A6.5](#A6.5)) | pamatuje se pro každý strom | převezme ho při otevření, pak vlastní |
+
+- Změna výběru v jednom okně ostatní okna nemění. Výjimka je **Na mapě** z Tabulky dalšího okna: provede ho hlavní
+  okno ([A6.7.19](#A6.7.19)).
+- **Zaniklý výběr** (smazaný seznam, rod, který zanikl, odebraná linie výzkumu, smazaná osoba předků nebo potomků):
+  výběr se zruší, **Skrýt ostatní** se vypne a rozsah mapy **Výběr** se vrátí na **Tento pohled**. Byl-li výběr vidět
+  (zvýraznění v Rodině, Potomcích nebo Vějíři, Mapa s rozsahem **Výběr**), oznámení řekne proč: „Výběr zrušen:
+  seznam „{seznam}“ byl smazán.“, „Výběr zrušen: rod {rod} zanikl.“, „Výběr zrušen: linie výzkumu byla odebrána.“,
+  „Výběr zrušen: osoba {osoba} byla smazána.“
+- Zamčený strom nebo strom, který se ještě načítá, zapamatovaný výběr nezahodí; uplatní se po odemčení nebo načtení.
+- Dřívější volba rodu (do aplikace 3.30.0) se převezme jako výběr rodu.
+- **Platí od:** aplikace 3.31.0
+
+<!-- zdroj: app:src/settings.ts selectionByTree (migrace rodByTree → { ref rod, hideOthers false }), mapScopeByTree · src/ui/view-selection-ui.ts (hlavní okno zapisuje, další okno jen stav okna; adoptWindowSelection; obnova bez přesunu; selectionDataChanged: zaniklý výběr zrušen, hideOthers vypnuto, toast jen když byl vidět; zapomenout jen u skutečně načtených dat; pending u zamčeného stromu) · src/windows/view-window-state.ts (selection, mapScope v přenášeném stavu; F5) · src/windows/window-show-on-map.ts · src/ui/map-scope-ui.ts (zrušený / zaniklý → 'view') · strings.ts selection.goneList, goneRod, goneLine, gonePerson · app:9f1fe7c4, 27e6a511, 287d10d5, f5e531e9 · ZADANI_DEV_vyber-osob §7, §12 -->
 
 <a id="A6.7"></a>
 ## A6.7 Tabulka
@@ -630,7 +943,8 @@ Pohled Tabulka vychází z tabulky od Ondřeje Chrpy.
   **Partner 1**; u události ústřední osoba, je-li mezi jejími osobami, jinak první osoba; řádek pramene ústřední osobu
   nemění.
 - **Hranice:**
-  - zvýraznění rodu ([A6.6](#A6.6)) se v tabulce nepoužije; rod jde vybrat čipem **Rod** ([A6.7.6](#A6.7.6));
+  - zvýraznění rodu ([A6.6](#A6.6)) se v tabulce nepoužije; rod jde vybrat čipem **Rod** ([A6.7.6](#A6.7.6)), od aplikace
+    3.31.0 i výběr okna jako rozsah ([A6.7.19](#A6.7.19));
   - sloupce, čipy a pohledy výzkumu jsou jen ve stromu z výzkumu ([A6.7.14](#A6.7.14));
   - strom jen ke čtení (sledovaný strom, strom uložený novější verzí aplikace, zamčený strom) tabulka jen
     ukazuje: „Jen ke čtení: úpravy a „Není chyba“ tu nejsou.“ Prohlížení, filtr, řazení a export CSV a XLSX
@@ -822,6 +1136,8 @@ Filtr vybere řádky, hledání je zúží dál, řazení určí pořadí.
   **Generace** (rozsah), **Víc svazků**, **Bez data narození**, **Nejisté datum** (narození nebo úmrtí),
   **Bez pramene**, **S nálezem** (chyba nebo k ověření; stopa ne), **Neobvyklé**, **Nepotvrzené z výzkumu**
   (jen strom z výzkumu). Čipy nálezů čekají na kontrolu („Až doběhnou kontroly“). Co se nevejde, je v **Další (n)**.
+  - **Od aplikace 3.31.0:** za **Bez data narození** je čip **Bez místa**: osoby bez místa narození, sňatku, úmrtí
+    i jiné události, tedy bez místa, které by ukázala mapa ([A6.5.8](#A6.5.8)).
 - **Filtr ve sloupci** (**Filtr…** v hlavičce) podle druhu sloupce:
   - hodnoty ze seznamu (pohlaví, stav svazku, úroveň nálezu, rod …);
   - rozsah **od**–**do** (u data **Rok**, u věku, počtu a procent číslo);
@@ -1432,7 +1748,18 @@ seznamu; filtr, hledání a čipy pak platí uvnitř něj.
   skryje a celý strom je jen značka. Na telefonu **⋯ → Rozsah ›**. Ze seznamu: **Otevřít v Tabulce**
   ([A11.3](A11-lists-of-people.md#A11.3)).
 - **Platí od:** aplikace 3.30.0
+- **Od aplikace 3.31.0:**
+  - **Výběr okna** ([A6.6](#A6.6)), který není seznam (rod, předci, potomci, linie výzkumu), je v **Rozsah ▾** jako
+    oddíl **Výběr okna** s řádkem „Výběr: {jméno} · {počet}“; lišta tabulky pak ukazuje „Výběr: {jméno}“. Řádky jsou
+    jako v rozsahu seznamu, jen bez vlastního pořadí: bez sloupců **#** a **Hotovo**. Osoba mimo výběr: „Osoba není ve
+    výběru: {jméno}.“;
+  - rozsah výběru sleduje výběr okna: jiný výběr ho nahradí, výběr seznamu přepne na rozsah toho seznamu, zrušený
+    nebo zaniklý výběr vrátí **Celý strom**. Rozsah výběru patří oknu, s pohledem Tabulky se neukládá;
+  - v rozsahu seznamu nebo výběru je v **⋯** Tabulky poslední řádek **Na mapě**: výběr okna se nastaví na ten seznam
+    nebo výběr a otevře se Mapa s rozsahem **Výběr** ([A6.5.7](#A6.5.7)). V dalším okně ([A6.8](#A6.8)) to provede
+    hlavní okno; bez hlavního okna je řádek nedostupný („Hlavní okno není otevřené.“).
 
+<!-- zdroj 3.31.0: app:src/ui/table-view/table-scope.ts (kind 'selection', klíč sel:…, jen pos, bez # a Hotovo) · table-ui.ts (oddíl scopeSelGroup jen pro výběr, který není seznam; rozsah sleduje výběr okna; openTableForSelection; ⋯ Na mapě jen v rozsahu seznamu nebo výběru, poslední řádek) · table-views.ts (rozsah výběru se s pohledem neukládá) · table-bar.ts (název výběru a ikona druhu) · table-notice.ts notInSelection · src/windows/window-show-on-map.ts (další okno → hlavní okno) · strings.ts table.scopeSelGroup, scopeSel, notInSelection, onMap, onMapNoMain · app:2a578474, 39020cf1 · ZADANI_DEV_vyber-osob §5, §6 · spec 098 -->
 <!-- zdroj: app:src/ui/table-view/table-scope.ts tableScopeOf, scopeRows (Osoby v pořadí, svazek s partnerem, událost s osobou, prameny nikdy), scopeCounts, outsideScope, applyScopeCells · table-ui.ts setTableScope (Osoby, Svazky, Události najednou; LIST_SORT # ↑; zpět bez num), dropGoneScopes + scopeGone, tableScopeRows (Spravovat seznamy… ne v isReadOnly), showTableScopeMenu, tableScopeSheetRows, toggleTableDone, tableRowRemoveIds, hiddenJump.outsideList (:2204), leadColumnsOf (# a Hotovo), export :3125 scopeRows · table-notice.ts:60 (scopeGone, notInList, Celý strom) · table-views.ts:258, :272 view.scope · table-bar.ts tv-scope-btn · strings.ts table.scope, scopeWhole, scopeManage, scopeSources, scopeGone, notInList, outsideList, sortList, col.num, col.done, chip.left, chip.done, lists.toast.removed · app:211323e8, 33fa6cd4 (# a Hotovo v exportu), 9681a1f4 (N1 jeden řádek lišty) · ZADANI_DEV §9, §13d · spec 084 K3.* -->
 
 <a id="A6.7.20"></a>
@@ -1478,7 +1805,8 @@ okno zůstane na svém pohledu. Ukládá jen hlavní okno; ostatní okna mu úpr
 - **Co okno umí:** místo lišty aplikace má hlavičku: název stromu, přepínač pohledů (pod 960 px jako „{pohled} ▾“),
   **Sledovat výběr** ([A6.8.1](#A6.8.1)), **Vrátit**, **Znovu** a ⧉ **Otevřít další okno**. Přepínač stromů, nabídku **Výzkum**,
   Nastavení ani malý panel výzkumu okno nemá. Od aplikace 3.30.0 je místo **Sledovat výběr** přepínač **Výběr**
-  ([A6.8.4](#A6.8.4)).
+  ([A6.8.4](#A6.8.4)), od aplikace 3.31.0 se jmenuje **Vybraná osoba** ([A6.8.1](#A6.8.1)). Výběr osob ([A6.6](#A6.6))
+  má okno vlastní.
 - **Úpravy:** v okně jde upravovat osobu (nabídka osoby, **Upravit**) i buňku Tabulky. Uloží je hlavní okno, jdou
   vrátit jako jeho kroky a hned se ukážou ve všech oknech. **Vrátit** a **Znovu** v hlavičce okna vrací a opakují kroky hlavního okna. Když se
   strom mezitím změnil v jiném okně, úprava se nepoužije: „Strom se mezitím změnil v jiném okně. Úprava se nepoužila,
@@ -1505,7 +1833,7 @@ okno zůstane na svém pohledu. Ukládá jen hlavní okno; ostatní okna mu úpr
 <!-- zdroj: app:4b1373a7 src/windows/window-open.ts isDesktopSystem, windowsOffered (role main, ne isViewMode, > MOBILE_MAX 640, ne isPhoneBar), openInNewWindow · src/windows/window-controls.ts openWindow (BLOCKED_TOAST_MS 10 s, win.retry; MANY_WINDOWS 5, manyWindows), INDICATOR_TEXT_MIN_WIDTH 1280, renderMenu (6 pohledů, thisView, overview jen UI.canOpenResearchOverview), wireTabs (ctrl/meta click, auxclick button 1, contextmenu, Shift+F10 / ContextMenu) · src/windows/view-window-state.ts (přenos stavu, F5 satelitu) · src/windows/sat-header.ts · src/windows/satellite.ts readOnly (live, locked) · src/windows/sat-states.ts (live strip readOnlyLive, goToMain; CONFLICT_TOAST_MS) · src/windows/window-drafts.ts (draftKept) · src/windows/window-research-menu.ts (researchInMain) · src/windows/window-title.ts · index.html html.window-satellite .toolbar skryto · strings.ts win.* · CHANGELOG.cs.md 3.28.0 · spec 079 K1.1–K1.4, K1.7 · prace/1112-app-okna-zaklad, 1112-app-okna-pohledy -->
 
 <a id="A6.8.1"></a>
-### A6.8.1 Sledovat výběr
+### A6.8.1 Vybraná osoba
 
 Vybraná osoba je mezi okny sdílená. Co výběr z jiného okna udělá v tomto okně, určuje přepínač **Sledovat výběr**
 v hlavičce okna.
@@ -1529,8 +1857,11 @@ v hlavičce okna.
   ([S4.1.7](S4-research-from-the-app.md#S4.1.7)).
 - **Od aplikace 3.30.0:** přepínač se jmenuje **Výběr ▾** a tyto režimy jsou v jeho skupině **Toto okno** · výběr
   z jiných oken. Druhá skupina **Hlavní okno** říká, co udělá výběr v tomto okně v hlavním okně ([A6.8.4](#A6.8.4)).
+- **Od aplikace 3.31.0:** přepínač se jmenuje **Vybraná osoba ▾** a skupiny **Toto okno** · osoba vybraná v jiném okně
+  a **Hlavní okno** · osoba vybraná v tomto okně. U **vypnuto** stojí „Okno má vlastní vybranou osobu a nikam ji
+  neposílá.“ Slovo **Výběr** v aplikaci znamená jen výběr osob ([A6.6](#A6.6)).
 
-<!-- zdroj: app:4b1373a7 src/windows/follow-mode.ts RECENTERING (family, descendants, fan), defaultFollowMode, followModesFor, effectiveFollowMode, followChoiceToStore (sessionStorage pro okno) · src/windows/window-selection.ts (origin, bez smyčky) · src/windows/sat-header.ts · strings.ts win.followSelectionState, followModeSwitch, followModeMark, followModeOff, followModeSwitchNote, followModeMarkNote, followSelectionOff · spec 079 K1.3, K2.1 · prace/1112-app-okna-sledovat (7bb1b8b2) -->
+<!-- zdroj: app:4b1373a7 src/windows/follow-mode.ts RECENTERING (family, descendants, fan), defaultFollowMode, followModesFor, effectiveFollowMode, followChoiceToStore (sessionStorage pro okno) · src/windows/window-selection.ts (origin, bez smyčky) · src/windows/sat-header.ts · strings.ts win.followSelectionState, followModeSwitch, followModeMark, followModeOff, followModeSwitchNote, followModeMarkNote, followSelectionOff · spec 079 K1.3, K2.1 · prace/1112-app-okna-sledovat (7bb1b8b2) · 3.31.0: strings.ts satFollow.menu, label, groupThisSub, groupMainSub, recvOffNote, sendDisabled, agentNote (app:51ad8fd6, ZADANI_DEV_vyber-osob §1.1) -->
 
 <a id="A6.8.2"></a>
 ### A6.8.2 Když hlavní okno chybí
@@ -1580,7 +1911,8 @@ k němu připojí.“
 ### A6.8.4 Co výběr v dalším okně udělá v hlavním okně
 
 Osoba vybraná v Tabulce, na Časové ose nebo na Mapě dalšího okna se v hlavním okně vyznačí, nebo se stane jeho
-středem. Určuje to skupina **Hlavní okno** v přepínači **Výběr** v hlavičce dalšího okna.
+středem. Určuje to skupina **Hlavní okno** v přepínači **Výběr** (od aplikace 3.31.0 **Vybraná osoba**) v hlavičce
+dalšího okna.
 
 | Volba | Co se stane v hlavním okně |
 |---|---|
@@ -1600,9 +1932,9 @@ středem. Určuje to skupina **Hlavní okno** v přepínači **Výběr** v hlavi
   „{jméno} v tomto pohledu není.“ s **Přejít na** (osoba se stane středem) a ×.
 - **Hranice:**
   - hlavní okno, které sleduje agenta výzkumu, osobu jen vyznačí; střed zůstane u agenta
-    ([S4.1.7](S4-research-from-the-app.md#S4.1.7)). Jednou za sérii řekne „Sleduje se agent – výběr z dalšího okna se
-    jen vyznačí.“; další okno má u volby „(agent)“ a v nabídce „Hlavní okno sleduje agenta – výběr se tam jen
-    vyznačí.“ Po pozastavení nebo konci sledování se nic zpětně nepřepne: **zaměřit** platí od dalšího výběru;
+    ([S4.1.7](S4-research-from-the-app.md#S4.1.7)). Jednou za sérii řekne „Sleduje se agent – osoba vybraná v jiném
+    okně se jen vyznačí.“; další okno má u volby „(agent)“ a v nabídce „Hlavní okno sleduje agenta – vybraná osoba se
+    tam jen vyznačí.“ Po pozastavení nebo konci sledování se nic zpětně nepřepne: **zaměřit** platí od dalšího výběru;
   - osoba, která mezitím ve stromu není: střed zůstane, „Vybraná osoba už ve stromu není.“ Oznámení bez × zmizí
     po 6 s;
   - osoba, kterou Tabulka hlavního okna vynechá (filtr, hledání nebo seznam; ne připnutý řádek ani řádek ukázaný
@@ -1610,12 +1942,12 @@ středem. Určuje to skupina **Hlavní okno** v přepínači **Výběr** v hlavi
     zmizí po 6 s. Rodina, Potomci a Vějíř nikoho neskrývají;
   - osoba, která už je středem: nic se nestane;
   - při **vypnuto** ve skupině **Toto okno** a když hlavní okno není otevřené, je skupina **Hlavní okno** zašedlá
-    s poznámkou „Nedostupné – sdílení výběru je v tomto okně vypnuté.“ nebo „Hlavní okno není otevřené.“; volba
+    s poznámkou „Nedostupné – sdílení vybrané osoby je v tomto okně vypnuté.“ nebo „Hlavní okno není otevřené.“; volba
     zůstane uložená;
   - volba platí pro jedno okno a jeho Tabulku, Časovou osu i Mapu, vydrží obnovení okna (F5); každé další okno má
     svou. Dokud se nezvolí, rozhoduje pohled: Tabulka zaměří, Časová osa a Mapa vyznačí. Zvolené **jen vyznačit**
     platí i v Tabulce a vydrží obnovení okna.
-- **Ovládání:** aplikace: v hlavičce dalšího okna **Výběr ▾** → **Hlavní okno** · výběr v tomto okně: **jen
+- **Ovládání:** aplikace: v hlavičce dalšího okna **Vybraná osoba ▾** → **Hlavní okno** · osoba vybraná v tomto okně: **jen
   vyznačit**, **zaměřit**. Zavřený přepínač ukazuje, co je zvolené (v úzkém okně zkráceně ikonami); celé znění má
   v bublině.
 - **Platí od:** aplikace 3.30.0

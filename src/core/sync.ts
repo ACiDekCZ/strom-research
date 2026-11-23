@@ -18,6 +18,7 @@
 // by the user's word. What the app no longer has is only reported. One sync is
 // one input, one source and one commit, and can be undone (strom sync undo).
 
+import { appResidenceContact, emailOf, gedcomPersonContact, joinEmails, residenceContact, sameEmails, withEmails, type AppResidence } from "./contact.ts";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -62,7 +63,7 @@ import { earlierNoteTexts } from "./retractions.ts";
 import { mendAll } from "./damaged.ts";
 import { APP_FROM, sentByApp } from "./originals.ts";
 import { inTree, servedWithMedia } from "./treemedia.ts";
-import { MediaReader, recordOfFile, storeRel, mimeOfForm, type MediaFact, type MediaUnreadable, type SMediaFile, type SMediaPlace } from "./appmedia.ts";
+import { MediaReader, recordOfFile, storeRel, mimeOfForm, type MediaFact, type MediaResolve, type MediaUnreadable, type SMediaFile, type SMediaPlace } from "./appmedia.ts";
 import { cleanTitle, currentName, familiesAsPartner, formatName, foundTitles, gedcomTitledName, parseName, primaryName, sameName as sameWords, titledName } from "./people.ts";
 import { canonicalize } from "./json.ts";
 import { askShorterNote, shorterAsked, shorterWaiting, SHORTER_ORIGIN } from "./shorternote.ts";
@@ -194,7 +195,8 @@ export interface SSource {
 
 /** How a file of the app's tree is read (the files of its OBJE): their bytes kept in a store as they are read, or not read at all. */
 export interface ReadOptions {
-  media?: false | { store?: string | undefined };
+  /** `resolve`: how a file the send names by its hash (_STROM_DATA, spec 133) is found beyond the store (appmedia.mediaResolver). */
+  media?: false | { store?: string | undefined; resolve?: MediaResolve | undefined };
 }
 
 export interface SPerson {
@@ -248,6 +250,12 @@ export interface SPerson {
   ids?: IdBlock[];
   /** Their files in the app's tree: the portrait, attachments, their events'. */
   media?: SMediaPlace[];
+  /**
+   * How to reach them (spec 134 U11): their e-mails — "1 RESI" / "2 EMAIL", a residence of nothing but "E-mail: x"
+   * notes (the Strom app up to 3.31), "1 EMAIL"; the app's JSON emails. The same rule (core/contact.ts) for the head,
+   * the file and the research: a tree nobody changed brings no change.
+   */
+  emails?: string[];
 }
 
 /** The titles of a name: before it ("Ing.") and after it ("ml."). */
@@ -619,6 +627,8 @@ function rawFacts(node: GedNode, couple?: { HUSB?: string | undefined; WIFE?: st
     if (["NAME", "SEX", "REFN", "NOTE", "FAMC", "FAMS", "HUSB", "WIFE", "CHIL", "SOUR", "OBJE", "ASSO", "_STORY"].includes(c.tag)) continue;
     const kind = eventKind(c.tag);
     if (!kind) continue;
+    // a person's residence of nothing but a contact is none: its e-mails the person's (SPerson.emails)
+    if (!couple && c.tag === "RESI" && residenceContact(c, note).onlyContact) continue;
     const f: SFact = { kind };
     const date = importDate(val(c, "DATE"));
     if (date) f.date = date;
@@ -940,7 +950,7 @@ export function readGedcom(text: string, lang = "en", opts: ReadOptions = {}): S
   const markOf = (n: GedNode | undefined) => markUnder(n, imports);
   // the user's confirmations against the scan (spec 065): of the research's or the app's own file alone
   // the files of the app's tree (its OBJE): read one at a time, their bytes kept as they are read when a store is given
-  const objects = opts.media === false ? undefined : new MediaReader(records, { store: opts.media?.store, problems, note: noteText });
+  const objects = opts.media === false ? undefined : new MediaReader(records, { store: opts.media?.store, resolve: opts.media?.resolve, problems, note: noteText });
   const unreadable: MediaUnreadable[] = [];
   const factObjects = new Map<SFact, { nodes: GedNode[]; eid?: string }>();
   const onFact = objects
@@ -1056,6 +1066,7 @@ export function readGedcom(text: string, lang = "en", opts: ReadOptions = {}): S
     // the IDs they had in a family tree the app imported (its blocks of an import its HEAD names; never its level-1 _UID)
     const ids = imports ? appIdBlocks(r, (k) => imports.has(k), problems, r.xref!.replace(/@/g, "")) : [];
     const media = placesOf(r, facts, { person: key });
+    const emails = gedcomPersonContact(r, noteText).emails;
     persons.set(key, {
       key,
       names,
@@ -1075,6 +1086,7 @@ export function readGedcom(text: string, lang = "en", opts: ReadOptions = {}): S
       ...(sexOwn ? { sexMarkOwn: true as const } : {}),
       ...(ids.length ? { ids } : {}),
       ...(media.length ? { media } : {}),
+      ...(emails.length ? { emails } : {}),
     });
   }
   // how a child belongs to a family (the child's FAMC + PEDI: adopted, foster, step): none said is birth
@@ -1272,7 +1284,9 @@ interface AppPerson {
   /** The titles of the name (the app's 3.10): "Ing.", "ml.". */
   titleBefore?: string;
   titleAfter?: string;
-  events?: (Pick<StromEvent, "shareId" | "shareRole" | "roleAt"> & { type: string; customLabel?: string; date?: string; place?: string; note?: string; cause?: string; age?: string; address?: string; sourceIds?: string[]; participants?: AppParticipant[] })[];
+  events?: (Pick<StromEvent, "shareId" | "shareRole" | "roleAt" | "gedcomEmails"> & { type: string; customLabel?: string; date?: string; place?: string; note?: string; cause?: string; age?: string; address?: string; sourceIds?: string[]; participants?: AppParticipant[] })[];
+  /** How to reach the person (spec 134 U11; the app from 3.32). */
+  emails?: string[];
 }
 /** Someone at an event of the Strom app: a person of its tree, or a name as the register writes it. */
 interface AppParticipant {
@@ -1436,11 +1450,18 @@ export function readStromJson(data: unknown, lang = "en"): Snapshot {
     if (p.birthDate || p.birthPlace || p.birthAddress) fact("BIRT", p.birthDate, p.birthPlace, undefined, undefined, { house: p.birthAddress, sourceIds: p.birthSourceIds, main: mainOf(p, "birthSourceIds") });
     if (p.deathDate || p.deathPlace || p.deathCause || p.deathAge || p.deathAddress)
       fact("DEAT", p.deathDate, p.deathPlace, undefined, undefined, { cause: p.deathCause, age: p.deathAge, house: p.deathAddress, sourceIds: p.deathSourceIds, main: mainOf(p, "deathSourceIds") });
+    // how to reach them (spec 134 U11): the app's e-mails, its residences' (of nothing but a contact: no event)
+    let emails = joinEmails(Array.isArray(p.emails) ? p.emails.filter((x): x is string => typeof x === "string") : [], []);
     for (const e of p.events ?? []) {
       // a godparent's or a wedding witness's own event (spec 085 K2.2): an EVEN named in the research's language
       const what = e && typeof e.type === "string" ? appPersonEvent(e, lang) : undefined;
       const kind = what && Object.hasOwn(APP_EVENTS, e.type) ? APP_EVENTS[e.type]! : what?.kind;
       if (!what || !kind || ((kind === "BIRT" || kind === "DEAT") && facts.some((f) => f.kind === kind))) continue;
+      if (what.kind === "RESI") {
+        const ct = appResidenceContact(e as AppResidence);
+        emails = joinEmails(emails, ct.emails);
+        if (ct.onlyContact) continue;
+      }
       // an occupation, a religion, a title: the app keeps what it is as the event's note (its first line)
       const value = VALUE_KINDS.has(kind) ? e.note?.split("\n")[0] : undefined;
       fact(what.kind, e.date, e.place, what.kind === "EVEN" ? (kind === "MILI" ? e.customLabel || "EVEN" : what.label || "EVEN") : undefined, value, { cause: e.cause, age: e.age, house: e.address, sourceIds: e.sourceIds, main: mainOf(e, "sourceIds"), participants: e.participants, marks: e, note: e.note });
@@ -1472,6 +1493,7 @@ export function readStromJson(data: unknown, lang = "en"): Snapshot {
       notes: p.notes?.trim() ? [p.notes.trim()] : [],
       said: p.notes ?? "",
       ...(cites ? { cites } : {}),
+      ...(emails.length ? { emails } : {}),
     });
   }
   // a partner's age by the app's person id → by the person's key
@@ -1742,6 +1764,11 @@ export interface Received {
   /** Changes it brings against the research at `counted` (its head then). */
   changes: number;
   counted: string;
+  /**
+   * Not counted yet: the bridge that writes it at once leaves the count to the strom that writes it (planned once, there)
+   * — `changes` means nothing until that strom says it (countedReceived).
+   */
+  counting?: true;
   /**
    * Waits; written into the research; thrown away by the person; replaced by a newer send; brought nothing new; written
    * and taken back (strom sync undo); could not be written (why: `reason` — the app may send it again).
@@ -2168,36 +2195,55 @@ const RECEIVED_KEEP = 100;
  * the user's word — nothing of the research changes here. A send of the same tree of the app that still waits is
  * replaced by it (each carries the whole tree). Returns the file, how many changes it brings, and its mark.
  */
-export function receiveTree(root: string, env: Tree["env"], text: string, opts: { keep?: string; again?: string; mediaApp?: boolean } = {}): { file: string; changes: number; intake: string } {
+export function receiveTree(
+  root: string,
+  env: Tree["env"],
+  text: string,
+  opts: { keep?: string; again?: string; mediaApp?: boolean; plan?: boolean; times?: ReceiveTimes } = {},
+): { file: string; changes: number; intake: string; counting?: true } {
   if (!/^﻿?\s*0\s+HEAD/.test(text)) throw new UsageError("not a GEDCOM file", { code: "tree.unreadable" });
   const dir = path.join(root, SYNC_INBOX);
   fs.mkdirSync(dir, { recursive: true });
   const stamp = new Date().toISOString();
   // two sends within one millisecond (two browsers): each its own file
   const file = path.join(dir, `strom-app-${stamp.replace(/[:.]/g, "-")}-${crypto.randomBytes(3).toString("hex")}.ged`);
+  const idsFrom = performance.now();
   const given = withKnownIds(root, env, text);
   fs.writeFileSync(file, given.text);
+  if (opts.times) opts.times.ids = performance.now() - idsFrom;
   const mark = { intake: `R${stamp.replace(/[^0-9]/g, "").slice(0, 17)}-${crypto.randomBytes(2).toString("hex")}`, at: stamp };
+  if (opts.times) opts.times.intake = mark.intake;
   // a send taken back, sent again by the user: what it brings is theirs again (never left out as taken back)
   if (opts.again) markSentAgain(root, opts.again, mark.intake);
+  const marks = sendMarks(text);
+  const known = Object.keys(given.known.persons).length || Object.keys(given.known.sources).length ? { known: given.known } : {};
+  // written at once by a strom of its own, nothing else being written: that strom counts it as it plans it (once) — it
+  // waits here, its count not known yet; a refusal of it is the writer's (the bridge keeps the file aside then)
+  if (opts.plan === false) {
+    forgetDecided(root);
+    const r: Received = { ...mark, file: path.basename(file), ...marks, changes: 0, counted: headOf(root), counting: true, state: "pending", ...known, ...(opts.mediaApp ? { mediaApp: true as const } : {}) };
+    writeReceived(root, r);
+    return { file, changes: 0, intake: r.intake, counting: true };
+  }
   let changes: number;
   try {
     const t = Tree.open(root, env);
-    changes = planSync(t, readTreeFile(file, t.config.lang), "conflict", { ...(opts.mediaApp ? { mediaApp: true } : {}) }).changes.length;
+    const planFrom = performance.now();
+    const parts: PlanTimes = {};
+    try {
+      changes = planSync(t, readTreeFile(file, t.config.lang), "conflict", { ...(opts.mediaApp ? { mediaApp: true } : {}), ...(opts.times ? { times: parts } : {}) }).changes.length;
+    } finally {
+      if (opts.times) Object.assign(opts.times, { plan: performance.now() - planFrom, planParts: parts });
+    }
   } catch (e) {
     // refused (another research's, one without the research's IDs…): kept aside too, to see what came (said with it)
     const kept = keepSent(root, file, "refused-");
     if (kept && e instanceof StromError && e.details === undefined) throw new UsageError(e.message, { ...(e.hint ? { hint: e.hint } : {}), ...(e.code ? { code: e.code } : {}), ...(e.params ? { params: e.params } : {}), details: { kept } });
     throw e;
   }
-  const marks = sendMarks(text);
   // the one being written now (opts.keep) is not replaced under the writer's hands
-  for (const r of receivedPending(root)) if ((r.tree ?? "") === (marks.tree ?? "") && r.intake !== opts.keep) decide(root, r, { state: "replaced" });
-  // the app may send every few minutes: what was decided is kept a while, and only so many
-  const decided = receivedAll(root).filter((r) => r.state !== "pending");
-  for (const [i, r] of decided.entries())
-    if (i >= RECEIVED_KEEP || Date.parse(r.decided ?? r.at) < Date.now() - RECEIVED_KEEP_MS) fs.rmSync(receivedFile(root, r.intake), { force: true });
-  const known = Object.keys(given.known.persons).length || Object.keys(given.known.sources).length ? { known: given.known } : {};
+  replaceOlder(root, marks.tree, opts.keep);
+  forgetDecided(root);
   const r: Received = { ...mark, file: path.basename(file), ...marks, changes, counted: headOf(root), state: "pending", ...known, ...(opts.mediaApp ? { mediaApp: true as const } : {}) };
   // nothing the research has not: nothing waits (the app hears it from the answer)
   if (!changes) {
@@ -2205,6 +2251,68 @@ export function receiveTree(root: string, env: Tree["env"], text: string, opts: 
     decide(root, r, { state: "nothing" });
   } else writeReceived(root, r);
   return { file, changes, intake: r.intake };
+}
+
+/** What the bridge's receiving of a send took (ms), for its line in live.log; the send's mark once it has one. */
+export interface ReceiveTimes {
+  intake?: string;
+  /** withKnownIds and the inbox file written. */
+  ids?: number;
+  /** The bridge's own plan, when it planned (review mode, or another send being written), and its parts. */
+  plan?: number;
+  planParts?: PlanTimes;
+}
+
+/**
+ * The sends of this tree of the app that wait, but the one named (`keep`, being written): replaced by a newer one —
+ * only those that came before `before` (a send counted by its writer: one that came while it was counted is newer).
+ */
+function replaceOlder(root: string, appTree: string | undefined, keep: string | undefined, before?: string): void {
+  for (const r of receivedPending(root))
+    if ((r.tree ?? "") === (appTree ?? "") && r.intake !== keep && (before === undefined || Date.parse(r.at) <= Date.parse(before))) decide(root, r, { state: "replaced" });
+}
+
+/** The app may send every few minutes: what was decided is kept a while, and only so many. */
+function forgetDecided(root: string): void {
+  const decided = receivedAll(root).filter((r) => r.state !== "pending");
+  for (const [i, r] of decided.entries())
+    if (i >= RECEIVED_KEEP || Date.parse(r.decided ?? r.at) < Date.now() - RECEIVED_KEEP_MS) fs.rmSync(receivedFile(root, r.intake), { force: true });
+}
+
+/**
+ * A send left to its writer to count (receiveTree with plan false), counted by it: its changes against the research
+ * now — and, as a send the bridge counts itself does, an older send of the same tree of the app that waits is replaced
+ * by it. Nothing for a send the bridge counted (its count stands).
+ */
+export function countedReceived(root: string, file: string, changes: number): void {
+  const r = receivedOf(root, file);
+  if (!r?.counting || r.state !== "pending") return;
+  replaceOlder(root, r.tree, r.intake, r.at);
+  const { counting: _c, ...rest } = r;
+  writeReceived(root, { ...rest, changes, counted: headOf(root) });
+}
+
+/**
+ * A send its writer refused before it counted it (another research's, one without the research's IDs, empty): as a
+ * send the bridge refuses itself — no record of it left, its file kept aside to see what came. Its place there (kept/…).
+ */
+export function refuseReceived(root: string, intake: string): string | undefined {
+  const r = receivedAll(root).find((x) => x.intake === intake && x.state === "pending");
+  if (!r) return undefined;
+  const kept = keepSent(root, path.join(root, SYNC_INBOX, r.file), "refused-");
+  fs.rmSync(receivedFile(root, r.intake), { force: true });
+  return kept;
+}
+
+/**
+ * The state of the research a plan stands on: its last commit, while nothing of data/ or strom.json differs from it —
+ * undefined otherwise. The same state later (under the tree lock) and the plan made before holds: nothing was written
+ * between (every write ends in a commit).
+ */
+export function planState(tree: Tree): string | undefined {
+  const head = git.head(tree.root);
+  if (!head) return undefined;
+  return git.changes(tree.root, ["data", "strom.json"]).length === 0 ? head : undefined;
 }
 
 /**
@@ -2278,7 +2386,8 @@ export interface InboxTree {
   tree: string;
   intake: string;
   at: string;
-  changes: number;
+  /** None while its writer counts it (Received.counting). */
+  changes?: number;
   sent?: string;
 }
 
@@ -2294,6 +2403,12 @@ export function inboxTrees(root: string, env: Tree["env"]): InboxTree[] {
   let tree: Tree | undefined;
   for (const r of pending) {
     let changes = r.changes;
+    // its writer counts it: neither counted here nor said as none
+    if (r.counting) {
+      tree ??= Tree.open(root, env);
+      out.push({ tree: r.tree ?? tree.config.id, intake: r.intake, at: r.at, ...(r.sent ? { sent: r.sent } : {}) });
+      continue;
+    }
     if (head && r.counted !== head) {
       try {
         tree ??= Tree.open(root, env);
@@ -2325,7 +2440,8 @@ export function recentSends(root: string, tree?: Tree, days = 7, max = 20): Reco
       intake: r.intake,
       at: r.at,
       state: r.state,
-      changes: r.changes,
+      // not counted yet (its writer counts it): no number rather than none
+      ...(r.counting ? {} : { changes: r.changes }),
       ...(r.tree ? { tree: r.tree } : {}),
       ...(r.sent ? { sent: r.sent } : {}),
       ...(r.input ? { input: r.input } : {}),
@@ -2718,7 +2834,8 @@ export type ChangeKind =
   | "media.couplePhoto.removed"
   | "media.attachment.removed"
   | "media.unlink"
-  | "source.retract";
+  | "source.retract"
+  | "contact.email";
 
 /** A change of a file of the app's tree (media.*): which file of the send, the place it gets, what of it changes. */
 export interface MediaChange {
@@ -3009,11 +3126,58 @@ export function guardedChange(tree: Tree, c: Change, g: { decidePerson?: boolean
   }
 }
 
+/** The parts of a plan timed on their own (planSync's `times`). */
+export type PlanPart = "ours" | "given" | "since" | "after" | "mend" | "rest";
+
+/**
+ * Where a plan spends its time, in ms: the research's own snapshot (ours), the research at the copy's head (given: every
+ * snapshotAt planSync asks itself), the send a copy stands on (since), the sends written since its head (after), the
+ * damaged characters mended (mend), the rest. Each part without the parts timed inside it: they add up to the whole.
+ */
+export type PlanTimes = Partial<Record<PlanPart, number>>;
+
+/** Times the parts of one plan into `into` (each without what is timed inside it). */
+function partClock(into: PlanTimes | undefined): <T>(part: PlanPart, fn: () => T) => T {
+  if (!into) return (_part, fn) => fn();
+  const inner: number[] = [];
+  return (part, fn) => {
+    const start = performance.now();
+    inner.push(0);
+    try {
+      return fn();
+    } finally {
+      const all = performance.now() - start;
+      const nested = inner.pop() ?? 0;
+      into[part] = (into[part] ?? 0) + all - nested;
+      if (inner.length) inner[inner.length - 1]! += all;
+    }
+  };
+}
+
 export function planSync(
   tree: Tree,
   incoming: Snapshot,
   edits: "conflict" | "user",
-  opts: { force?: boolean; takenBack?: false; sent?: boolean; decidesShares?: boolean; readsMain?: boolean; readsNameStatus?: boolean; sendsUncite?: boolean; partNotes?: boolean; mediaApp?: boolean } = {},
+  opts: { force?: boolean; takenBack?: false; sent?: boolean; decidesShares?: boolean; readsMain?: boolean; readsNameStatus?: boolean; sendsUncite?: boolean; partNotes?: boolean; mediaApp?: boolean; times?: PlanTimes } = {},
+): Plan {
+  // the same `times` for several plans (one again under the lock): each adds its own
+  const timedSum = () => Object.entries(opts.times ?? {}).reduce((a, [k, v]) => (k === "rest" ? a : a + (v ?? 0)), 0);
+  const started = performance.now();
+  const before = timedSum();
+  const timed = partClock(opts.times);
+  try {
+    return planned(tree, incoming, edits, opts, timed);
+  } finally {
+    if (opts.times) opts.times.rest = (opts.times.rest ?? 0) + Math.max(0, performance.now() - started - (timedSum() - before));
+  }
+}
+
+function planned(
+  tree: Tree,
+  incoming: Snapshot,
+  edits: "conflict" | "user",
+  opts: { force?: boolean; takenBack?: false; sent?: boolean; decidesShares?: boolean; readsMain?: boolean; readsNameStatus?: boolean; sendsUncite?: boolean; partNotes?: boolean; mediaApp?: boolean },
+  timed: <T>(part: PlanPart, fn: () => T) => T,
 ): Plan {
   // an archive (or a research waiting for its agent) mirrors the app: the user's word wins, what the app no longer has is withdrawn (with the reason)
   const mirror = actsAsArchive(tree);
@@ -3031,10 +3195,10 @@ export function planSync(
       f.partners = f.partners.filter((k) => !removed.has(k));
       f.children = f.children.filter((k) => !removed.has(k));
     }
-  const ours = snapshotOfTree(tree);
+  const ours = timed("ours", () => snapshotOfTree(tree));
   // characters the app's file damaged (an emoji split on a CONC line: U+FFFD U+FFFD) are not the user's edit: put back
   // from the same field of the same record in what the app was given, else in the research now
-  let mended = mendAll(incoming, () => [incoming.head ? snapshotAt(tree, incoming.head) : undefined, ours]);
+  let mended = timed("mend", () => mendAll(incoming, () => [incoming.head ? timed("given", () => snapshotAt(tree, incoming.head!)) : undefined, ours]));
   knownNewcomers(incoming, ours);
   renamedInPlace(incoming, ours);
   knownByIds(tree, incoming);
@@ -3045,14 +3209,14 @@ export function planSync(
   const sentAgain = !!incoming.again && receivedAll(tree.root).some((r) => r.intake === incoming.again && r.state === "undone");
   // _STROM_SINCE stands on its own: a copy the app set back to its state before a load says no _STROM_HEAD (found on
   // Mac: an occupation edited after it added as a second one, two edits left "to pick" with nothing to pick)
-  const since = !sentAgain ? sinceBase(tree, incoming) : undefined;
+  const since = !sentAgain ? timed("since", () => sinceBase(tree, incoming)) : undefined;
   // a send taken back, sent again: what it took away it takes away again, whatever the window has seen since (found on
   // Mac: the removal undone, sent again — "applied 0", the person kept as one the window never had)
   const again = sentAgain ? removalsOf(tree, incoming.again!) : new Set<string>();
-  const after = incoming.head && !sentAgain && !since ? afterSends(tree, incoming) : undefined;
-  const base = sentAgain && incoming.head ? snapshotAt(tree, incoming.head) : (since ?? after?.base);
+  const after = incoming.head && !sentAgain && !since ? timed("after", () => afterSends(tree, incoming)) : undefined;
+  const base = sentAgain && incoming.head ? timed("given", () => snapshotAt(tree, incoming.head!)) : (since ?? after?.base);
   // a send that wrote damaged characters into the research before: what it gave the app is mended alike
-  if (base) mended += mendAll(base, () => [ours]);
+  if (base) mended += timed("mend", () => mendAll(base, () => [ours]));
   // a period sent back as a range, an age without its units of nothing (a Strom app before 3.17.0-beta.9, or one whose
   // version the file does not say): the research's own form, never the user's edit (found on Mac: six conflicts and two
   // residences as leads from a send of surnames); an app that keeps them sends such a change only as the user's edit
@@ -3176,7 +3340,7 @@ export function planSync(
   const givenFactsOf = (owner: { person?: string; family?: string }) => {
     const rec = owner.person ? tree.get<Person>(owner.person) : owner.family ? tree.get<Family>(owner.family) : undefined;
     if (!rec?.events?.some((e) => e.retracted)) return undefined;
-    if (headAt === null) headAt = snapshotAt(tree, incoming.head!);
+    if (headAt === null) headAt = timed("given", () => snapshotAt(tree, incoming.head!));
     return owner.person ? headAt?.persons.get(owner.person)?.facts : headAt?.families.find((x) => (x.id ?? x.xref) === owner.family)?.facts;
   };
   const factsDiff = (owner: { person?: string; family?: string; partners?: string[]; name?: string }, inc: SFact[], our: SFact[], was: SFact[] | undefined, isOurs: boolean, famCites?: SCite[]) => {
@@ -3740,6 +3904,18 @@ export function planSync(
   };
 
   /** The user's edits of a person: the file's (`p`) against the research's (`o`) and what the app was given (`b`). */
+  /**
+   * The person's contact (spec 134 U11), the user's word: an e-mail the file has and the copy given lacked added (one
+   * the research has, or took off since, not again); one the copy given had and the file lacks taken off — the only
+   * thing a sync takes off of it, the user's change. Without the copy given only additions.
+   */
+  const contactDiff = (id: string, name: string, p: SPerson, o: SPerson, b: SPerson | undefined) => {
+    const has = (l: readonly string[] | undefined, e: string) => (l ?? []).some((x) => x.toLowerCase() === e.toLowerCase());
+    for (const e of p.emails ?? []) if (!has(o.emails, e) && (!b || !has(b.emails, e))) push({ kind: "contact.email", action: "add", person: id, name, text: e });
+    if (!b || partial) return;
+    const held = tree.get<Person>(id)?.contact?.emails;
+    for (const e of b.emails ?? []) if (!has(p.emails, e) && has(held, e)) push({ kind: "contact.email", action: "remove", person: id, name, text: e });
+  };
   const personDiff = (id: string, name: string, p: SPerson, o: SPerson, b: SPerson | undefined) => {
   factsDiff({ person: id, name }, p.facts, o.facts, b?.facts, true);
   citesDiff({ person: id, name }, p.cites, tree.get<Person>(id), b?.cites, p.facts);
@@ -3766,6 +3942,7 @@ export function planSync(
   marriedDiff(id, name, p, o, b);
   primaryDiff(id, name, p, o, b);
   nameConfirmDiff(id, name, p, o, b);
+  contactDiff(id, name, p, o, b);
   // the titles of the name they are shown by (T07), each apart and never as a change of the name itself: the user's
   // edit where the file's differs from what the app was given — one the name lacks added, a lead's corrected, a
   // record's name the user's to decide (or their word: sync.edits user, an archive); the research's changed since
@@ -3830,7 +4007,7 @@ export function planSync(
     push({ kind: "person.removed", action: edited ? "conflict" : "report", person: r.id, name, ...(by ? { removedBy: by } : {}) });
   };
   let given0: Snapshot | undefined | null = null;
-  const givenAt = () => (given0 === null ? (given0 = snapshotAt(tree, incoming.head!)) : given0);
+  const givenAt = () => (given0 === null ? (given0 = timed("given", () => snapshotAt(tree, incoming.head!))) : given0);
   let now0: Snapshot | undefined;
   const removedNow = () => (now0 ??= readGedcom(exportGedcom(tree, { for: "strom", ids: true, titles: true, sourceFields: true, removed: new Set([...removed].map((k) => removedOf(tree, k)!.id)) }).text));
 
@@ -3843,6 +4020,7 @@ export function planSync(
       citesDiff({ person: key, name }, p.cites, undefined, undefined);
       for (const n of p.names.slice(1)) push({ kind: "name.new", action: "add", person: key, name, text: n, ...(p.married?.includes(n) ? { married: true as const } : {}) });
       for (const t of p.notes) push({ kind: "note.new", action: "add", person: key, name, text: t });
+      for (const e of p.emails ?? []) push({ kind: "contact.email", action: "add", person: key, name, text: e });
       continue;
     }
     if (removed.has(key)) {
@@ -4183,14 +4361,14 @@ function sinceBase(tree: Tree, incoming: Snapshot): Snapshot | undefined {
     // the people and sources it brought, as the research named them: what the app's copy now calls them
     const named = new Map<string, string>();
     for (const a of input?.sync?.applied ?? []) if ((a.do === "person.add" || a.do === "source.add") && typeof a.before === "string" && a.before.startsWith("x:")) named.set(`@${a.before.slice(2)}@`, a.id);
-    const text = fs
-      .readFileSync(file, "utf8")
-      .replace(/\r\n?/g, "\n")
-      .replace(/^0 (@[^@\s]+@) (INDI|SOUR)[^\n]*$/gm, (line, xref: string, tag: string) => {
-        const id = named.get(xref);
-        return !id ? line : tag === "INDI" ? `${line}\n1 REFN ${id}\n2 TYPE ${REFN_TYPE}` : `${line}\n1 REFN ${id}`;
-      });
-    return readGedcom(text);
+    // without the files it carried (a send of the app is mostly its images: 100 MB of 108): the copy stands on its
+    // people, families, places and sources — a send's files are planned against the research and the media base
+    // (planMedia, mediaBase), never against this copy, and nothing else of a snapshot reads a FILE
+    const text = withoutImages(fs.readFileSync(file, "utf8").replace(/\r\n?/g, "\n")).replace(/^0 (@[^@\s]+@) (INDI|SOUR)[^\n]*$/gm, (line, xref: string, tag: string) => {
+      const id = named.get(xref);
+      return !id ? line : tag === "INDI" ? `${line}\n1 REFN ${id}\n2 TYPE ${REFN_TYPE}` : `${line}\n1 REFN ${id}`;
+    });
+    return readGedcom(text, "en", { media: false });
   } catch {
     return undefined;
   }
@@ -5668,7 +5846,8 @@ export interface Applied {
     | "event.confirm"
     | "name.confirm"
     | "event.share"
-    | "source.retract";
+    | "source.retract"
+    | "contact.edit";
   id: string;
   /**
    * event.edit: the fact before; event.detail: its cause, age and house before (JSON); event.retract, event.status:
@@ -6806,6 +6985,27 @@ export function applySync(
           applied.push({ do: "name.now", id: owner, before: JSON.stringify({ now, ...(was ? { was: key(was) } : {}), ...(target.kind !== "married" ? { kind: target.kind ?? null } : {}) }) });
           break;
         }
+        case "contact.email": {
+          // the person's contact (spec 134 U11): the user's — an e-mail added, or one taken off in the app (by the
+          // person's sync alone: never by anyone else's)
+          const p = owner ? tree.get<Person>(owner) : undefined;
+          const e = emailOf(c.text);
+          if (!p || !e) break;
+          const before = p.contact?.emails ?? [];
+          if (c.action === "remove" && !person) {
+            kept(c, `the e-mail ${e} of ${p.id} is the user's: taken off by nobody but the user — tell the user`, { person: p.id });
+            break;
+          }
+          const next = c.action === "remove" ? before.filter((x) => x.toLowerCase() !== e.toLowerCase()) : joinEmails(before, [e]);
+          if (sameEmails(next, before)) break;
+          update<Person>(tree, p.id, "person", (x) => withEmails(x, next), {
+            op: "person.edit",
+            summary: `${p.id} e-mail ${e} ${c.action === "remove" ? "removed" : "added"}`,
+            reason,
+          });
+          applied.push({ do: "contact.edit", id: p.id, before: JSON.stringify(before) });
+          break;
+        }
         case "name.gone": {
           // a name after a marriage taken off in the app that only the user's edits or other family trees gave: off,
           // where it stood kept for an undo (a record's stays: only said)
@@ -7737,6 +7937,14 @@ export function undoSync(tree: Tree, input: SyncInput): number {
         const at = p ? p.names.map((m) => exact(`${m.given}|${m.surname}`)).lastIndexOf(String(a.before)) : -1;
         if (p && at >= 0 && p.names.length > 1)
           update<Person>(tree, a.id, "person", (x) => ({ ...x, names: x.names.filter((_, i) => i !== at) }), { op: "name.remove", summary: `${a.id} name ${gedcomName(p.names[at]!)} removed: ${reason}`, reason });
+        break;
+      }
+      case "contact.edit": {
+        // the person's contact as it was before the sync
+        const b = JSON.parse(String(a.before ?? "[]")) as string[];
+        const p = tree.get<Person>(a.id);
+        if (p && Array.isArray(b) && !sameEmails(p.contact?.emails, b))
+          update<Person>(tree, a.id, "person", (x) => withEmails(x, b), { op: "person.edit", summary: `${a.id} contact as before`, reason });
         break;
       }
       case "name.drop": {

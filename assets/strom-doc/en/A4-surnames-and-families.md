@@ -84,8 +84,8 @@ in … line" and possibly "· born into …".
   - In pages and exports with privacy of living people, the row of a living person is shown only with the option
     **Full data** or **Keep surname only**.
 - **Controls:** the menu **Family line actions** at the row: **Show family line in tree**, **Edit family line…**,
-  **Start a family line from this person…**, **Family line book…**. Choosing a family line in the tree view is
-  described in A6.
+  **Start a family line from this person…**, **Family line book…**. A family line as the selection of people in the
+  tree view is described in [A6.6](A6-views.md#A6.6).
 - **Since:** app 3.19.0
 
 <!-- zdroj: app:src/lineage.ts:793 marriedInto · :857 personRodRow · src/lineage-row.ts:40 personRodRowValue · :70 rodRowShown · strings.ts lineage.row.* -->
@@ -102,8 +102,8 @@ lines are under **Other families** (up to 4 people), large family lines have a r
     they married into.
   - Two different rules: a large family line is told apart from family lines of the same name only against other
     large ones, a small one against all ([A4.4](#A4.4)).
-- **Controls:** **Tree overview → Family lines → Other families**. In the toolbar **Family lines → Other families**
-  (A6).
+- **Controls:** **Tree overview → Family lines → Other families**. In the toolbar **Selection ▾ → Family lines → Other
+  families** ([A6.6.1](A6-views.md#A6.6.1); up to app 3.30.0 **Family lines → Other families**).
 - **Since:** app 3.19.0
 
 <!-- zdroj: app:src/lineage.ts:72 SMALL_ROD_MAX_MEMBERS · :710 isMarriedInOnly · :722 otherFamilyRods · strings.ts treeOverview.rods, familyPages.otherFams -->
@@ -131,9 +131,11 @@ the line. When a family line has the same name as other family lines, it gets a 
   - From 20 large family lines the overview has a search and shows the first 20 family lines, the rest after
     expanding. It searches in the name, name forms, towns and members' names.
   - The time axis of family lines is rounded to 50 years.
-- **Controls:** **Tree overview → Family lines**, the field "Search line, place or person…". The list **Family
-  lines** in the toolbar has the same order and names, with **Whole tree** and **Other families** (A6).
-- **Since:** app 3.19.0 (the list **Family lines** in the toolbar 3.21.0)
+- **Controls:** **Tree overview → Family lines**, the field "Search line, place or person…". The section **Family
+  lines** of the menu **Selection ▾** in the toolbar has the same order and names, with **Other families**
+  ([A6.6.1](A6-views.md#A6.6.1)).
+- **Since:** app 3.19.0 (the list **Family lines** in the toolbar 3.21.0, from 3.31.0 the section **Family lines** of
+  the menu **Selection ▾**)
 
 <!-- zdroj: app:src/lineage.ts:393 computeLineages (řazení) · :567 summarise · :672 founderYearOf · :938 rodLabel · src/rods-overview.ts:23 rodSize · :33 sortRods · :46 AXIS_STEP · :79 rodMatches · :98 ROD_SEARCH_FROM · :114 founderPlace · src/ui/tree-overview.ts:160 RODS_SORT_KEY -->
 
@@ -204,6 +206,68 @@ offered again.
 - **Since:** app 3.13.0 (surname in use 3.18.0)
 
 <!-- zdroj: app:src/married-suggestion.ts:46 suggestionHusband · :65 wifeSurnameOf · :83 suggestMarriedSurname · src/person-name.ts:46 surnameDisplay · :79 shownNameParts · src/ui/person-modal.ts:1483 refreshMarriedSurname · strings.ts person.*, settings.surnameDisplay, name.* -->
+
+<a id="A4.6.1"></a>
+### A4.6.1 Several marriages: the surname of the last marriage
+
+A person with more than one married name has as the **Married surname** the one of the last marriage, not the last one
+written. The other married names are in **Other spellings of the name**.
+
+Marie Horáková has two marriages: in 1880 (husband Jan Vlk) and in 1900 (husband Josef Jaworski). The research wrote
+“Marie Jaworska” first, then “Marie Vlková”. The **Married surname** is Jaworska, “Marie Vlková” is in **Other
+spellings of the name**.
+
+- **Limits:**
+  - A marriage is a union that is or was a marriage (divorced too); a union without marriage (**Partners**,
+    **Separated**) does not count.
+  - The name whose surname belongs to the partner of the marriage with the latest date wins. Marriages without a date
+    come after them, from the last in the order of marriages ([A6.4](A6-views.md#A6.4)).
+  - A surname belongs to the partner also in the feminine form (Vlk → Vlková, Jaworski → Jaworska), regardless of
+    letter case and diacritics, even in a tree where the form rules ([A4.5](#A4.5)) give no feminine form.
+  - A name that belongs to no partner comes only after them; when none belongs, the last one written applies.
+  - The married names not chosen stay in **Other spellings of the name**, with their own given names. Nothing is
+    deleted.
+  - It applies when a tree is loaded from the research and when a GEDCOM file of another program is loaded (`NAME`
+    with `TYPE married` and `_MARNM`). The research orders the married names in its file for the app by the same
+    rule, the current one last, and the app takes its order as it is. With an older research and with a file of
+    another program, the app works the rule out itself. An older app takes the last name written, so it too gets the
+    current one from the research.
+- **Why:** married names are added in the order the research finds them: a newer surname, say from a burial entry,
+  before an older one from the marriage entry. The last one written need not be the one of the last marriage.
+- **Controls:** another married surname is chosen by hand ([A4.6.2](#A4.6.2)).
+- **Since:** app 3.31.0, research 1.36.0 (before, the last married name written applied)
+
+<!-- zdroj: app:bb706ed0 src/married-suggestion.ts marriagePartnersLatestFirst (married|divorced; s datem od nejpozdějšího, pak bez data od posledního v marriagesInOrder), surnameOfSpouse (surnameKey, wifeSurnameOf, feminineForm, masculineFormIn), lastMarriageSurnameIndex (bez shody Infinity, shoda → poslední v pořadí souboru) · src/ged-parser.ts readMarriedSurname (TYPE married, _MARNM), chooseLastMarriageName (nevybrané do nameVariants s křestními), MARRIED_LAST_TAG (se značkou bez přepočtu) · test src/__tests__/married-surname-last-marriage.test.ts · research:5476514e src/core/married.ts marriagesOf (union partners|separated mimo), marriedInOrder, namesInOrder · src/gedcom/export.ts (Strom soubor: jména po sňatku na konci, aktuální poslední; HEAD _STROM_MARRIED_LAST) · spec 010 K4.1, K4.3, K4.4 · dirigent:prace/1120-app-010-posledni-snatek, 1120-vyzkum-010-posledni-snatek -->
+
+<a id="A4.6.2"></a>
+### A4.6.2 Changing the married surname by hand
+
+Changing the **Married surname** to another surname (in the person editor or in the table) is the user's choice: the
+earlier married surname stays in **Other spellings of the name** and the chosen one leaves them.
+
+- **Limits:**
+  - Correcting the spelling (the same surname, only the diacritics or the letter case differ) and clearing the field
+    add nothing to the other spellings.
+  - The earlier name keeps its own given names, if it had them.
+  - The research takes the choice as the current married name and keeps it against the rule [A4.6.1](#A4.6.1), even
+    after new records and a new marriage, until another one is chosen in the app. The other married names stay in
+    the research.
+  - A married name the research does not have yet is added by the research and taken as the current one at once.
+  - Only a change against the version the app got from the research is a choice. An app that has not loaded a newer
+    version yet chooses nothing.
+  - The name the person is shown by in the research (`strom name primary`,
+    [R10.5](R10-people-and-hypotheses.md#R10.5)) takes precedence over the choice from the app.
+  - Choosing a name the research has removed or retracted in the meantime
+    ([R10.5.1](R10-people-and-hypotheses.md#R10.5.1)) is not taken over.
+  - With a research older than 1.36.0 the choice goes back to the rule [A4.6.1](#A4.6.1) the next time the tree is
+    loaded.
+- **Why:** the current surname need not be the one of the last marriage, for example a surname kept after a divorce.
+- **Controls:** only the app sets the choice (the field **Married surname**); the terminal has no command for it. When
+  it is taken over, `strom sync` shows the line “the name after the marriage now — …”, `strom sync undo I…` takes
+  the choice back.
+- **Since:** app 3.31.0, research 1.36.0
+
+<!-- zdroj: app:bb706ed0 src/data.ts updatePerson (marriedBefore/marriedNow, surnameKey: oprava pravopisu nic nepřidá, vymazání nic nepřidá, dřívější s marriedFirstName do nameVariants, zvolené z nameVariants pryč) · src/ui/table-view/table-ui.ts updatePerson · research:5476514e src/core/sync.ts name.now (porovnání se základem _STROM_HEAD, off: odebrané od základu nebo retractedNames, shown/primaryName přednost), apply name.now (addName kind married, marriedNow), undo name.now · src/core/married.ts marriedInOrder (primary > marriedNow > pravidlo) · assets/lang/cs.json ui.sync.name.now, ui.sync.do.name.now · strings.ts person.marriedSurname, nameVariants „Další tvary jména“ · spec 010 K4.2, K4.4 · ZADANI_VYZKUM_prijmeni-posledni-snatek.md „Odpověď výzkumu“ (odchylky) · Name.marriedNow a HEAD _STROM_MARRIED_LAST se nepopisují (vnitřní) -->
 
 <a id="A4.7"></a>
 ## A4.7 Surname spellings of the tree and suggestions from the research

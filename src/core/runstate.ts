@@ -191,7 +191,8 @@ export function clearRunFiles(root: string, id: string): void {
 /** Why a run ended, from strom run's stop code (and whether it was asked to stop). */
 export function runEndOf(stop: string, asked: boolean): RunEnd {
   if (asked || stop === "user") return "stopped";
-  if (["done", "empty", "tasks", "sessions", "asleep"].includes(stop)) return "done";
+  // nothing to do until a time (asleep: the subscription's window; web: a site whose pages are used up here) is a run done
+  if (["done", "empty", "tasks", "sessions", "asleep", "web"].includes(stop)) return "done";
   if (stop === "limit") return "limit";
   if (stop === "gate" || stop === "gate.cap" || stop === "gate.declined") return "gate";
   if (stop === "time") return "time";

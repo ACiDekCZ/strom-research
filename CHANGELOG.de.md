@@ -5,9 +5,46 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.37.0
+
+*In Vorbereitung: die Betas bis 1.37.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Ein Archiveintrag der Forschung hält kein Portal der Liste von strom mehr:** ein Buch mit einer Adresse auf einem
+  Portal, das die Liste von strom kennt (Porta fontium, Acta Publica…), macht das Portal nicht mehr so streng wie das
+  Archiv, unter dem es eingetragen ist – das Portal folgt seinen eigenen Bedingungen. Das eigene Portal des Archivs unter einer anderen Adresse (die Liste
+  nennt dort die Bedingungen auf der Website des Archivs, etwa die eBadatelna des Prager Staatlichen Gebietsarchivs)
+  hält er weiter. Eine Stufe, die strom von früher
+  hält, bleibt, bis der Mensch unter „Was wartet“ entscheidet. Wo der Archiveintrag eine Website weiter hält, nennen
+  `strom doctor` und `strom allow archive` das Archiv, sein Buch und die Website. Kapitel R12.2 der Anleitung nennt kein
+  nicht vorhandenes `strom run --chrome` mehr.
+- **Die Bildnummer irgendwo im Namen:** von Hand in den Ordner einer wartenden Aufgabe gespeicherte Bilder werden auch
+  unter den Namen eines Portals übernommen – `__0236.jpg`, `Lhota_11__125.jpg` (ein Portal, das nur auf drei Stellen
+  auffüllt, ab Bild 100 nicht mehr), `fond12_kniha3_236.jpg`: von mehreren Zahlen im Namen die eines gewünschten Bildes,
+  die von Datei zu Datei des Ordners wechselnde, sonst die letzte vor der Endung. Datum und Uhrzeit eines
+  Bildschirmfotos sind nie eine Bildnummer, ebenso wenig ein Jahr dahinter (`33 1784.jpg`), wenn nicht bekannt ist,
+  welche Bilder; ein Name mit zwei gewünschten Nummern wird nicht geraten, sondern mit der Datei genannt.
+- **Eine erschöpfte Seitengrenze wird nicht mehr ins Leere abgewartet:** nach `web.perHost` erfährt der Agent, wann die
+  Website wieder Seiten gibt – die Grenze dieses Computers, oder in seiner Sitzung keine mehr – und was bis dahin zu tun
+  ist: die Aufgabe bleibt offen, andere Arbeit, sonst Ende der Sitzung; keine Seite vorher erneut und kein Warten.
+  `strom run` lässt eine Aufgabe auf einer solchen Website vorerst aus und nimmt eine andere; gibt es keine, wartet er,
+  bis genug Seiten frei sind (ohne Agent, nichts wird gesendet), oder endet und sagt, wann. Eine Aufgabe, die auf ein
+  Bild wartet, das der Browser des Agenten nie gespeichert hat (Seite abgewiesen), kehrt mit dem Ende der Sitzung in
+  die Warteschlange zurück und gilt nie als vom Browser zurückgehalten. Ein so beendeter Lauf ist für die
+  Strom-App ein fertiger Lauf, kein Fehler.
+- **Sendungen aus der App leichter und schneller:** eine Sendung aus der Strom-App wird einmal statt zweimal geplant,
+  und Dateien, die die Forschung schon hat, reisen per Verweis (ihrem Hash) statt mit allen Daten; eine Sendung, die
+  eine Datei nennt, die die Forschung nicht findet, wird ganz abgewiesen, bevor etwas gespeichert wird, und die App
+  sendet sie mit den Daten erneut. „Was wartet“ zeigt eine Sendung, die noch gezählt wird, nie als 0 Änderungen.
+- **E-Mails einer Person sind ein Kontakt, kein Wohnort:** E-Mails aus einem GEDCOM (ein Wohnort von MyHeritage nur mit
+  E-Mail, die ältere Notiz „E-mail: …“ der Strom-App) werden zum Kontakt der Person, getrennt von den Fakten in `strom
+  person show` und auf der Personenkarte gezeigt – nie ein Ereignis oder ein Ort, an dem die Person lebte, nie dem
+  Agenten gegeben. Der Abgleich mit der App fügt E-Mails hinzu und nimmt sie weg wie andere Änderungen. Die neue
+  Prüfung `strom fixes contact-residences` macht aus Wohnorten, die ein älterer strom aus E-Mails gemacht hat, den
+  Kontakt (zurückgezogen, nie gelöscht, rückgängig mit `strom fixes undo`).
+
 ## 1.36.0
 
-*In Vorbereitung: die Betas bis 1.36.0-beta.11. Der Abschnitt ist mit dem Release vollständig.*
+*22.11.2026 · gehört zur Strom-App 3.31.0.*
 
 - **Ein Versuch der Sammelprüfung sofort:** Die Aufgaben eines Versuchs der Sammelprüfung (`strom verify bulk --try`)
   stehen am Anfang der Warteschlange – die nächste Sitzung nimmt sie –, und die Strom-App lässt sie sofort bearbeiten,

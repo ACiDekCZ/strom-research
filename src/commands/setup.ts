@@ -567,7 +567,7 @@ function diagnoseInto(
 
   // Archives through the browser: only Claude Code has browser tools, and they work through the Claude in Chrome extension.
   // Claude's app without Claude Code in the terminal: its conversation has Claude in Chrome, a run of strom's
-  // (strom run --chrome) does not — said beside the extension found
+  // (strom run) does not — said beside the extension found
   const appOnly = chosen === "claude" && appWithoutCli("claude", ctx.env) ? t("ui.doc.browser.apponly", { app: DESKTOP_APPS.claude!.name, cli: PROFILES.claude!.name }) : "";
   const shared = ctx.settings.shared()?.value;
   const viaBrowser = shared ? timed("doctor.browser", () => browserConnectors(ctx.env, shared)) : [];

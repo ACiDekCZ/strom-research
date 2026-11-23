@@ -32,6 +32,8 @@ wniosek ze wszystkich źródeł danej, a nie, na ile dobre jest jedno źródło 
   **możliwe**, **wskazówka**, **obalone**. Podsumowanie `strom stats` pisze nadal „tylko wskazówki”.
 - **Od badania 1.30.0:** `strom event show` i `strom event edit` wypisują daną człowiekowi w języku badania
   (na przykład „[wskazówka]”); agent nadal dostaje wypis po angielsku.
+- **Od badania 1.36.0:** stopień ma także imię i nazwisko osoby, poza **Obalone** (`strom cite P… S… --status`,
+  [R10.5.2](R10-people-and-hypotheses.md#R10.5.2)).
 
 <!-- zdroj: research:src/core/model.ts:36 STATUSES · assets/method/core.md:8-12 · src/cli/human.ts:138 statusName · assets/lang/cs.json ui.st.*, ui.stats.facts · src/commands/people.ts:115 wordsFor · src/core/actions.ts:629 notRetracted · app:src/ui/fact-status.ts · strings.ts factStatus · 1.26.0: src/cli/human.ts:139 STATUS, cs.json ui.st.* (commit fe59fb40) -->
 
@@ -58,17 +60,25 @@ Stopień nie może twierdzić więcej, niż dają cytaty danej. Kod sprawdza to 
   2. Co najmniej jeden cytat musi pochodzić ze źródła, które nie jest słabe. Słabe jest drzewo genealogiczne
      (`--kind family-tree`), wspomnienie (`--kind family-memory`), dzieło autorskie (`--form authored`) i od badania
      1.28.0 indeks (`--kind index`).
-  3. Udokumentowane wymaga ponadto wśród cytatów ze źródeł niesłabych co najmniej jednego z informacją pierwotną
-     (`--information primary`): akt spisany w czasie wydarzenia przez kogoś, kto o nim wiedział. Informacja przy
-     cytacie ma pierwszeństwo przed informacją przy źródle.
-- **Tylko metodyka:** kod nie sprawdza, czy źródło jest oryginalne (`--form original`), czy agent sam je przeczytał,
-  czy akt podaje daną wprost, ani ślepego drugiego odczytu ([R3.5](#R3.5)). Udokumentowane przechodzi więc także przy
-  odpisie z informacją pierwotną (przy indeksie do badania 1.27.0 również).
+  3. Udokumentowane wymaga ponadto cytatu samego aktu oryginalnego (od badania 1.29.0, zob. niżej).
+  4. Wśród cytatów aktu oryginalnego co najmniej jeden musi mieć informację pierwotną (`--information primary`): akt
+     spisany w czasie wydarzenia przez kogoś, kto o nim wiedział. Informacja przy cytacie ma pierwszeństwo przed
+     informacją przy źródle.
+- **Tylko metodyka:** kod nie sprawdza, czy agent sam przeczytał akt, czy akt podaje daną wprost, ani ślepego drugiego
+  odczytu ([R3.5](#R3.5)).
 - **Obsługa:** terminal: `strom event add P… BIRT --date "…" --cite S… --information primary --status proven`.
   Odrzucenie podaje powód i co zamiast tego (zostawić Wskazówkę, `--status possible` lub `--status probable`).
 - **Obowiązuje od:** badanie 1.0.0
+- **Od badania 1.29.0:** akt oryginalny to źródło w formie oryginału (`--form original`), które jest aktem (nie
+  słabe źródło, więc też nie indeks) i nie jest wycofane. Źródło, które przyszło z aplikacji Strom, liczy się tylko
+  wtedy, gdy powstało z odczytu dokumentu przez czytelników badania, który użytkownik w aplikacji wysłał do drzewa
+  (**Zaproponuj do drzewa…**, [R8.8](R8-reading-scans.md#R8.8)); sama wiarygodność **Oryginał** z aplikacji
+  ([R3.2.1](#R3.2.1)) aktu oryginalnego nie tworzy. Odpis, indeks, cudza transkrypcja ani słowo aplikacji o źródle
+  dają najwyżej Prawdopodobne; odrzucenie ma kod `status.original`. Do badania 1.28.0 Udokumentowane przechodziło
+  przy każdym niesłabym źródle z informacją pierwotną, także przy odpisie; takie dane starszych badań raz wyrówna
+  poprawka [R3.2.2](#R3.2.2).
 
-<!-- zdroj: research:src/core/evidence.ts:27 isWeak, :32 informationOf, :55-68 checkStatus · src/core/actions.ts:196-209 makeEvent, :648, :906 · src/commands/people.ts:745 · od v1.28.0 evidence.ts isWeak (kind index), checkStatus "… or an index cannot make a fact" -->
+<!-- zdroj: research:src/core/evidence.ts:27 isWeak, :32 informationOf, :55-68 checkStatus · src/core/actions.ts:196-209 makeEvent, :648, :906 · src/commands/people.ts:745 · od v1.28.0 evidence.ts isWeak (kind index), checkStatus "… or an index cannot make a fact" · 1.29.0: research:v1.35.0 src/core/evidence.ts isOriginalHere, provesIt, checkStatus (code status.original) · src/core/model.ts Source.reading · CHANGELOG.cs.md 1.29.0 -->
 
 <a id="R3.2.1"></a>
 ### R3.2.1 Źródło: forma i informacja
@@ -91,6 +101,30 @@ Stopień nie może twierdzić więcej, niż dają cytaty danej. Kod sprawdza to 
   cytatu, który badanie zapisało samo, nie zmienia się po drodze przez aplikację.
 
 <!-- zdroj: research:src/commands/sources.ts:197-198, :221, :837 · src/core/evidence.ts:40 quay · src/core/sync.ts:4660 QUAY_EVIDENCE · assets/method/recording.md:38-46 · app:strings.ts sources.quality1-3, src/ui/sources.ts:76 · 3.27.0: research:ff760309 src/core/sync.ts:1095 (zdroj aplikace a.quality), :963 citedDetails (s.quay z první citace), :4361 QUAY_EVIDENCE · app:5721b016 export QUAY citace · dirigent:test/vysledek-1111-app-spolehlivost-citace.md (round trip QUAY 2/3, sync --dry-run nic nového) -->
+
+<a id="R3.2.2"></a>
+### R3.2.2 Udokumentowane bez aktu oryginalnego w starszych badaniach
+
+Badanie założone przed wersją 1.29.0 może mieć dane Udokumentowane bez cytatu aktu oryginalnego ([R3.2](#R3.2)). Raz
+wyrówna je poprawka według reguł; nic nie kosztuje i można ją cofnąć.
+
+- **Pilnuje kod:**
+  - poprawka przebiega sama raz, przy pierwszym uruchomieniu nowej wersji po kopii zapasowej badania;
+  - dana bez cytatu aktu oryginalnego, którą jako Udokumentowane zapisał agent albo zapis zbiorczy (import,
+    przekształcenie starego badania, partia), dostaje Prawdopodobne; Możliwe, gdy nie wspiera jej żadne źródło, które
+    nie jest słabe. Powód stoi w historii danej;
+  - dana, którą jako Udokumentowane zapisał człowiek, zostaje bez zmian i czeka na jego ocenę: w Co czeka jako jedna
+    pozycja z liczbą w grupie **Pewność do sprawdzenia** („N danych udokumentowanych przez użytkownika bez oryginału
+    zapisu: zostawić udokumentowane czy zmienić na prawdopodobne?“). Dana, którą człowiek po ocenie zostawił, nie
+    jest proponowana ponownie;
+  - decyduje tylko człowiek w swoim terminalu, nigdy agent;
+  - dana z cytatem aktu oryginalnego zostaje.
+- **Obsługa:** terminal: Co czeka → **Zostawić udokumentowane** / **Zmienić na prawdopodobne**;
+  `strom fixes review proven-originals keep|lower [E…]` (bez numerów danych wszystkie czekające), `strom fixes show
+  proven-originals`, `strom fixes undo proven-originals`.
+- **Obowiązuje od:** badanie 1.29.0
+
+<!-- zdroj: research:v1.35.0 src/core/provenfix.ts (PROVEN_SINCE 1.29.0, PROVEN_SETTLED, PROVEN_FIX_FILE quality/proven.json, provenFixes: by user a ne bulkWrites → left, jinak probable/possible podle isWeak) · src/commands/fixchecks.ts PROVEN_ORIGINALS (paid false, "Applied by itself once, at the first start of this strom after its backup") · src/commands/fixes.ts review proven-originals keep|lower · assets/lang/cs.json wait.group.proven, ui.waiting.proven, ui.wait.proven.keep/lower, ui.fixes.proven-originals.* · CHANGELOG.cs.md 1.29.0 -->
 
 <a id="R3.3"></a>
 ## R3.3 Źródło czy wskazówka
@@ -238,8 +272,11 @@ przestanie się otwierać.
   --folio … --image … --call-number … [--reason "…"]`, `strom source show S…`; `strom source list <tekst>` szuka
   także w folio i skanie.
 - **Obowiązuje od:** badanie 1.31.0
+- **Od badania 1.36.0:** numer skanu, który dają tylko zarejestrowane skany, ma w pliku dla aplikacji Strom pod
+  `_STROM_IMAGE` znacznik `2 _STROM_DERIVED Y`. Aplikacja dodaje go wtedy do lokalizacji i nie wycina z niej numeru
+  innego skanu ([A2.6](A2-loading-a-family-tree.md#A2.6)).
 
-<!-- zdroj: research:4de28f00 src/core/model.ts Source.folio/image/callNumber, src/core/sourcefields.ts recognizeLocation, composedPage, sourceImage, sourceCallNumber, locatorOverlap · src/commands/sources.ts:117-145 (--reason jen při přepsání), :210 --call-number, :287 filtr list, :330-336 řádky find a „from its locator“, :374 locatorArg · src/gedcom/export.ts:239, :374-379, :723-728 PAGE/CALN/_STROM_* · a0751973 (N1: PAGE bez dvou čísel) · 320a7738 (--locator "") · assets/method/recording.md:25-31, reading.md:85-89 · CHANGELOG.cs.md 1.31.0 „Zápis se najde znovu“ · spec 075 P2 -->
+<!-- zdroj: research:4de28f00 src/core/model.ts Source.folio/image/callNumber, src/core/sourcefields.ts recognizeLocation, composedPage, sourceImage, sourceCallNumber, locatorOverlap · src/commands/sources.ts:117-145 (--reason jen při přepsání), :210 --call-number, :287 filtr list, :330-336 řádky find a „from its locator“, :374 locatorArg · src/gedcom/export.ts:239, :374-379, :723-728 PAGE/CALN/_STROM_* · a0751973 (N1: PAGE bez dvou čísel) · 320a7738 (--locator "") · assets/method/recording.md:25-31, reading.md:85-89 · CHANGELOG.cs.md 1.31.0 „Zápis se najde znovu“ · spec 075 P2 · 1.36.0: research:519951b3 src/gedcom/export.ts (image.derived → 2 _STROM_DERIVED Y), src/core/sourcefields.ts sourceImage derived, src/gedcom/validate.ts · app:2e68d373 src/source-location.ts composePage · CHANGELOG.cs.md 1.36.0 -->
 
 <a id="R3.4.4"></a>
 ### R3.4.4 Podział starszych lokalizacji: podgląd, zapisuje człowiek
@@ -371,6 +408,41 @@ Jak ją uwzględnia, wyznacza ustawienie drzewa w aplikacji.
 - **Obowiązuje od:** badanie 1.12.0, aplikacja 3.9.0; odczyt dokumentu przez czytelników badania 1.18.0
 
 <!-- zdroj: research:assets/method/verify.md:19-24 · src/core/sync.ts:220, :824, :3367 readsFor, :3870 reading, :3992 · src/core/readsync.ts:190 readingGrade · cs.json sync.verify.*, read.note.* · app:strings.ts treeSettings.transcripts/guide/evidence/evidenceDesc/notRetroactive, sources.verified -->
+
+<a id="R3.5.2"></a>
+### R3.5.2 Kiedy źródło przeczytał użytkownik
+
+Przy każdym źródle badanie przechowuje, kto je przeczytał: badanie (model sesji, czytelnicy dokumentu), użytkownik
+albo obaj. Czytelnikiem jest użytkownik tylko z rzeczywistego odczytu. Źródła, które użytkownik przeczytał, badanie
+nie proponuje do ponownego odczytu.
+
+- **Pilnuje kod:** odczytem użytkownika jest tylko:
+  - transkrypcja, którą użytkownik napisał w aplikacji albo przy której zaznaczył **Transkrypcja zweryfikowana**
+    ([R3.5.1](#R3.5.1));
+  - odczyt dokumentu, który użytkownik w aplikacji wysłał do drzewa ([R8.8](R8-reading-scans.md#R8.8));
+  - transkrypcja badania, którą użytkownik potwierdził w aplikacji (**Potwierdź transkrypcję**,
+    [A3.1.3](A3-evidence-in-the-app.md#A3.1.3));
+  - transkrypcja, którą człowiek wpisał ręcznie w swoim terminalu.
+- **Granice:**
+  - import, przekształcenie starego badania, partia, skrypt ani agent, którego strom nie rozpozna, nie uczynią
+    użytkownika czytelnikiem, nawet gdy zapisują w imieniu użytkownika. GEDCOM z innego programu (`strom import`)
+    daje dane jako Wskazówkę;
+  - potwierdzenie obowiązuje dla brzmienia transkrypcji, które użytkownik widział. Gdy badanie potem transkrypcję
+    zmieni, potwierdzenie przestaje się liczyć (zostaje w historii) i można potwierdzić nowe brzmienie;
+  - samo potwierdzenie nie zmienia stopnia żadnej danej. Jeśli źródło jest aktem oryginalnym z informacją
+    pierwotną, dana na nim może być Udokumentowane ([R3.2](#R3.2)); inaczej najwyżej Prawdopodobne;
+  - potwierdzić i cofnąć można tylko z aplikacji, przez człowieka; agentowi nie wolno. Potwierdzić nie można
+    w Archiwum Strom, przy źródle scalonym lub wycofanym, bez transkrypcji ani przy transkrypcji, której badanie nie
+    czytało albo którą użytkownik już przeczytał.
+- **Poprawka starszych badań:** do badania 1.28.0 za odczyt użytkownika liczył się każdy zapis w imieniu
+  użytkownika. Raz, przy pierwszym uruchomieniu nowej wersji po kopii zapasowej: źródło, które zapisał tylko przebieg
+  zbiorczy (import, przekształcenie, partia), traci odczyt użytkownika; źródło, które człowiek zapisał ręcznie, go
+  zachowa. Nic nie kosztuje; `strom fixes undo readers` odczyt przywróci.
+- **Obsługa:** aplikacja: **Potwierdź transkrypcję** / **Cofnij potwierdzenie** pod transkrypcją źródła
+  ([A3.1.3](A3-evidence-in-the-app.md#A3.1.3)); terminal: `strom fixes show readers`, `strom fixes undo readers`.
+- **Obowiązuje od:** badanie 1.29.0, aplikacja 3.25.0
+
+<!-- zdroj: research:v1.35.0 src/core/readers.ts (komentář: čtení uživatele jen app.read, Source.reading, POST /sources/confirm, read.user z terminálu; userReading jen pro aktuální transcriptMark) · src/core/readerfix.ts (READERS_SINCE 1.29.0, bulkWrites, how "earlier", undo) · src/commands/fixchecks.ts READERS (paid false) · src/core/confirm.ts confirmCheck (confirm.archive/none/merged/retracted/reader/changed), shrnutí „original … primary may make a fact proven; of anything else at most probable“ · src/commands/sources.ts source confirm (STROM_FOR_APP, ne agent: confirm.app) · src/core/import.ts (status lead) · CHANGELOG.cs.md 1.29.0 · app:v3.30.0 src/source-confirm.ts · CHANGELOG 3.25.0 -->
 
 <a id="R3.6"></a>
 ## R3.6 Negatywne wyszukiwanie
@@ -516,3 +588,55 @@ Opowieść pisze się z danych dla rodziny. Tego, czego nie udokumentowano, się
 - **Obowiązuje od:** badanie 1.0.0; tło miejsca i czasu 1.10.0; format tekstu 1.8.0; opowieść pary 1.23.0
 
 <!-- zdroj: research:assets/method/narrate.md (celé; formát od v1.8.0, pozadí od v1.10.0, pár od v1.23.0) · research:src/commands/story.ts --note -->
+
+<a id="R3.10"></a>
+## R3.10 Usunięte źródło zostaje wycofane
+
+Źródła, które człowiek usunie, badanie nie usuwa, tylko je wycofuje (powód „deleted”): znika z drzewa
+genealogicznego, które dostaje aplikacja, a `strom source restore` przywraca je razem z cytatami.
+
+- **Co robi wycofanie:**
+  - cytaty źródła zdejmuje się z danych, imion i rodzin i przechowuje w źródle. Wartości danych zostają;
+  - dana, której stanu pozostałe cytaty nie uniosą jako pewnego, zostaje obniżona. Cytat główny źródła znika i inny
+    nie zostaje wybrany na jego miejsce;
+  - zadanie, które pracuje tylko z tym źródłem, zostaje porzucone; zadanie z innymi miejscami toczy się dalej bez
+    niego;
+  - sprzeczność, która opiera się na źródle, dostaje znacznik do przejrzenia, a jej stan zostaje. Znacznik zdejmuje
+    `strom conflict keep` (decyzja obowiązuje) albo nowe rozstrzygnięcie sprzeczności;
+  - tekst opowieści nigdy się nie zmienia; źródło tylko wypada z jej listy źródeł.
+- **Przywrócenie** (`strom source restore`): źródło dostaje z powrotem to samo ID, a każdy cytat wraca do danej,
+  przy której był (przy osobie w międzyczasie scalonej do tej, do której weszła), o ile dana jeszcze jest, a źródło
+  jej już nie cytuje. Cytat główny wraca tylko tam, gdzie w międzyczasie główny nie stał się inny; obniżony stan
+  wraca tylko tam, gdzie w międzyczasie nikt go nie zmienił; zadania tylko tam, gdzie się nie zmieniły. Znaczniki
+  do przejrzenia znikają.
+- **Co mówi badanie:**
+  - `strom source show S…` przy usuniętym źródle mówi, kiedy człowiek je usunął i gdzie (w terminalu albo
+    w aplikacji Strom), ile cytatów jest w nim przechowanych i jak je przywrócić;
+  - `strom source list --retracted` wypisuje tylko wycofane źródła: usunięte (z liczbą przechowanych cytatów
+    i wierszem, jak źródło przywrócić), scalone i cofnięte.
+- **Pilnuje kod:**
+  - wszystko albo nic: źródło, którego badanie nie ma albo które jest już wycofane, i nie zapisze się nic; najwyżej
+    50 źródeł naraz; całe usunięcie to jedna operacja historii;
+  - `--dry-run` (co by usunięcie zabrało, z liczbami) może uruchomić każdy, także agent;
+  - bez `--dry-run` człowiek mówi tak we własnym terminalu (Enter to nie), inaczej w oknie systemu; gdy nie ma kogo
+    zapytać, polecenie kończy się kodem 4. Agent nigdy nie usunie źródła, nawet z potwierdzeniem aplikacji; może
+    usunięcie tylko zaproponować z liczbami z `--dry-run`;
+  - `strom source restore` odrzuci źródło, które nie jest wycofane (`source.notRetracted`), i źródło wycofane
+    inaczej: scalone albo cofnięte przy synchronizacji (`source.notRestorable`);
+  - `strom conflict keep` odrzuci otwartą sprzeczność i sprzeczność bez znacznika (`conflict.notMarked`). Agent może
+    człowiekowi znacznik tylko zgłosić, nigdy go nie zdejmie;
+  - usunięte źródło ani to, co się do niego odwołuje, już nie wróci z późniejszym plikiem z aplikacji ani importem.
+- **Granice:**
+  - kopią zapasową jest historia badania i cytaty przechowane w źródle; pełnej kopii zapasowej badania przed
+    usunięciem się nie robi;
+  - cytat, którego nie da się przywrócić (dana zniknęła albo źródło już ją cytuje), zostaje wypisany, a reszta się
+    przywraca.
+- Usunięcie w aplikacji: [A3.1.2](A3-evidence-in-the-app.md#A3.1.2), usunięcie przy edycji i synchronizacja:
+  [S2.6.1](S2-edits-from-the-app.md#S2.6.1), plik drzewa genealogicznego razem ze źródłem:
+  [R11.5.6](R11-material-from-the-user.md#R11.5.6).
+- **Obsługa:** terminal: `strom source retract S… [--dry-run] [--reason "…"] [--sources-from <plik>]`,
+  `strom source restore S…`, `strom source list --retracted`, `strom conflict keep X…`; aplikacja: **Usuń
+  źródło…** przez most ([A3.1.2](A3-evidence-in-the-app.md#A3.1.2)).
+- **Obowiązuje od:** badanie 1.36.0
+
+<!-- zdroj: research:e6bbfb40 src/core/sourceretract.ts (hlavička; DELETED, RETRACT_MOST 50, RETRACT_CONFIRM_MS 15 min, REVIEW_RETRACTED, ACTIVE open/doing/parked/waiting) · src/commands/sourceretract.ts source retract (description, agentMay --dry-run, source.agent, source.retract-changed, requireHumanYes), source restore (description, source.notRetracted, source.notRestorable), ui.source.restore.skipped · src/commands/analysis.ts conflict keep (conflict.notMarked, agent jen říká) · src/commands/sources.ts source list --retracted, source show RETRACTED … the person puts it back · src/core/sync.ts withholdDeleted (spec 117 J6) · assets/lang/cs.json ui.consent.retract, ui.source.retract.would · CHANGELOG.cs.md 1.36.0 · spec 117 K1.1–K1.7, J3 (záloha = historie + citace v prameni) -->

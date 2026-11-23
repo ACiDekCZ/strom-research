@@ -175,6 +175,25 @@ příjmení a obcí.
 
 <!-- zdroj: app:src/family-pages.ts · strings.ts familyPages.menuItem, familyPages.treePages, familyPages.treePagesAction, familyPages.indexTitle · spec 026 · CHANGELOG.cs.md 3.20.0, 3.21.0 -->
 
+<a id="A7.5.1"></a>
+### A7.5.1 Dějiny na časové ose rodu
+
+Časová osa rodu (**Časová osa rodu →** na stránce rodu) ukazuje dějiny v obcích rodu se symbolem jejich druhu.
+
+- **Dějiny země nebo kraje** jsou svislé pruhy přes graf se symbolem druhu nahoře.
+- **Místní dějiny** (**Dějiny místa**, **Z pramenů výzkumu**) obce, která má v grafu vlastní řádek, jsou symbol na
+  řádku obce v barvě původu. Obec bez řádku má svislý pruh jako dějiny země.
+- **Seznam:** řádek dějin má symbol druhu v barvě původu. Za textem je obec, u dějin země nebo kraje jejich název,
+  jen když jsou dějiny rodu aspoň ze dvou zemí nebo krajů.
+- **Druhy dějin:** druhá řada čipů pod **Druhy událostí**: **Vše** a druhy dějin na stránce, každý se symbolem.
+  Zvolené druhy nechají jen své řádky, pruhy a symboly. Řada je jen při aspoň dvou druzích a jen se skriptem
+  stránky; s vypnutým čipem **Dějiny** zmizí.
+- Čip **Dějiny** v **Druhy událostí** má symbol druhu „jiné“.
+- **Ovládání:** stránky rodu: **Časová osa rodu →**, čipy **Druhy událostí** a **Druhy dějin**
+- **Platí od:** aplikace 3.31.0
+
+<!-- zdroj: app:6caa471e src/family-pages-html.ts tlSymHtml, tlScopeClass, onRow (scope ≠ region a obec s řádkem → symbol na řádku, jinak pruh se symbolem sp-tl-bandsym), histChips (rodTimelineHistKinds > 1, js-only, Vše + druhy), řádek seznamu (symbol, place ?? region), čip hist se symbolem other, skript data-hk-off · src/rod-timeline.ts RodTimelineHistory scope, region (jen při ≥ 2 regionech), rodTimelineHistKinds · src/family-pages-css.ts (skrytí s vypnutými Dějinami) · strings.ts familyPages.tlLink, tlKindsLabel, tlKinds.hist, tlHistNote, tlHistKindsLabel, history.filterAll · dirigent:spec/121 „Časová osa rodu stejně jako hlavní osa“, Rozhodnutí 20. 11. (místní na řádku obce) -->
+
 <a id="A7.6"></a>
 ## A7.6 Stránka osoby
 

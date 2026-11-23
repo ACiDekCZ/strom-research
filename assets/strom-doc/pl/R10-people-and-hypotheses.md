@@ -283,6 +283,9 @@ zapisuje się tak, jak stoją w akcie; ujednolica się tylko daty.
   - pełne imię i nazwisko z aktu uzupełnia imię bez nazwiska („Marie”) i osoba pokazuje się potem pod nim. To samo
     imię i nazwisko podane ponownie tylko dodaje cytat;
   - kobieta pokazuje się pod nazwiskiem rodowym; nazwisko po ślubie zostaje obok;
+  - z kilku nazwisk po ślubie obecne jest to z ostatniego małżeństwa albo to, które użytkownik wybrał w aplikacji.
+    Pozostałe zostają nazwiskami po ślubie; plik dla aplikacji podaje obecne jako ostatnie
+    ([A4.6.1](A4-surnames-and-families.md#A4.6.1), [A4.6.2](A4-surnames-and-families.md#A4.6.2));
   - tytuł pisany razem z imieniem i nazwiskiem („inż.”, „dr”, „mł.”) trafia do przedrostka lub przyrostka
     (`--prefix`, `--suffix`), nie do imienia ani nazwiska;
   - **imię i nazwisko, pod którym osoba się pokazuje** (rozwiedziona kobieta z powrotem przy nazwisku rodowym), to
@@ -301,9 +304,9 @@ zapisuje się tak, jak stoją w akcie; ujednolica się tylko daty.
   "…"` (`--clear` przywraca imię i nazwisko z urodzenia). Formy nazwiska w aplikacji:
   [A4.5](A4-surnames-and-families.md#A4.5), [A4.6](A4-surnames-and-families.md#A4.6).
 - **Obowiązuje od:** badanie 1.0.0; przedrostek i przyrostek 1.13.0; imię i nazwisko, pod którym osoba się pokazuje,
-  1.27.0; nienazwane dziecko 1.27.0
+  1.27.0; nienazwane dziecko 1.27.0; obecne nazwisko po ślubie 1.36.0
 
-<!-- zdroj: research:src/core/model.ts NAME_KINDS · research:src/commands/people.ts name add (description), name primary (od v1.27.0), TITLE_OPTIONS (od v1.13.0) · research:assets/method/recording.md "The names a record gives", "A child the record does not name" (od v1.27.0), "People named wrongly by the weaker record" · research:assets/method/intake.md krok 4 -->
+<!-- zdroj: research:src/core/model.ts NAME_KINDS · research:src/commands/people.ts name add (description), name primary (od v1.27.0), TITLE_OPTIONS (od v1.13.0) · research:assets/method/recording.md "The names a record gives", "A child the record does not name" (od v1.27.0), "People named wrongly by the weaker record" · research:assets/method/intake.md krok 4 · aktuální jméno po sňatku: research:5476514e src/core/married.ts marriedInOrder, src/gedcom/export.ts, src/core/sync.ts name.now (spec 010 K4.1, K4.2) -->
 
 <a id="R10.5.1"></a>
 ### R10.5.1 Błędne imię i notatka zostają wycofane
@@ -323,6 +326,79 @@ w historii.
 - **Obowiązuje od:** badanie 1.18.0
 
 <!-- zdroj: research:src/commands/people.ts name retract (description), name restore, name add ("name.retracted"), note edit/retract/restore (od v1.18.0) · GitHub issue strom-research #3 -->
+
+<a id="R10.5.2"></a>
+### R10.5.2 Na ile pewne jest imię i nazwisko
+
+Imię i nazwisko osoby ma stopień pewności jak dana ([R3.1](R3-verification-and-citation.md#R3.1)):
+**Udokumentowane**, **Prawdopodobne**, **Możliwe** albo **Wskazówka**. Stopień daje akt, który osobę wymienia i który
+imię i nazwisko cytuje.
+
+- **Pilnuje kod:**
+  - stopień zapisuje się z cytatem: `strom cite P… S… --status …` daje cytat imieniu i nazwisku osoby, a stopień
+    imieniu i nazwisku; `strom name add … --cite S… --status …` innemu imieniu i nazwisku; `strom person add … --cite
+    S… --name-status …` imieniu i nazwisku nowej osoby (`--status` przy `person add` nadal dotyczy urodzenia
+    i zgonu);
+  - **Udokumentowane** tylko według aktu oryginalnego z informacją pierwotną, tak samo jak przy danej
+    ([R3.2](R3-verification-and-citation.md#R3.2)). Odpis, indeks lub drzewo genealogiczne zostają odrzucone;
+  - cytat bez `--status` daje imieniu i nazwisku bez stopnia **Prawdopodobne**, gdy chodzi o akt z badania: źródło
+    o jakości 2 lub 3, które nie jest indeksem ani dziełem pochodnym ani źródłem z aplikacji Strom, którego badanie
+    nie przeczytało. Inaczej imię i nazwisko stopnia nie dostaje;
+  - imię i nazwisko nie ma stopnia **Obalone**: inne imię i nazwisko to sprzeczność ([R5](R5-conflicts.md)) albo
+    kolejne imię i nazwisko osoby;
+  - stopień może mieć każde imię i nazwisko osoby. Potwierdzenie przez człowieka, weryfikację przez agenta i numer dla
+    mostu (`P….N`) ma tylko imię i nazwisko tożsamości osoby: z urodzenia albo pierwsze bez rodzaju
+    ([R10.5](#R10.5)), nie to, pod którym osoba się pokazuje. Tylko ono liczy się do znacznika karty w aplikacji
+    ([S7.10](S7-reliability-and-verification.md#S7.10));
+  - imienia i nazwiska, które człowiek potwierdził według skanu, agent nie zmieni: inny stopień od agenta zostaje
+    odrzucony, cytat bez `--status` przechodzi. Imię i nazwisko, które człowiek sam zapisał, zostaje bez stopnia,
+    tak jak jest;
+  - zmiana słów imienia i nazwiska kończy jego potwierdzenie i weryfikację.
+- **Tylko metodyka:** akt, który osobę wymienia (chrzest, ślub, zgon), dokumentuje też jej imię i nazwisko. Agent
+  cytuje je tak, jak stoi w akcie (`--quote`): **Udokumentowane**, gdy sam przeczytał akt w oryginale;
+  **Prawdopodobne**, gdy akt pisze to samo imię w innym języku („Joannes” dla „Jan”). Inne imię i nazwisko to nie
+  stopień, lecz sprzeczność albo kolejne imię i nazwisko (`strom name add`).
+- **Weryfikacja imienia i nazwiska:** zadanie weryfikacji urodzenia lub chrztu, którego akt cytuje też imię
+  i nazwisko, bierze je ze sobą: agent czyta ten sam akt i porównuje także imię i nazwisko. Imienia i nazwiska
+  potwierdzonego przez człowieka albo już udokumentowanego się nie bierze. Samo imię i nazwisko weryfikuje się tylko
+  na prośbę człowieka (aplikacja, `strom verify facts --fact P….N`). Wartości imienia i nazwiska weryfikacja nigdy
+  nie zmienia ([S7.7](S7-reliability-and-verification.md#S7.7)).
+- **Obsługa:** terminal: `strom cite P… S… --quote "…" --status proven|probable|possible|lead`, `strom name add P…
+  "…" --cite S… --status …`, `strom person add … --cite S… --name-status …`, `strom person show P…` (stopień imienia
+  i nazwiska), `strom verify done P….N --proven|--kept`, potwierdzenie przez człowieka `strom verify confirm P….N
+  [--undo]`. Aplikacja: [S7.10](S7-reliability-and-verification.md#S7.10).
+- **Dlaczego:** dopóki imię i nazwisko nie miało stopnia, imię i nazwisko z przejętego drzewa zostawało na zawsze
+  **Z drzewa**, nawet gdy agent udokumentował urodzenie i zgon z ksiąg metrykalnych, i znacznik osoby w drzewie mówił
+  przez to mniej, niż wie badanie (spec 066 P5).
+- **Obowiązuje od:** badanie 1.36.0
+
+<!-- zdroj: research:6a266761 src/core/namestatus.ts (nameEid P….N, parseNameStatus NAME_STATUSES bez disproven, namesThePerson: !retracted, !isWeak, app jen s reading, quay ≥ 2; usersName confirmed nebo origin user; nameStatusAfter: asked → checkStatus, jinak probable; refuseConfirmedName event.confirmed jen primaryName) · src/core/model.ts:39 NAME_STATUSES · src/core/actions.ts:271-331 person add --name-status ("a status of a name needs the record that names the person"), :783 cite, :854-861 name add · src/core/people.ts:191 primaryName (bez druhu nebo birth), currentName · research:8b92b3ae src/core/verify.ts:19-21, 243-256 nameAlong (BIRT/BAPM/CHR se stejným pramenem, ne confirmed, ne proven), src/commands/verify.ts:70-78 verify facts --fact P….N · assets/method/recording.md:43-52 (cite P… --quote --status proven; probable jinojazyčný tvar; jiné jméno rozpor/name add) · assets/lang/cs.json verify.search.done.name · CHANGELOG.cs.md 1.36.0 „Jména – jak jistá a po sňatku“ · dirigent:spec/066 K6.2, K6.4 · app:docs/ZADANI_VYZKUM_stav-jmena.md Odpověď výzkumu -->
+
+<a id="R10.5.3"></a>
+### R10.5.3 Pewność imion i nazwisk w starszych badaniach
+
+Badanie założone przed wersją 1.36.0 cytuje przy imionach i nazwiskach akty, ale imiona i nazwiska nie mają stopnia.
+Poprawka **Pewność imion i nazwisk** raz go im dolicza z cytatów, które już są w badaniu.
+
+- **Pilnuje kod:**
+  - poprawka przebiega sama raz, przy pierwszym uruchomieniu nowej wersji po kopii zapasowej badania i przy
+    uruchomieniu mostu; także w Archiwum Strom. Nowe badanie jej nie uruchamia;
+  - imię i nazwisko bez stopnia, które cytuje akt z badania (jakość 2 lub 3, nie indeks ani dzieło pochodne), dostaje
+    **Prawdopodobne**. Nigdy **Udokumentowane**: to daje tylko nowy odczyt oryginału (weryfikacja albo cytat
+    z `--status proven`);
+  - cytat, który przyniósł import (przejęte drzewo, źródło, z którego imię i nazwisko przyszło, źródło z aplikacji
+    Strom, którego badanie nie przeczytało), stopnia nie daje;
+  - imię i nazwisko potwierdzone lub zapisane przez człowieka się nie zmienia;
+  - zmienia się tylko stopień: żadne imię i nazwisko, cytat ani źródło. To jeden krok historii z powodem, bezpłatny,
+    nic nigdzie się nie wysyła;
+  - `strom fixes undo name-status` stopień znów zdejmuje; imię i nazwisko, które od poprawki się zmieniło, zostawia.
+- **W aplikacji:** aplikacja sama niczego nie przekształca; stopień imienia i nazwiska bierze tylko z pliku badania
+  ([S7.10](S7-reliability-and-verification.md#S7.10)).
+- **Obsługa:** terminal: `strom fixes` (lista poprawek), `strom fixes show name-status`, `strom fixes undo
+  name-status`.
+- **Obowiązuje od:** badanie 1.36.0
+
+<!-- zdroj: research:6a266761 src/core/namestatusfix.ts (NAME_STATUS_SINCE 1.36.0, NAME_STATUS_SETTLED, NAME_STATUS_FIX_FILE quality/name-status.json, importsCitation: Source.imported, origin.source, was.cites, app bez reading; researchRecords namesThePerson; nameStatusFixes: !status, !usersName; settleNameStatus první start po záloze, start mostu, i archiv; undo jen nezměněná) · src/core/links.ts LINK_FIX_IDS name-status · assets/lang/cs.json ui.fixes.name-status.* · dirigent:spec/066 K6.5 · app:docs/ZADANI_VYZKUM_stav-jmena.md „Starší stromy“ -->
 
 <a id="R10.6"></a>
 ## R10.6 Osoby wymienione we wpisie

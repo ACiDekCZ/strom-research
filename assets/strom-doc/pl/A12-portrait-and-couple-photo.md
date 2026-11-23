@@ -3,7 +3,8 @@
 
 Portret osoby to kwadrat wykadrowany ze zdjęcia. Kadr wybiera się w edytorze nad całym zdjęciem i można go
 w dowolnej chwili zmienić, bo całe zdjęcie zostaje przy osobie jako załącznik. Para może mieć własne **zdjęcie pary**
-(ślubne lub wspólne), a z niego portrety obojga partnerów. Rozdział opisuje aplikację Strom 3.30.0.
+(ślubne lub wspólne), a z niego portrety obojga partnerów. Rozdział opisuje aplikację Strom 3.30.0; zmiany
+z nowszej wersji mają przy sobie jej numer.
 
 <!-- zdroj: dirigent:spec/107-vyrez-portretu (K1.1–K2.3) · app:59b9dde9..6a00396f (dirigent:prace/1116-app-107-vyrez) · app:docs/ZADANI_DEV_vyrez-portretu.md §1–§10, rozhodnutí D1–D12 · app:src/photo.ts, src/portrait-editor-model.ts, src/ui/portrait-editor.ts · app:CHANGELOG.cs.md 3.30.0 -->
 
@@ -45,8 +46,11 @@ stoi w miejscu, a zdjęcie pod nią się przesuwa, powiększa i obraca.
   podgląd karty, przełącznik **Powiększenie** | **Prostowanie** z jednym suwakiem, a pod nim ↺ ↻ i **Odbij
   lustrzanie**.
 - **Obowiązuje od:** aplikacja 3.30.0; przyciski obrotu zdjęcia w edycji osoby są od 3.30.0 w edytorze.
+- **Od aplikacji 3.31.0:** **Wybierz zdjęcie** przy osobie, która ma zdjęcia do zaoferowania, otwiera najpierw wybór
+  **Portret ze zdjęcia** ([A12.2](#A12.2)); plik z komputera daje w nim **Z komputera…** (przy dotyku **Z tego
+  urządzenia…**). Nowa osoba i osoba bez takich zdjęć dostają wybór pliku jak dotąd.
 
-<!-- zdroj: app:327d9734 src/ui/portrait-editor.ts (rámeček, posun, kolečko, dva prsty, ↺ ↻, narovnání s mřížkou, Zrcadlit, náhled karty / Stránka osoby / Rodinné stránky, telefon), src/photo.ts PHOTO_SIZE 256, PORTRAIT_MIN_SOURCE_PX 128, PORTRAIT_MAX_ANGLE 45, PORTRAIT_ANGLE_STEP 0.5, minZoomForAngle, cropToJpeg (bílý podklad) · src/portrait-editor-model.ts isIdentityPortrait (Hotovo beze změny z nového souboru = compressPhoto), isSmallPortrait · app:88859da2 src/ui/person-modal.ts handlePhotoInput → editor, Zrušit/Escape nechá dialog, dialog zavřený bez Uložit nic nenechá, #photo-rotate-left/right odstraněny · app:a2af453a jen ke čtení / zamčená osoba, personGone · app:ef688950 dlouhá jména, telefon na šířku · strings.ts portrait.title, preview, personPage, familyPages, savedCircle, savedRounded, rotate, straighten, zoom, reset, mirror, small, personGone · ZADANI_DEV §1, §9, §10 -->
+<!-- zdroj: app:327d9734 src/ui/portrait-editor.ts (rámeček, posun, kolečko, dva prsty, ↺ ↻, narovnání s mřížkou, Zrcadlit, náhled karty / Stránka osoby / Rodinné stránky, telefon), src/photo.ts PHOTO_SIZE 256, PORTRAIT_MIN_SOURCE_PX 128, PORTRAIT_MAX_ANGLE 45, PORTRAIT_ANGLE_STEP 0.5, minZoomForAngle, cropToJpeg (bílý podklad) · src/portrait-editor-model.ts isIdentityPortrait (Hotovo beze změny z nového souboru = compressPhoto), isSmallPortrait · app:88859da2 src/ui/person-modal.ts handlePhotoInput → editor, Zrušit/Escape nechá dialog, dialog zavřený bez Uložit nic nenechá, #photo-rotate-left/right odstraněny · app:a2af453a jen ke čtení / zamčená osoba, personGone · app:ef688950 dlouhá jména, telefon na šířku · strings.ts portrait.title, preview, personPage, familyPages, savedCircle, savedRounded, rotate, straighten, zoom, reset, mirror, small, personGone · ZADANI_DEV §1, §9, §10 · 3.31.0: app:c6fbb3ff src/ui/person-modal.ts choosePersonPhoto (#photo-choose-btn; bez currentId → #input-photo), src/ui/portrait-picker-ui.ts openPortraitPicker (prázdný model → portraitPickFile), portraitPickerHtml (fromComputer / fromDevice) · strings.ts labels.photoChoose, portrait.pickTitle, fromComputer, fromDevice · dirigent:prace/1122-app-portret-dev · app:docs/ZADANI_DEV_portret-z-materialu.md §1.2, §1.3 -->
 
 <a id="A12.1.1"></a>
 ### A12.1.1 Klawiatura, mysz i dotyk w edytorze
@@ -102,8 +106,36 @@ z etykietą **Portret**, dlatego kadr można w dowolnej chwili zmienić bez utra
   z jednego zdjęcia tworzy zdjęcie pary ([A12.5](#A12.5)).
 - **Obsługa:** edycja osoby, sekcja zdjęcia i **Załączniki**; strona osoby, materiały i podgląd załącznika.
 - **Obowiązuje od:** aplikacja 3.30.0
+- **Od aplikacji 3.31.0:**
+  - **Użyj jako portretu…** jest też przy obrazie JPEG lub PNG badania, który wymienia osobę (⋯ w materiałach osoby,
+    podgląd pliku). Edytor otwiera się nad kopią roboczą z badania. Plikiem drzewa przy osobie obraz staje się
+    dopiero po **Gotowe** (w edycji osoby po **Zapisz**), jednym krokiem **Cofnij**. Ze zdjęcia kilku osób każda osoba
+    dostaje własny kadr; plik jest w drzewie raz, przy każdej osobie jako kolejne miejsce. Gdy badanie nie działa,
+    akcja przy pliku tylko w badaniu nie jest dostępna; badanie, które nie przypisuje plików osobom, jej nie oferuje.
+  - **Wybór Portret ze zdjęcia** oferuje zdjęcia osoby, z których da się wykadrować portret: obrazy drzewa przy
+    osobie i obrazy JPEG i PNG badania, które wymieniają osobę, najnowsze najpierw (bez daty na końcu). PDF, plik,
+    który jest w badaniu tylko oryginałem, pliki ukryte i pliki drzewa genealogicznego w nim nie ma. Jest w nim też
+    zdjęcie dzisiejszego portretu (nowy kadr tego samego zdjęcia), z etykietą **Portret**. Zdjęcie, które wymienia
+    też inne osoby, ma pod nazwą „i jeszcze 2” i ich imiona w podpowiedzi („Na zdjęciu także: …”); osoby tylko
+    z paczki, z którą plik przyszedł, się nie liczą. Wybór zdjęcia otwiera edytor ([A12.1](#A12.1)); z edycji osoby
+    portret zapisuje się przyciskiem **Zapisz**, ze strony osoby od razu z **Cofnij**. Ostatni wiersz to **Z
+    komputera…** (przy dotyku **Z tego urządzenia…**).
+  - **Wygląd wyboru:** na komputerze z myszą w oknie szerszym niż 1024 px dymek przy przycisku; przy dotyku i w oknie
+    do 1024 px panel od dołu z imieniem osoby, na telefonie trzymanym poziomo panel po prawej. Zamyka go Escape,
+    kliknięcie obok i wybór zdjęcia.
+  - **Stany wyboru:** gdy badanie nie działa, brakuje zdjęć tylko w badaniu, a wybór mówi „Zdjęcia z badania (3) są
+    dostępne, gdy badanie działa.”, na komputerze z **Uruchom badanie**. Ze starszym badaniem, bez badania i przy
+    dotyku oferuje tylko zdjęcia drzewa, bez tego zdania. Plik drzewa, który po otwarciu drzewa jeszcze nie
+    przyszedł ([S1.4.1](S1-connecting-app-and-research.md#S1.4.1)), się wczytuje i nie da się go wybrać; plik, który
+    nie przyszedł, w wyborze nie jest. Wybrane zdjęcie z badania wczytuje się w wyborze („Wczytywanie zdjęcia
+    z badania…”); gdy się nie wczyta, wybór zostaje otwarty z „Nie udało się wczytać zdjęcia.” i **Spróbuj ponownie**.
+  - **Portret ze zdjęcia…:** osoba bez portretu, którą można zmieniać i która ma zdjęcie do zaoferowania, ma
+    w nagłówku edycji osoby pod imieniem odnośnik **Portret ze zdjęcia…**. To samo otwiera kółko w nagłówku i puste
+    kółko w części ze zdjęciem. Strona osoby ma odnośnik **Portret ze zdjęcia…** pod inicjałami; zapisana strona
+    (**Zapisz jako HTML**), druk i drzewo tylko do odczytu go nie mają. Same zdjęcia z badania, które nie działa,
+    odnośnika nie dają.
 
-<!-- zdroj: app:59b9dde9 src/types.ts PortraitCrop, PortraitSource (attachmentId | partnershipId), Person.photoSource · app:88859da2 originál = cropToJpeg celé fotky, ATTACHMENT_MAX_SIDE 1600, ATTACHMENT_QUALITY 0.8, jen z nového souboru · app:e6f0595d src/ui/attachments-ui.ts štítek Portrét, Jako portrét… (isImage && !originalOnly && !locked, ne u zdroje), materials-ui.ts / material-viewer-ui.ts Použít jako portrét… (před Odstranit ze stromu…; app 3.30.0 material-viewer-ui.ts m.removeFromTree), danger.portraitSourceNote, unlinkPortraitFromAttachment, toast portraitReplaced s Vrátit · app:a2af453a Odebrat portrét → zdroj se smaže, příloha zůstane · D5 (bez běžícího výzkumu) · strings.ts attachments.asPortrait, portraitTag, portraitTagTitle, materials.useAsPortrait, portrait.replaceNote, current, newOne, replaced · ZADANI_DEV §4, §10 -->
+<!-- zdroj: app:59b9dde9 src/types.ts PortraitCrop, PortraitSource (attachmentId | partnershipId), Person.photoSource · app:88859da2 originál = cropToJpeg celé fotky, ATTACHMENT_MAX_SIDE 1600, ATTACHMENT_QUALITY 0.8, jen z nového souboru · app:e6f0595d src/ui/attachments-ui.ts štítek Portrét, Jako portrét… (isImage && !originalOnly && !locked, ne u zdroje), materials-ui.ts / material-viewer-ui.ts Použít jako portrét… (před Odstranit ze stromu…; app 3.30.0 material-viewer-ui.ts m.removeFromTree), danger.portraitSourceNote, unlinkPortraitFromAttachment, toast portraitReplaced s Vrátit · app:a2af453a Odebrat portrét → zdroj se smaže, příloha zůstane · D5 (bez běžícího výzkumu) · strings.ts attachments.asPortrait, portraitTag, portraitTagTitle, materials.useAsPortrait, portrait.replaceNote, current, newOne, replaced · ZADANI_DEV §4, §10 · 3.31.0: app:43d87c60 src/ui/portrait-actions-ui.ts materialPortraitOffer (vlastní obrázek stromu, nebo JPEG/PNG výzkumu se jménem osoby; bridge jen s caps.assign), useMaterialAsPortrait, linkPortraitFile; src/materials.ts isMaterialPortraitCandidate, PORTRAIT_MIMES · dirigent:prace/1121-app-portret-z-materialu · app:c6fbb3ff src/portrait-candidates.ts portraitCandidates (offer, bridge && !bridgeUp → researchOnly, waits failed vynechané, nejnovější první, isSource), photoPeopleOthers (directPersons bez dávky, místa přílohy), src/ui/portrait-picker-ui.ts (popover !isCoarsePointer && !isTabletOrMobile, jinak presentPortraitSheet; Escape, klik vedle; pickPortraitCandidate: busy, failed, Zkusit znovu = materials.retry; start jen na počítači s researchStartUrl) · app:3f6c9dfd src/ui/person-modal.ts updatePortraitOffer (#pm-portrait-link, #pm-avatar, #photo-preview is-pick), src/person-page.ts portraitPick (jen mode app, links app, ne readOnly), src/ui/person-page-ui.ts personPagePortraitPick · strings.ts portrait.pickTitle, fromComputer, fromDevice, fromPhoto, others, alsoIn, researchDown, pickLoading, pickFailed, materials.retry, sync.startResearch · dirigent:prace/1122-app-portret-dev · app:docs/ZADANI_DEV_portret-z-materialu.md §1–§4 -->
 
 <a id="A12.3"></a>
 ## A12.3 Późniejsza edycja kadru
@@ -127,8 +159,12 @@ zmieniać tylko w obrębie jego kwadratu.
 - **Obsługa:** edycja osoby, **Edytuj kadr** między **Wybierz zdjęcie** a **Usuń** (tylko ze zdjęciem); strona osoby,
   ⋯ **Więcej działań** → **Edytuj kadr portretu** (tylko przy osobie z portretem, którą można zmieniać).
 - **Obowiązuje od:** aplikacja 3.30.0
+- **Od aplikacji 3.31.0:** ⋯ **Więcej działań** na stronie osoby ma przed **Edytuj kadr portretu** pozycję **Zmień
+  portret…**: otwiera pod ⋯ wybór **Portret ze zdjęcia** ([A12.2](#A12.2)), a nowy portret zapisuje się od razu
+  z **Cofnij**. Pozycja jest tylko przy osobie z portretem, którą można zmieniać i która ma zdjęcie do zaoferowania
+  (liczą się też zdjęcia z badania, które nie działa). Kliknięcie na portret dalej otwiera powiększenie.
 
-<!-- zdroj: app:1feae064 src/ui/person-modal.ts #photo-recrop-btn (labels.photoRecrop), editor nad zdrojem s photoSource, jinak squareOnly + chooseAgain → #input-photo · src/ui/person-page-ui.ts item('crop', editCrop) jen canEdit && person.photo, Hotovo = jedna transakce, toast portraitUpdated s Vrátit · app:dab74024 src/ui/image-viewer.ts přepínač Portrét | Celá fotka (jen s existujícím zdrojem), src/person-page.ts portraitLightbox odkaz Celá fotka jen když soubor fotku nese · strings.ts labels.photoRecrop, personPage.moreActions, editCrop, portrait, wholePhoto, portrait.noOriginal, chooseAgain, updated · ZADANI_DEV §2, §10 -->
+<!-- zdroj: app:1feae064 src/ui/person-modal.ts #photo-recrop-btn (labels.photoRecrop), editor nad zdrojem s photoSource, jinak squareOnly + chooseAgain → #input-photo · src/ui/person-page-ui.ts item('crop', editCrop) jen canEdit && person.photo, Hotovo = jedna transakce, toast portraitUpdated s Vrátit · app:dab74024 src/ui/image-viewer.ts přepínač Portrét | Celá fotka (jen s existujícím zdrojem), src/person-page.ts portraitLightbox odkaz Celá fotka jen když soubor fotku nese · strings.ts labels.photoRecrop, personPage.moreActions, editCrop, portrait, wholePhoto, portrait.noOriginal, chooseAgain, updated · ZADANI_DEV §2, §10 · 3.31.0: app:3f6c9dfd src/ui/person-page-ui.ts togglePersonPageMenu item('portrait') před crop, personPageCanChangePortrait (shown + researchOnly > 0), runPersonPageMenu → openPortraitPicker pod .pp-more · strings.ts personPage.changePortrait · dirigent:prace/1122-app-portret-dev · app:docs/ZADANI_DEV_portret-z-materialu.md §1.3 -->
 
 <a id="A12.4"></a>
 ## A12.4 Zdjęcie pary

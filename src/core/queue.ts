@@ -198,7 +198,7 @@ export function waitsForDecision(tree: Tree, qs: PendingQuestion[] = permissionQ
 }
 
 /** Levels whose work asks an archive for its images or its indexes (the user's material, a request, a story: none). */
-const ASKS_ARCHIVE = new Set(["locate", "link", "verify", "enrich"]);
+export const ASKS_ARCHIVE = new Set(["locate", "link", "verify", "enrich"]);
 
 /**
  * An open task whose archive strom leaves alone now (core/leftalone.ts): its level asks an archive, every record set of

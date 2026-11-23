@@ -184,6 +184,31 @@ Registern der Personen, Familien, Nachnamen und Orte.
 
 <!-- zdroj: app:src/family-pages.ts · strings.ts familyPages.menuItem, familyPages.treePages, familyPages.treePagesAction, familyPages.indexTitle · spec 026 · CHANGELOG.cs.md 3.20.0, 3.21.0 -->
 
+<a id="A7.5.1"></a>
+### A7.5.1 Geschichte auf der Zeitleiste der Stammlinie
+
+Die Zeitleiste der Stammlinie (**Zeitleiste der Stammlinie →** auf der Seite der Stammlinie) zeigt die Geschichte in
+den Orten der Linie mit dem Symbol ihrer Art.
+
+- **Geschichte eines Landes oder einer Region** sind senkrechte Streifen über das Diagramm mit dem Symbol der Art
+  oben.
+- **Ortsgeschichte** (**Ortsgeschichte**, **Aus Forschungsquellen**) eines Ortes, der im Diagramm eine eigene Zeile
+  hat, ist ein Symbol in der Zeile des Ortes in der Farbe der Herkunft. Ein Ort ohne Zeile hat einen senkrechten
+  Streifen wie die Geschichte eines Landes.
+- **Die Liste:** Eine Zeile der Geschichte hat das Symbol der Art in der Farbe der Herkunft. Nach dem Text steht der
+  Ort; bei der Geschichte eines Landes oder einer Region deren Name, nur wenn die Geschichte der Linie aus mindestens
+  zwei Ländern oder Regionen stammt.
+- **Arten der Geschichte:** eine zweite Reihe von Chips **Arten von Ereignissen** unter der ersten: **Alle** und die
+  Arten der Geschichte auf der Seite, jede mit Symbol. Die gewählten Arten lassen nur ihre Zeilen, Streifen und
+  Symbole. Die Reihe gibt es nur bei mindestens zwei Arten und nur mit dem Skript der Seite; mit ausgeschaltetem Chip
+  **Geschichte** verschwindet sie.
+- Der Chip **Geschichte** in **Arten von Ereignissen** hat das Symbol der Art „Sonstiges“.
+- **Bedienung:** Familienseiten: **Zeitleiste der Stammlinie →**, die beiden Reihen von Chips **Arten von
+  Ereignissen**
+- **Gilt seit:** App 3.31.0
+
+<!-- zdroj: app:6caa471e src/family-pages-html.ts tlSymHtml, tlScopeClass, onRow (scope ≠ region a obec s řádkem → symbol na řádku, jinak pruh se symbolem sp-tl-bandsym), histChips (rodTimelineHistKinds > 1, js-only, Vše + druhy), řádek seznamu (symbol, place ?? region), čip hist se symbolem other, skript data-hk-off · src/rod-timeline.ts RodTimelineHistory scope, region (jen při ≥ 2 regionech), rodTimelineHistKinds · src/family-pages-css.ts (skrytí s vypnutými Dějinami) · strings.ts familyPages.tlLink, tlKindsLabel, tlKinds.hist, tlHistNote, tlHistKindsLabel, history.filterAll · dirigent:spec/121 „Časová osa rodu stejně jako hlavní osa“, Rozhodnutí 20. 11. (místní na řádku obce) -->
+
 <a id="A7.6"></a>
 ## A7.6 Personenseite
 

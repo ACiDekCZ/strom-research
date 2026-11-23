@@ -78,6 +78,39 @@ Die Linien haben eine Reihenfolge, und in ihr kommt die Arbeit zu ihnen: die ers
 
 <!-- zdroj: research:src/core/order.ts workOrder, orderMode · src/core/queue.ts:237-240 lineBonus, :396 priority lineRank · src/commands/research.ts:215 research edit, :303 research order, :326 research move -->
 
+<a id="R2.1.5"></a>
+### R2.1.5 Aufgaben in eine engere Linie übernehmen
+
+Eine Linie liegt innerhalb einer weiteren Linie, wenn ihre Person zur weiteren gehört (die Vorfahren eines Großvaters
+innerhalb der Vorfahren seines Enkels). Offene Aufgaben der weiteren Linie, die nur Personen der engeren Linie
+betreffen, lassen sich in die engere Linie übernehmen. Die Übernahme entscheidet ein Mensch, und sie lässt sich
+rückgängig machen.
+
+- **Prüft der Code:**
+  - übernommen werden nur Aufgaben, die die weitere Linie als ihre eigene nennen, offen sind oder auf einen Menschen
+    warten und deren Personen alle zur engeren Linie gehören. Eine Aufgabe ohne eigene Linie zählt schon jetzt für die
+    engste Linie ([R2.1.3](#R2.1.3));
+  - nie eine Aufgabe, an der gearbeitet wird (begonnen oder von einer offenen Sitzung gehalten,
+    [R7.9](R7-when-the-agent-works.md#R7.9)), eine zurückgestellte oder erledigte Aufgabe, eine Aufgabe ohne Personen
+    oder mit jemandem außerhalb der engeren Linie;
+  - aus einer pausierten weiteren Linie wird nichts übernommen;
+  - die Übernahme ist eine Operation der Historie, die sich merkt, woher jede Aufgabe kam. Rückgängig nimmt die letzte
+    Übernahme der Linie und gibt jede Aufgabe, die die Linie noch hat, an die Linie zurück, aus der sie kam.
+- **Grenzen:**
+  - beim Anlegen einer Linie innerhalb einer weiteren: `--move-tasks` übernimmt die Aufgaben, `--keep-tasks` lässt sie;
+    ohne beides wird ein Mensch am Terminal gefragt (vorgeschlagen ist Ja). Ein Agent, `--yes` oder ein Lauf ohne
+    Terminal lässt die Aufgaben und sagt, wie viele übernommen würden und dass `strom research gather G…` sie
+    übernimmt;
+  - der Agent startet eine Übernahme nur, wenn ein Mensch darum bittet;
+  - für den Lauf einer Linie ([R7.10](R7-when-the-agent-works.md#R7.10)) heißt das, dass die übernommenen Aufgaben ihr
+    Lauf nimmt, nicht der Lauf der weiteren Linie.
+- **Bedienung:** Terminal: `strom research new … --move-tasks|--keep-tasks`, `strom research gather G…` (`--dry-run`
+  zeigt, was sich ändern würde), `strom research gather G… --undo`. App: Formular **Neue Richtung**, **Übernahme
+  rückgängig** ([S4.3.1](S4-research-from-the-app.md#S4.3.1)).
+- **Gilt seit:** Forschung 1.36.0
+
+<!-- zdroj: research:src/core/gather.ts widerLines (bez pozastavených a vzatých zpět), gatherable (MOVABLE open, waiting; ne doing, držené sezením, odložené, hotové, bez lidí, s někým mimo), gatherPreview, gather, lastGather, ungather; operace research.gather / research.ungather · src/commands/research.ts research new --move-tasks|--keep-tasks (dotaz u terminálu, jinak movable {count, from}), research gather [--undo] · src/core/live.ts directions/preview, POST directions moveTasks, gather/undo (409 gather.none) · help research gather, research new · dirigent:spec/126 U11 -->
+
 <a id="R2.2"></a>
 ## R2.2 Die Warteschlange bestimmt, welche Aufgabe an die Reihe kommt
 
@@ -109,8 +142,17 @@ begonnene Aufgabe geht allen voran.
   In der App: das Suchfeld in der **Warteschlange** ([S4.2.1](S4-research-from-the-app.md#S4.2.1)).
 - **Ab Forschung 1.35.0:** mit `queue.sameBook yes` geht zwischen den Schlüsseln 7 und 8 die nächste Aufgabe des
   Buchs voran, in dem die letzte Sitzung gearbeitet hat ([R2.2.4](#R2.2.4)).
+- **Ab Forschung 1.36.0:** die Aufgaben einer Probe der Massenprüfung (`strom verify bulk --try N`) bekommen einen
+  Platz wie eine Aufgabe **sofort** ([R2.3.1](#R2.3.1)), und die nächste Sitzung nimmt sie; zwei Proben nacheinander
+  gehen in der Reihenfolge der Eingabe, die ältere zuerst ([S7.5.1](S7-reliability-and-verification.md#S7.5.1)).
+  `strom task list --kind <art>` zeigt nur die Aufgaben einer Art von Arbeit: `verify` (Prüfung), `records`
+  (Kirchenbücher), `material` (Material), `places` (Orte), `enrich` (Quellen außer Kirchenbüchern), `request`
+  (Anfragen), `story` (Erzählungen), `history` (Zeitgeschehen), `census` (Volkszählungen,
+  [R9.12](R9-archives.md#R9.12)), `other` (Sonstiges); eine unbekannte Art endet mit einem Fehler, der die Arten
+  aufzählt. In der App die Reihe **Aufgabenart** in der **Warteschlange**
+  ([S4.2.4](S4-research-from-the-app.md#S4.2.4)).
 
-<!-- zdroj: research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 · 1.33.0: research:c50f80f5 task list --all (= --state all), strom help task list -->
+<!-- zdroj: 1.36.0: research:7116bb60 src/core/taskkind.ts (TASK_KINDS, taskKind; census: research:c7b117cd), src/commands/task.ts list --kind, src/core/verify.ts verifyBulk try (priority 3, queueAt next) · CHANGELOG.cs.md 1.36.0 · research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 · 1.33.0: research:c50f80f5 task list --all (= --state all), strom help task list -->
 
 <a id="R2.2.1"></a>
 ### R2.2.1 Strategie der Warteschlange

@@ -188,6 +188,8 @@ export interface Card {
   parents: Who[];
   families: { id: string; partner?: Who & { sex: string }; facts: CardFact[]; children: Who[] }[];
   story?: { status: "draft" | "final"; text: string };
+  /** The person's contact (spec 134 U11): apart from the facts, never a residence. */
+  contact?: { emails: string[] };
 }
 
 /** The first year of a date (none: after every dated one). */
@@ -256,6 +258,7 @@ export function personCard(tree: Tree, p: Person): Card {
     parents: parentsOf(tree, p.id).map(who),
     families: families.sort((a, b) => Math.sign(yearOf(a.facts[0]?.date) - yearOf(b.facts[0]?.date)) || 0),
     ...(p.story ? { story: { status: p.story.status, text: p.story.text } } : {}),
+    ...(p.contact?.emails?.length ? { contact: { emails: [...p.contact.emails] } } : {}),
   };
 }
 

@@ -5,9 +5,40 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.37.0
+
+*Připravuje se: bety do 1.37.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Záznam archivu už nedrží portál ze seznamu stromu:** kniha s adresou na portálu, který seznam stromu zná (Porta
+  fontium, Acta Publica…), už nedělá portál tak přísný jako archiv, pod kterým je zapsaná – portál se řídí svými
+  podmínkami. Vlastní portál archivu pod jinou adresou (seznam u něj uvádí podmínky na webu archivu, třeba eBadatelna
+  SOA v Praze) drží dál. Úroveň, kterou strom drží z dřívějška, zůstává, dokud nerozhodne člověk v „Co čeká“. Kde záznam archivu
+  web drží dál, `strom doctor` a `strom allow archive` jmenují archiv, jeho knihu i web. Kapitola R12.2 příručky už
+  neuvádí neexistující `strom run --chrome`.
+- **Číslo snímku kdekoli v názvu:** snímky uložené ručně do složky čekajícího úkolu se převezmou i pod jmény portálu –
+  `__0236.jpg`, `Lhota_11__125.jpg` (portál doplňuje nuly jen na tři číslice, od snímku 100 už ne),
+  `fond12_kniha3_236.jpg`: z několika čísel v názvu to, které patří k chtěným snímkům, to, které se mezi soubory složky
+  mění, jinak poslední před příponou. Datum a čas snímku obrazovky se za číslo snímku nikdy nebere, ani rok za ním (`33
+  1784.jpg`), když není známo, které snímky; jméno se dvěma chtěnými čísly se nehádá, ale ohlásí se i se souborem.
+- **Vyčerpaný limit webu se už nečeká naprázdno:** po `web.perHost` agent slyší, kdy web zase dá stránky – limit tohoto
+  počítače, nebo v jeho sezení už žádné – a co do té doby: úkol zůstane otevřený, jiná práce, jinak konec sezení; žádná
+  stránka znovu dřív ani čekání. `strom run` úkol na takovém webu zatím vynechá a vezme jiný; když jiný není, počká,
+  až bude volných stránek dost (bez agenta, nic se neodešle), nebo skončí a řekne kdy. Úkol čekající na snímek, který
+  prohlížeč agenta nikdy neuložil (stránka odmítnutá), se s koncem sezení vrátí do fronty a nikdy se o něm neřekne,
+  že ho prohlížeč zadržel. Běh skončený takto je pro aplikaci Strom hotový běh, ne chyba.
+- **Odeslání z aplikace lehčí a rychlejší:** odeslání z aplikace Strom se plánuje jednou místo dvakrát a soubory, které
+  výzkum už má, putují odkazem (svým otiskem) místo celých dat; odeslání, které jmenuje soubor, jejž výzkum nenajde, se
+  odmítne celé dřív, než se cokoli uloží, a aplikace ho pošle znovu i s daty. „Co čeká“ odeslání, které se ještě
+  počítá, nikdy neukáže jako 0 změn.
+- **E-maily osoby jsou kontakt, ne bydliště:** e-maily z GEDCOMu (bydliště z MyHeritage jen s e-mailem, starší poznámka
+  aplikace Strom „E-mail: …“) se stanou kontaktem osoby, ukázaným zvlášť od údajů ve `strom person show` a na kartě
+  osoby – nikdy událostí ani místem, kde osoba žila, a agent je nedostane. Synchronizace s aplikací e-maily přidává
+  i odebírá jako jiné úpravy. Nová kontrola `strom fixes contact-residences` převede bydliště, která ze e-mailů udělal
+  starší strom, na kontakt (bydliště stažené, nikdy smazané, vrátí ho `strom fixes undo`).
+
 ## 1.36.0
 
-*Připravuje se: bety do 1.36.0-beta.11. Oddíl bude úplný s vydáním.*
+*22. 11. 2026 · patří k aplikaci Strom 3.31.0.*
 
 - **Zkouška hromadného ověření hned:** úkoly zkoušky hromadného ověření (`strom verify bulk --try`) stojí na začátku
   fronty – vezme je příští sezení – a aplikace Strom je dá zpracovat hned, každý úkol jedno sezení, odkazem, který úkoly

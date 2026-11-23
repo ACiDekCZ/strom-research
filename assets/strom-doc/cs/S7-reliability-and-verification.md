@@ -5,7 +5,8 @@ U každého údaje aplikace ukazuje, jak spolehlivý je, a kartička ve stromu m
 údaj ověřit podle originálu záznamu: na pozadí, u jednoho údaje, u osoby nebo ve velké části stromu. Jistota ale
 vzniká až tím, že **člověk** sám porovná údaj se skenem záznamu a potvrdí ho (**Potvrdit podle skenu**, [S7.8](#S7.8)).
 Ověření agentem dá nejvýš **Doloženo**; potvrzení člověkem je silnější a agent ho nikdy nezmění. Kapitola popisuje
-aplikaci Strom 3.26.0 a výzkum 1.30.0. Co jde jen s mostem výzkumu a co i bez něj, shrnuje [S7.9](#S7.9).
+aplikaci Strom 3.26.0 a výzkum 1.30.0; změny z novější verze mají u sebe její číslo. Co jde jen s mostem výzkumu
+a co i bez něj, shrnuje [S7.9](#S7.9). Jméno osoby jako údaj popisuje [S7.10](#S7.10).
 
 <!-- zdroj: dirigent:spec/065-spolehlivost-a-znovu-overeni/spec.md · app:7b0471f8 CHANGELOG.cs.md 3.26.0 (Ověřit údaje, Jedna značka na kartičce) · research:6c6e7c3b CHANGELOG.cs.md 1.30.0 (ověření podle originálů) -->
 
@@ -75,6 +76,11 @@ nejslabší ze tří údajů kartičky: jméno, narození a úmrtí.
     ●● doloženo, ●○ doloženo zčásti, tečkovaný rámeček bez pramene. Strom bez pramenů i bez původu značku nemá;
   - zástupná osoba („?“) značku nemá.
 - **Bublina u značky:** „Nejslabší údaj kartičky: …“ a slovy, co značka znamená.
+  - **Od aplikace 3.31.0:** u značky **Z rodokmenu** stojí nadpis „Citováno v rodokmenu, ve Stromu neověřeno“ jen
+    nad prameny, které jsou citované jen u údajů z rodokmenu (třeba u jména). Pramen citovaný u doloženého narození
+    nebo úmrtí (matrika, i když ji cituje zároveň jméno) stojí pod vlastním nadpisem **Prameny (N)**. Dřív stál pod
+    nadpisem z rodokmenu každý pramen kartičky. Když značku drží jméno, vede bublina odkazem **Jméno v kartě osoby ›**
+    ke značce jména v kartě osoby ([S7.10](#S7.10)).
 - **Ovládání:** **Nastavení → Karta osoby → Na kartě ukázat → Doložení a spolehlivost** (výchozí zapnuto).
 - **Platí od:** aplikace 3.26.0
 - **Od aplikace 3.28.0:** při oddálení stromu pod 0,55 je značka větší (asi 10 px na obrazovce), pod 0,3 se
@@ -110,7 +116,8 @@ Výzkum pak údaj ověří podle originálu záznamu: na pozadí, mimo práci na
 - **Hlídá kód:**
   - ověření vyžádané člověkem jde ve frontě výzkumu první ([R2](R2-lines-and-queue.md));
   - **Ověřit** se nabízí jen u stromu napojeného na výzkum, když most běží a výzkum ověřování umí ([S7.9](#S7.9));
-  - jméno, pohlaví, rozvod a ostatní události se neověřují;
+  - jméno, pohlaví, rozvod a ostatní události se neověřují. **Od aplikace 3.31.0 s výzkumem 1.36.0** se ověřuje
+    i jméno ([S7.10](#S7.10));
   - **Ověřit přednostně** se nenabízí u údaje, o jehož ověření už požádal člověk (je první ve frontě), u údaje, který
     čeká na snímky nebo na svolení archivu, u prvního na řadě a když výzkum pořadí údaje neuvádí. Úkol, na kterém
     agent právě pracuje, výzkum nepřeřadí.
@@ -121,8 +128,10 @@ Výzkum pak údaj ověří podle originálu záznamu: na pozadí, mimo práci na
 - **Ovládání:** aplikace: karta osoby → značka údaje → **Ověřit** (nebo **Ověřit přednostně**) → **Spustit
   ověření**. Terminál: `strom verify facts P…|F…|E… [--fact …] [--dry-run]`.
 - **Platí od:** výzkum 1.30.0, aplikace 3.26.0
+- **Od aplikace 3.31.0:** náhled místo „Běží na pozadí výzkumu. Výsledek se ukáže u údaje.“ říká „Ověří se při práci
+  výzkumu. Výsledek se ukáže u údaje.“ Ověření nečeká na pozadí, vezme ho sezení výzkumu.
 
-<!-- zdroj: app:7cf409bd src/verify-offer.ts verifyOffer (prioritize: pending wait, position > 1, step, researchVerifies) · src/verify-ui-model.ts factOffer (čekání spuštěné tady: position null) · src/ui/verify-ui.ts (tlačítko prioritize → verifyOpenPreview; verifyStart: pozice z odpovědi) · strings.ts verify.prioritize, verify.pending · research:a4a2f6c0 src/core/verify.ts verifyAsk (držený úkol → queueAt next; doing nebo už next beze změny), verifyWait (wait / asked / images / permission, position) · app:7b0471f8 src/verify-offer.ts verifyOffer (Verify jen u nedoložených, s feature verify, ne archiv, ne čekající; cost low/high) · src/verify-ui-model.ts verifyFactKind (BIRT, BAPM, MARR, DEAT, BURI) · strings.ts verify.btn, previewHead, what, how, estimate1, howRead, howSearch, costLow, costHigh, sessions, previewNote, previewNoteSearch, start, pending, failed, nothing, noResearch · app:669c08f0 strings.ts verify.busy, locked, whyArchive, whyRetracted, whyGone, whyMerged, whyOld, whyRefused (odmítnutí podle kódu) · research:6c6e7c3b strom help verify facts (první ve frontě; bez přečteného originálu se záznam hledá) · research:4ac323ef src/core/verify.ts askedFor (úkol přeřazený člověkem, queueAt next, do konce sezení na něm → asked v souboru, /status, verify status) · app:src/verify-offer.ts (asked: Verify first se nenabízí) · CHANGELOG.cs.md 1.31.0 -->
+<!-- zdroj: app:f19d34cb strings.ts verify.previewNote (065 K7.3) · app:7cf409bd src/verify-offer.ts verifyOffer (prioritize: pending wait, position > 1, step, researchVerifies) · src/verify-ui-model.ts factOffer (čekání spuštěné tady: position null) · src/ui/verify-ui.ts (tlačítko prioritize → verifyOpenPreview; verifyStart: pozice z odpovědi) · strings.ts verify.prioritize, verify.pending · research:a4a2f6c0 src/core/verify.ts verifyAsk (držený úkol → queueAt next; doing nebo už next beze změny), verifyWait (wait / asked / images / permission, position) · app:7b0471f8 src/verify-offer.ts verifyOffer (Verify jen u nedoložených, s feature verify, ne archiv, ne čekající; cost low/high) · src/verify-ui-model.ts verifyFactKind (BIRT, BAPM, MARR, DEAT, BURI) · strings.ts verify.btn, previewHead, what, how, estimate1, howRead, howSearch, costLow, costHigh, sessions, previewNote, previewNoteSearch, start, pending, failed, nothing, noResearch · app:669c08f0 strings.ts verify.busy, locked, whyArchive, whyRetracted, whyGone, whyMerged, whyOld, whyRefused (odmítnutí podle kódu) · research:6c6e7c3b strom help verify facts (první ve frontě; bez přečteného originálu se záznam hledá) · research:4ac323ef src/core/verify.ts askedFor (úkol přeřazený člověkem, queueAt next, do konce sezení na něm → asked v souboru, /status, verify status) · app:src/verify-offer.ts (asked: Verify first se nenabízí) · CHANGELOG.cs.md 1.31.0 -->
 
 <a id="S7.4"></a>
 ## S7.4 Ověřit údaje u osoby
@@ -147,6 +156,7 @@ a v bublině značky na kartičce, nebo položkou **Ověřit údaje · N** v nab
 - **Hlídá kód:** N je přesně to, co výzkum vezme: údaje osoby a jejích rodin, které výzkum zná (i údaje už doložené
   jiným čtenářem), kromě potvrzených člověkem, čekajících na ověření, jména a pohlaví. Počet v nabídce, v okně a ve
   zprávě po spuštění je stejný.
+  - **Od aplikace 3.31.0 s výzkumem 1.36.0:** N počítá i jméno ([S7.10](#S7.10)).
   - **Od aplikace 3.30.0:** jen narození, křest, sňatek, úmrtí a pohřeb. Bydliště, povolání a jiné údaje se ověřují
     přes **Ověřit** u údaje. Když by výzkum pro celou osobu vzal i jiné údaje, pošle aplikace k ověření každý
     zaškrtnutý údaj jmenovitě. Do 3.29.0 i bydliště a povolání.
@@ -156,8 +166,10 @@ a v bublině značky na kartičce, nebo položkou **Ověřit údaje · N** v nab
   **Ověřit údaje (N)** nebo **Ověřit přednostně**; nabídka osoby → **Ověřit údaje · N**, nebo **Ověřit přednostně**
   pod **Ověřuje se · N**; pak v okně **Ověřit (N)**. Terminál: `strom verify facts P…`.
 - **Platí od:** výzkum 1.30.0, aplikace 3.26.0
+- **Od aplikace 3.31.0:** pod odhadem v okně stojí „Levné = přečíst známý záznam. Dražší = záznam se teprve hledá.
+  Ověří se při práci výzkumu, výsledek se ukáže u údajů.“ (dřív „Běží na pozadí výzkumu“).
 
-<!-- zdroj: app:7cf409bd src/ui/verify-person-ui.ts personVerifyMenu (pending + prioritize), verifyCardTipActions (st-verify-first), renderPersonVerifyRow (jen pending řádek), showVerifyPersonDialog prioritize (titulek verify.prioritize) · src/ui/card-signals-ui.ts signal-verify-first · src/ui/context-menu.ts · research:a4a2f6c0 src/core/verify.ts verifyAsk (osoba: držené úkoly na začátek) · app:7b0471f8 src/verify-ui-model.ts personVerifyAskCount · strings.ts verify.menu, menuPending, personTitle, estimate, startN, bulkStarted · app:7eb903a3 src/ui/verify-person-ui.ts renderPersonVerifyRow, personVerifyMenu (karta osoby nad #events-section; jinak personPending), verifyCardTipActions · strings.ts verify.personBtn, personPending, events.title · dirigent:prace/1109-app-jeden-rodic/karta.md Výsledek (6f58068a: menu = náhled = toast; i bydliště, i doložené) · app:0fbda127 src/verify-ui-model.ts PERSON_VERIFY_KINDS, personVerifyAskCount, src/ui/verify-person-ui.ts others (start po údajích) -->
+<!-- zdroj: app:f19d34cb strings.ts verify.estimateNote (065 K7.3) · app:7cf409bd src/ui/verify-person-ui.ts personVerifyMenu (pending + prioritize), verifyCardTipActions (st-verify-first), renderPersonVerifyRow (jen pending řádek), showVerifyPersonDialog prioritize (titulek verify.prioritize) · src/ui/card-signals-ui.ts signal-verify-first · src/ui/context-menu.ts · research:a4a2f6c0 src/core/verify.ts verifyAsk (osoba: držené úkoly na začátek) · app:7b0471f8 src/verify-ui-model.ts personVerifyAskCount · strings.ts verify.menu, menuPending, personTitle, estimate, startN, bulkStarted · app:7eb903a3 src/ui/verify-person-ui.ts renderPersonVerifyRow, personVerifyMenu (karta osoby nad #events-section; jinak personPending), verifyCardTipActions · strings.ts verify.personBtn, personPending, events.title · dirigent:prace/1109-app-jeden-rodic/karta.md Výsledek (6f58068a: menu = náhled = toast; i bydliště, i doložené) · app:0fbda127 src/verify-ui-model.ts PERSON_VERIFY_KINDS, personVerifyAskCount, src/ui/verify-person-ui.ts others (start po údajích) -->
 
 <a id="S7.5"></a>
 ## S7.5 Ověřit údaje ve stromu
@@ -187,8 +199,45 @@ rozsah, pořadí a odhad ceny předem a ověřuje jen neověřené údaje (pravd
   [--order ancestors|weakest|oldest] [--try N] [--budget …] [--dry-run]`, `strom verify status`,
   `strom verify stop [--bulk]`.
 - **Platí od:** výzkum 1.30.0, aplikace 3.26.0
+- **Od aplikace 3.31.0 s výzkumem 1.36.0:** zkouška jde na začátek fronty a hláška po spuštění nabídne **Zpracovat
+  hned** ([S7.5.1](#S7.5.1)). Okno pod odhadem říká „Ověří se při práci výzkumu; průběh a zastavení v „Co ví výzkum ›
+  Ověřování“.“ Řádek „Čeká na ověření“ má **Ukázat ve frontě** ([S4.2.4](S4-research-from-the-app.md#S4.2.4)).
 
-<!-- zdroj: app:7b0471f8 src/ui/verify-person-ui.ts verifyRowsHtml, treeVerifyBlock, showVerifyBulkDialog · src/ui/research-actions-ui.ts:371 (nabídka výzkumu) · src/import-next.ts IMPORT_NEXT_VERIFY_FEATURES ['verify.bulk'] · src/verify-ui-model.ts VERIFY_TRY_PEOPLE 5 · strings.ts verify.bulkRow, bulkRowSub, bulkTitle, bulkSub, scope, order, scopeLine, scopeSurname, scopeTree, orderAncestors, orderWeakest, orderOldest, tryFirst, tryFirstSub, tryN, startN, bulkNote, section, pendingRow, pendingRowSub, stop, stopped · research:6c6e7c3b strom help verify bulk, verify stop, verify status · src/core/verify.ts (žijící) · research:94d75934 src/core/verify.ts verifyBulk (origin import nebo tree → search) -->
+<!-- zdroj: app:f19d34cb, 53ef9cbe (065 K7.1–K7.4) · app:7b0471f8 src/ui/verify-person-ui.ts verifyRowsHtml, treeVerifyBlock, showVerifyBulkDialog · src/ui/research-actions-ui.ts:371 (nabídka výzkumu) · src/import-next.ts IMPORT_NEXT_VERIFY_FEATURES ['verify.bulk'] · src/verify-ui-model.ts VERIFY_TRY_PEOPLE 5 · strings.ts verify.bulkRow, bulkRowSub, bulkTitle, bulkSub, scope, order, scopeLine, scopeSurname, scopeTree, orderAncestors, orderWeakest, orderOldest, tryFirst, tryFirstSub, tryN, startN, bulkNote, section, pendingRow, pendingRowSub, stop, stopped · research:6c6e7c3b strom help verify bulk, verify stop, verify status · src/core/verify.ts (žijící) · research:94d75934 src/core/verify.ts verifyBulk (origin import nebo tree → search) -->
+
+<a id="S7.5.1"></a>
+### S7.5.1 Zkouška na začátku fronty a Zpracovat hned
+
+Zkouška **Nejdřív vyzkoušet na 5 osobách** jde ve frontě výzkumu na začátek, jako **Ověřit** u osoby. Když výzkum
+zrovna nepracuje, aplikace nabídne zpracovat ji hned.
+
+- **V okně:** pod volbou zkoušky stojí „Úkoly jdou na začátek fronty výzkumu. Po 5 osobách se ověřování zastaví
+  a ukáže výsledek.“ a pod odhadem „Ověří se při práci výzkumu; průběh a zastavení v „Co ví výzkum › Ověřování“.“
+- **Po spuštění** řekne hláška, kdy se zkouška zpracuje:
+  - výzkum pracuje: „12 údajů k ověření je další na řadě ve frontě výzkumu.“;
+  - výzkum nepracuje: „12 údajů k ověření je na začátku fronty. Výzkum teď nepracuje.“ s **Zpracovat hned**
+    (značka AI a terminálu, [S4.5.1](S4-research-from-the-app.md#S4.5.1)); hláška stojí 15 s a jde zavřít;
+  - jinak (výzkum neumí práci na vybraných úkolech, nemá nastaveného agenta, nebo neřekl, zda pracuje): „12 údajů
+    k ověření je na začátku fronty; ověří se při příští práci výzkumu.“
+- **Zpracovat hned** otevře terminál výzkumu jako **Pracovat na frontě…** ([S4.2.3](S4-research-from-the-app.md#S4.2.3)):
+  „Tyto úkoly, v tomto pořadí:“, pak „Každý úkol jedno sezení (N sezení), pak konec; co se nedokončí, vrátí se do
+  fronty.“ Spustí se až na **ano** ([R7.1.2](R7-when-the-agent-works.md#R7.1.2)).
+- **Hlídá kód:**
+  - úkoly zkoušky dostanou ve frontě místo jako ruční **hned** ([R2.3.1](R2-lines-and-queue.md#R2.3.1)); vezme je
+    příští sezení. Zbytek rozsahu bez zkoušky jde dál až po práci na liniích ([S7.5](#S7.5));
+  - dvě zkoušky po sobě jdou v pořadí zadání, starší první;
+  - terminál vezme jen úkoly, které ještě čekají a nikdo na nich nepracuje; ostatní vynechá („Úkoly z odkazu, které
+    už nečekají (hotové, vzaté zpět nebo je má jiný), vynechány: N.“). Když nečeká žádný, nic se nespustí.
+- **Kde je průběh:** Co ví výzkum › **Ověřování** („Čeká na ověření: N údajů“, **Zastavit**, **Ukázat ve frontě**),
+  ve **Frontě** druh **Ověřování** ([S4.2.4](S4-research-from-the-app.md#S4.2.4)); terminál `strom verify status`.
+- **Hranice:** se starším výzkumem jde zkouška po práci na liniích jako ostatní úkoly ověřování a hláška říká
+  „N údajů je zařazeno k ověření.“
+- **Ovládání:** aplikace: **Ověřit údaje ve stromu…** → **Nejdřív vyzkoušet na 5 osobách** → **Vyzkoušet na 5** →
+  hláška → **Zpracovat hned**. Terminál: `strom verify bulk --scope … --try N` („zkouška, na začátku fronty: vezme
+  ji příští sezení“).
+- **Platí od:** aplikace 3.31.0, výzkum 1.36.0
+
+<!-- zdroj: dirigent:spec/065-spolehlivost-a-znovu-overeni K7.1–K7.3 · prace/1119-app-065-p7, 1119-research-065-p7-drobnosti · app:f19d34cb src/ui/verify-person-ui.ts (tryHead: verify.tryFirst → tryFirstSubHead; bulkNote(knowsTitle › section); showVerifyBulkStarted: BULK_PROCESS_MS 15 s, closable, activeResearchNoAgent, work do=tasks workTasks, researchLinkFlags) · src/research-verify.ts verifyBulkStartedKind (plain / next / head / process: working false, work.tasks, workTaskIds) · src/verify-ui-model.ts VERIFY_TRY_PEOPLE 5 · strings.ts verify.tryFirstSubHead, bulkNote, bulkStartedIdle, bulkStartedNext, bulkStartedHead, processNow, bulkStarted · research:7116bb60 src/core/verify.ts verifyBulk (try → priority 3, queueAt next, first), src/commands/verify.ts (working), src/cli/menu-links.ts workOn (jen open a nedržené, asks výchozí ne, run --task), src/core/links.ts (task= jen s do=tasks, 1–100) · cs.json ui.verify.bulk.first, ui.link.work.picked.head, ui.link.work.picked, ui.link.work.picked.gone, ui.link.work.picked.none · CHANGELOG.cs.md 1.36.0 (dvě zkoušky v pořadí zadání) -->
 
 <a id="S7.6"></a>
 ## S7.6 Ověřování samo ve frontě výzkumu
@@ -275,7 +324,9 @@ a **Vzít zpět**.
     zpět potvrzení u {jméno}“) a zápis v historii změn („Údaj u {jméno} potvrzen podle skenu“, „Potvrzení podle skenu
     vzato zpět: {jméno}“);
   - strom napojený na výzkum: potvrzení zapíše výzkum přes most, jen když most běží a výzkum to umí; jméno a pohlaví
-    se tu nepotvrzují;
+    se tu nepotvrzují. **Od aplikace 3.31.0 s výzkumem 1.36.0** se potvrzuje i jméno ([S7.10](#S7.10));
+  - **od aplikace 3.31.0:** potvrzený údaj, který má dál hodnotu z rodokmenu jiného programu, má pod potvrzením
+    řádek „Převzato z rodokmenu {program}, soubor {datum}“: odkud hodnota přišla, zůstává vidět;
   - v terminálu potvrzuje jen člověk u svého terminálu: `strom verify confirm E… [--undo]`. Agentovi `strom`
     potvrzení odmítne.
 - **Hranice:** strom napojený na výzkum, jehož most neběží: od aplikace 3.30.0 nabídne **Potvrdit podle skenu**
@@ -309,3 +360,46 @@ a **Vzít zpět**.
 - **Platí od:** výzkum 1.30.0, aplikace 3.26.0
 
 <!-- zdroj: app:7b0471f8 src/verify-offer.ts (feature verify a facts.confirm jen ze stavu výzkumu přes most) · dirigent:test/vysledek-1109-zaver-c-potvrzeni.md (N2) · research:6c6e7c3b strom help verify · app:0fbda127 researchConfirms offline -->
+
+<a id="S7.10"></a>
+## S7.10 Jméno jako údaj
+
+Jméno osoby má značku jako narození nebo úmrtí: jak jisté je podle zápisů, které ho dokládají, a zda ho potvrdil
+člověk. Jde ho ověřit i potvrdit podle skenu. Stupeň jména určuje výzkum ([R10.5.2](R10-people-and-hypotheses.md#R10.5.2)).
+
+- **Kde:**
+  - karta osoby: značka u **Jméno** a **Příjmení** (jméno z rodokmenu změněné jen zčásti má značku jen u části, která
+    je z rodokmenu); bublina značky jako u údaje ([S7.1](#S7.1));
+  - kartička ve stromu: jméno je jedním ze tří údajů, ze kterých je jedna značka ([S7.2](#S7.2)). Po potvrzení nebo
+    jeho vzetí zpět přes most se značka kartičky změní hned;
+  - jméno po sňatku má tichou značku u **Příjmení po sňatku**: bez bubliny a bez akcí a do značky kartičky
+    nevstupuje.
+- **Akce u jména** (strom napojený na výzkum, který jméno umí):
+  - **Ověřit** s náhledem jako u údaje ([S7.3](#S7.3)). Když výzkum jméno ověří spolu se zápisem narození nebo křtu,
+    náhled to řekne: „Ověří se spolu s narozením.“, „Ověří se spolu se křtem.“, u narození nebo křtu „Ověří se spolu
+    se jménem.“;
+  - **Potvrdit podle skenu** a **Vzít zpět** jako u údaje ([S7.8](#S7.8)); jméno změněné od načtení stromu se
+    nepotvrdí;
+  - **Ověřit údaje (N)** u osoby jméno počítá ([S7.4](#S7.4));
+  - když značku kartičky drží jméno, nabídne bublina značky odkaz **Jméno v kartě osoby ›**: otevře kartu osoby
+    s bublinou jména.
+- **Hlídá kód:**
+  - stupeň jména bere aplikace jen ze souboru výzkumu; sama nic nedopočítává ani nepřevádí
+    ([R10.5.3](R10-people-and-hypotheses.md#R10.5.3));
+  - do značky kartičky se počítá jen jméno totožnosti osoby ([R10.5.2](R10-people-and-hypotheses.md#R10.5.2));
+  - strom napojený na výzkum, jehož most neběží: jméno s číslem výzkumu jde potvrdit podle skenu; potvrzení drží
+    aplikace a do výzkumu dojde s nejbližším předáním stromu ([S7.8](#S7.8));
+  - strom bez výzkumu: jméno s pramenem potvrdí aplikace sama, jako ostatní údaje;
+  - jméno po sňatku napsané v aplikaci jinak, nebo smazané, svůj stupeň ztratí;
+  - když už žádný údaj osoby není jen z rodokmenu (každý je doložený nebo potvrzený), řádek o původu v kartě osoby
+    říká „Údaje osoby přišly z {program} (soubor {datum}, načteno {datum}); žádný už není jen z rodokmenu.“
+    ([S6.2](S6-tree-from-another-program.md#S6.2)).
+- **Hranice:** se starším výzkumem, který jméno neumí, se nic nemění: jméno ve stromu výzkumu nemá **Ověřit** ani
+  **Potvrdit podle skenu** a značka jména zůstává podle původu (třeba **Z rodokmenu**). Pohlaví se dál neověřuje
+  ani nepotvrzuje.
+- **Ovládání:** aplikace: karta osoby → značka u **Jméno** nebo **Příjmení** → **Ověřit** / **Potvrdit podle
+  skenu** / **Vzít zpět**; bublina značky na kartičce → **Jméno v kartě osoby ›**. Terminál: `strom verify facts
+  --fact P….N`, `strom verify confirm P….N [--undo]`.
+- **Platí od:** aplikace 3.31.0, výzkum 1.36.0
+
+<!-- zdroj: app:58e76958 src/ged-parser.ts (_STROM_STATUS, _STROM_EID P….N, _STROM_CONFIRMED pod NAME), src/reliability.ts factStatusOf (name → nameStatus), src/ui/person-reliability-ui.ts:126-145 (marriedNameStatus inert, fact name:married; jméno u input-firstname a lastname-label, fromParts GIVN/SURN), src/ui/fact-status.ts:200-203 personMarksLayout originHistory · app:bb1c6f0a src/verify-ui-model.ts verifyFactKind NAME, factOffer (nameOk: features name-status, nebo offline s eid; jinak ve stromu výzkumu nic), PERSON_VERIFY_KINDS NAME, verifyTogetherKind (NAME ↔ BIRT/BAPM/CHR), src/verify.ts NAME_STATUS_FEATURE, researchNameRef · strings.ts verify.kinds.NAME, verify.together · app:837ca7a4 src/ui/verify-person-ui.ts:293-310 verifyCardTipActions nameAtPerson, src/renderer.ts refreshCardStatus, src/data.ts (married name přepsaný → bez stavu) · CHANGELOG.cs.md 3.31.0 „Stav jména“ · research:8b92b3ae features name-status, POST /facts/confirm a /verify s P….N · research:0bbd1d22 src/core/stromapp.ts APP_READS_NAME_STATUS · dirigent:spec/066 K6.3, K6.5 · app:docs/ZADANI_VYZKUM_stav-jmena.md Odpověď aplikace -->

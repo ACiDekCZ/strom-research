@@ -120,10 +120,14 @@ Wszystkie listy drzewa są w jednym miejscu, w oknie **Listy osób**: po lewej p
   rodzaju, wiersz reguły (**Według** / **Utworzona z**), podsumowanie ([A11.3.1](#A11.3.1)) i **Osoby na liście · N**
   z sortowaniem ([A11.4](#A11.4)). Przy liście stałej × przy osobie (**Usuń z listy**) i **Dodaj osobę…**
   ([A11.5](#A11.5)). Przy osobie jest według sortowania pokolenie, data dodania albo miejsce urodzenia.
-- **⋯ listy** (przy wierszu w przeglądzie i w szczegółach): **Otwórz w tabeli**, **Zmień nazwę**, **Duplikuj**,
+- **⋯ listy** (przy wierszu w przeglądzie i w szczegółach): **Otwórz w tabeli**, **Na mapie** (od aplikacji 3.31.0),
+  **Zmień nazwę**, **Duplikuj**,
   **Odhaczaj gotowe** (stała, [A11.8](#A11.8)) albo **Zamroź** (automatyczna, [A11.2.2](#A11.2.2)), **Eksportuj ›**
   ([A11.9](#A11.9)), **Usuń**.
   - **Otwórz w tabeli** zamyka okno i otwiera Tabelę w zakresie listy ([A6.7.19](A6-views.md#A6.7.19)).
+  - **Na mapie** (także przycisk obok **Otwórz w tabeli** w szczegółach) zamyka okno, ustawia listę jako wybór okna
+    ([A6.6](A6-views.md#A6.6)) i otwiera Mapę z zakresem **Wybór** ([A6.5.7](A6-views.md#A6.5.7)). W kolejnym oknie
+    wykonuje to okno główne; bez niego **Na mapie** jest niedostępne („Okno główne nie jest otwarte.”).
   - **Duplikuj** robi kopię tego samego rodzaju z tą samą regułą, kolejnością, ręcznie usuniętymi i odhaczonymi,
     z nazwą „{nazwa} (2)”.
   - **Usuń** nie pyta: powiadomienie „Lista „{nazwa}” usunięta.” z **Cofnij**.
@@ -138,7 +142,7 @@ Wszystkie listy drzewa są w jednym miejscu, w oknie **Listy osób**: po lewej p
   przegląd i lista zmieniają się na całym ekranie (‹ **Wróć do list**), **⋯** to panel od dołu.
 - **Obowiązuje od:** aplikacja 3.30.0
 
-<!-- zdroj: app:src/ui/person-lists-ui.ts (OVERLAY_ID person-lists-modal, SEARCH_FROM 9, LIST_DETAIL_ROWS 200, NARROW_QUERY, přejmenování klik/✎/F2, klávesy ↑↓ Enter Delete) · src/ui/person-list-hooks.ts listMenu (freezeAndChecklistRows, exportRows) · src/data.ts duplicatePersonList (structuredClone, suggestPersonListName), deletePersonList (Vrátit), storePersonList audit (personList.save, :2224 přejmenování, :2254 personList.delete, :2330 zmrazení) · index.html #actions-lists-row · src/ui/bottom-sheet.ts řádek Seznamy osob v listu Více · strings.ts menu.lists, lists.title, search, byName, byChange, changed, left, people, remove, addPerson, openTable, menu.*, large, back, toast.deleted, undo.*, audit.* · app:4acf7a09, 3dc8e709 · ZADANI_DEV §2, §16 (okna 079: WindowEditSink) -->
+<!-- zdroj: app:src/ui/person-lists-ui.ts (OVERLAY_ID person-lists-modal, SEARCH_FROM 9, LIST_DETAIL_ROWS 200, NARROW_QUERY, přejmenování klik/✎/F2, klávesy ↑↓ Enter Delete) · src/ui/person-list-hooks.ts listMenu (freezeAndChecklistRows, exportRows) · src/data.ts duplicatePersonList (structuredClone, suggestPersonListName), deletePersonList (Vrátit), storePersonList audit (personList.save, :2224 přejmenování, :2254 personList.delete, :2330 zmrazení) · index.html #actions-lists-row · src/ui/bottom-sheet.ts řádek Seznamy osob v listu Více · strings.ts menu.lists, lists.title, search, byName, byChange, changed, left, people, remove, addPerson, openTable, menu.*, large, back, toast.deleted, undo.*, audit.* · app:4acf7a09, 3dc8e709 · ZADANI_DEV §2, §16 (okna 079: WindowEditSink) · 3.31.0 Na mapě: src/ui/person-lists-ui.ts (tlačítko pl-onmap v detailu, ⋯ řádek map za open), src/ui/person-list-hooks.ts showOnMap, src/windows/window-show-on-map.ts, strings.ts lists.onMap, onMapTitle, table.onMapNoMain (app:2a578474, 39020cf1, ZADANI_DEV_vyber-osob §6) -->
 
 <a id="A11.3.1"></a>
 ### A11.3.1 Podsumowanie listy
@@ -214,7 +218,7 @@ Niektóre widoki można zapisać jako listę: tylko tam, gdzie wybór osób ma s
 | Tabela › Osoby | **⋯** Tabeli lub menu **Widok** → **Zapisz jako listę osób…** | stała: osoby w kolejności wierszy Tabeli |
 | Tabela › Związki | **⋯** Tabeli → **Zapisz jako listę osób…** | stała: oboje partnerzy każdego związku, każda osoba raz |
 | wyniki wyszukiwania | **Wyniki do listy ›** ([A11.5](#A11.5)) | tylko stała |
-| ród | wybór rodu, ostatni wiersz **Zapisz ród {ród} jako listę…** | automatyczna |
+| wybór okna | **Wybór ▾**, stopka **Zapisz wybór jako listę…** (ród, przodkowie, potomkowie, linia badania; [A6.6.1](A6-views.md#A6.6.1)); do aplikacji 3.30.0 tylko ród: **Zapisz ród {ród} jako listę…** | automatyczna |
 | linia badania | **⋯** linii → **Zapisz jako listę…** | automatyczna |
 
 - Z Tabeli zapisują się osoby po filtrze i sortowaniu; tymczasowo pokazane wiersze nie. Przypięty wiersz poza filtrem
@@ -225,7 +229,7 @@ Niektóre widoki można zapisać jako listę: tylko tam, gdzie wybór osób ma s
 - **Granice:** Wydarzenia, Źródła i widoki Rodzina, Potomkowie, Wachlarz, Oś czasu i Mapa nie zapisują się jako lista.
 - **Obowiązuje od:** aplikacja 3.30.0
 
-<!-- zdroj: app:src/ui/person-list-new-ui.ts (SAVE_ID person-list-save; zdroje table/unions/search/rod/line, pinOut, keepFilter) · src/ui/table-view/table-ui.ts saveTableAsList, saveTableRule (lists.saveRule), canSaveAsList · src/ui/rod-view.ts (rodView.saveList) · src/ui/research-directions-ui.ts:1127 directionSaveListItem · src/person-lists.ts rulePersonIds tableFilter (unions: p1, p2) · strings.ts lists.saveAs, save.*, saveRule, rodView.saveList, research.dirSaveList · app:e09dcacb, 68363dbe, 211323e8 · ZADANI_DEV §6 · spec 084 K1.4, K6.3 a -->
+<!-- zdroj: app:src/ui/person-list-new-ui.ts (SAVE_ID person-list-save; zdroje table/unions/search/rod/line, pinOut, keepFilter) · src/ui/table-view/table-ui.ts saveTableAsList, saveTableRule (lists.saveRule), canSaveAsList · src/ui/rod-view.ts (rodView.saveList) · src/ui/research-directions-ui.ts:1127 directionSaveListItem · src/person-lists.ts rulePersonIds tableFilter (unions: p1, p2) · strings.ts lists.saveAs, save.*, saveRule, rodView.saveList, research.dirSaveList · app:e09dcacb, 68363dbe, 211323e8 · ZADANI_DEV §6 · spec 084 K1.4, K6.3 a · 3.31.0: src/ui/selection-picker-ui.ts saveListOptions (rod, line, selection = předci/potomci), person-list-new-ui.ts dynamic pro rod/line/selection, strings.ts selection.saveList (app:61873988, ZADANI_DEV_vyber-osob §2) -->
 
 <a id="A11.7"></a>
 ## A11.7 Kiedy osoba doszła: Dodane w ostatnich 30 dniach

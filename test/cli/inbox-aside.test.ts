@@ -89,8 +89,10 @@ function scratch(): string {
 
 test("B0408: a number from a file's name only when it says one — a copy's, a counter among numbers; the order only when no file has a number", () => {
   assert.deepEqual(personNumbers(["/x/33 2.jpg", "/x/33 - Copy (2).jpg", "/x/IMG_0057.jpg", "/x/snímek 8.jpg".normalize("NFD")]), [33, 33, 57, 8]);
-  // a portal's counter among other numbers; two numbers and no counter; a screenshot's date and time; another script's digits
-  assert.deepEqual(personNumbers(["/x/Lhota_1850-1870_00141_sign-4411.jpg", "/x/1784 33.jpg", "/x/Snímek obrazovky 2026-11-04 v 10.07.12.png".normalize("NFD"), "/x/снимок ٣٣.jpg"]), [141, undefined, undefined, undefined]);
+  // a portal's counter among other numbers; two numbers and no counter: of images asked for only one of them, the last
+  // number when which ones is not known (1123); a screenshot's date and time; another script's digits
+  assert.deepEqual(personNumbers(["/x/Lhota_1850-1870_00141_sign-4411.jpg", "/x/1784 33.jpg", "/x/Snímek obrazovky 2026-11-04 v 10.07.12.png".normalize("NFD"), "/x/снимок ٣٣.jpg"], [141, 40]), [141, undefined, undefined, undefined]);
+  assert.deepEqual(personNumbers(["/x/Lhota_1850-1870_00141_sign-4411.jpg", "/x/1784 33.jpg", "/x/Snímek obrazovky 2026-11-04 v 10.07.12.png".normalize("NFD"), "/x/снимок ٣٣.jpg"]), [141, 33, undefined, undefined]);
   // one file of the batch with a number, one without: never numbered by the order (1.jpg of a task waiting for 33 → 33)
   const mixed = numberFiles(["/x/1.jpg", "/x/obrázek.jpg"], [33, 34], new Set(), "B0001");
   assert.ok("problem" in mixed && mixed.code === "inbox.count", JSON.stringify(mixed));

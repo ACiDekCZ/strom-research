@@ -24,7 +24,7 @@ der Person; was den ganzen Stammbaum betrifft, steht in der Leiste und im Menü 
 | Ansicht Karte und weitere Ansichten | Umschalter der Ansichten in der Leiste; auf Telefon, Tablet und im Fenster bis 1024 px die untere Leiste und **Mehr → Ansicht** | [A6](A6-views.md), [A9.5](#A9.5) |
 | der ganze Stammbaum in Zeilen, CSV- und XLSX-Export | **Tabelle** im Umschalter der Ansichten; auf Telefon, Tablet und im Fenster bis 1024 px **Tabelle** in der unteren Leiste | [A6.7](A6-views.md#A6.7) |
 | Personenlisten (feste, automatische, Arbeitslisten) | **Aktionen → Personenlisten…**; auf dem Telefon **Mehr → Personenlisten** | [A11](A11-lists-of-people.md) |
-| Porträtausschnitt, Paarfoto | Bearbeiten der Person → **Foto auswählen**, **Ausschnitt bearbeiten**; Bearbeiten der Person → **Beziehungen verwalten** → Zeile **Foto** | [A12](A12-portrait-and-couple-photo.md) |
+| Porträtausschnitt, Paarfoto | Bearbeiten der Person → **Foto auswählen**, **Ausschnitt bearbeiten**; Bearbeiten der Person → **Beziehungen verwalten** → Zeile **Foto**; ab App 3.31.0 auch **Porträt aus einem Foto…** im Kopf der Bearbeitung der Person und auf der Seite einer Person ohne Porträt, auf der Personenseite ⋯ **Porträt ändern…** | [A12](A12-portrait-and-couple-photo.md) |
 | Minikarte oder Stammbaum-Legende einklappen | Reiter über der Minikarte; **◯** in der Legende | [A9.6](#A9.6) |
 | Vollbild (Telefon und Tablet) | **Mehr → Vollbild**; auf dem iPhone in Safari **Mehr → Vollbild…** | [A9.5](#A9.5) |
 | eine Ansicht oder die Forschungsübersicht in einem eigenen Fenster (am Computer) | ⧉ **In neuem Fenster öffnen** neben dem Ansichtsumschalter; Strg+Klick (macOS ⌘+Klick) auf den Reiter einer Ansicht; ⧉ in der Leiste der Tabelle und im Kopf der Übersicht | [A6.8](A6-views.md#A6.8), [S4.1.6](S4-research-from-the-app.md#S4.1.6) |
@@ -123,8 +123,9 @@ Die übrigen Ansichten und Aktionen stehen im Blatt **Mehr**.
 - **Untere Leiste:** **Familie** | **Nachkommen** | **＋** (Person hinzufügen; nur in einem Stammbaum, der sich
   bearbeiten lässt) | **Tabelle** | **Mehr**. Eine offene Familie, Nachkommen oder Tabelle wird in der Leiste
   hervorgehoben; ein offener Fächer, eine offene Karte oder Zeitleiste hebt **Mehr** hervor.
-- **Mehr → Ansicht:** **Fächer** | **Karte** | **Zeitleiste**. Auf dem Telefon steht darunter die Wahl der Stammlinie
-  ([A6.6](A6-views.md#A6.6)), wenn der Stammbaum sie anbietet; nicht bei Zeitleiste, Karte und Tabelle.
+- **Mehr → Ansicht:** **Fächer** | **Karte** | **Zeitleiste**. Auf dem Telefon steht darunter die Zeile **Auswahl**
+  ([A6.6.1](A6-views.md#A6.6.1)) in Familie, Nachkommen und Fächer jedes Stammbaums mit Personen; nicht bei
+  Zeitleiste, Karte und Tabelle. Bis App 3.30.0 stand dort die Wahl der Stammlinie, nur wenn der Stammbaum sie anbot.
 - **Vollbild:** Im Blatt **Mehr** steht **Vollbild**, im Vollbild **Vollbild beenden**. Die Leisten des Browsers
   nehmen dann keinen Platz ein.
   - Es wird nur angeboten, wo der Browser einer Seite das Vollbild erlaubt, und nur mit der unteren Leiste. Ein
@@ -174,8 +175,10 @@ die Einstellungen **Minikarte** und **Stammbaum-Legende**.
 - **Bedienung:** Reiter über der Minikarte; **◯** in der Legende, Chip „◯ Legende“. Ausschalten: Einstellungen
   **Minikarte**, **Stammbaum-Legende**.
 - **Gilt seit:** App 3.28.0
+- **Ab App 3.31.0:** auf dem Telefon (hochkant und quer) haben die **Einstellungen** keine Zeile **Minikarte**, weil
+  die Minikarte dort nicht erscheint.
 
-<!-- zdroj: app:f5d56ed3 src/ui/minimap.ts readMinimapOpen (strom-minimap-open, výchozí otevřeno), setMinimapFold (ouško jen když je minimapa nabízená), updateMinimap (isMinimapEnabled, mobil a telefon na šířku bez minimapy, STANDALONE_VIEWS, sbaleno: display none, nic se nekreslí) · src/ui/tree-legend.ts readTreeLegendOpen (strom-tree-legend-open, výchozí otevřeno), readTreeLegendSeen / noteTreeLegendSeen (strom-tree-legend-seen), syncTreeLegendFold (tečka, aria-label title + newMark, telefon vždy čip), openTreeLegendSheet (Hotovo = tour.done, klepnutí vedle, tažení 80 px dolů / doprava na šířku, nečte ani nepíše volbu), paměť bez úložiště · src/ui/misc.ts updateLegendMarks (data-marks: story-own, story-other, action, cross) · src/storage-keys.ts TREE_UI_STORAGE_KEYS · index.html .minimap-toggle (hover / pointer coarse), #tree-legend .tree-legend-toggle, pointer-events · strings.ts minimap.title, collapse, expand, settingLabel; legend.title, collapse, expand, newMark; settings legendLabel · app d78ba58b · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §2 -->
+<!-- zdroj: app:f5d56ed3 src/ui/minimap.ts readMinimapOpen (strom-minimap-open, výchozí otevřeno), setMinimapFold (ouško jen když je minimapa nabízená), updateMinimap (isMinimapEnabled, mobil a telefon na šířku bez minimapy, STANDALONE_VIEWS, sbaleno: display none, nic se nekreslí) · src/ui/tree-legend.ts readTreeLegendOpen (strom-tree-legend-open, výchozí otevřeno), readTreeLegendSeen / noteTreeLegendSeen (strom-tree-legend-seen), syncTreeLegendFold (tečka, aria-label title + newMark, telefon vždy čip), openTreeLegendSheet (Hotovo = tour.done, klepnutí vedle, tažení 80 px dolů / doprava na šířku, nečte ani nepíše volbu), paměť bez úložiště · src/ui/misc.ts updateLegendMarks (data-marks: story-own, story-other, action, cross) · src/storage-keys.ts TREE_UI_STORAGE_KEYS · index.html .minimap-toggle (hover / pointer coarse), #tree-legend .tree-legend-toggle, pointer-events · strings.ts minimap.title, collapse, expand, settingLabel; legend.title, collapse, expand, newMark; settings legendLabel · app d78ba58b · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §2 · 3.31.0: app:8bbd45cb index.html #minimap-setting-row skrytý při max-width 640px nebo telefonu na šířku · dirigent:prace/1122-app-mobil-drobnosti -->
 
 <a id="A9.7"></a>
 ## A9.7 Eine Aktion, die eine Weile dauert

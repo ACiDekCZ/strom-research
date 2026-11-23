@@ -74,8 +74,8 @@ strom überwacht beide gleich.
 - **Warum:** die App Claude führt die Hooks der Forschung auch vor ihrem eingebauten Browser aus, also kann strom jede
   Adresse beurteilen wie bei Chrome.
 - **Bedienung:** App Claude: Einstellung **Preferred browser**. Terminal: `strom doctor`, Zeile **Browser der
-  Desktop-Apps** und beim Browser in Chrome **im Gespräch in der App Claude: ja; selbstständiges Arbeiten (strom run
-  --chrome): nur mit Claude Code im Terminal**.
+  Desktop-Apps** und beim Browser in Chrome **im Gespräch in der App Claude: ja; selbstständiges Arbeiten (strom run):
+  nur mit Claude Code im Terminal**.
 - **Gilt seit:** Forschung 1.29.0
 
 <!-- zdroj: research:src/core/browser.ts (matcher mcp__(remote-devices__)?Claude_Browser__*) · src/core/chromehook.ts · src/core/webgate.ts browserGate · assets/lang/de.json ui.doc.desktop.unwatched, ui.doc.browser.apponly · CHANGELOG.de.md 1.29.0 · test/vysledek-062-u4-desktop.md kroky 1–3 · test/vysledek-1106-vyzkum-062-desktop.md bod 3 · test/vysledek-desktop-chrome.md bod 4, bod 6 -->

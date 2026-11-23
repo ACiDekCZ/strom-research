@@ -32,6 +32,8 @@ what really stands in it.
   `strom input list`, `strom input show I…`. App: **Send material…**, **Add materials…**
   ([A3.5](A3-evidence-in-the-app.md#A3.5)).
 - **Since:** research 1.0.0
+- **From research 1.36.0:** a file gets a material task only with `intake.auto` switched on or with `--sort`;
+  otherwise it waits in Materials unsorted ([R11.6](#R11.6)). A text (`--text`) always gets a task.
 
 <!-- zdroj: research:src/commands/intake.ts intake (description, BOOK_OF_SCANS=20, sha256 known, intakeTask) · research:src/core/media.ts MAX_IN_TREE=20 MB · research 1.0.0 = commit 48698860 · research:assets/method/intake.md kroky 1, 4, 6, 7 -->
 
@@ -104,8 +106,13 @@ whole, but only as leads.
     500 characters; the limit of 500 characters holds for notes written by the research and the agent;
   - a participant's `ROLE` as in GEDCOM 7 is read in another program's file too;
   - a midwife goes to the app as **Present** with the note “midwife”.
+- **From research 1.36.0:** in the file for the Strom app each citation of a family tree without a location of its
+  own has its own line of the family tree as the page (`PAGE`), so the app shows each citation's line. A pointer that
+  an import or a sync wrote ("I1 BIRT", "BIRT DATE PLAC", "family") and a citation without a line get no `PAGE`. The
+  line also stays in `DATA` › `TEXT`. A family tree given back by the app unchanged is no edit of the user and nothing
+  is cited twice; a line changed in the app is the user's edit as at any source.
 
-<!-- zdroj: research:src/core/import.ts hlavička ("as LEADS", oursByRefn), source kind family-tree form authored :113-117, status lead :294 · research:src/commands/intake.ts --no-import · research:assets/method/intake.md krok 5 · research:94d75934 src/core/import.ts (soubor aplikace Strom → origin user + tree), src/core/model.ts ValueOrigin.tree · 1.32.0: research:ac489205 src/core/import.ts importStromJson (godparent/weddingWitness → EVEN v jazyce výzkumu s roleAt, participants, partnerships[].participants, shareId/shareRole), src/core/roles.ts, src/gedcom/export.ts (porodní bába RELA Present + poznámka), celá poznámka události · research:f8eb2032 Note.whole, makeNote 500, factDetails, partnersAges, childRelation · research:01125661 appNobody, appMarriedName, appUnionFacts, appLooseFamilies · research:CHANGELOG 1.32.0 „Events shared in the Strom app“ · src/core/live.ts BRIDGE_FEATURES event.share · dirigent:prace/1113-vyzkum-085-json, 1113-vyzkum-json-intake-uplny, 1113-vyzkum-json-intake-drobnosti Výsledek · 1.34.0: research:aa0d53d5 src/core/import.ts gedRoleEventLabel (B6) -->
+<!-- zdroj: research:src/core/import.ts hlavička ("as LEADS", oursByRefn), source kind family-tree form authored :113-117, status lead :294 · research:src/commands/intake.ts --no-import · research:assets/method/intake.md krok 5 · research:94d75934 src/core/import.ts (soubor aplikace Strom → origin user + tree), src/core/model.ts ValueOrigin.tree · 1.32.0: research:ac489205 src/core/import.ts importStromJson (godparent/weddingWitness → EVEN v jazyce výzkumu s roleAt, participants, partnerships[].participants, shareId/shareRole), src/core/roles.ts, src/gedcom/export.ts (porodní bába RELA Present + poznámka), celá poznámka události · research:f8eb2032 Note.whole, makeNote 500, factDetails, partnersAges, childRelation · research:01125661 appNobody, appMarriedName, appUnionFacts, appLooseFamilies · research:CHANGELOG 1.32.0 „Events shared in the Strom app“ · src/core/live.ts BRIDGE_FEATURES event.share · dirigent:prace/1113-vyzkum-085-json, 1113-vyzkum-json-intake-uplny, 1113-vyzkum-json-intake-drobnosti Výsledek · 1.34.0: research:aa0d53d5 src/core/import.ts gedRoleEventLabel (B6) · 1.36.0: research:519951b3 src/gedcom/export.ts stromPage (family-tree: PAGE = locator citace, ne treePointer), citation where (DATA TEXT i vedle PAGE), src/core/sourcefields.ts treePointer · test/cli/origin-ids.test.ts · CHANGELOG.cs.md 1.36.0 -->
 
 <a id="R11.4"></a>
 ## R11.4 A batch from the app
@@ -139,6 +146,9 @@ sorts it by tasks.
 - **Controls:** terminal: `strom input batch` (batches and how much is sorted), `strom input sort I… --as
   source|document|photo|unrelated --person P…`. App: **Add materials…** in the research menu.
 - **Since:** research 1.12.0; a batch from a phone 1.18.0
+- **From research 1.36.0:** sorting tasks arise only with `intake.auto` switched on, or when a person asks for the
+  batch to be sorted; otherwise the batch is closed without tasks and the files wait in Materials unsorted
+  ([R11.6](#R11.6)).
 
 <!-- zdroj: research:src/core/batches.ts hlavička, BATCH_TASK_FILES=25 (od v1.12.0), BATCH_IDLE_MS, PHONE_BATCH_IDLE_MS (od v1.18.0) · research:src/commands/intake.ts input batch done (--idle), input sort (unrelated --reason) · research:assets/method/intake.md "A batch from the Strom app" -->
 
@@ -349,8 +359,47 @@ consent, or in the app through **Delete permanently…** ([A3.5.16](A3-evidence-
   - when another research on this computer cannot be read (a newer `strom`'s), the content stays stored.
 - **Limits:** it cannot be undone in the Strom app; a file stays only in a backup (`strom backup`) or a pack made
   before. The research's history keeps the record.
-- **Controls:** terminal: `strom input delete I… [--dry-run] [--files-from …]`; app: **Delete permanently…**
-  through the bridge (`POST /material/delete`, [R11.5.4](#R11.5.4)).
+- **From research 1.36.0:** a family tree file (an imported GEDCOM, the app's JSON file) is deleted the same way.
+  When a source was made of it and that source still stands, the command ends (`material.source-live`): the file can
+  be deleted only together with that source, `--retract-sources S…`. The source is deleted first, as with `strom
+  source retract` ([R3.10](R3-verification-and-citation.md#R3.10)); one yes is enough for both and everything is
+  written in one commit. The source can be restored afterwards, but without the file.
+- **Controls:** terminal: `strom input delete I… [--dry-run] [--files-from …] [--retract-sources S…]`; app:
+  **Delete permanently…** through the bridge (`POST /material/delete`, [R11.5.4](#R11.5.4)).
 - **Since:** research 1.35.0
 
-<!-- zdroj: research:0cc2cfca src/commands/intake.ts input delete (popis, --files-from, skrytý --confirm, isAgent → material.agent, checkDeleteConfirm → material.delete-changed, material.body, souhlas člověka, exit 4) · src/core/materialdelete.ts (hlavička: historie drží záznam, bajty jen v záloze nebo balíčku; DELETE_MOST_FILES=MATERIAL_MOST_EDIT=500, DELETE_CONFIRM_MS 15 min; nečitelný jiný výzkum → nic se nesmaže) · input show („deleted for good“), input list bez smazaných · CHANGELOG.md 1.35.0 -->
+<!-- zdroj: research:0cc2cfca src/commands/intake.ts input delete (popis, --files-from, skrytý --confirm, isAgent → material.agent, checkDeleteConfirm → material.delete-changed, material.body, souhlas člověka, exit 4) · src/core/materialdelete.ts (hlavička: historie drží záznam, bajty jen v záloze nebo balíčku; DELETE_MOST_FILES=MATERIAL_MOST_EDIT=500, DELETE_CONFIRM_MS 15 min; nečitelný jiný výzkum → nic se nesmaže) · input show („deleted for good“), input list bez smazaných · CHANGELOG.md 1.35.0 · 1.36.0: e6bbfb40 src/commands/intake.ts input delete (--retract-sources, material.source-live, jeden commit), ui.input.delete.retracted · src/core/live.ts POST /material/delete {files, confirm, sources} -->
+
+<a id="R11.6"></a>
+## R11.6 Sent files are gone through by the agent only once switched on
+
+A file sent to the research does not start the agent's work by itself. It is stored and waits in Materials unsorted
+until a person asks for sorting, or switches on in the research's settings that the agent goes through sent files by
+itself (`intake.auto`).
+
+- **Enforced by the code:**
+  - `intake.auto` is off by default, also in researches created earlier; nothing is converted and nothing is asked;
+  - off: a closed batch (the app, a phone, closing a day after the last file) makes no sorting tasks. No task arises
+    either for a single file from the app (a person's material, a scan of a source, the original of a portrait or of
+    a union's photo from the tree's record, [S8.3](S8-where-the-data-are.md#S8.3)), for a file sent again with
+    a further person or note, for a file shown again, for a supplemented input or for the files of `strom intake`;
+  - on: as before. A batch gives sorting tasks of about 25 files each, which go first in the queue
+    ([R11.4](#R11.4)), a file its material task ([R11.1](#R11.1)), a scan of a source a task to read it;
+  - a task always arises from an explicit action of a person: **Sort with the agent…** ([R11.5.3](#R11.5.3)),
+    `--sort`, a file as the answer to a waiting task ([R6.7.1](R6-awaiting-action.md#R6.7.1)), **Read a document…**,
+    and a text (`strom intake --text`), which is what a person says;
+  - only a person may switch it on: in the terminal, in the menu, or in the Strom app. Switching it on is refused to
+    the agent. Anyone may switch it off. Sorting tasks that have already arisen stay after it is switched off;
+  - the setting applies to one research (`--for-tree`), or to all researches on the computer.
+- **Why:** sorting uses the AI subscription and changes the tree (it attaches files to people, names them, records
+  sources). Uploading a file alone must not start AI work; the family's documents need a person's consent.
+- **In the app:** the switch in the research's settings ([S4.4.11](S4-research-from-the-app.md#S4.4.11)), the end of
+  sending a batch and **Send material…** ([A3.5](A3-evidence-in-the-app.md#A3.5)).
+- **Controls:** terminal: `strom config set intake.auto on|off --for-tree`; the menu **Settings** → “Files sent to the
+  research gone through by the agent by themselves: off”; `strom intake <files> --sort` (the agent goes through the
+  files at once); the menu **Material from the family** asks “Have the agent go through it (tasks for the agent, using
+  the AI plan)?” (default no); `strom input batch done <batch> --sort` (sort a batch closed without tasks). Bridge:
+  `POST /intake {auto}`, `POST /batch/<id>/done` with `sort`.
+- **Since:** research 1.36.0
+
+<!-- zdroj: research:da86bbe7, 90f33705 src/core/config.ts:400 intake.auto (tree: true, off|on, výchozí off), :962 intakeAuto · src/commands/setup.ts:1311, :1655-1673 intakeDecision (requireHuman, STROM_FOR_APP bez agenta, off kdokoli) · src/commands/intake.ts:202-225 (--sort, --text vždy úkol), :829-848 input batch done --sort/--no-sort · src/cli/menu-research.ts:110-125 (ui.intake.sort.ask, výchozí ne; ui.intake.done.waits) · src/cli/menu-settings.ts:98, :247-250 · src/core/live.ts:6693 POST /intake, BRIDGE_FEATURES intake.auto · cs.json ui.settings.intake(.about, .on, .off), ui.intake.sort.ask, ui.intake.done.waits · CHANGELOG.cs.md 1.36.0 · dirigent:spec/130 K1.1–K1.3, K2.1, K3.1, K4.1, rozhodnutí 21. 11. · app:docs/ZADANI_VYZKUM_trideni-davek.md (Most, Doplněk K1.3) · app:strings.ts read.menu (položka menu s „…“, titulek read.title bez) · dirigent:prace/1122-app-nalezy-330 -->

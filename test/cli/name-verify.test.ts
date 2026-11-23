@@ -201,7 +201,10 @@ test("strom verify facts <person> and verify bulk take the name along with its b
 test("the feature name-status: only for an app of APP_READS_NAME_STATUS (its beta's for another copy), in an archive too", () => {
   const prod = new Settings({ STROM_APP_URL: "https://stromapp.info/run/" }, {});
   const beta = new Settings({ STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
-  assert.ok(!bridgeFeatures(prod, "3.40.0").includes("name-status"), "no gate set: not offered");
+  assert.ok(bridgeFeatures(prod, "3.31.0").includes("name-status"), "the gate: the app's 3.31.0");
+  assert.ok(bridgeFeatures(prod, "3.40.0").includes("name-status"));
+  assert.ok(!bridgeFeatures(prod, "3.30.0").includes("name-status"), "below the gate: not offered");
+  assert.ok(!bridgeFeatures(prod, undefined).includes("name-status"), "an app of unknown version: not offered");
   assert.ok(bridgeFeatures(prod, "3.40.0", undefined, undefined, "3.32.0", "3.32.0-beta.1").includes("name-status"));
   assert.ok(!bridgeFeatures(prod, "3.31.0", undefined, undefined, "3.32.0", "3.32.0-beta.1").includes("name-status"));
   assert.ok(!bridgeFeatures(prod, undefined, undefined, undefined, "3.32.0", "3.32.0-beta.1").includes("name-status"), "an app of unknown version");

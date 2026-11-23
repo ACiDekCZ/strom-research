@@ -65,6 +65,8 @@ je předá všechny; výzkum každý soubor uloží jednou, podle obsahu, s jeho
 
 - Originál portrétu jde do výzkumu jako originál přílohy se štítkem **Portrét**, originál fotky svazku jako
   materiál obou partnerů. Originál vytvoří úkol podklady; v Archivu Stromu čeká odložený.
+  - **Od výzkumu 1.36.0:** úkol podklady vznikne jen se zapnutým nastavením **Soubory poslané do výzkumu projde
+    agent sám**; jinak originál čeká v Materiálech neroztříděný ([R11.6](R11-material-from-the-user.md#R11.6)).
 - Načtení stromu z výzkumu vrátí soubory podle otisku: aplikace dostane portréty, fotky svazků a přílohy na jejich
   místa. Soubor odebraný v aplikaci výzkum skryje, nesmaže ho ([A3.5.6](A3-evidence-in-the-app.md#A3.5.6)).
 - **Hranice:**
@@ -96,8 +98,15 @@ počítači nesvítí, když výzkum drží všechny jeho úpravy.
   počítá jako dřív, dokud se neotevře.
 - **Ovládání:** aplikace: ukazatel v liště otevře **Kde jsou data**; **Uložit do souboru**.
 - **Platí od:** aplikace 3.0.0; 3.30.0: fotky a přílohy v ukazateli
+- **Od aplikace 3.31.0:** když výzkum drží strom až na portréty, fotky svazků a přílohy, ukazatel říká **Fotky jen
+  v prohlížeči**, text při najetí „Výzkum drží strom, ne jeho portréty, fotky svazků a přílohy: ty jsou jen
+  v prohlížeči, zatím ne v souboru — prohlížeč je může smazat“. Stejně to řekne řádek v **Další** („Více – fotky
+  nejsou uložené“), upozornění („Je dobré strom průběžně ukládat do souboru.“) i dialog **Kde jsou data**
+  („Výzkum drží strom, ale portréty, fotky svazků a přílohy přidané od té doby jsou jen v prohlížeči.“). Platí to,
+  jen když jsou takové všechny stromy, které ukazatel počítá. Zůstane-li neposlaná i úprava déle než 10 minut,
+  ukazatel říká znovu **Jen v prohlížeči**.
 
-<!-- zdroj: app:e434e730, a678b253 src/browser-media.ts browserMediaFingerprint, browserMediaSafe, archiveHoldsAppMedia · src/ui/research-sync-ui.ts researchHoldsTree, RESEARCH_HOLD_MS=10 min, researchArchiveHoldsMedia · src/tree-manager.ts noteFileCopy (export bez fotek), learnMediaFingerprints · src/ui/file-copy-ui.ts unsavedOutsideResearch · strings.ts fileCopy.indicatorShort, indicatorTitle · dirigent:spec/108-kde-se-co-uklada K1b.1, K2.6 -->
+<!-- zdroj: app:e434e730, a678b253 src/browser-media.ts browserMediaFingerprint, browserMediaSafe, archiveHoldsAppMedia · src/ui/research-sync-ui.ts researchHoldsTree, RESEARCH_HOLD_MS=10 min, researchArchiveHoldsMedia · src/tree-manager.ts noteFileCopy (export bez fotek), learnMediaFingerprints · src/ui/file-copy-ui.ts unsavedOutsideResearch · strings.ts fileCopy.indicatorShort, indicatorTitle · dirigent:spec/108-kde-se-co-uklada K1b.1, K2.6 · 3.31.0: app 110f4109 src/ui/research-sync-ui.ts researchHoldsTree → photos, src/file-copy.ts unsavedKind (všechny stromy photos), strings.ts fileCopy.photosShort, photosTitle, photosMoreHint, noticePhotos, copyPhotosSince, copyPhotosNever · SPEC.md 1120-app-108-diry -->
 
 <a id="S8.5"></a>
 ## S8.5 Fotky z výzkumu se nepodařilo načíst
@@ -111,8 +120,12 @@ strom načte bez nich a nic, co výzkum má, neodebere.
 - **Hranice:** **Zkusit znovu** načte verzi z výzkumu jako každé načtení: když se strom mezitím změnil, zeptá se.
 - **Ovládání:** aplikace: oznámení → **Zkusit znovu**.
 - **Platí od:** aplikace 3.30.0, výzkum 1.35.0
+- **Od aplikace 3.31.0:** při otevření přes **Sledovat živě** přicházejí fotky po stromu
+  ([S1.4.1](S1-connecting-app-and-research.md#S1.4.1)). Fotky, které nepřišly, tam ohlásí „Některé fotky se
+  nenačetly (N).“ se **Zkusit znovu**; samo se to po 5 s a 30 s
+  neopakuje. Zápisy stromu do jejich příchodu jen přidávají stejně.
 
-<!-- zdroj: app:6bbc2f82 src/ui/research-ui.ts noteResearchMediaMissed (zápisy jen přidávají), 61ef1bdd MEDIA_RETRY_MS=[5000, 30000], researchMediaMissed, tellResearchMediaMissed, researchRetryMedia · strings.ts sync.mediaMissed, sync.retry -->
+<!-- zdroj: app:src/ui/research-ui.ts startLiveFollow onDone (failed → noteResearchMediaMissed, bez researchMediaMissed a MEDIA_RETRY_MS), src/ui/image-load-chip.ts showFailed · spec 116 · app:6bbc2f82 src/ui/research-ui.ts noteResearchMediaMissed (zápisy jen přidávají), 61ef1bdd MEDIA_RETRY_MS=[5000, 30000], researchMediaMissed, tellResearchMediaMissed, researchRetryMedia · strings.ts sync.mediaMissed, sync.retry -->
 
 <a id="S8.6"></a>
 ## S8.6 Balík a odebrání stromu: skeny a rodinné fotky
@@ -123,7 +136,10 @@ z archivu stáhnout znovu, rodinné fotky a originály ne.
 - Sken je obrázek z archivu (svazek nebo stažený snímek). Soubor, který je obojí, se počítá jako rodinný.
 - `strom pack` vypíše obojí zvlášť. Ze skenů přibalí ty se zápisy a ty, které nikdo znovu nestáhne (nebo všechny);
   rodinné fotky a originály vždy všechny, i se zmenšenými kopiemi souborů stromu. Balík nese i dávky z aplikace.
-- `strom trees remove` nejdřív nabídne zálohu balíkem, pak se zeptá zvlášť na skeny a zvlášť na rodinné fotky
+- Dávky z aplikace jdou v balíku i s názvem, lidmi a poznámkou; `strom unpack` je vrátí i se soubory dávky
+  ([R11.4](R11-material-from-the-user.md#R11.4)).
+- `strom trees remove` nejdřív nabídne zálohu balíkem se všemi skeny z archivů, rodinnými fotkami i originály (vrátí
+  ji `strom unpack`), pak se zeptá zvlášť na skeny a zvlášť na rodinné fotky
   a originály, které žádný jiný rodokmen nepoužívá; u rodinných fotek je výchozí odpověď ne. Odebrání potvrdí
   napsaný název rodokmenu. Soubory jdou do koše jako jedna složka „<název> – soubory“.
 - **Hranice:**
@@ -133,4 +149,4 @@ z archivu stáhnout znovu, rodinné fotky a originály ne.
 - **Ovládání:** terminál: `strom pack [--all-images]`, `strom unpack "<soubor>"`, `strom trees remove`.
 - **Platí od:** výzkum 1.35.0
 
-<!-- zdroj: research:31def74a src/commands/pack.ts (ui.pack.images, ui.pack.family, ui.pack.batches, pack.too-large), src/core/pack.ts (bez ZIP64), src/core/zip.ts ZIP_MAX_FILES=0xffff · src/commands/trees.ts:271-287 (záloha výchozí ano, skeny ano jen se zálohou, rodinné ne, název), ui.remove.images.folder · research:771d8af0 (zmenšené kopie v balíku) · assets/lang/cs.json ui.pack.*, ui.remove.*, ui.error.pack.too-large -->
+<!-- zdroj: research:31def74a src/commands/pack.ts (ui.pack.images, ui.pack.family, ui.pack.batches, pack.too-large), src/core/pack.ts (bez ZIP64), src/core/zip.ts ZIP_MAX_FILES=0xffff · src/commands/trees.ts:271-287 (záloha výchozí ano, skeny ano jen se zálohou, rodinné ne, název), ui.remove.images.folder · research:771d8af0 (zmenšené kopie v balíku) · assets/lang/cs.json ui.pack.*, ui.remove.*, ui.error.pack.too-large · ui.pack.batches, ui.unpack.batches (v1.35.0) · trees remove: strom pack --all-images · e6bbfb40 ui.pack.which, ui.remove.backup (1.36.0 jen texty) -->

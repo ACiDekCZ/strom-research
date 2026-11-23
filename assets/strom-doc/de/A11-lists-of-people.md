@@ -128,11 +128,15 @@ Liste.
   **Personen der Liste · N** mit der Sortierung ([A11.4](#A11.4)). Bei einer festen Liste × bei der Person (**Aus der
   Liste entfernen**) und **Person hinzufügen…** ([A11.5](#A11.5)). Bei der Person steht je nach Sortierung die
   Generation, das Datum des Hinzufügens oder der Geburtsort.
-- **⋯ der Liste** (an der Zeile in der Übersicht und im Detail): **In Tabelle öffnen**, **Umbenennen**,
-  **Duplizieren**, **Erledigtes abhaken** (fest, [A11.8](#A11.8)) oder **Einfrieren** (automatisch,
+- **⋯ der Liste** (an der Zeile in der Übersicht und im Detail): **In Tabelle öffnen**, **Auf der Karte** (ab App
+  3.31.0), **Umbenennen**, **Duplizieren**, **Erledigtes abhaken** (fest, [A11.8](#A11.8)) oder **Einfrieren** (automatisch,
   [A11.2.2](#A11.2.2)), **Exportieren ›** ([A11.9](#A11.9)), **Löschen**.
   - **In Tabelle öffnen** schließt den Dialog und öffnet die Tabelle im Umfang der Liste
     ([A6.7.19](A6-views.md#A6.7.19)).
+  - **Auf der Karte** (auch die Schaltfläche neben **In Tabelle öffnen** im Detail) schließt den Dialog, setzt die
+    Liste als Auswahl des Fensters ([A6.6](A6-views.md#A6.6)) und öffnet die Karte mit dem Bereich **Auswahl**
+    ([A6.5.7](A6-views.md#A6.5.7)). In einem weiteren Fenster führt das das Hauptfenster aus; ohne es ist **Auf der
+    Karte** nicht verfügbar („Das Hauptfenster ist nicht geöffnet.“).
   - **Duplizieren** macht eine Kopie derselben Art mit derselben Regel, Reihenfolge, den von Hand entfernten und den
     abgehakten Personen, mit dem Namen „{Name} (2)“.
   - **Löschen** fragt nicht nach: Meldung „Liste „{Name}“ gelöscht.“ mit **Rückgängig**.
@@ -149,7 +153,7 @@ Liste.
   den Listen**), **⋯** ist ein Panel von unten.
 - **Gilt seit:** App 3.30.0
 
-<!-- zdroj: app:src/ui/person-lists-ui.ts (OVERLAY_ID person-lists-modal, SEARCH_FROM 9, LIST_DETAIL_ROWS 200, NARROW_QUERY, přejmenování klik/✎/F2, klávesy ↑↓ Enter Delete) · src/ui/person-list-hooks.ts listMenu (freezeAndChecklistRows, exportRows) · src/data.ts duplicatePersonList (structuredClone, suggestPersonListName), deletePersonList (Vrátit), storePersonList audit (personList.save, :2224 přejmenování, :2254 personList.delete, :2330 zmrazení) · index.html #actions-lists-row · src/ui/bottom-sheet.ts řádek Seznamy osob v listu Více · strings.ts menu.lists, lists.title, search, byName, byChange, changed, left, people, remove, addPerson, openTable, menu.*, large, back, toast.deleted, undo.*, audit.* · app:4acf7a09, 3dc8e709 · ZADANI_DEV §2, §16 (okna 079: WindowEditSink) -->
+<!-- zdroj: app:src/ui/person-lists-ui.ts (OVERLAY_ID person-lists-modal, SEARCH_FROM 9, LIST_DETAIL_ROWS 200, NARROW_QUERY, přejmenování klik/✎/F2, klávesy ↑↓ Enter Delete) · src/ui/person-list-hooks.ts listMenu (freezeAndChecklistRows, exportRows) · src/data.ts duplicatePersonList (structuredClone, suggestPersonListName), deletePersonList (Vrátit), storePersonList audit (personList.save, :2224 přejmenování, :2254 personList.delete, :2330 zmrazení) · index.html #actions-lists-row · src/ui/bottom-sheet.ts řádek Seznamy osob v listu Více · strings.ts menu.lists, lists.title, search, byName, byChange, changed, left, people, remove, addPerson, openTable, menu.*, large, back, toast.deleted, undo.*, audit.* · app:4acf7a09, 3dc8e709 · ZADANI_DEV §2, §16 (okna 079: WindowEditSink) · 3.31.0 Na mapě: src/ui/person-lists-ui.ts (tlačítko pl-onmap v detailu, ⋯ řádek map za open), src/ui/person-list-hooks.ts showOnMap, src/windows/window-show-on-map.ts, strings.ts lists.onMap, onMapTitle, table.onMapNoMain (app:2a578474, 39020cf1, ZADANI_DEV_vyber-osob §6) -->
 
 <a id="A11.3.1"></a>
 ### A11.3.1 Die Zusammenfassung einer Liste
@@ -231,7 +235,7 @@ Manche Ansichten lassen sich als Liste speichern: nur dort, wo eine Auswahl von 
 | Tabelle › Personen | **⋯** der Tabelle oder Menü **Ansicht** → **Als Personenliste speichern…** | fest: die Personen in der Reihenfolge der Zeilen der Tabelle |
 | Tabelle › Verbindungen | **⋯** der Tabelle → **Als Personenliste speichern…** | fest: beide Partner jeder Verbindung, jede Person einmal |
 | Ergebnisse der Suche | **Ergebnisse in eine Liste ›** ([A11.5](#A11.5)) | nur fest |
-| Stammlinie | Wahl der Stammlinie, letzte Zeile **Stamm {Stammlinie} als Liste speichern…** | automatisch |
+| Auswahl des Fensters | **Auswahl ▾**, Fußzeile **Auswahl als Liste speichern…** (Stammlinie, Vorfahren, Nachkommen, Forschungslinie; [A6.6.1](A6-views.md#A6.6.1)); bis App 3.30.0 nur Stammlinie: **Stamm {Stammlinie} als Liste speichern…** | automatisch |
 | Forschungslinie | **⋯** der Linie → **Als Liste speichern…** | automatisch |
 
 - Aus der Tabelle werden die Personen nach Filter und Sortierung gespeichert; vorübergehend gezeigte Zeilen nicht.
@@ -245,7 +249,7 @@ Manche Ansichten lassen sich als Liste speichern: nur dort, wo eine Auswahl von 
   Liste gespeichert.
 - **Gilt seit:** App 3.30.0
 
-<!-- zdroj: app:src/ui/person-list-new-ui.ts (SAVE_ID person-list-save; zdroje table/unions/search/rod/line, pinOut, keepFilter) · src/ui/table-view/table-ui.ts saveTableAsList, saveTableRule (lists.saveRule), canSaveAsList · src/ui/rod-view.ts (rodView.saveList) · src/ui/research-directions-ui.ts:1127 directionSaveListItem · src/person-lists.ts rulePersonIds tableFilter (unions: p1, p2) · strings.ts lists.saveAs, save.*, saveRule, rodView.saveList, research.dirSaveList · app:e09dcacb, 68363dbe, 211323e8 · ZADANI_DEV §6 · spec 084 K1.4, K6.3 a -->
+<!-- zdroj: app:src/ui/person-list-new-ui.ts (SAVE_ID person-list-save; zdroje table/unions/search/rod/line, pinOut, keepFilter) · src/ui/table-view/table-ui.ts saveTableAsList, saveTableRule (lists.saveRule), canSaveAsList · src/ui/rod-view.ts (rodView.saveList) · src/ui/research-directions-ui.ts:1127 directionSaveListItem · src/person-lists.ts rulePersonIds tableFilter (unions: p1, p2) · strings.ts lists.saveAs, save.*, saveRule, rodView.saveList, research.dirSaveList · app:e09dcacb, 68363dbe, 211323e8 · ZADANI_DEV §6 · spec 084 K1.4, K6.3 a · 3.31.0: src/ui/selection-picker-ui.ts saveListOptions (rod, line, selection = předci/potomci), person-list-new-ui.ts dynamic pro rod/line/selection, strings.ts selection.saveList (app:61873988, ZADANI_DEV_vyber-osob §2) -->
 
 <a id="A11.7"></a>
 ## A11.7 Wann eine Person hinzukam: In den letzten 30 Tagen hinzugefügt

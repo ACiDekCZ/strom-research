@@ -179,6 +179,28 @@ of people, families, surnames and towns.
 
 <!-- zdroj: app:src/family-pages.ts · strings.ts familyPages.menuItem, familyPages.treePages, familyPages.treePagesAction, familyPages.indexTitle · spec 026 · CHANGELOG.cs.md 3.20.0, 3.21.0 -->
 
+<a id="A7.5.1"></a>
+### A7.5.1 History on the timeline of a line
+
+The timeline of a line (**Timeline of the line →** on a line's page) shows the history in the line's places with the
+symbol of its kind.
+
+- **History of a country or region** is vertical bands across the chart with the kind's symbol on top.
+- **Local history** (**Local history**, **From research sources**) of a place that has its own row in the chart is a
+  symbol on the place's row in the colour of its origin. A place without a row has a vertical band like the history of
+  a country.
+- **The list:** a history row has the kind's symbol in the colour of its origin. After the text comes the place; for
+  the history of a country or region its name, only when the line's history comes from at least two countries or
+  regions.
+- **Kinds of history:** a second row of chips under **Kinds of events**: **All** and the kinds of history on the page,
+  each with its symbol. The chosen kinds keep only their rows, bands and symbols. The row is there only with at least
+  two kinds and only with the page's script; with the chip **History** off it is gone.
+- The chip **History** in **Kinds of events** has the symbol of the kind "other".
+- **Controls:** family pages: **Timeline of the line →**, the chips **Kinds of events** and **Kinds of history**
+- **Since:** app 3.31.0
+
+<!-- zdroj: app:6caa471e src/family-pages-html.ts tlSymHtml, tlScopeClass, onRow (scope ≠ region a obec s řádkem → symbol na řádku, jinak pruh se symbolem sp-tl-bandsym), histChips (rodTimelineHistKinds > 1, js-only, Vše + druhy), řádek seznamu (symbol, place ?? region), čip hist se symbolem other, skript data-hk-off · src/rod-timeline.ts RodTimelineHistory scope, region (jen při ≥ 2 regionech), rodTimelineHistKinds · src/family-pages-css.ts (skrytí s vypnutými Dějinami) · strings.ts familyPages.tlLink, tlKindsLabel, tlKinds.hist, tlHistNote, tlHistKindsLabel, history.filterAll · dirigent:spec/121 „Časová osa rodu stejně jako hlavní osa“, Rozhodnutí 20. 11. (místní na řádku obce) -->
+
 <a id="A7.6"></a>
 ## A7.6 Person page
 

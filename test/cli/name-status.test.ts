@@ -222,12 +222,14 @@ test("person show: how sure each name is and the person's confirmation, in --jso
   }
 });
 
-test("the gate APP_READS_NAME_STATUS: not set yet — nothing for a released app; set, from its version on, an unknown version never; its beta from its own (3.31.0-beta.5)", () => {
+test("the gate APP_READS_NAME_STATUS: the app's 3.31.0 — from its version on, an unknown version never; its beta from its own (3.31.0-beta.5)", () => {
   const prod = new Settings({ STROM_APP_URL: "https://stromapp.info/run/" }, {});
   const beta = new Settings({ STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
-  assert.equal(APP_READS_NAME_STATUS, undefined, "waits for the app's 3.31.0");
+  assert.equal(APP_READS_NAME_STATUS, "3.31.0", "the app's 3.31.0 reads them");
   assert.equal(APP_READS_NAME_STATUS_BETA, "3.31.0-beta.5");
-  for (const v of [undefined, "3.31.0", "3.32.0", "9.0.0"]) assert.equal(appReadsNameStatus(prod, v), false, String(v));
+  for (const v of [undefined, "3.30.0", "3.30.9", "3.31.0-beta.9", "nonsense"]) assert.equal(appReadsNameStatus(prod, v), false, String(v));
+  for (const v of ["3.31.0", "3.31.1", "3.32.0", "9.0.0"]) assert.equal(appReadsNameStatus(prod, v), true, v);
+  for (const v of [undefined, "3.31.0", "3.32.0", "9.0.0"]) assert.equal(appReadsNameStatus(prod, v, ""), false, `no gate ${v}`);
   for (const v of [undefined, "3.30.0", "3.31.0-beta.4"]) assert.equal(appReadsNameStatus(beta, v), false, `beta ${v}`);
   for (const v of ["3.31.0-beta.5", "3.31.0", "9.0.0"]) assert.equal(appReadsNameStatus(beta, v), true, `beta ${v}`);
   for (const v of [undefined, "3.31.0", "3.32.0-beta.3"]) assert.equal(appReadsNameStatus(prod, v, "3.32.0"), false, String(v));
@@ -256,13 +258,17 @@ test("the Strom file: under NAME nothing for an app below the gate; for one of i
       tree.put({ ...anna, names: [{ ...anna.names[0]!, status: "probable" }] }, { op: "person.edit", targets: ["P0002"], summary: "test" });
       tree.commit("test");
     });
-    // an app of any version today (the gate not set): nothing under NAME, as before
+    // an app below the gate (3.30.0): nothing under NAME, as before
     const out = path.join(w.dir, "app.ged");
-    await w.ok(["export", "gedcom", "--for", "strom", "--out", out], { env: { STROM_APP_VERSION: "9.0.0" } });
+    await w.ok(["export", "gedcom", "--for", "strom", "--out", out], { env: { STROM_APP_VERSION: "3.30.0" } });
     const closed = fs.readFileSync(out, "utf8");
     assert.doesNotMatch(closed, /_STROM_EID P0001\.N|_STROM_STATUS/u);
     const indi = (text: string, id: string) => text.split(/(?=^0 )/mu).find((r) => r.startsWith(`0 @${id}@ INDI`) || r.includes(`\n1 _UID ${id}`) || r.startsWith(`0 @I${Number(id.slice(1))}@ INDI`)) ?? "";
     for (const id of ["P0001", "P0002"]) assert.doesNotMatch(indi(closed, id).split("\n1 SEX")[0]!, /_STROM_(STATUS|EID|CONFIRMED|CHECKED|VERIFY)/u, id);
+    // the app's 3.31.0 (the gate set): the export the CLI makes for it says them
+    await w.ok(["export", "gedcom", "--for", "strom", "--out", out], { env: { STROM_APP_VERSION: "3.31.0" } });
+    const open31 = fs.readFileSync(out, "utf8");
+    assert.match(indi(open31, "P0001").split("\n1 SEX")[0]!, /2 _STROM_STATUS proven\n2 _STROM_EID P0001\.N\n3 _TXT [0-9a-f]{16}\n2 _STROM_CONFIRMED 2026-01-15\n/u);
 
     // the app of the gate
     const text = exportGedcom(open(w), { for: "strom", factStatus: true, verify: new Map(), nameStatus: true }).text;
@@ -346,10 +352,10 @@ test("strom sync: the marks under NAME are no edit — an unedited tree goes the
     await w.ok(["person", "add", "Anna /Lhotová/".normalize("NFD"), "--sex", "F", "--cite", "S0001", "--name-status", "proven"], AGENT); // P0003
     confirm(w, "P0002", "2026-01-10");
     confirm(w, "P0003", "2026-01-11");
-    // an app of today (below the gate): the research's file round-trips with no change
+    // an app below the gate (3.30.0): the research's file round-trips with no change
     const out = path.join(w.dir, "export.ged");
-    await w.ok(["export", "gedcom", "--for", "strom", "--out", out], { env: { STROM_APP_VERSION: "3.31.0" } });
-    const today = fs.readFileSync(out, "utf8").replace(/^1 SOUR STROM_RESEARCH\n2 VERS .*\n/mu, "1 SOUR STROM\n2 VERS 3.31.0\n");
+    await w.ok(["export", "gedcom", "--for", "strom", "--out", out], { env: { STROM_APP_VERSION: "3.30.0" } });
+    const today = fs.readFileSync(out, "utf8").replace(/^1 SOUR STROM_RESEARCH\n2 VERS .*\n/mu, "1 SOUR STROM\n2 VERS 3.30.0\n");
     fs.writeFileSync(out, today);
     assert.deepEqual((await w.ok(["sync", out, "--json"], { env: { STROM_FOR_APP: "1" } })).json.changes, []);
 

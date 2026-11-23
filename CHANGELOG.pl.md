@@ -5,9 +5,44 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.37.0
+
+*W przygotowaniu: bety do 1.37.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+
+- **Wpis archiwum w badaniu nie utrzymuje już portalu z listy stroma:** księga z adresem na portalu, który zna lista
+  stroma (Porta fontium, Acta Publica…), nie czyni już portalu tak surowym jak archiwum, pod którym jest zapisana –
+  portal kieruje się własnymi warunkami. Własny portal archiwum pod innym adresem (lista podaje
+  przy nim warunki na stronie archiwum, np. eBadatelna praskiego archiwum państwowego) utrzymuje nadal. Poziom, który strom utrzymuje z wcześniej, zostaje, dopóki człowiek nie
+  zdecyduje w „Co czeka”. Tam, gdzie wpis archiwum nadal utrzymuje stronę, `strom doctor` i `strom allow archive`
+  wymieniają archiwum, jego księgę i stronę. Rozdział R12.2 przewodnika nie wymienia już nieistniejącego
+  `strom run --chrome`.
+- **Numer skanu w dowolnym miejscu nazwy:** skany zapisane ręcznie do folderu czekającego zadania są przejmowane także
+  pod nazwami portalu – `__0236.jpg`, `Lhota_11__125.jpg` (portal uzupełnia zera tylko do trzech cyfr, od skanu 100 już
+  nie), `fond12_kniha3_236.jpg`: z kilku liczb w nazwie ta, która należy do potrzebnych skanów, ta, która zmienia się
+  między plikami folderu, inaczej ostatnia przed rozszerzeniem. Data i godzina zrzutu ekranu nigdy nie są numerem skanu,
+  ani rok za nim (`33 1784.jpg`), gdy nie wiadomo, które skany; nazwa z dwoma potrzebnymi numerami nie jest zgadywana,
+  lecz zgłaszana razem z plikiem.
+- **Wyczerpany limit strony nie jest już przeczekiwany na próżno:** po `web.perHost` agent słyszy, kiedy strona znów da
+  strony – limit tego komputera albo w jego sesji już żadnej – i co do tego czasu: zadanie zostaje otwarte, inna praca,
+  w przeciwnym razie koniec sesji; żadnej strony ponownie wcześniej ani czekania. `strom run` na razie pomija zadanie
+  na takiej stronie i bierze inne; gdy innego nie ma, czeka, aż wolnych stron będzie dość (bez agenta, nic nie jest
+  wysyłane), albo kończy i mówi kiedy. Zadanie czekające na skan, którego przeglądarka agenta nigdy nie zapisała (strona
+  odrzucona), wraca z końcem sesji do kolejki i nigdy nie jest uznane za wstrzymane przez przeglądarkę. Tak zakończony
+  przebieg jest dla aplikacji Strom ukończonym przebiegiem, nie błędem.
+- **Wysyłki z aplikacji lżejsze i szybsze:** wysyłka z aplikacji Strom jest planowana raz zamiast dwa razy, a pliki,
+  które badanie już ma, idą przez odwołanie (swój skrót) zamiast całych danych; wysyłka wskazująca plik, którego
+  badanie nie znajduje, jest odrzucana w całości, zanim cokolwiek zostanie zapisane, a aplikacja wysyła ją ponownie
+  z danymi. „Co czeka” nigdy nie pokazuje wysyłki, która jest jeszcze liczona, jako 0 zmian.
+- **E-maile osoby to kontakt, nie miejsce zamieszkania:** e-maile z GEDCOM (miejsce zamieszkania z MyHeritage tylko
+  z e-mailem, starsza notatka aplikacji Strom „E-mail: …”) stają się kontaktem osoby, pokazywanym osobno od faktów
+  w `strom person show` i na karcie osoby – nigdy zdarzeniem ani miejscem, gdzie osoba mieszkała, nigdy nie trafiają
+  do agenta. Synchronizacja z aplikacją dodaje i usuwa e-maile jak inne zmiany. Nowa kontrola `strom fixes
+  contact-residences` zamienia miejsca zamieszkania, które starszy strom zrobił z e-maili, na kontakt (wycofane, nigdy
+  usunięte, cofa je `strom fixes undo`).
+
 ## 1.36.0
 
-*W przygotowaniu: bety do 1.36.0-beta.11. Sekcja będzie kompletna z wydaniem.*
+*22.11.2026 · współpracuje z aplikacją Strom 3.31.0.*
 
 - **Próba zbiorczej weryfikacji od razu:** zadania próby zbiorczej weryfikacji (`strom verify bulk --try`) stoją na
   początku kolejki – weźmie je następna sesja – a aplikacja Strom pozwala przerobić je od razu, każde zadanie w jednej

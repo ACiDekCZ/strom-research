@@ -49,6 +49,7 @@ import { scanLikeness } from "../core/samescan.ts";
 import { moveToTrash } from "../core/trash.ts";
 import { recordsBySha } from "../core/shaindex.ts";
 import { jobsOf, takeBatchFile, takeQueued } from "../core/mediaqueue.ts";
+import { saveNeverOpened } from "../core/ownsave.ts";
 
 const IMAGE_EXT = IMAGE_FILE_EXT;
 
@@ -828,6 +829,9 @@ export function heldSaves(tree: Tree, shared: string, downloads: string, now = D
     const dir = path.join(shared, "inbox", t!.awaits!.folder);
     const inFolder = fs.existsSync(dir) && folderFiles(dir).length > 0;
     if (dl.file || dl.unfinished || inFolder || now - r.at < HELD_AFTER_MS) continue;
+    // its page refused by the hook and nothing of its site let through since: the script never ran — nothing held back
+    // by the browser, nothing for the person to allow (core/ownsave.ts)
+    if (saveNeverOpened(tree, r)) continue;
     held.push(r);
   }
   const fresh = held.filter((r) => !r.held);
@@ -936,7 +940,7 @@ export function takenLines(taken: TakenFolder[]): string[] {
       `${t.folder}/: ${t.added.length ? `images ${runs(t.added)} of ${t.recordset} registered${t.byOrder ? " (numbered by their order: the names gave none of the numbers asked for)" : ""}` : t.aside?.length ? `nothing taken: ${counted(t.aside.length, "file")} set aside` : "nothing new (the same scans are registered)"}`,
       t.woken.length ? ` — back in the queue: ${t.woken.join(" ")}` : t.missing.length ? ` — ${who} still waits${t.missing.length ? ` for images ${runs(t.missing)}` : ""}` : "",
       t.book && t.added.length ? ` — the book's own folder: its tasks read them from disk (${who})` : "",
-      t.left ? ` — ${counted(t.left, "file")} left lying: no image number in the name (name each by the number its viewer counts, 40.jpg)` : "",
+      t.left ? ` — ${counted(t.left, "file")} left lying: no image number in the name (name each by the number its viewer counts, 40.jpg, or with it in the name, __0040.jpg)` : "",
     ].join("")].concat((t.copies ?? []).map((c) => `  ${c}`), (t.aside ?? []).map((c) => `  ⚠ ${c}`));
   });
 }
@@ -1924,7 +1928,7 @@ register(
       let byOrder = false;
       if (awaited && recordset && !opts.first && opts.image === undefined && !wantsPart) {
         const numbered = numberFiles(items.map((it) => it.file), parseImageList(awaited.images), registeredImages(tree, recordset), recordset, bookTimes(tree, recordset));
-        if ("problem" in numbered) throw new UsageError(numbered.problem, { hint: "rename the files by the image number the viewer shows (9.jpg), or --image <n> for one file", code: numbered.code, params: numbered.params });
+        if ("problem" in numbered) throw new UsageError(numbered.problem, { hint: "rename the files by the image number the viewer shows (9.jpg; the number in the name is enough, __0009.jpg), or --image <n> for one file", code: numbered.code, params: numbered.params });
         if (numbered.by === "order") {
           byOrder = true;
           // in the order of the folder (as a person sorts it), not as collected
@@ -1938,7 +1942,7 @@ register(
         const bare = items.filter((it) => it.image === undefined);
         if (bare.length)
           throw new UsageError(`${counted(bare.length, "file")} without an image number in the name: ${bare.slice(0, 5).map((it) => path.basename(it.file)).join(", ")}${bare.length > 5 ? " …" : ""}`, {
-            hint: "name each by its number as the portal's viewer counts it (9.jpg), or --image <n> for one file, --first <n> for files in order",
+            hint: "name each by its number as the portal's viewer counts it (9.jpg; the number in the name is enough, __0009.jpg), or --image <n> for one file, --first <n> for files in order",
           });
       }
       // what the person put into the shared inbox: the tasks it completes go ahead in the queue, once (core/queue.ts goesAhead)

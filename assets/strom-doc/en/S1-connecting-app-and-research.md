@@ -153,6 +153,86 @@ meanwhile, so that an edit in the app does not meet the agent's work.
 
 <!-- zdroj: app:src/ui/research-ui.ts startLiveFollow :2376 (opts.auto), researchReconnectOnly · strings.ts live.followLive, live.followingTree, live.followStarted, live.followMoved, live.liveEndedArchive, live.liveEndedNoAgent · CHANGELOG.cs.md 3.13.1 · spec 011 · app:669c08f0 src/research-tree-file.ts (ged.stale → tree.ged?stale=1, treeFileState preparing; ged.etag → If-None-Match jen u stromu přesně z toho souboru, 304 = strom zůstává), src/ui/research-ui.ts livePreparing, strings.ts research.newerPreparing · research:94d75934 src/core/liveged.ts (strom pro aplikaci jednou pro stav a variantu, na disku i po restartu mostu), src/core/live.ts (change až s hotovým stromem; ETag u tree.ged) · CHANGELOG.cs.md 1.30.0 -->
 
+<a id="S1.4.1"></a>
+### S1.4.1 The tree at once, the photos follow
+
+A tree opened with **Follow live** shows at once, with the photos the app already has. The other portraits, couple
+photos, attachments and source crops come from the research afterwards, in the background. Names, relationships and
+cards can be browsed straight away.
+
+- **Order:** first the photos of the cards on screen, then those around the centre. Panning or zooming the tree
+  reorders them. The first batch has 30 photos, the next ones 500, at most 2 requests at a time. Each photo is checked
+  against its fingerprint before it goes into the tree.
+- **A photo on its way:** the card shows the initials under a calm, slowly pulsing veil; a card with an older photo
+  shows that one under the veil until the new one comes. The tooltip says “Loading the photo…” or “Loading the new
+  photo…”. A photo that comes fades in on the spot; the tree is not redrawn for it.
+  - The same veil is in the person's dialog, the person page and the family pages in the app window, the window
+    **Materials**, a person's files and material, previews of sources and crops and the couple photo in the Table.
+    The slideshow, the changes from the research and a merge conflict show the initials until the portrait comes.
+- **A photo that did not come:** the card looks like a card without a photo; tooltip “The photo did not load.” A tile
+  in lists shows a struck-through picture, from 64 px with **Not loaded**. The person's dialog and the person page
+  have **Try again** at the photo.
+- **The indicator Photos k / n:** it appears when the photos take longer than 400 ms and counts the photos of the whole
+  tree (“Photos 846 / 860”, with “· 3 not loaded”) with a progress bar. On a computer it stands at the top, in a
+  window up to 1024 px wide at the bottom above the notices. A click shows the detail: “N to go · M not loaded” and
+  what can be done with the tree meanwhile: when following live “The tree can be viewed meanwhile.” (the tree is
+  read-only, [S1.4](#S1.4)), otherwise “The tree can be edited meanwhile.” When all have come, it shows ✓ for 2 s and
+  goes.
+- **Some did not load:** the indicator goes and one notice stays: “Some photos did not load (N).” with the reason
+  (“The research is not running. Strom Research needs to be started.”, “The research did not answer within 60 s.” or
+  “The research does not have these photos.”) and **Try again**. That loads the photos that did not load again and the
+  indicator counts the whole tree again.
+- **Enforced by the code:** a photo on its way never deletes or overwrites a saved photo.
+  - Saving the tree before the photos come keeps the previous photo (or none) at a portrait and a couple photo. The
+    app notes the photos that have not come yet with the tree and fetches them at the next connection to the research.
+  - The person's dialog writes the photo only when it was changed in the dialog. A photo that comes while the dialog
+    is open is filled in there.
+  - **Undo**, **Redo**, a discarded dialog, the daily backup and other windows keep the photos that have already
+    come.
+  - **Edit crop** of a portrait or a couple photo waits for the photo: “The crop can be edited once the photo has
+    loaded.”
+  - A photo coming in is not an edit of the tree: it cannot be undone as a step, and a tree in step with the research
+    stays in step.
+  - Photos that did not come are not taken by the research as removed: until they come, the tree's writes only add
+    ([S8.5](S8-where-the-data-are.md#S8.5)).
+- **Limits:**
+  - only when the tree is opened with **Follow live**. A newer version while following, taking over a tree and other
+    loads of a version from the research bring the photos at once with the tree, as before;
+  - research up to 1.29 sends the tree with the photos inside the file: the tree shows only with them;
+  - another tree opened during loading cancels the loading and the indicator goes. A photo lands only in the tree and
+    the load it was fetched for;
+  - other windows of the app ([A6.8](A6-views.md#A6.8)) have no loading states and show the tree without the veil;
+  - for an encrypted tree, source files and crops that did not come before the page was closed come only with the next
+    version from the research;
+  - on a phone held sideways the expanded research panel folds at the indicator ([S4.1](S4-research-from-the-app.md#S4.1)).
+- **Controls:** app: **Follow live**; the indicator **Photos k / n** (a click: the detail, Esc closes it); the notice
+  → **Try again**; the person's dialog and the person page → **Try again**.
+- **Since:** app 3.31.0, research 1.30.0
+
+<!-- zdroj: dirigent:spec/116-fotky-nacitat-pozdeji K1.2–K1.6, K2.1 · prace/1119-app-116-fotky (Výsledek, odchylky) · app:45dd3426 src/image-loads.ts (ImageLoadQueue, IMAGE_FIRST_BATCH 30, takePendingImages, write jen do současného stromu a načtení, bez kroku zpět), src/research-image-refs.ts IMAGE_BATCH 500, IMAGE_CONCURRENCY 2, IMAGE_ANSWER_MS 60 s · src/ui/research-ui.ts startLiveFollow (ged.imagesByHash → later, priority TreeRenderer.imagePriority: na obrazovce, pak kolem středu; setPendingImages I1; researchResumePendingImages) · research:33ac2e38 (1.30.0) src/core/live.ts ged.imagesByHash · app:95e68ac7 (K1.5 I1–I7: TreeMetadata.pendingImages, notes(records) bez záznamů u šifrovaného stromu) · 87b9ec30 src/ui/image-slot.ts (data-img-state loading/refresh/failed, IMG_PULSE_MS, TILE_NOTE_MIN_PX 64) · ad9e82a0 src/ui/person-modal.ts renderPhotoState, photoModel · 05cf608c, e188236f (další místa) · 4afeb434, b1bcb476 src/ui/image-load-chip.ts CHIP_SHOW_MS 400, BUSY_DONE_MS, detailNote(readOnly), failedReasonText (offline → timeout → missing), treeSwitched · 4afeb434 src/image-loads.ts abort (strom už není současný) · strings.ts photos.loading, loadingNew, failed, failedNew, tileFailed, recropWait, chipLabel, chipFailed, detailLeft, detailEditable, detailViewOnly, someFailed, whyMissing · busy.errOffline, errTimeout, retry · a2feee6b (≤ 1024 dole nad oznámením) · 7be40d24 src/ui/landscape-panel-fold.ts · CHANGELOG.cs.md 3.31.0 -->
+
+<a id="S1.4.2"></a>
+### S1.4.2 Outputs wait for the photos
+
+An output asked for while the tree's photos are still coming ([S1.4.1](#S1.4.1)) waits for them and is made only with
+them. Without the photos it is made only on an explicit choice.
+
+- **Which outputs:** printing the poster, the PNG image and the SVG vector, the person page, the family pages, the
+  family book, the data backup (**Save to file**, writing to the linked file, a file for sharing, **Export** of the
+  backup) and the GEDCOM export. A CSV file has no photos and does not wait.
+- **Waiting:** the output's button or row says “Waiting for photos · k of n” and a second click starts nothing. A notice
+  with the output's name (“Printing the poster”, “Family book”…) counts the photos with a bar and has **Cancel**. The
+  indicator **Photos k / n** hides meanwhile.
+- **When some did not come:** one notice “Some photos did not load (N).” with the reason and three choices: **Try
+  again**, **Continue without N photos** (the output from the data as they are) and **Cancel**.
+- **Enforced by the code:** an output never contains the veil or the mark of a photo that did not load. Printing
+  loads and draws, before the print opens, even the pictures the page loads only on scrolling.
+- **Controls:** app: the output as always; in the notice **Cancel**; in the alert **Try again**, **Continue without
+  N photos**, **Cancel**.
+- **Since:** app 3.31.0
+
+<!-- zdroj: dirigent:spec/116-fotky-nacitat-pozdeji K1.7 · app:9d326239 src/ui/output-images.ts imagesBeforeOutput, waitingLine, someFailedText, toastImagesView (retry, without, cancel; suspendImageLoadChip), imagesReadyForPrint · src/image-loads.ts awaitTreeImages · volající: src/ui/export-image-ui.ts (poster, png, svg), person-page-ui.ts (personPage, familyPages), book-ui.ts (book, familyPages), file-copy-ui.ts, file-access-ui.ts, share-ui.ts (backup), encryption-ui.ts (backup, gedcom; csv ne) · src/ui/fan-view.ts (live false: fotka nebo nic) · strings.ts photos.waiting, continueWithout, out.*, busy.kOfN, buttons.cancel · CHANGELOG.cs.md 3.31.0 -->
+
 <a id="S1.5"></a>
 ## S1.5 When the research is not running or the connection fails
 

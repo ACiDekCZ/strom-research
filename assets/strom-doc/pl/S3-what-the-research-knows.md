@@ -73,8 +73,12 @@ sprzeczności niesie jako liczbę, np. „2 sprzeczności”.
 - **Obsługa:** aplikacja: menu osoby → **Badanie → Co wie badanie**.
 - **Obowiązuje od:** aplikacja 3.4.0
 - **Od aplikacji 3.22.0:** w podmenu **Badanie** na górze są linie, w których jest osoba.
+- **Od aplikacji 3.31.0:** **Co wie badanie** jest w podmenu **Badanie** z liczbą zawsze, gdy badanie coś o osobie
+  wie, nawet gdy blok sygnałów nad menu (sprzeczności, pytanie) prowadzi do tego samego okna. Dotąd w takim
+  przypadku go tam brakowało. Gdyby **Co wie badanie** było jedyną pozycją **Badanie** (bez podmenu, na przykład na
+  telefonie), tuż obok sygnału się nie powtarza.
 
-<!-- zdroj: app:src/ui/person-research-ui.ts:140-150 personResearchKnows, markResearchConflicts · src/ui/context-menu.ts personSection · src/ui/card-signals-ui.ts · src/card-signals.ts:171-194 · src/ui/view-links-ui.ts:326 · src/renderer.ts:5479 · src/ui/research-edge-ui.ts:205, :364 · src/ui/conflict-panel-ui.ts:274 · src/ui/research-ui.ts:2119 researchLinkAvailable · HEAD context-menu.ts personInLineItems (spec 038 §5.1) -->
+<!-- zdroj: app:src/ui/person-research-ui.ts:140-150 personResearchKnows, markResearchConflicts · src/ui/context-menu.ts personSection · src/ui/card-signals-ui.ts · src/card-signals.ts:171-194 · src/ui/view-links-ui.ts:326 · src/renderer.ts:5479 · src/ui/research-edge-ui.ts:205, :364 · src/ui/conflict-panel-ui.ts:274 · src/ui/research-ui.ts:2119 researchLinkAvailable · HEAD context-menu.ts personInLineItems (spec 038 §5.1) · 3.31.0: app 04185a08 src/ui/context-menu.ts personResearchKnows vždy, researchRowsBesideSignals (jediná položka vedle signálu se neopakuje) · SPEC.md 1120-app-117-smazani (Přibaleno) -->
 
 <a id="S3.3"></a>
 ## S3.3 Nad osobą pokazuje, gdzie kończy się drzewo i co dalej
@@ -147,6 +151,32 @@ stroną z aplikacji opisuje [R5.6.1](R5-conflicts.md#R5.6.1).
   w badaniu.”).
 
 <!-- zdroj: app:src/ui/person-research-ui.ts showPersonResearchDialog (Rozpory), activeResearchNoAgent · research:src/gedcom/export.ts:760-805 · HEAD person-research-ui.ts conflictFromEdit, strings.ts conflict.editOnly · HEAD research-decide.ts conflictFromEdit -->
+
+<a id="S3.4.1"></a>
+### S3.4.1 Źródło wycofane – do przejrzenia
+
+Sprzeczność, która opierała się na źródle usuniętym w badaniu ([R3.10](R3-verification-and-citation.md#R3.10)), ma
+obok stanu etykietę **do przejrzenia**. W kolumnie **Źródło** przy wartości stoi „źródło wycofane”. Otwarta
+sprzeczność niesie zdanie „Źródło jednej z wartości zostało wycofane; rozbieżność czeka na przejrzenie.”
+
+- Rozstrzygnięta sprzeczność ze znacznikiem pokazuje się jako karta, nie jako wiersz „rozstrzygnięto: …”, ze
+  zdaniem „Decyzja opierała się też na wycofanym źródle; czeka na przejrzenie.” i dwoma wyborami:
+  - **Decyzja obowiązuje:** zdejmuje znacznik przez most (jak `strom conflict keep`); decyzja zostaje taka, jaka
+    jest;
+  - **Rozstrzygnij ponownie w badaniu:** otwiera rozstrzyganie w badaniu jak **Rozstrzygnij w badaniu**
+    ([R5.6](R5-conflicts.md#R5.6)); nowe rozstrzygnięcie także zdejmuje znacznik.
+- Znacznik widać w **Co wie badanie**, na karcie sprzeczności ze stronami, w panelu przy polu w edycji osoby
+  i w dymku Tabeli. Sprzeczność sama się nie zamknie.
+- **Granice:**
+  - **Decyzja obowiązuje** jest tylko z badaniem, które umie usuwać źródła, i z działającym mostem. Przy badaniu
+    tylko do odczytu mówi „Badanie jest tylko do odczytu; decyzji nie można tu potwierdzić.”;
+  - **Rozstrzygnij ponownie w badaniu** tylko tam, gdzie można otworzyć badanie ([S3.2](#S3.2)), i tylko przy osobie
+    z badania.
+- **Obsługa:** aplikacja: **Co wie badanie** → **Sprzeczności** → **Decyzja obowiązuje** / **Rozstrzygnij ponownie
+  w badaniu**; terminal: `strom conflict keep X…`.
+- **Obowiązuje od:** aplikacja 3.31.0 z badaniem 1.36.0
+
+<!-- zdroj: app:801189d6 src/ui/person-research-ui.ts conflictUnderReview, reviewTagHtml, researchConflictReviewCardHtml (keepOn = conflictKeepOffered, canDecide = researchLinkAvailable + personResearchRef), keepResearchConflict · src/source-retract.ts conflictKeepOffered, keepConflict (/conflict/keep) · src/ui/conflict-decide-ui.ts, conflict-panel-ui.ts, table-view/table-research-bubble.ts · strings.ts research.review.* · research:e6bbfb40 src/commands/analysis.ts conflict keep · spec 117 §8 -->
 
 <a id="S3.5"></a>
 ## S3.5 Hipotezy

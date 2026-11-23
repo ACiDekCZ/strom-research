@@ -9,6 +9,7 @@
 import { eventKind, FAMILY_EVENT_KINDS, treeNoteText, type EventRoleAt, type ChildLink, type ChildRelation, type Event, type ExternalRef, type Family, type Input, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Source, type ValueOrigin } from "./model.ts";
 import { normalizeAge } from "./age.ts";
 import { foldText } from "./text.ts";
+import { addressText, appResidenceContact, joinEmails, personContact, realAddress, residenceContact, type AppResidence } from "./contact.ts";
 import { eventMarksOf, gedcomRole, participantRole, roleAtMark, roleWord, shareMark, type EventMarks } from "./roles.ts";
 import { labels } from "../gedcom/labels.ts";
 import { phrase, type PhraseKey } from "./phrases.ts";
@@ -52,7 +53,7 @@ export interface ImportResult {
    */
   notJoined?: { person: string; family: string; like: string }[];
   /** What another program's file holds that the research does not take: media records, links to them, its own tags by tag. */
-  notTaken?: { objects: number; links: number; tags: Record<string, number> };
+  notTaken?: { objects: number; links: number; tags: Record<string, number>; contact?: Record<string, number> };
 }
 
 /** Christenings and baptisms are one fact for a comparison. */
@@ -399,12 +400,33 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
     const families = new Set(records.filter((x) => x.tag === "FAM" && x.xref).map((x) => x.xref!));
     const familyOf = new Map<string, string>();
     const atLater: { event: string; at: string; owner: string; family: boolean }[] = [];
+    // a person's contact (spec 134 U11): the e-mails of residences that are none and of "1 EMAIL", by the person's xref;
+    // what of a contact the research does not keep (PHON, FAX, WWW) counted by tag
+    const contactOf = new Map<string, string[]>();
+    const contactNotTaken = (tags: string[]) => {
+      if (!tags.length) return;
+      const nt = (result.notTaken ??= { objects: 0, links: 0, tags: {} });
+      for (const t of tags) (nt.contact ??= {})[t] = (nt.contact[t] ?? 0) + 1;
+    };
     const events = (node: GedNode, xref: string, forFamily: boolean, couple: { HUSB?: string; WIFE?: string } = {}): Event[] => {
       const out: Event[] = [];
+      if (!forFamily) {
+        const own = personContact(node);
+        contactNotTaken(own.notTaken);
+        if (own.emails.length) contactOf.set(xref, joinEmails(contactOf.get(xref), own.emails));
+      }
       for (const c of node.children) {
         const kind = eventKind(c.tag);
         if (!kind || ["NAME", "SEX"].includes(c.tag)) continue;
         if (forFamily !== FAMILY_EVENT_KINDS.has(kind) && kind !== "EVEN" && kind !== "RESI" && kind !== "CENS") continue;
+        // a residence of nothing but a contact is none: its e-mails the person's contact; a residence's EMAIL the
+        // contact too, never its note
+        if (!forFamily && c.tag === "RESI") {
+          const ct = residenceContact(c, noteText);
+          contactNotTaken(ct.notTaken);
+          if (ct.emails.length) contactOf.set(xref, joinEmails(contactOf.get(xref), ct.emails));
+          if (ct.onlyContact) continue;
+        }
         const origin = originOf<"date" | "place" | "value">(c);
         const ev: Event = {
           id: tree.allocate("E"),
@@ -423,7 +445,7 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         // an address in the place (ADDR / ADR1) is the house; the age a person's fact's (a couple's: the partners')
         const addr = c.children.find((x) => x.tag === "ADDR");
         const rawAge = val(c, "AGE");
-        const { ageAsWritten, ...said } = factDetails(val(c, "CAUS"), forFamily ? undefined : rawAge, addr ? (val(addr, "ADR1") ?? addr.value) : undefined);
+        const { ageAsWritten, ...said } = factDetails(val(c, "CAUS"), forFamily ? undefined : rawAge, addressText(addr));
         Object.assign(ev, said);
         if (ageAsWritten) extra.push(`age as written: ${rawAge}`);
         const value = c.value.trim();
@@ -576,10 +598,13 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         const names = namesOf(r).filter((n) => n.given !== "?" && !cur.names.some((x) => sameName(x, n)) && !isRetractedName(cur, n)).map(withoutMark);
         // the IDs it has in this file: added (the same import and xref once), nothing taken off
         const ids = joinIds(cur.originalIds, idEntries(r).entries);
-        if (!facts.length && !names.length && !ids.changed) continue;
+        // the contact the file gives: added to the person's (each address once), nothing taken off
+        const emails = joinEmails(cur.contact?.emails, contactOf.get(r.xref!));
+        const contactAdded = emails.length - (cur.contact?.emails?.length ?? 0);
+        if (!facts.length && !names.length && !ids.changed && !contactAdded) continue;
         const refs = (cur.refs ?? []).some((x) => x.system === system && x.id === r.xref!) ? cur.refs : [...(cur.refs ?? []), { system, id: r.xref! }];
-        const next: Person = { ...cur, names: [...cur.names, ...names], events: [...cur.events, ...facts], ...(refs ? { refs } : {}), ...(ids.changed ? { originalIds: ids.list } : {}), updated: now() };
-        const what = [...facts.map((e) => [e.kind, e.date].filter(Boolean).join(" ")), ...names.map((n) => `name ${[n.given, n.surname].filter(Boolean).join(" ")}`)].join(", ");
+        const next: Person = { ...cur, names: [...cur.names, ...names], events: [...cur.events, ...facts], ...(refs ? { refs } : {}), ...(ids.changed ? { originalIds: ids.list } : {}), ...(contactAdded ? { contact: { ...cur.contact, emails } } : {}), updated: now() };
+        const what = [...facts.map((e) => [e.kind, e.date].filter(Boolean).join(" ")), ...names.map((n) => `name ${[n.given, n.surname].filter(Boolean).join(" ")}`), ...(contactAdded ? [`contact +${contactAdded} e-mail(s)`] : [])].join(", ");
         const saved = save(next, { op: "person.import", targets: [cur.id], summary: `${cur.id} + ${what || "IDs of the file"}${what ? " (lead)" : ""}` }, bare(r.xref!));
         if (saved && what) result.extended.push(`${cur.id}: ${what}`);
         continue;
@@ -614,6 +639,7 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         notes: personNotes.filter((x) => x.trim()).map((x) => note(tree, x)),
         refs,
         ...(originalIds.length ? { originalIds } : {}),
+        ...(contactOf.get(r.xref!)?.length ? { contact: { emails: contactOf.get(r.xref!)! } } : {}),
         created: t,
         updated: t,
       };
@@ -933,6 +959,8 @@ interface StromPerson {
   marriedFirstName?: string;
   /** The name the person is shown by (spec 024): the birth one, the one after the marriage; none: no choice. */
   primaryName?: string;
+  /** How to reach the person (spec 134 U11): their e-mail addresses (the app from 3.32). */
+  emails?: string[];
 }
 /** An event of a person (or a couple) in the Strom app's JSON, with the marks of an event it shares (spec 085). */
 export interface StromEvent {
@@ -954,6 +982,8 @@ export interface StromEvent {
   roleAt?: { role?: string; personId?: string; partnershipId?: string; eventType?: string };
   /** Who else was there (godparents, witnesses, a midwife): a person of the app's tree or a name. */
   participants?: StromParticipant[];
+  /** The EMAIL lines the GEDCOM the app loaded gave the event (a residence's: a contact, spec 134 U11). */
+  gedcomEmails?: string[];
 }
 /** Who else was at an event in the Strom app's JSON: its role, a person of its tree (`personId`) or a name, a note. */
 export interface StromParticipant {
@@ -1155,9 +1185,20 @@ export function importStromJson(
     const made: Person[] = [];
     for (const [i, sp] of all.entries()) {
       const ours = ourPeople[i];
+      // the person's contact (spec 134 U11): the app's e-mails and its residences of nothing but one
+      let emails = joinEmails(Array.isArray(sp.emails) ? sp.emails : [], []);
+      const residences = (Array.isArray(sp.events) ? sp.events : []).filter((e) => e && typeof e === "object" && typeof e.type === "string" && appPersonEvent(e, lang)?.kind === "RESI");
+      for (const e of residences) emails = joinEmails(emails, appResidenceContact(e as AppResidence).emails);
       if (ours) {
         idMap.set(sp.id, ours.id);
         result.matched++;
+        // one of ours: the contact the file gives added to theirs, nothing taken off
+        const cur = tree.get<Person>(ours.id);
+        const joined = cur ? joinEmails(cur.contact?.emails, emails) : [];
+        if (cur && joined.length > (cur.contact?.emails?.length ?? 0)) {
+          tree.put({ ...cur, contact: { ...cur.contact, emails: joined }, updated: now() }, { op: "person.import", targets: [cur.id], summary: `${cur.id} + contact +${joined.length - (cur.contact?.emails?.length ?? 0)} e-mail(s)` });
+          result.extended.push(`${cur.id}: contact +${joined.length - (cur.contact?.emails?.length ?? 0)} e-mail(s)`);
+        }
         continue;
       }
       const events: Event[] = [];
@@ -1176,6 +1217,8 @@ export function importStromJson(
         // an occupation, a religion, a title: the app keeps what it is as the event's note (its first line)
         const value = VALUE_TAGS.has(what.kind) ? (e.note?.split("\n")[0] ?? "").replace(/\s+/gu, " ").trim() : "";
         if ((what.kind === "EVEN" && !what.label) || (VALUE_TAGS.has(what.kind) && !value)) continue;
+        // a residence of nothing but a contact is none (its e-mails the contact, above)
+        if (what.kind === "RESI" && appResidenceContact(e as AppResidence).onlyContact) continue;
         const ev = factOf(sp.id, what.kind, e, e.date, e.place);
         if (what.label) ev.label = what.label;
         if (value) ev.value = value;
@@ -1213,6 +1256,7 @@ export function importStromJson(
         events,
         notes: sp.notes?.trim() ? [note(tree, sp.notes)] : [],
         refs: [{ system: "strom-app", id: sp.id }, ...(sp.refn ? [{ system: "refn", id: sp.refn }] : [])],
+        ...(emails.length ? { contact: { emails } } : {}),
         created: t,
         updated: t,
       };
@@ -1412,7 +1456,8 @@ export function factDetails(cause: string | undefined, age: string | undefined, 
   const a = raw ? normalizeAge(raw) : undefined;
   if (a) out.age = a;
   else if (raw) out.ageAsWritten = raw;
-  const h = address?.trim() ? houseOf(address) : "";
+  // a label another program writes in place of the address ("Email") is no house (spec 134 U11)
+  const h = realAddress(address) ? houseOf(address!) : "";
   if (h) out.house = h;
   return out;
 }

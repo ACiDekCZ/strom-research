@@ -5,9 +5,42 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.37.0
+
+*In preparation: the betas up to 1.37.0-beta.1. The section is complete with the release.*
+
+- **A research's archive no longer holds a portal of strom's list:** a book whose address is on a portal strom's list
+  knows (Porta fontium, Acta Publica…) no longer makes the portal as strict as the archive the book is recorded under —
+  the portal follows its own terms. The archive's own portal under another address (its terms on the archive's
+  site in the list, like eBadatelna of the Prague regional archive) it still holds. A level strom kept before stays until the person decides in What waits. Where the
+  research's archive still holds a site, `strom doctor` and `strom allow archive` name the archive, its book and the
+  site. Chapter R12.2 of the guide no longer names a `strom run --chrome` that does not exist.
+- **An image's number anywhere in the name:** images saved by hand into the folder of a waiting task are taken under a
+  portal's own names too — `__0236.jpg`, `Lhota_11__125.jpg` (a portal that pads to three digits only, from image 100
+  on), `fond12_kniha3_236.jpg`: of several numbers in a name, the one of the images asked for, the one that changes from
+  file to file of the folder, else the last one before the extension. A screenshot's date and time is never an image's
+  number, nor a year after it (`33 1784.jpg`) when which images is not known; a name with two of the images asked for is
+  not guessed but said with the file.
+- **A used-up site's limit no longer waited out for nothing:** past `web.perHost` the agent hears when the site takes
+  pages again — the limit of this computer, or none more in its session — and what to do until then: the task left
+  open, other work, else the session ended; never a page tried again before then nor a wait. `strom run` leaves a task
+  on such a site for now and takes another; with nothing else it waits until enough of its pages are free (no agent,
+  nothing sent), or ends saying when. A task waiting for an image the agent's browser never saved (its page refused)
+  goes back to the queue as its session ends, never said held back by the browser. A run ended this way is a
+  finished run to the Strom app, not an error.
+- **Sends from the app lighter and faster:** a send from the Strom app is planned once instead of twice, and files the
+  research already has travel by reference (their hash) instead of their whole data; a send naming a file the research
+  cannot find is refused whole before anything is kept, and the app sends it again with the data. What waits never
+  shows a send still being counted as 0 changes.
+- **A person's e-mails are a contact, not a residence:** e-mails from a GEDCOM (MyHeritage's residence with nothing but
+  an e-mail, the Strom app's older note "E-mail: …") become the person's contact, shown apart from the facts in `strom
+  person show` and on the person's card — never an event or a place the person lived, never given to the agent. Sync
+  with the app adds and takes off e-mails like other edits. The new check `strom fixes contact-residences` turns
+  residences an older strom made of e-mails into the contact (withdrawn, never deleted, undone by `strom fixes undo`).
+
 ## 1.36.0
 
-*In preparation: the betas up to 1.36.0-beta.11. The section is complete with the release.*
+*2026-11-22 · goes with the Strom app 3.31.0.*
 
 - **A try of the bulk verification at once:** the tasks of a try of the bulk verification (`strom verify bulk --try`)
   stand first in the queue — the next session takes them — and the Strom app can have them worked on at once, one

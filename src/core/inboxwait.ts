@@ -160,16 +160,86 @@ export function folderBusy(dir: string, files: string[], now = Date.now()): numb
  * portal's "…_00141_sign-4411.jpg"); two numbers and no such counter ("1784 33", a screenshot's date and time "2026-11-04
  * 10.07"): not known.
  */
-export function personNumbers(files: string[]): (number | undefined)[] {
-  return files.map((f) => {
-    const groups = copyless(f).match(/\p{Nd}+/gu) ?? [];
-    const digits = groups.map((g) => (/^[0-9]+$/u.test(g) ? g : undefined));
-    if (digits.some((g) => g === undefined)) return undefined; // digits of another script: not read as a number
-    if (digits.length === 1) return Number(digits[0]);
-    // a counter of three digits at least (a date's "04", a time's "07" are no counter)
-    const padded = digits.filter((g) => g!.length > 2 && g!.startsWith("0"));
-    return padded.length === 1 ? Number(padded[0]) : undefined;
+export function personNumbers(files: string[], want?: readonly number[]): (number | undefined)[] {
+  return readNumbers(files, want).numbers;
+}
+
+/**
+ * A date in a name (a screenshot's, a camera's: "2026-11-04 10.07", "4.11.2026", "IMG_20261104_100723"): its numbers
+ * are never an image's — of such a name only what was read before (one group, one zero-padded counter).
+ */
+const DATED = [
+  /(?<!\p{Nd})(?:19|20)[0-9]{2}([-._ ])(?:0?[1-9]|1[0-2])\1(?:0?[1-9]|[12][0-9]|3[01])(?!\p{Nd})/u,
+  /(?<!\p{Nd})(?:0?[1-9]|[12][0-9]|3[01])([-._ ])(?:0?[1-9]|1[0-2])\1(?:19|20)[0-9]{2}(?!\p{Nd})/u,
+  /(?<!\p{Nd})(?:19|20)[0-9]{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])(?!\p{Nd})/u,
+];
+
+/** Four digits that look like a year (1500–2099): of a name with other numbers too, not taken by rule 5 when which images is not known. */
+const YEAR = /^(?:1[5-9]|20)[0-9]{2}$/u;
+
+/** The numbers of a folder's files read from their names, and the files whose name gives two images asked for. */
+export interface ReadNumbers {
+  numbers: (number | undefined)[];
+  /** A name with two or more numbers of the images asked for ("0012_0236.jpg" of a task waiting for 12 and 236): not guessed. */
+  ambiguous: { file: string; numbers: number[] }[];
+}
+
+/**
+ * The image number each file's name gives (B0408; 1123: a portal's "__0236.jpg", "Lhota_11__125.jpg"), a copy's
+ * suffix aside (copyless) — the first rule that gives one, in this order:
+ *   1. one group of digits ("33", "IMG_0057", "snímek 8", "__0236"), leading zeros dropped;
+ *   2. of several groups, the one number that is an image asked for (`want`): "CZ-SOA_1784_0236", "fond12_kniha3_236"
+ *      of a task waiting for 236 — two numbers asked for in one name ("0012_0236" waiting for 12 and 236) are not
+ *      guessed: said (`ambiguous`);
+ *   3. the place of the group that changes from file to file of the folder (all with as many groups; of images asked
+ *      for, each one of them): "Lhota_11__025", "Lhota_11__125" — the portal pads to three digits only;
+ *   4. the one zero-padded counter of three digits at least among other numbers (a portal's "…_00141_sign-4411.jpg");
+ *   5. the last number before the extension — an image asked for, or any when which ones is not known but one that
+ *      looks like a year (YEAR: "33 1784" is left lying, said what it needs).
+ * A name with a date (DATED: a screenshot's "2026-11-04 10.07") only by 1 and 4; digits of another script: not read.
+ */
+export function readNumbers(files: string[], want?: readonly number[]): ReadNumbers {
+  const wanted = new Set(want ?? []);
+  const known = wanted.size > 0;
+  const asked = (n: number) => !known || wanted.has(n);
+  const read = files.map((f) => {
+    const stem = copyless(f);
+    const groups = stem.match(/\p{Nd}+/gu) ?? [];
+    // digits of another script: not read as a number
+    return { groups: groups.every((g) => /^[0-9]+$/u.test(g)) ? groups : [], dated: DATED.some((d) => d.test(stem)) };
   });
+  const ambiguous: ReadNumbers["ambiguous"] = [];
+  const unsure = new Set<number>();
+  const numbers: (number | undefined)[] = read.map(({ groups, dated }, i) => {
+    if (groups.length === 1) return Number(groups[0]);
+    if (groups.length < 2 || dated || !known) return undefined;
+    const hits = [...new Set(groups.map(Number).filter((n) => wanted.has(n)))];
+    if (hits.length === 1) return hits[0];
+    if (hits.length > 1) {
+      ambiguous.push({ file: files[i]!, numbers: hits.sort((a, b) => a - b) });
+      unsure.add(i);
+    }
+    return undefined;
+  });
+  // 3. the group that changes from file to file of the folder (as imageNumbers does for a download)
+  const many = read.map((r, i) => i).filter((i) => read[i]!.groups.length > 1 && !read[i]!.dated);
+  const n = read[many[0]!]?.groups.length ?? 0;
+  if (many.length > 1 && many.every((i) => read[i]!.groups.length === n)) {
+    const varying = [...Array(n).keys()].filter((k) => new Set(many.map((i) => Number(read[i]!.groups[k]))).size > 1);
+    const k = varying.at(-1);
+    if (k !== undefined && many.every((i) => asked(Number(read[i]!.groups[k]))))
+      for (const i of many) if (numbers[i] === undefined && !unsure.has(i)) numbers[i] = Number(read[i]!.groups[k]);
+  }
+  read.forEach(({ groups, dated }, i) => {
+    if (numbers[i] !== undefined || unsure.has(i) || groups.length < 2) return;
+    // 4. a counter of three digits at least (a date's "04", a time's "07" are no counter)
+    const padded = groups.filter((g) => g.length > 2 && g.startsWith("0"));
+    if (padded.length === 1) numbers[i] = Number(padded[0]);
+    // 5. the last number before the extension (Milan, 1123) — never of a date; which images not known, never one that
+    // looks like a year among other numbers ("33 1784", "kniha_33_1784": not guessed, it lies there and says why)
+    else if (!dated && asked(Number(groups.at(-1))) && (known || !YEAR.test(groups.at(-1)!))) numbers[i] = Number(groups.at(-1));
+  });
+  return { numbers, ambiguous };
 }
 
 /** The folder of a book that tasks still need (core/books.ts), no task waiting on it — K1.4. */
@@ -226,7 +296,7 @@ export function numberBookFiles(files: string[], recordset: string, times?: numb
   const left = files.length - named.length;
   if (named.length) return { files: named.map((x) => x.file), numbers: named.map((x) => x.n), by: "names", left };
   return {
-    problem: `${left === 1 ? "a file" : `${left} files`} of ${recordset} without an image number in the name: name each by the number its viewer counts (40.jpg)`,
+    problem: `${left === 1 ? "a file" : `${left} files`} of ${recordset} without an image number in the name: name each by the number its viewer counts (40.jpg) — a name with the number in it does too (__0040.jpg)`,
     code: "inbox.unnamed",
     params: { files: String(left), recordset },
   };
@@ -250,7 +320,15 @@ export type Numbered =
  * time, a name with no number is); else why not. `times`: a portal's .jp2 counted back (numberBookFiles).
  */
 export function numberFiles(files: string[], want: number[] | undefined, have: ReadonlySet<number>, recordset: string, times?: number): Numbered {
-  const own = personNumbers(files);
+  const { numbers: own, ambiguous } = readNumbers(files, want);
+  // a name with two of the images asked for: not guessed, said with the file (1123)
+  const two = ambiguous[0];
+  if (two)
+    return {
+      problem: `${path.basename(two.file)}: its name gives ${runs(two.numbers)}, ${two.numbers.length} of the images of ${recordset} asked for — not guessed: name it by the one it is (${two.numbers.at(-1)!}.jpg)`,
+      code: "inbox.count",
+      params: { files: String(files.length), missing: runs((want ?? []).filter((n) => !have.has(n))), want: runs(want ?? []), recordset, ambiguous: path.basename(two.file), numbers: runs(two.numbers), n: String(two.numbers.at(-1)!) },
+    };
   const names = own.map((n, i) => (n === undefined || !times || path.extname(files[i]!).toLowerCase() !== ".jp2" ? n : n % times === 0 ? n / times : undefined));
   const named = names.every((n): n is number => n !== undefined && n > 0);
   if (named && (!want?.length || names.some((n) => want.includes(n!)))) return { numbers: names as number[], by: "names" };
@@ -259,12 +337,12 @@ export function numberFiles(files: string[], want: number[] | undefined, have: R
   const said = names.filter((n): n is number => n !== undefined);
   if (!want?.length)
     return {
-      problem: `${files.length === 1 ? "a file" : `${files.length} files`} of ${recordset} without an image number in the name: name each by the number its viewer counts (40.jpg)`,
+      problem: `${files.length === 1 ? "a file" : `${files.length} files`} of ${recordset} without an image number in the name: name each by the number its viewer counts (40.jpg) — a name with the number in it does too (__0040.jpg)`,
       code: "inbox.unnamed",
       params: { files: String(files.length), recordset },
     };
   return {
-    problem: `images ${runs(want)} of ${recordset} were asked for${missing.length && missing.length < want.length ? ` (missing ${runs(missing)})` : ""}, but the file names give ${said.length ? runs(said) : "no number"} — ${files.length === 1 ? "1 file" : `${files.length} files`} for ${missing.length || want.length} image${(missing.length || want.length) === 1 ? "" : "s"}: name each by the number its viewer counts (${(missing[0] ?? want[0])!}.jpg)`,
+    problem: `images ${runs(want)} of ${recordset} were asked for${missing.length && missing.length < want.length ? ` (missing ${runs(missing)})` : ""}, but the file names give ${said.length ? runs(said) : "no number"} — ${files.length === 1 ? "1 file" : `${files.length} files`} for ${missing.length || want.length} image${(missing.length || want.length) === 1 ? "" : "s"}: name each by the number its viewer counts (${(missing[0] ?? want[0])!}.jpg) — a name with the number in it does too (__0${(missing[0] ?? want[0])!}.jpg)`,
     code: "inbox.count",
     params: { files: String(files.length), missing: runs(missing), want: runs(want), recordset },
   };
@@ -291,6 +369,10 @@ export interface InboxState {
   /** Why the files lying there cannot be taken (for the agent; the person's words from its code). */
   problem?: string;
   problemCode?: "inbox.unnamed" | "inbox.count";
+  /** The file whose name gives two of the images asked for (not guessed, 1123) — with `problem`. */
+  ambiguous?: string;
+  /** One of the images that name gives, for the example of what it is named by (the agent's problem names the same one). */
+  ambiguousNumber?: number;
 }
 
 /** The state of a task's folder of the shared inbox, if it waits for one. */
@@ -306,7 +388,7 @@ export function inboxState(tree: Tree, shared: string | undefined, t: Task): Inb
   const missing = want.filter((n) => !reg.has(n) && !lyingNums.has(n));
   // which ones not known: the files lying there and the images the Strom app handed to it for this wait
   const have = want.length ? want.length - missing.length : files.length + handedImages(tree, t, w.recordset).length;
-  return { dir, folder: w.folder, recordset: w.recordset, have, want: want.length, missing, lying: files.length, next: nextImage(reg, files), ...(numbered && "problem" in numbered ? { problem: numbered.problem, problemCode: numbered.code } : {}) };
+  return { dir, folder: w.folder, recordset: w.recordset, have, want: want.length, missing, lying: files.length, next: nextImage(reg, files), ...(numbered && "problem" in numbered ? { problem: numbered.problem, problemCode: numbered.code, ...(numbered.params.ambiguous ? { ambiguous: numbered.params.ambiguous, ambiguousNumber: Number(numbered.params.n) } : {}) } : {}) };
 }
 
 /**
@@ -364,9 +446,10 @@ export function numbersForTask(count: number, o: { image?: number | undefined; n
   }
   if (count === 1 && o.name) {
     const stem = o.name.normalize("NFC").replace(/\.[^.]*$/u, "");
-    // only a name with one number (57, IMG_0057, kniha-00057): a screenshot's date says no image's number
+    // only a name with one number (57, IMG_0057, kniha-00057): a screenshot's date says no image's number; of images
+    // asked for, as a folder's files are read (readNumbers: "Lhota_11__125" of a task waiting for 125)
     const runs = stem.match(/\p{Nd}+/gu)?.length ?? 0;
-    const n = runs === 1 ? numberInName(stem) : undefined;
+    const n = want.length ? readNumbers([o.name], want).numbers[0] : runs === 1 ? numberInName(stem) : undefined;
     if (n !== undefined && n > 0 && (!want.length || want.includes(n))) return { numbers: [n], by: "name" };
   }
   if (!want.length) {

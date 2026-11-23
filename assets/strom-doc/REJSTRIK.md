@@ -6,6 +6,18 @@ definice, genealogický protějšek a čísla pravidel, která ho vysvětlují.
 Pojmy části R (výzkum) v abecedním pořadí, pak pojmy částí A a S (aplikace a její spojení s výzkumem) v oddílu na
 konci. Všechny mají definice ve všech čtyřech jazycích.
 
+<a id="line-run"></a>
+### Běh linie
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | běh linie (terminál) · Pustit agenta na tuto linii (aplikace) | Samostatná práce agenta jen na úkolech jedné linie, vedle běhů jiných linií a běhu celé fronty. Každá linie má nejvýš jeden běh. |
+| en | run of the line (terminal) · Put an agent on this direction (app) | The agent's own work on the tasks of one line only, beside the runs of other lines and the run of the whole queue. Each line has at most one run. |
+| de | Lauf der Linie (terminal) · Agent auf diese Richtung ansetzen (app) | Die eigenständige Arbeit des Agenten nur an den Aufgaben einer Linie, neben den Läufen anderer Linien und dem Lauf der ganzen Warteschlange. Jede Linie hat höchstens einen Lauf. |
+| pl | przebieg linii (terminal) · Uruchom agenta na tej linii (aplikacja) | Samodzielna praca agenta tylko nad zadaniami jednej linii, obok przebiegów innych linii i przebiegu całej kolejki. Każda linia ma najwyżej jeden przebieg. |
+
+- **Čísla:** [R7.10](cs/R7-when-the-agent-works.md#R7.10), R7.10.1, R7.10.2, R7.10.3, R7.10.4, R2.1.5, S4.1.8, S4.3.3, S4.4.12
+
 <a id="what-the-research-knows"></a>
 ### Co ví výzkum
 
@@ -102,7 +114,7 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 | pl | Historia miejsca (app) · Historia miejsc (app, zarządzanie) | Udokumentowane wydarzenia w miejscu i okolicy mniej więcej do 10 km. Szuka się ich tylko wtedy, gdy człowiek je włączy lub poprosi o miejsce. |
 
 - **Genealogicky:** místní dějiny (local history) jako kontext.
-- **Čísla:** [R4.7](cs/R4-places.md#R4.7), R4.6
+- **Čísla:** [R4.7](cs/R4-places.md#R4.7), R4.6, [A6.3.3](cs/A6-views.md#A6.3.3), A7.5.1
 
 <a id="todays-name"></a>
 ### Dnešní název a starý název
@@ -134,13 +146,13 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 
 | Jazyk | Termín | Definice |
 |---|---|---|
-| cs | Doložené (app; terminal od výzkumu 1.26.0) · doloženo (terminal 1.25.2) | Nejvyšší stupeň: kód chce citaci z pramene, který není slabý, s primární informací; metodika navíc vlastní čtení původního záznamu, který údaj uvádí přímo. |
-| en | Proven (app) · proven (terminal) | The highest degree: the code requires a citation from a source that is not weak, with primary information; the method also requires reading the original record that states the fact directly. |
-| de | Belegt (app) · belegt (terminal) | Der höchste Grad: der Code verlangt eine Zitation aus einer Quelle, die nicht schwach ist, mit Primärinformation; die Methodik zusätzlich eine eigene Lesung des ursprünglichen Eintrags, der die Angabe direkt nennt. |
-| pl | Udokumentowane (app) · udokumentowane (terminal) | Najwyższy stopień: kod wymaga cytatu ze źródła, które nie jest słabe, z informacją pierwotną; metodyka ponadto własnego odczytu aktu oryginalnego, który podaje daną wprost. |
+| cs | Doložené (app; terminal od výzkumu 1.26.0) · doloženo (terminal 1.25.2) | Nejvyšší stupeň: kód chce citaci z pramene, který není slabý, s primární informací, od výzkumu 1.29.0 citaci samotného původního záznamu; metodika navíc vlastní čtení původního záznamu, který údaj uvádí přímo. |
+| en | Proven (app) · proven (terminal) | The highest degree: the code requires a citation from a source that is not weak, with primary information, from research 1.29.0 a citation of the original record itself; the method also requires reading the original record that states the fact directly. |
+| de | Belegt (app) · belegt (terminal) | Der höchste Grad: der Code verlangt eine Zitation aus einer Quelle, die nicht schwach ist, mit Primärinformation, ab Forschung 1.29.0 eine Zitation des ursprünglichen Eintrags selbst; die Methodik zusätzlich eine eigene Lesung des ursprünglichen Eintrags, der die Angabe direkt nennt. |
+| pl | Udokumentowane (app) · udokumentowane (terminal) | Najwyższy stopień: kod wymaga cytatu ze źródła, które nie jest słabe, z informacją pierwotną, od badania 1.29.0 cytatu samego aktu oryginalnego; metodyka ponadto własnego odczytu aktu oryginalnego, który podaje daną wprost. |
 
 - **Genealogicky:** prokázaný závěr z přímého důkazu v původním prameni s primární informací.
-- **Čísla:** [R3.2](cs/R3-verification-and-citation.md#R3.2), R3.1, R3.5
+- **Čísla:** [R3.2](cs/R3-verification-and-citation.md#R3.2), R3.2.2, R3.1, R3.5, R3.5.2
 
 <a id="queue"></a>
 ### Fronta
@@ -201,7 +213,7 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 | de | Limit des Abonnements | Die Grenze des Plans des Agenten, auf die der Agent in einer Sitzung gestoßen ist. Der Lauf endet und wartet nicht. |
 | pl | limit subskrypcji | Granica planu agenta, na którą agent natrafił w sesji. Przebieg się kończy i nie czeka. |
 
-- **Čísla:** [R7.6](cs/R7-when-the-agent-works.md#R7.6)
+- **Čísla:** [R7.6](cs/R7-when-the-agent-works.md#R7.6), R7.10.3
 
 <a id="line"></a>
 ### Linie výzkumu
@@ -214,7 +226,7 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 | pl | linia | Jeden cel badania: przodkowie osoby, potomkowie osoby albo jedno pytanie. Każde zadanie należy do którejś linii. |
 
 - **Genealogicky:** cíl výzkumu (research objective) ve smyslu GPS.
-- **Čísla:** [R2.1](cs/R2-lines-and-queue.md#R2.1), R2.1.1, R2.1.2, R2.1.3, R2.1.4, S3.3
+- **Čísla:** [R2.1](cs/R2-lines-and-queue.md#R2.1), R2.1.1, R2.1.2, R2.1.3, R2.1.4, R2.1.5, R7.10, S3.3
 
 <a id="source-transcriptions-setting"></a>
 ### Moje přepisy pramenů
@@ -226,7 +238,7 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 | de | Meine Quellenabschriften: Hinweis · Beleg; Abschrift geprüft | Einstellung des Stammbaums, wie die Forschung Abschriften aus der App nimmt: als Hinweis oder als erste Lesung des Eintrags (die Angabe ist dann Wahrscheinlich). |
 | pl | Moje transkrypcje źródeł: Wskazówka · Udokumentowane; Transkrypcja zweryfikowana | Ustawienie drzewa, jak badanie traktuje transkrypcje z aplikacji: jako wskazówkę albo jako pierwszy odczyt aktu (dana jest wtedy Prawdopodobne). |
 
-- **Čísla:** [R3.5.1](cs/R3-verification-and-citation.md#R3.5.1), R3.8
+- **Čísla:** [R3.5.1](cs/R3-verification-and-citation.md#R3.5.1), R3.5.2, A3.1.3, R3.8
 
 <a id="report-a-problem"></a>
 ### Nahlásit problém
@@ -289,6 +301,18 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 
 - **Čísla:** [R6.7.2](cs/R6-awaiting-action.md#R6.7.2)
 
+<a id="retracted-source"></a>
+### Odvolaný pramen
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Smazat pramen… (app) · `strom source retract` · odvolaný (`strom source list --retracted`) | Pramen, který člověk smazal: výzkum ho neodstraní, ale odvolá. Citace se z údajů odeberou a uchovají v prameni, hodnoty zůstanou; `strom source restore` pramen vrátí i s citacemi. |
+| en | Delete source… (app) · `strom source retract` · retracted (`strom source list --retracted`) | A source the person deleted: the research does not remove it but retracts it. Its citations are taken off the facts and kept in the source, the values stay; `strom source restore` puts the source back with its citations. |
+| de | Quelle löschen… (app) · `strom source retract` · zurückgezogen (`strom source list --retracted`) | Eine Quelle, die der Mensch gelöscht hat: Die Forschung entfernt sie nicht, sondern zieht sie zurück. Die Zitationen werden von den Angaben genommen und in der Quelle aufbewahrt, die Werte bleiben; `strom source restore` bringt die Quelle mit ihren Zitationen zurück. |
+| pl | Usuń źródło… (app) · `strom source retract` · wycofane (`strom source list --retracted`) | Źródło usunięte przez człowieka: badanie go nie usuwa, lecz wycofuje. Cytowania zostają zdjęte z danych i zachowane w źródle, wartości zostają; `strom source restore` przywraca źródło razem z cytowaniami. |
+
+- **Čísla:** [R3.10](cs/R3-verification-and-citation.md#R3.10), A3.1.2, A3.5.17, S2.6.1, S3.4.1, R11.5.6
+
 <a id="site-to-check"></a>
 ### Ověřit web
 
@@ -318,12 +342,12 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 
 | Jazyk | Termín | Definice |
 |---|---|---|
-| cs | podklad, podklady (terminal, `strom intake`, `strom input`) | Soubor nebo text, který výzkumu dal uživatel. Uloží se beze změny a dostane úkol; z dokladu se stane pramen, z ostatního vodítko. |
-| en | input, inputs (terminal, `strom intake`, `strom input`) | A file or text the user gave the research. It is kept unchanged and gets a task; a document becomes a source, the rest a lead. |
-| de | Unterlage, Unterlagen (terminal, `strom intake`, `strom input`) | Eine Datei oder ein Text, den der Benutzer der Forschung gegeben hat. Sie wird unverändert gespeichert und bekommt eine Aufgabe; aus einer Urkunde wird eine Quelle, aus dem Rest ein Hinweis. |
-| pl | materiał, materiały (terminal, `strom intake`, `strom input`) | Plik lub tekst, który użytkownik dał badaniu. Zostaje zapisany bez zmian i dostaje zadanie; dokument staje się źródłem, reszta wskazówką. |
+| cs | podklad, podklady (terminal, `strom intake`, `strom input`) | Soubor nebo text, který výzkumu dal uživatel. Uloží se beze změny; úkol pro agenta dostane, jen když je zapnuté, že poslané soubory projde agent sám, nebo když o to člověk požádá (text vždy); z dokladu se stane pramen, z ostatního vodítko. |
+| en | input, inputs (terminal, `strom intake`, `strom input`) | A file or text the user gave the research. It is kept unchanged; it gets a task for the agent only when the agent going through sent files by itself is switched on, or when a person asks for it (a text always); a document becomes a source, the rest a lead. |
+| de | Unterlage, Unterlagen (terminal, `strom intake`, `strom input`) | Eine Datei oder ein Text, den der Benutzer der Forschung gegeben hat. Sie wird unverändert gespeichert; eine Aufgabe für den Agenten bekommt sie nur, wenn eingeschaltet ist, dass der Agent gesendete Dateien selbst durchgeht, oder wenn ein Mensch darum bittet (ein Text immer); aus einer Urkunde wird eine Quelle, aus dem Rest ein Hinweis. |
+| pl | materiał, materiały (terminal, `strom intake`, `strom input`) | Plik lub tekst, który użytkownik dał badaniu. Zostaje zapisany bez zmian; zadanie dla agenta dostaje tylko wtedy, gdy jest włączone, że wysłane pliki agent przejrzy sam, albo gdy człowiek o to poprosi (tekst zawsze); dokument staje się źródłem, reszta wskazówką. |
 
-- **Čísla:** [R11](cs/R11-material-from-the-user.md), R11.1, R11.2, R11.3, R11.4
+- **Čísla:** [R11](cs/R11-material-from-the-user.md), R11.1, R11.2, R11.3, R11.4, R11.6, S4.4.11
 
 <a id="gate"></a>
 ### Podmínka
@@ -433,7 +457,7 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 | pl | sprzeczność (`ui.wait.kind.conflict`, `research.conflicts` Sprzeczności) | Zapis, że źródła o jednej danej się nie zgadzają: co najmniej dwa twierdzenia ze źródłami, otwarty do rozstrzygnięcia z uzasadnieniem. |
 
 - **Genealogicky:** konflikt důkazů (conflicting evidence); jeho vyřešení je součástí GPS.
-- **Čísla:** [R5.1](cs/R5-conflicts.md#R5.1), R5.1.1, R5.3, R5.6, S3.4
+- **Čísla:** [R5.1](cs/R5-conflicts.md#R5.1), R5.1.1, R5.3, R5.6, R3.10, S3.4, S3.4.1
 
 <a id="location-conflict"></a>
 ### Rozpor polohy
@@ -1090,7 +1114,7 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | de | Anhand des Scans bestätigen, der Stand Am {datum} anhand des Scans bestätigt (app) · `strom verify confirm` | Die Bestätigung einer Angabe durch einen Menschen, der sie mit dem Scan des Eintrags verglichen hat: die Marke Bestätigt (✓). Sie gilt, solange sich der Wert nicht ändert; Zurücknehmen hebt sie auf. Der Agent ändert sie nie. |
 | pl | Potwierdź według skanu, stan Potwierdzone według skanu {data} (app) · `strom verify confirm` | Potwierdzenie danej przez człowieka, który porównał ją ze skanem aktu: znacznik Potwierdzone (✓). Obowiązuje, dopóki wartość się nie zmieni; Cofnij je wycofuje. Agent nigdy go nie zmienia. |
 
-- **Čísla:** [S7.8](cs/S7-reliability-and-verification.md#S7.8), S7.1, S7.9
+- **Čísla:** [S7.8](cs/S7-reliability-and-verification.md#S7.8), S7.1, S7.9, S7.10
 
 <a id="verify-facts"></a>
 ### Ověřit údaje
@@ -1140,6 +1164,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [S4.5.4](cs/S4-research-from-the-app.md#S4.5.4), S4.5, S4.2.3
 
+<a id="start-without-question"></a>
+### Spouštění agenta z aplikace Strom
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Spouštění agenta z aplikace Strom: s potvrzením · bez potvrzení (`run.confirm` ask · no) | Nastavení tohoto počítače, pro všechny jeho výzkumy. **S potvrzením** (výchozí) se terminál před prací agenta, o kterou požádala aplikace, zeptá **Pokračovat?**; **bez potvrzení** ji spustí hned a řekne to jednou řádkou. Dotaz s cenou v penězích, souhlasy, mazání, odeslání žádosti a podmínka samostatné práce se ptají dál. Zapíná jen člověk. |
+| en | Starting the agent from the Strom app: asked first · without the question (`run.confirm` ask · no) | A setting of this computer, for all its researches. **Asked first** (the default): before agent's work that the app asked for, the terminal asks **Go on?**; **without the question** it starts the work at once and says so in one line. A question with a price in money, consents, deletions, a request sent and the condition of working alone still ask. Only a person turns it on. |
+| de | Agent aus der Strom-App starten: mit Rückfrage · ohne Rückfrage (`run.confirm` ask · no) | Eine Einstellung dieses Computers, für alle seine Forschungen. **Mit Rückfrage** (Standard) fragt das Terminal vor Arbeit des Agenten, um die die App gebeten hat, **Fortfahren?**; **ohne Rückfrage** startet es sie sofort und sagt es in einer Zeile. Eine Frage mit einem Preis in Geld, Zustimmungen, Löschen, das Absenden einer Anfrage und die Bedingung der Alleinarbeit fragen weiter. Einschalten kann es nur der Mensch. |
+| pl | Uruchamianie agenta z aplikacji Strom: z potwierdzeniem · bez potwierdzenia (`run.confirm` ask · no) | Ustawienie tego komputera, dla wszystkich jego badań. **Z potwierdzeniem** (domyślnie) terminal przed pracą agenta, o którą poprosiła aplikacja, pyta **Kontynuować?**; **bez potwierdzenia** uruchamia ją od razu i mówi o tym jedną linią. Pytanie z ceną w pieniądzach, zgody, usuwanie, wysłanie prośby i warunek samodzielnej pracy pytają dalej. Włącza je tylko człowiek. |
+
+- **Čísla:** [S4.5.5](cs/S4-research-from-the-app.md#S4.5.5), S4.5, R7.1.2, R5.6
+
 <a id="send-mode"></a>
 ### Posílat úpravy
 
@@ -1186,7 +1222,7 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | de | Quellen (app); Quelle zitieren; Belegt | Ein bestimmter Eintrag (Taufe, Heirat, Tod) in der Liste der Quellen des Stammbaums. Angaben und Personen verweisen mit einer Zitation darauf. |
 | pl | Źródła (app); Cytuj źródło; Dokumentuje | Jeden konkretny zapis (chrzest, ślub, zgon) na liście źródeł drzewa. Dane i osoby odwołują się do niego cytowaniem. |
 
-- **Čísla:** [A3.1](cs/A3-evidence-in-the-app.md#A3.1), A3.2, A3.2.1, A3.6
+- **Čísla:** [A3.1](cs/A3-evidence-in-the-app.md#A3.1), A3.1.2, A3.2, A3.2.1, A3.6
 
 <a id="problems-and-leads"></a>
 ### K ověření a stopy
@@ -1318,7 +1354,7 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | de | Stammlinie | Die männliche Linie vom ältesten bekannten Träger des Namens, bestimmt durch den Stammvater, nicht durch den Nachnamen. Die App berechnet sie aus den Daten des Stammbaums. |
 | pl | Ród | Linia męska od najstarszego znanego nosiciela nazwiska, wyznaczona przez założyciela, nie przez nazwisko. Aplikacja liczy ją z danych drzewa. |
 
-- **Čísla:** [A4.1](cs/A4-surnames-and-families.md#A4.1), A4.1.1, A4.2, A4.4, A6.4.1
+- **Čísla:** [A4.1](cs/A4-surnames-and-families.md#A4.1), A4.1.1, A4.2, A4.4, A6.4.1, A6.4.2
 
 <a id="sort-with-agent"></a>
 ### Roztřídit agentem
@@ -1331,6 +1367,30 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Uporządkuj agentem… (app) · `strom material sort` | Agent badania proponuje dla plików tytuł, datę, rodzaj i połączenia z uzasadnieniem. Nic się nie zapisze, dopóki człowiek nie przyjmie propozycji; tytułów i połączeń nadanych przez człowieka agent nie zmienia. |
 
 - **Čísla:** [A3.5.8](cs/A3-evidence-in-the-app.md#A3.5.8), A3.5.10–A3.5.13, R11.5.3, R11.5.5
+
+<a id="census-records"></a>
+### Sčítání lidu
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Sčítání lidu | Pramen, který zapisuje jednu domácnost v jednom roce: kdo bydlel v domě, vztah k přednostovi, věk, často rodiště a povolání. Výzkum ho použije, jen když ho člověk zapne; vypnuté sčítání úkoly sčítání odloží. Domácnost je jedna společná událost. |
+| en | Census records | A source that records one household in one year: who lived in the house, the relation to the head, age, often birthplace and occupation. The research uses it only once a person switches it on; switched off, census tasks are set aside. A household is one shared event. |
+| de | Volkszählungen | Eine Quelle, die einen Haushalt in einem Jahr festhält: wer im Haus wohnte, das Verhältnis zum Haushaltsvorstand, Alter, oft Geburtsort und Beruf. Die Forschung nutzt sie nur, wenn ein Mensch sie einschaltet; ausgeschaltet werden Volkszählungsaufgaben zurückgestellt. Ein Haushalt ist ein gemeinsames Ereignis. |
+| pl | Spisy ludności | Źródło zapisujące jedno gospodarstwo domowe w jednym roku: kto mieszkał w domu, pokrewieństwo z głową gospodarstwa, wiek, często miejsce urodzenia i zawód. Badanie używa go tylko wtedy, gdy człowiek je włączy; po wyłączeniu zadania spisu są odłożone. Gospodarstwo domowe to jedno wspólne wydarzenie. |
+
+- **Čísla:** [R9.12](cs/R9-archives.md#R9.12), R9.12.1, R9.12.2, R9.12.3, R9.12.4, S4.2.4, S4.4.10
+
+<a id="task-hold"></a>
+### Úkol drží sezení · omezený archiv
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | drží (úkol, archiv) · `task.hold`, `archive.hold`, `archive.wait` · archiv omezuje automatický přístup | Úkol drží otevřené sezení, dokud jeho agent dává znamení života; bez něj déle než `task.hold` úkol převezme další zájemce. Archiv, který omezuje automatický přístup (lidské tempo, jen prohlížeč, hodinový strop), drží najednou jen jedno sezení ze všech výzkumů na počítači. |
+| en | held (a task, an archive) · `task.hold`, `archive.hold`, `archive.wait` · the archive restricts automated access | A task is held by the open session while its agent gives a sign of life; with none for longer than `task.hold` the next one who wants it takes it over. An archive that restricts automated access (a person's pace, the browser alone, an hourly cap) is held by one session at a time of all the researches on the computer. |
+| de | hält (eine Aufgabe, ein Archiv) · `task.hold`, `archive.hold`, `archive.wait` · das Archiv schränkt automatisierten Zugriff ein | Eine Aufgabe hält die offene Sitzung, solange ihr Agent ein Lebenszeichen gibt; ohne eines länger als `task.hold` übernimmt sie der nächste Interessent. Ein Archiv, das automatisierten Zugriff einschränkt (menschliches Tempo, nur Browser, Stundenlimit), hält jeweils nur eine Sitzung aller Forschungen auf dem Computer. |
+| pl | trzyma (zadanie, archiwum) · `task.hold`, `archive.hold`, `archive.wait` · archiwum ogranicza zautomatyzowany dostęp | Zadanie trzyma otwarta sesja, dopóki jej agent daje znak życia; bez niego dłużej niż `task.hold` zadanie przejmuje następny chętny. Archiwum, które ogranicza zautomatyzowany dostęp (ludzkie tempo, tylko przeglądarka, limit godzinowy), trzyma naraz tylko jedna sesja ze wszystkich badań na komputerze. |
+
+- **Čísla:** [R7.9](cs/R7-when-the-agent-works.md#R7.9), [R9.13](cs/R9-archives.md#R9.13), S4.1, S4.2
 
 <a id="list-of-people"></a>
 ### Seznam osob
@@ -1414,7 +1474,19 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | de | Endgültig löschen… (app) · `strom input delete` | Löscht Dateien der Forschung aus dem Archiv und aus dem Stammbaum; nur ein Mensch, nach einer Liste dessen, was auf die Dateien verweist. In der App lässt es sich nicht rückgängig machen; eine Datei bleibt nur in einer früheren Sicherung. Ausblenden oder Entfernen aus dem Stammbaum löscht keine Datei. |
 | pl | Usuń trwale… (app) · `strom input delete` | Usuwa pliki badania z archiwum i z drzewa; tylko człowiek, po wykazie tego, co odwołuje się do plików. W aplikacji nie da się tego cofnąć; plik zostaje tylko we wcześniejszej kopii zapasowej. Ukrycie ani usunięcie z drzewa pliku nie kasuje. |
 
-- **Čísla:** [A3.5.16](cs/A3-evidence-in-the-app.md#A3.5.16), R11.5, R11.5.4, R11.5.6
+- **Čísla:** [A3.5.16](cs/A3-evidence-in-the-app.md#A3.5.16), A3.5.17, R11.5, R11.5.4, R11.5.6
+
+<a id="family-tree-file"></a>
+### Soubor rodokmenu
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Soubor rodokmenu (app) | Soubor, ze kterého výzkum převzal rodokmen: importovaný GEDCOM nebo soubor JSON aplikace. V Materiálech ho jde prohlédnout a smazat natrvalo; když z něj vznikl platný pramen, jen spolu s ním. |
+| en | Family tree file (app) | A file the research took a family tree from: an imported GEDCOM or the app's JSON file. In Materials it can be looked at and deleted permanently; when a standing source was made of it, only together with that source. |
+| de | Stammbaumdatei (app) | Eine Datei, aus der die Forschung einen Stammbaum übernommen hat: ein importiertes GEDCOM oder eine JSON-Datei der App. In den Materialien lässt sie sich ansehen und endgültig löschen; ist daraus eine gültige Quelle entstanden, nur zusammen mit ihr. |
+| pl | Plik drzewa genealogicznego (app) | Plik, z którego badanie przejęło drzewo: zaimportowany GEDCOM albo plik JSON aplikacji. W Materiałach można go obejrzeć i usunąć trwale; gdy powstało z niego obowiązujące źródło, tylko razem z nim. |
+
+- **Čísla:** [A3.5.17](cs/A3-evidence-in-the-app.md#A3.5.17), R11.3, R11.5.6
 
 <a id="paired-phones"></a>
 ### Spárované telefony
@@ -1462,7 +1534,7 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | de | Gemeinsam mit · gemeinsames Ereignis | Ein Ereignis mehrerer Personen (Volkszählung, Wohnort, Auswanderung…), einmal eingetragen: Jede Person hat eine Kopie mit demselben Datum, Ort, Haus, derselben Notiz und denselben Quellen und mit eigenem Alter und eigener Rolle. Eine Änderung gilt für alle Kopien. |
 | pl | Razem z · wspólne wydarzenie | Wydarzenie kilku osób (spis ludności, miejsce zamieszkania, emigracja…) zapisane raz: każda osoba ma kopię z tą samą datą, miejscem, domem, notatką i źródłami oraz z własnym wiekiem i rolą. Zmiana dotyczy wszystkich kopii. |
 
-- **Čísla:** [A10.1](cs/A10-shared-events.md#A10.1), A10.1.1, A10.2, A10.6, A10.7, A2.1, A2.7, A6.7.10, A8.4, R11.3, S2.3
+- **Čísla:** [A10.1](cs/A10-shared-events.md#A10.1), A10.1.1, A10.2, A10.6, A10.7, A2.1, A2.7, A6.7.10, A8.4, R11.3, R9.12.3, S2.3
 
 <a id="same-id-in-the-file"></a>
 ### Stejné ID v souboru
@@ -1596,6 +1668,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [S2.1](cs/S2-edits-from-the-app.md#S2.1), S2.7
 
+<a id="selection-of-people"></a>
+### Výběr
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Výběr | Jedna pojmenovaná skupina osob, kterou má okno aplikace: rod, předci nebo potomci osoby, linie výzkumu, nebo seznam osob. Rodina, Potomci a Vějíř ji zvýrazní, Mapa a Tabulka ji mohou mít jako rozsah. Do dat stromu se neukládá. |
+| en | Selection | One named group of people a window of the app has: a family line, the ancestors or descendants of a person, a research line, or a list of people. Family, Descendants and the Fan highlight it, the Map and the Table can have it as their scope. It is not stored in the tree's data. |
+| de | Auswahl | Eine benannte Gruppe von Personen, die ein Fenster der App hat: eine Stammlinie, die Vorfahren oder Nachkommen einer Person, eine Forschungslinie oder eine Personenliste. Familie, Nachkommen und Fächer heben sie hervor, Karte und Tabelle können sie als Bereich haben. In den Daten des Stammbaums wird sie nicht gespeichert. |
+| pl | Wybór | Jedna nazwana grupa osób, którą ma okno aplikacji: ród, przodkowie lub potomkowie osoby, linia badania albo lista osób. Rodzina, Potomkowie i Wachlarz ją wyróżniają, Mapa i Tabela mogą mieć ją jako zakres. Nie zapisuje się w danych drzewa. |
+
+- **Čísla:** [A6.6](cs/A6-views.md#A6.6), A6.6.1, A6.6.2, A6.6.3, A6.6.4, A6.5.7, A6.5.8, A6.7.19
+
 <a id="record-excerpt"></a>
 ### Výřez zápisu
 
@@ -1644,6 +1728,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [S2.5](cs/S2-edits-from-the-app.md#S2.5)
 
+<a id="fan-appearance"></a>
+### Vzhled vějíře
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Vzhled (app) · Vzhled vějíře · Vzhled plakátu | Styl vějíře (Barevný, Pastelový, Starobylý, Černobílý), barvy rodů, text ve výsečích a portréty. Výchozí v Nastavení, aktuální v panelu do zavření aplikace, plakát jen pro jeden výstup; strom se tím nemění. |
+| en | Appearance (app) · Fan appearance · Poster appearance | The fan's style (Colour, Pastel, Antique, Black and white), family line colours, the text in the sectors and portraits. The default in Settings, the current one in the panel until the app closes, the poster's for one output only; the tree does not change. |
+| de | Darstellung (app) · Darstellung des Fächers · Darstellung des Posters | Stil des Fächers (Farbig, Pastell, Antik, Schwarzweiß), Farben der Stammlinien, Text in den Segmenten und Porträts. Standard in den Einstellungen, aktuell im Bereich bis zum Schließen der App, beim Poster nur für eine Ausgabe; der Stammbaum ändert sich nicht. |
+| pl | Wygląd (app) · Wygląd wachlarza · Wygląd plakatu | Styl wachlarza (Kolorowy, Pastelowy, Dawny, Czarno-biały), kolory rodów, tekst w wycinkach i portrety. Domyślny w Ustawieniach, bieżący w panelu do zamknięcia aplikacji, plakatu tylko dla jednego wydruku; drzewo się nie zmienia. |
+
+- **Čísla:** [A6.4.2](cs/A6-views.md#A6.4.2), A6.4.3
+
 <a id="story-basis"></a>
 ### Z čeho text vychází
 
@@ -1690,7 +1786,7 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | de | Datei einer Quelle (app) · `uses.of` (Brücke) | Eine Datei, aus der die Forschung eine Quelle gemacht hat. Sie ist über die Quelle eingeordnet: das Sortieren sendet sie nicht, und **Wo verwendet** zeigt die Quellen zuerst. |
 | pl | Plik źródła (app) · `uses.of` (most) | Plik, z którego badanie zrobiło źródło. Jest uporządkowany przez źródło: porządkowanie go nie wyśle, a **Gdzie użyto** pokazuje źródła jako pierwsze. |
 
-- **Čísla:** [A3.5.14](cs/A3-evidence-in-the-app.md#A3.5.14), A3.5.3, A3.5.11, R11.5.4
+- **Čísla:** [A3.5.14](cs/A3-evidence-in-the-app.md#A3.5.14), A3.5.3, A3.5.11, A3.5.17, R11.5.4
 
 <a id="lineage-markers"></a>
 ### Značení linií

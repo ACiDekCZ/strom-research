@@ -420,6 +420,8 @@ register(
         w.say("ui.show.facts", "facts"),
         p.events.length ? table(p.events.map((e) => [`  ${eventLine(e, w, sourcesOf(tree))}`])) : `  ${w.say("ui.show.none", "(none)")}`,
         ...p.events.filter((e) => e.note).map((e) => `  ${e.id} ${w.say("ui.show.note", "note")}: ${truncate(e.note!, 160)}`),
+        // the person's contact (spec 134 U11): apart from the facts, never a residence
+        ...(p.contact?.emails?.length ? ["", `${w.say("ui.show.contact", "contact")}: ${p.contact.emails.join(", ")}`] : []),
         "",
         w.say("ui.show.family", "family"),
       ];

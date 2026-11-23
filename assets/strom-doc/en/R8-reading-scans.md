@@ -23,7 +23,8 @@ The procedure in brief:
 6. **Certainty:** the degree of certainty by who read the entry and how; a hard spot needs a second, blind reading
    ([R8.7](#R8.7)).
 
-Who reads what, in brief and on the example of one entry, is said in [R8.9](#R8.9).
+Who reads what, in brief and on the example of one entry, is said in [R8.9](#R8.9). Why crops are enlarged, what
+a sharper crop is for and why two readers read is explained in [R8.10](#R8.10).
 
 > **Note: reading by a model is not one hundred per cent.** Old handwriting is read by an AI model, and the accuracy
 > of reading depends on the model. The method wants the strongest model for old handwriting, never fast or cheap
@@ -40,6 +41,8 @@ Who reads what, in brief and on the example of one entry, is said in [R8.9](#R8.
 > checked by a person can be marked **Transcription verified** ([A3.1.1](A3-evidence-in-the-app.md#A3.1.1); how the
 > research counts it: [R3.5.1](R3-verification-and-citation.md#R3.5.1)). A wrong fact can be corrected in the app;
 > an edit of a fact backed by a record becomes a conflict ([S2](S2-edits-from-the-app.md)).
+> A research transcription a person checked against the entry can be confirmed with **Confirm transcription**
+> ([A3.1.3](A3-evidence-in-the-app.md#A3.1.3)).
 > Reading by a model is only a proposal: a transcription a person wrote or confirmed is changed by nobody but a
 > person, not even by a new reading ([R3.4.1](R3-verification-and-citation.md#R3.4.1)).
 
@@ -729,3 +732,51 @@ A fact from another program's family tree the agent would be allowed to change b
 family tree would stay with the fact to be reverted ([S6.3](S6-tree-from-another-program.md#S6.3)).
 
 <!-- zdroj: research:v1.30.0 src/core/sourceread.ts placesOf (fresh, ordered: jistá věcná změna první, s ní ostatní neposouzená místa), decideReading, review · assets/lang/cs.json read.source.why, read.source.unsure.why · src/commands/read.ts --blind --crop · assets/method/verify.md · app:1c9b2392 strings.ts read.check „Co ověřit“, gMajor, gUnsure, gMinor, tAgent, tQueue, origin.proposeUser, origin.conflictOpen · spec 059 ukoly U6 (nové 8. 11.: oddíl se čtenáři a příkladem, jen text) -->
+
+<a id="R8.10"></a>
+## R8.10 How a model sees a scan: enlarging, a sharper crop and two readers
+
+An explanation of why the research shows scans to its readers the way it does. It rests on the documentation of the
+model makers, on studies of reading manuscripts with AI models and on a measurement on a sample of entries of one
+research of the project. The size figures are enforced by the code; the conclusions of the measurement are only
+a guide.
+
+- **How a model sees an image:** a model does not take an image pixel by pixel but in squares (Claude 28 px,
+  GPT 32 px). It does not enlarge a small image by itself and shrinks a large one by itself ([R8.3.2](#R8.3.2)). When
+  a letter on a small crop is smaller than one square, the model sees it only in part and reads worse; the trouble
+  is the size of the script, not that it would fail to find the entry.
+- **Why a crop is enlarged (enforced by the code):** a crop or a half smaller than a view the reader reads well is
+  enlarged: for Claude to 800 px on the longer side, for a reader with a GPT model (Codex, OpenCode with an OpenAI
+  model) up to 2000 px; always at most 3× and never beyond what the model takes whole. Enlarging only spreads the
+  script over more squares: it adds no new detail. The view therefore tells the reader from how many pixels of the
+  scan it is enlarged and that it has no more detail; what the reader cannot read for sure it writes as `[?]` and it
+  does not go into the facts.
+- **A sharper crop from the archive (enforced by the code):** real detail comes only from a scan in a higher
+  resolution. When a sharper part of the image came from the archive that shows the whole place (at most a margin
+  stays outside it), it is read from that. For a place small on its scan a sharper crop from the archive is offered,
+  never fetched by itself; otherwise the view advises the agent to ask a person for a sharper scan ([R8.2](#R8.2),
+  [R8.5](#R8.5)).
+- **Two blind readers:** studies show that a model does not correct its own reading, while a reading by another
+  model reveals errors. That is why **Read again…** and the reading of a document offer two readers who do not know
+  of each other; for each, the agent and model can be chosen ([R8.8.1](#R8.8.1)). The places where they differ are
+  amber and uncertain ([R8.8](#R8.8), [R8.8.2](#R8.8.2)). Agreement of two readers does not rule out an error: both
+  can make the same mistake.
+- **Opus and GPT on the project's sample** (November 2026):
+  - GPT read a small crop at its original size poorly, for one entry it even got the kind of entry wrong (a baptism
+    instead of a marriage); enlarged to about 2000 px it got the kind right and read clearly more words. That is why
+    the crop is enlarged more for it;
+  - Opus read the same crop well already at 800 px; a larger view or a sharper part added nothing measurable. On
+    dense handwriting it read more words than GPT, on legible script they read similarly;
+  - the strongest signal for GPT came from a sharper part of the image; halves instead of the whole page and
+    stronger contrast added no words, so the research did not introduce them as a default;
+  - **caveats:** it was a few entries of one research and few runs (for GPT often one). Repeated runs of the same
+    reading differed by 1–3 words. The yardstick were transcriptions made partly by AI too. The results show
+    a direction, not precision, and may come out otherwise on another script, language or model.
+- **Verification by a person:** neither two readers nor enlarging give certainty. An important fact should ideally
+  be verified by a person against the excerpt of the entry: mark one's own transcription **Transcription verified**
+  ([A3.1.1](A3-evidence-in-the-app.md#A3.1.1)), confirm the research's transcription with **Confirm transcription**
+  ([A3.1.3](A3-evidence-in-the-app.md#A3.1.3)).
+- **Since:** research 1.0.0 (enlarging a crop to 800 px); reading from a sharper part 1.19.0; enlarging for GPT and
+  a sharper part with a margin 1.29.0; **Confirm transcription** app 3.25.0
+
+<!-- zdroj: research:v1.35.0 src/agents/images.ts VIEW_MIN 800, imageMin (GPT min(2000, imageMax)), gptReader, IMAGE_MAX/IMAGE_MAX_LARGE · src/core/views.ts makeView enlarge min(3, …), viewSize, describeView, ENLARGED_HINT, SHARPER_SCAN · src/core/media.ts SHARPER · src/commands/document.ts sharperOf, sharperCover · CHANGELOG.cs.md 1.29.0 · dirigent:analyza/2026-11-07-cteni-obrazku/reserse.md (dlaždice 28/32 px, modely malé obrázky nezvětšují, interpolace nepřidává informaci, Zhang 2025, Humphries 2024/2025 a Crosilla 2025: sebeoprava nepomáhá, oprava jiným modelem ano) · experiment.md (Opus 800 vs 2000 v šumu, GPT ostřejší část nejsilnější signál, poloviny horší, kontrast nezaveden, n malé, rozptyl 1–3 slova) · test/vysledek-1106-simulace-cteni.md (GPT 1× druh zápisu chybně, 2× správně) · spec 059 ukoly U6 (jen text, bez obrázků) -->

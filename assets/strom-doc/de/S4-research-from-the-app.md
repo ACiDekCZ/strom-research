@@ -61,8 +61,21 @@ zeigen, sendet die Forschung über die Brücke.
   übernehmen sie; schreiben kann sie nur der Pfeil des Panels. Eine offene Übersicht klappt das Panel hinter sich
   nicht mehr aus. Das Telefon liest und schreibt die Wahl nicht (der Streifen öffnet die Übersicht wie bisher). Ohne
   Speicher des Browsers (privates Fenster) gilt sie, bis die Seite geschlossen wird.
+- **Ab App 3.31.0:** auf einem quer gehaltenen Telefon klappt das ausgeklappte Panel einer verfolgten Forschung zum
+  Streifen ein, wenn die Anzeige des Ladens der Fotos **Fotos k / n** ([S1.4.1](S1-connecting-app-and-research.md#S1.4.1)) oder eine Meldung erscheint (nicht die Pille
+  **Rückgängig** und nicht die Bestätigung des Fokus). Von selbst klappt es nicht wieder aus, auch nicht, wenn die
+  Anzeige oder die Meldung verschwindet; ein Tippen auf den Kopf klappt es aus. Das Einklappen wird nicht als Wahl
+  des Geräts gemerkt. Am Computer, auf dem Tablet und auf einem hochkant gehaltenen Telefon ändert sich nichts.
+- **Ab App 3.31.0 mit Forschung 1.36.0:** **In Arbeit** und **Jetzt** zeigen auch einen Agenten, der direkt in der
+  Forschung arbeitet („Claude Code – arbeitet direkt“). Bei Arbeit, die eine Aufgabe hält
+  ([R7.9](R7-when-the-agent-works.md#R7.9)), steht „zuletzt 14:31; frei spätestens um 15:01“ (zuletzt nur, wenn es
+  sich vom Beginn unterscheidet; bei einem Prozess auf diesem Computer ohne die Zeit der Freigabe). Ein Lauf, der auf
+  ein eingeschränktes Archiv wartet ([R9.13](R9-archives.md#R9.13)), hat den Stand „Pausiert · wartet auf das Archiv
+  … (höchstens bis 14:40)“. Mit einer älteren Forschung ist alles wie bisher.
+- **Ab App 3.31.0 mit Forschung 1.36.0:** bei mehreren Läufen hat **Jetzt** einen Block für jeden Lauf; jeder wird
+  einzeln verfolgt und angehalten ([S4.1.8](#S4.1.8)).
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:223 PANEL_CHANGES, (3.28.0: app 8da3f11e MINI_OPEN_KEY strom-research-mini-open, miniPanelFolded, rememberMiniPanelFolded, ne na telefonu; otevřený Přehled panel nerozbalí), :227 AUTO_FOLD, :3326 appendQueueSection(…, 3), renderLivePanel, renderIdleResearchPanel · src/ui/research-overview-ui.ts:5 (≥1280), :51 FOLDED_BY_DEFAULT, :53 GROUP_MS, :59 MAX_STEPS, :74, :309-311 · strings.ts live.overviewTitle, research.panelLabel, research.stop, research.atWork, research.queue · 3.27.0 Teď: app 4e4f6d8c src/research-link.ts WORKING_HELPS_FEATURE (working.helps), sanitizeWorking (helps jen s linií, branch) · src/ui/research-offline-ui.ts workingWhyText (helps → qWhyHelps + qWhyHow / qWhyHowBranch; větev mimo linie → qWhyOutBranch, ve skupině qWhyHowBranch) · src/ui/research-overview-ui.ts (Teď: důvod místo názvu linie) · strings.ts live.qWhyHelps, qWhyHow.*, qWhyHowBranch, qWhyOutBranch · spec 036 K1.8 · malý panel: app 2c018779 src/ui/research-ui.ts, research-directions-ui.ts (pod nadpisem linie jen jak) · 3.27.0 spec 057: app f05fff8e src/ui/research-actions-ui.ts overviewRows (research-item-overview první; stop při sledování, jinak followLive, ne bez agenta), src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (live.researchLink v záhlaví focus) · 28bbebeb src/ui/live-section-prefs.ts TOP_DEFAULTS (month.price false), research-overview-ui.ts appendOverviewSummary, strings.ts live.spendSessions, spendAmount · 87a6ea88 live.dirWorkedOn · strings.ts live.openOverview -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:223 PANEL_CHANGES, (3.28.0: app 8da3f11e MINI_OPEN_KEY strom-research-mini-open, miniPanelFolded, rememberMiniPanelFolded, ne na telefonu; otevřený Přehled panel nerozbalí), :227 AUTO_FOLD, :3326 appendQueueSection(…, 3), renderLivePanel, renderIdleResearchPanel · src/ui/research-overview-ui.ts:5 (≥1280), :51 FOLDED_BY_DEFAULT, :53 GROUP_MS, :59 MAX_STEPS, :74, :309-311 · strings.ts live.overviewTitle, research.panelLabel, research.stop, research.atWork, research.queue · 3.27.0 Teď: app 4e4f6d8c src/research-link.ts WORKING_HELPS_FEATURE (working.helps), sanitizeWorking (helps jen s linií, branch) · src/ui/research-offline-ui.ts workingWhyText (helps → qWhyHelps + qWhyHow / qWhyHowBranch; větev mimo linie → qWhyOutBranch, ve skupině qWhyHowBranch) · src/ui/research-overview-ui.ts (Teď: důvod místo názvu linie) · strings.ts live.qWhyHelps, qWhyHow.*, qWhyHowBranch, qWhyOutBranch · spec 036 K1.8 · malý panel: app 2c018779 src/ui/research-ui.ts, research-directions-ui.ts (pod nadpisem linie jen jak) · 3.27.0 spec 057: app f05fff8e src/ui/research-actions-ui.ts overviewRows (research-item-overview první; stop při sledování, jinak followLive, ne bez agenta), src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (live.researchLink v záhlaví focus) · 28bbebeb src/ui/live-section-prefs.ts TOP_DEFAULTS (month.price false), research-overview-ui.ts appendOverviewSummary, strings.ts live.spendSessions, spendAmount · 87a6ea88 live.dirWorkedOn · strings.ts live.openOverview · 3.31.0: app 7be40d24 src/ui/landscape-panel-fold.ts (MQ_PHONE_LANDSCAPE, jen rozbalený panel, images nebo toast message, nerozbalí se sám, nepamatuje se) · SPEC.md 1120-app-108-diry · spec 116 · 3.31.0 spec 127: app:f89b5166, 040e42e6 src/research-holds.ts workingHoldText, waitsText, src/ui/research-ui.ts pausedText (statePaused · waitsArchive), workingHoldEl, src/ui/research-overview-ui.ts:921, src/research-link.ts features task.holds, archive.holds · strings.ts live.holdLast, holdFreeBy, waitsArchive · research cs.json who.agent -->
 
 <a id="S4.1.1"></a>
 ### S4.1.1 Agenten im Stammbaum folgen
@@ -385,7 +398,7 @@ um darin inzwischen etwas anderes anzusehen; die übrigen Fenster folgen weiter.
   koppelt das Fenster wieder an, und es springt sofort zum Agenten. Das Abkoppeln übersteht das Neuladen des Fensters
   (F5) und wird mit dem Ende des Folgens vergessen.
 - **Wahl aus einem anderen Fenster:** ein folgendes Fenster, das nicht pausiert ist, markiert eine in einem anderen
-  Fenster gewählte Person nur, auch mit **Auswahl** → **Dieses Fenster**: **wechseln** ([A6.8.1](A6-views.md#A6.8.1));
+  Fenster gewählte Person nur, auch mit **Gewählte Person** → **Dieses Fenster**: **wechseln** ([A6.8.1](A6-views.md#A6.8.1));
   die Mitte bleibt beim Agenten. Die Tabelle wählt die Zeile dieser Person aus, scrollt aber nicht zu ihr. Der Sprung
   zum Agenten wird den anderen Fenstern nicht als Wahl einer Person geschickt. Ein pausiertes und ein abgekoppeltes
   Fenster richten sich nach der Wahl **Dieses Fenster** wie außerhalb des Folgens. Eine mit **fokussieren** an das
@@ -421,6 +434,67 @@ um darin inzwischen etwas anderes anzusehen; die übrigen Fenster folgen weiter.
 - **Gilt seit:** App 3.30.0
 
 <!-- zdroj: app:9cec9c30 (od 3714c539) src/windows/agent-follow-state.ts AgentFollow attached/paused/detached, agentFollowKey (sessionStorage jen detached), setLive (konec sezení zapomene odpojení), detach, attach, setPaused · src/windows/agent-state.ts, agent-mirror.ts, src/ui/agent-window-ui.ts (stav agenta z hlavního okna bez adresy a tokenu mostu, K1.3) · src/windows/sat-states.ts SatStrip, liveStrip (lost › paused › detached › idle › attachedNoJump › attached), STRIP_ICON, AMBER, writeStrip (tlačítka, goToMain poslední) · src/main.ts noJump (descendants, timeline) · src/ui/live-follow-ui.ts (další okno: pohled okna, Zpět pohled nepřepne, bez štítku pauzy ani mapPaused, pauza jen v okně, návrat po 20 s) · src/windows/window-selection.ts (připojené okno výběr jen vyznačí; skok agenta se nerozesílá) · src/windows/takeover.ts TAKEOVER_STEP_MS 400, takeoverOrder (sledující, pak odpojená; okno bez vlastního sledování ne), hasBridge (storedResearchBridge) · src/windows/become-main.ts, window-start.ts (◎ jako v zavřeném hlavním okně) · strings.ts win.agentAttached, agentAttachedNoJump, agentIdle, agentPaused, agentDetached, detach, attach, bridgeLost, followEnded, takingOver, takenOver, takeoverFailed, goToMain; live.followOff, followBack; research.stop · CHANGELOG.cs.md 3.30.0 „Sledování agenta ve všech oknech“ · spec 097 K1.1–K1.4, K2.1–K2.6, Rozhodnutí 16. 11. O1–O5, dotazy 3–5, 8 · app:docs/ZADANI_DEV_sledovani-ve-vsech-oknech.md §1–§4, §6, §7; ZADANI_UIX dotazy 10, 12 · prace/1116-app-097-sledovani-okna -->
+
+<a id="S4.1.8"></a>
+### S4.1.8 Jetzt mit mehreren Läufen
+
+Bei einer Forschung, die Läufe von Linien kann ([R7.10](R7-when-the-agent-works.md#R7.10)), zeigt der Bereich
+**Jetzt** in der **Forschungsübersicht** einen Block für jeden Lauf: den Lauf der ganzen Warteschlange und den Lauf
+jeder Richtung einzeln. Jeder Lauf lässt sich einzeln verfolgen und anhalten.
+
+- **Block eines Laufs:**
+  - Überschrift: das Zeichen der Richtung, ihr Name und ihre Nummer (G…), beim Lauf der ganzen Warteschlange **Ganze
+    Warteschlange**; rechts der Zustand: **arbeitet**, **startet…**, **wartet auf das Abo-Limit bis 14:00**,
+    **wartet auf das Archiv bis 14:40**, **wartet auf den Archiv-Browser** („Ein anderer Lauf nutzt den
+    Archiv-Browser; dieser wartet, bis er frei ist.“), **wartet auf einen Download**, **wartet bis …**, **wird
+    beendet – der Agent schreibt die Funde auf**, **beendet um 11:52**;
+  - unter der Überschrift der Agent, seit wann und wie lange, und der letzte Schritt (Person – Aufgabe) wie bisher
+    ([S4.1](#S4.1));
+  - ein Lauf der ganzen Warteschlange, neben dem Richtungen eigene Läufe haben: „Überspringt: Vorfahren von Jan Horák,
+    Nachkommen von Marie Vlková“. Schließt er gerade eine Aufgabe einer Richtung ab, die inzwischen einen eigenen
+    Lauf bekommen hat: „Schließt T0103 der Richtung … ab und überspringt sie dann.“;
+  - ein beendeter Lauf bleibt 60 s in **Jetzt** mit dem Zustand **beendet um …**. Darunter, nur bei einem Ende durch
+    das Limit, **Das Abo-Limit ist aufgebraucht.** und bei einem Fehler **Der Agent wurde mit einem Fehler beendet;
+    Einzelheiten stehen im Forschungsterminal.**; beim Lauf einer Richtung zusätzlich **Die Richtung übernimmt
+    wieder die ganze Warteschlange.** Dann verschwindet der Block. Ein neues Öffnen der App zeigt beendete Blöcke
+    nicht.
+- **Reihenfolge der Blöcke:** zuerst der Lauf der ganzen Warteschlange, dann die Läufe der Richtungen in der
+  Reihenfolge der Richtungen ([R2.1.4](R2-lines-and-queue.md#R2.1.4)). Die Überschrift des Bereichs ist „Jetzt · 3
+  Agenten“; die Zusammenfassung **Status** bei zwei und mehr Läufen „3 Agenten arbeiten“ und gegebenenfalls „1 wartet
+  auf das Limit bis 14:00“.
+- **Aktionen des Blocks:**
+  - **Im Stammbaum zeigen**: die Personen der Richtung, beim Lauf der ganzen Warteschlange die Person, an der der
+    Agent arbeitet;
+  - **Diesem Lauf folgen** / **● Wird verfolgt**: nur bei zwei und mehr Läufen und eingeschaltetem Verfolgen;
+  - **Stoppen** („Schließt die laufende Aufgabe ab und beginnt keine weitere“): direkt über die Brücke, ohne
+    Terminal, bei einem arbeitenden oder wartenden Lauf; während des Schreibens **Wird gestoppt…**, bei einer
+    Ablehnung **Der Agent wurde nicht gestoppt.** Die Bedeutung ist die von `strom run stop`
+    ([R7.10.2](R7-when-the-agent-works.md#R7.10.2));
+  - **Abschließen und beenden**: öffnet das Terminal der Forschung und bittet diesen Lauf abzuschließen und zu enden
+    ([R7.3](R7-when-the-agent-works.md#R7.3)); bei einem arbeitenden Lauf und bei einem Lauf, der auf den
+    Archiv-Browser oder einen Download wartet. Ein Lauf, der auf das Limit oder ein Archiv wartet, hat es nicht;
+  - ein Lauf, der beendet wird, hat nur **Im Stammbaum zeigen**. Das Anhalten eines Laufs ändert die übrigen nicht;
+    alle auf einmal anzuhalten ist nicht möglich.
+- **Verfolgen:** verfolgt wird ein Lauf. Standard ist der erste nicht pausierte Lauf in der Reihenfolge von
+  **Jetzt**; ein neuer Lauf schaltet das Verfolgen nicht um. Endet der verfolgte Lauf, wird wieder der Standardlauf
+  verfolgt.
+  - im Stammbaum ist bei zwei und mehr Läufen die Marke **Verfolgt: Vorfahren von Jan Horák ▾** mit dem Menü **Lauf
+    verfolgen** (Nummer und Name des Blocks, darunter Agent und Person; ein wartender Lauf grau mit seinem Zustand; am
+    Ende **Hier nicht mehr folgen**);
+  - die Personen aller Läufe sind wie bisher markiert ([S4.1.1](#S4.1.1)); der verfolgte Lauf hat die erste Farbe des
+    Verfolgens, die übrigen die zweite. Statt der Nummer der Sitzung tragen sie das Zeichen des Laufs: das Zeichen der
+    Richtung und die Nummer des Blocks in **Jetzt** („↑ 2“), der Lauf der ganzen Warteschlange nur die Nummer;
+  - weitere Fenster des Stammbaums ([S4.1.7](#S4.1.7)) verfolgen denselben Lauf wie das Hauptfenster.
+- **Telefon:** Blöcke und Zustände sind gleich, ohne **Stoppen**, **Abschließen und beenden** und die Wahl des
+  verfolgten Laufs; die Marke sagt nur, welcher Lauf verfolgt wird, und markiert sind nur die Personen des verfolgten
+  Laufs.
+- **Grenzen:** bei einer älteren Forschung oder bei einem einzigen Lauf der ganzen Warteschlange ist **Jetzt** wie
+  bisher.
+- **Bedienung:** App: **Forschungsübersicht → Jetzt**; Marke **Verfolgt:** im Stammbaum. Terminal:
+  `strom run stop <run-…> [--finish]`.
+- **Gilt seit:** App 3.31.0 (Forschung 1.36.0)
+
+<!-- zdroj: app:4de0835a src/research-runs.ts (run.lines, RUN_ENDED_MS 60 s, orderRuns obecný první a linie v pořadí, runCount, noteEndedRuns jen v paměti) · src/ui/research-overview-ui.ts vykreslení bloku (runStateWorking/Starting/Limit/Archive/Waiting/WaitingUntil/Browser/Download/Finishing/Ended, runBrowserNote, runSkips, runFinishesThen, runEndedText jen limit|error, runAfterStop), overviewRunActions (Ukázat ve stromu; Sledovat tento běh jen ≥ 2 běhy a sledování, ne telefon; Zastavit s run.stop u working|waiting, ne telefon; Dokončit a skončit finish?run= u working a čekání na prohlížeč nebo stahování) · src/ui/live-follow-ui.ts pilulka followRunPill, followRunMenu, followOff · strings.ts live.nowAgents, stateAgents, stateAgentsWaiting, runWhole, run*, followRun* · app:docs/ZADANI_DEV_beh-po-liniich.md §3, §4, §7, Kolo 2 C2 · dirigent:spec/126 K2.1, K2.2, K2.5, prace/1121-app-126-linie, 1122-app-126-kolo2 · research: /status runs[], runsEnded[] (POST runs/stop) -->
 
 <a id="S4.2"></a>
 ## S4.2 Warteschlange in der App
@@ -461,8 +535,25 @@ Die App zeigt den Anfang der Warteschlange der Forschung in der Reihenfolge, in 
   Aufgabe als nächste einreihen und zurücknehmen ([S4.2.2](#S4.2.2)) und um die Arbeit des Agenten an der
   Warteschlange bitten ([S4.2.3](#S4.2.3)). Die aufgeklappte **Warteschlange** hat dann die Zahl der Aufgaben in der
   Überschrift („Warteschlange · 1.240“) statt rechts. Mit einer älteren Forschung ist die Warteschlange wie bisher.
+- **Ab App 3.31.0 mit Forschung 1.36.0:** eine Aufgabe in der Warteschlange, die eine andere Sitzung hält, hat den
+  Hinweis „Die Aufgabe hält Claude Code (Sitzung N0040) seit 14:05, zuletzt 14:31; frei spätestens um 15:01.“ Eine
+  Aufgabe, deren eingeschränktes Archiv gerade eine andere Sitzung nutzt, hat „Das Archiv … nutzt gerade eine andere
+  Forschung (seit 14:05, zuletzt 14:31); frei spätestens um 15:01.“; statt „eine andere Forschung“ kann „die Sitzung
+  N0040“, „eine andere Sitzung“ oder „ein Massendownload“ stehen. Wartet eine andere Arbeit länger auf das Archiv:
+  „Auf das Archiv … wartet eine andere Arbeit länger; an der Reihe spätestens um 15:01.“ Eine Aufgabe zu starten,
+  die eine andere Sitzung hält, lehnt die Forschung ab ([R7.9](R7-when-the-agent-works.md#R7.9),
+  [R9.13](R9-archives.md#R9.13)). Mit einer älteren Forschung ohne Hinweise.
+- **Ab App 3.31.0 mit Forschung 1.36.0:** die Aufgaben einer Richtung mit eigenem Lauf
+  ([R7.10](R7-when-the-agent-works.md#R7.10)) und die Aufgaben, die ihr helfen, stehen ohne Filter nicht in den
+  nummerierten Zeilen. An ihrer Stelle steht über den Zeilen eine Zeile je Richtung: das Zeichen, der Name der
+  Richtung, die Zahl der Aufgaben, „erledigt der eigene Agent der Richtung (Claude)“ und **Zeigen ›** (Filter der
+  Richtung). Die Zahl in der **Warteschlange** und in der Marke **Alle Richtungen** sowie die Ordnungszahlen umfassen
+  nur die Aufgaben für den Lauf der ganzen Warteschlange. Im Filter einer solchen Richtung sind ihre Aufgaben in ihrer
+  Reihenfolge nummeriert, und über ihnen steht „An dieser Richtung arbeitet ein eigener Agent (Claude, seit 10:42).
+  Die ganze Warteschlange überspringt sie.“ Die Arbeit außerhalb der Richtungen, die Zweige und die Ortsgeschichte
+  bleiben beim Lauf der ganzen Warteschlange. Auf dem Telefon ist die **Warteschlange** gleich.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear · 3.27.0: app 2ee3718d (queue[].kind ze /status i ze stránek fronty, jiná hodnota zahozena) strings.ts live.queueKind · research 5f48cdaf src/core/queue.ts RUN_TURNS, runOrder (most /status queue[], GET /queue, menu před strom run), kind story|history · 3.28.0: app 4ad34832 src/ui/research-ui.ts appendQueueSection (counted: queueTitleCount místo summary, když je pole nebo akce záhlaví) · spec 052 -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:308 queueNoteText, :3373 appendQueueSection · research-overview-ui.ts:311 (20) · strings.ts research.queue, research.park/drop/wake, research.queueMore, research.queueOffLast, research.queueOffNever, research.queueHelps · HEAD src/research-queue-pages.ts:19 QUEUE_PAGE, :28 QUEUE_ROWS_CAP · src/ui/research-ui.ts:3884 taskDoNext/taskDoLast · strings.ts live.taskDoing, live.queueLoadMore, live.queueCapNote, live.branchQueueChip, live.branchQueueChipClear · 3.27.0: app 2ee3718d (queue[].kind ze /status i ze stránek fronty, jiná hodnota zahozena) strings.ts live.queueKind · research 5f48cdaf src/core/queue.ts RUN_TURNS, runOrder (most /status queue[], GET /queue, menu před strom run), kind story|history · 3.28.0: app 4ad34832 src/ui/research-ui.ts appendQueueSection (counted: queueTitleCount místo summary, když je pole nebo akce záhlaví) · spec 052 · 3.31.0 spec 127: app:f89b5166 src/research-holds.ts heldByText, archiveHeldText, queueHoldText (linie vynechána), src/ui/research-ui.ts queueHoldNote · strings.ts live.heldByTask, archiveHeld, archiveHolderOther, archiveHolderFetch, archiveHolderOwn, archiveHolderSession, archiveHeldWaiting · app:docs/ZADANI_VYZKUM_rezervace.md Odpověď aplikace -->
 
 <a id="S4.2.1"></a>
 ### S4.2.1 Suche in der Warteschlange
@@ -594,8 +685,50 @@ Aus der App lässt sich um selbstständige Arbeit des Agenten an der Warteschlan
   ([S4.5.4](#S4.5.4)) oder eine Sitzung oder ein Lauf beginnt; dann tritt die Zeile der Sitzung an ihre Stelle. Ohne
   Bestätigung innerhalb von 30 s fragt **Jetzt** **Arbeit an der Warteschlange nicht gestartet?** („Das Terminal hat
   sich in 30 s nicht gemeldet.“) mit **Erneut versuchen** und dem Rat, und die Schaltflächen sind wieder frei.
+- **Ab App 3.31.0 mit Forschung 1.36.0:** wenn Richtungen eigene Läufe haben
+  ([R7.10](R7-when-the-agent-works.md#R7.10)):
+  - **An der Warteschlange arbeiten…** ist nur während eines Laufs der ganzen Warteschlange belegt (**● In Arbeit ›**),
+    nicht während der Läufe von Richtungen;
+  - bei voller Zahl der Läufe ([S4.4.12](#S4.4.12)) ist die Schaltfläche nicht verfügbar mit „Es arbeiten 3 Agenten,
+    mehr erlauben die Einstellungen nicht.“ und **Einstellungen ›**; im Menü **Forschung** ist der Punkt grau mit
+    derselben Erklärung;
+  - der Dialog zeigt die Warteschlange ohne die Aufgaben der Richtungen mit eigenem Lauf, und unter der Aufgabe von
+    **Als Erstes kommt** „Überspringt die Richtung Vorfahren von Jan Horák (ein eigener Agent arbeitet daran).“; wenn
+    schon ein Lauf arbeitet, auch „Es arbeitet bereits 1 Agent. Die Abo-Nutzung summiert sich.“
 
 <!-- zdroj: app:9cf43b22, 34accb13 (8a10387e) src/ui/queue-work-dialog.ts queueWorkOffer (live, ne phone/sheet, ne noAgent, linkAvailable work, work.link; busy sessions|runs → 'busy'), queueWorkHead (queue-work-busy → showOverviewNowFinish), queueWorkCounted (run.tasks), queueWorkFirst (own next, pos 1), queueWorkSessionLine, WORK_TASKS_DEFAULT 5, noGate (work.gate === null) · src/research-link.ts WORK_TASKS_MIN/MAX, WORK_LINK_FEATURE, RUN_TASKS_FEATURE · src/ui/research-ui.ts queueHeadAction (jen rozbalená Fronta) · src/ui/research-overview-ui.ts showOverviewNowFinish · strings.ts live.queueWork*, queueWorkingLink · spec 052 K6.1, K6.2, K6.4, K6.6 · ZADANI_DEV_fronta-hledani §5; D6 (řádek sezení i bez brány) · 3.29.0: app:a0a66d45 Teď nabízí Pracovat na frontě… (bez práce agenta a běhu; okno přehledu; fokus zpět) · 3c8f4128 src/ui/queue-work-dialog.ts Další (n) (pořadí: ruční další, místo ve frontě; bez odložených a mimo linie, které se neberou; queue.page; zbytek, Přehled výzkumu ›; sbalené při otevření) · strings.ts live.queueWorkMore, queueWorkLess, queueWorkByQueue, queueWorkByQueueHint, queueWorkRest, queueWorkRestUnknown, queueWorkOverview, queueTagNext · 3.30.0: app:574e7ef9 src/ui/queue-start.ts (QUEUE_START_MS 30 s, důkaz handoff nebo sezení/běh, silent → queueNotStarted, proven bez sezení zmizí potichu) · src/ui/research-overview-ui.ts (live-now-starting, terminalSilent) · strings.ts busy.queueStarting, queueStartingSub, queueNotStarted, terminalSilent -->
+
+<a id="S4.2.4"></a>
+### S4.2.4 Warteschlange nach Aufgabenart
+
+Mit einer Forschung, die bei den Aufgaben die Art der Arbeit angibt, hat die **Warteschlange** in der
+Forschungsübersicht unter den Chips der Richtungen eine Reihe **Aufgabenart**: ein Chip für jede Art, die eine Aufgabe
+in der Warteschlange hat, mit der Anzahl („Prüfung 12“). Die Art bestimmt die Forschung
+([R2.2](R2-lines-and-queue.md#R2.2)).
+
+- **Arten** in dieser Reihenfolge: **Prüfung**, **Kirchenbücher**, **Volkszählung**, **Material**, **Orte**,
+  **Quellen außer Kirchenbüchern**, **Anfragen**, **Erzählungen**, **Zeitgeschehen**, **Sonstiges**.
+- **Grenzen:**
+  - der gewählte Chip schränkt die Warteschlange auf Aufgaben dieser Art ein und zeigt ×; ein zweiter Klick hebt die
+    Wahl auf („Alle Aufgabenarten zeigen“). Die gewählte Art bleibt auch mit null in der Reihe, wenn ihre letzte
+    Aufgabe verschwindet;
+  - der Filter verbindet sich mit Richtung oder Zweig und mit der Suche in der Warteschlange ([S4.2.1](#S4.2.1)):
+    „12 Aufgaben gefunden · Art Prüfung“; ohne Ergebnis „Unter den Aufgaben der Art Prüfung nichts gefunden.“ mit
+    **In allen Aufgabenarten suchen**;
+  - die Wahl gilt für die Forschung, bei der sie getroffen wurde, bis sie aufgehoben wird oder das Verfolgen endet;
+  - mit einer älteren Forschung erscheint die Reihe nicht, und die Warteschlange ist wie bisher;
+  - **Volkszählung** gibt es nur mit einer Forschung, die Volkszählungen anbietet ([R9.12](R9-archives.md#R9.12));
+    die Aufgaben der Volkszählungen stehen dann nicht unter **Sonstiges**. Zurückgestellte Aufgaben der
+    Volkszählungen ([R9.12.4](R9-archives.md#R9.12.4)) sind nicht in der Warteschlange.
+- **Aus dem Abschnitt Prüfung:** die Zeile „Warten auf Prüfung“ in Was die Forschung weiß › **Prüfung**
+  ([S7.5](S7-reliability-and-verification.md#S7.5)) hat **In der Warteschlange zeigen**. Das öffnet die
+  **Warteschlange** in der Forschungsübersicht, eingeschränkt auf **Prüfung**. Es bleibt in der App und hat keine Marke.
+- **Bedienung:** App: **Forschungsübersicht** → **Warteschlange** → Reihe **Aufgabenart**; Was die Forschung weiß ›
+  **Prüfung** → **In der Warteschlange zeigen**. Terminal: `strom task list --kind verify`
+  ([R2.2](R2-lines-and-queue.md#R2.2)).
+- **Gilt seit:** App 3.31.0, Forschung 1.36.0
+
+<!-- zdroj: dirigent:spec/065-spolehlivost-a-znovu-overeni K7.4 · app:53ef9cbe src/ui/queue-kind-ui.ts (queueKindChips: jen druhy s úkolem v pevném pořadí, vybraný i s 0; queueKindRow aria-pressed, ×, taskKindClear; volba pro bridge.base) · src/research-link.ts QUEUE_KIND_FEATURE queue.kind, QUEUE_TASK_KINDS · src/research-queue-pages.ts (kind= s linií, větví a q) · src/ui/research-ui.ts queueSearchInKind, queueSearchNoneKind, queueSearchAllKinds · src/ui/verify-person-ui.ts verifyRowsHtml (pendingQueue, bez značky), showOverviewQueueKind('verify') · strings.ts live.taskKinds, taskKindLabel, taskKindClear, queueSearchFound, verify.pendingQueue · research:7116bb60 src/core/taskkind.ts, GET /queue?kind=, queueCounts.kind · CHANGELOG.cs.md 3.31.0 · sčítání: app:6edc7dc7 src/research-link.ts QUEUE_TASK_KINDS (census za records), CENSUS_FEATURE · src/research-queue-pages.ts queuePageQuery (kind=census jen s funkcí census, other + known=census) · strings.ts live.taskKinds.census · research:c7b117cd src/core/taskkind.ts (census, KINDS_065, kindMatches known) -->
 
 <a id="S4.3"></a>
 ## S4.3 Linien in der App
@@ -625,6 +758,10 @@ sie gekommen ist. In App 3.21.2 werden Linien nur gelesen; jede Änderung wird i
   gefunden hat (**Letzte N Tage:** Sitzungen, Personen, Quellen); die Personen zeigt es im Stammbaum. Beendete
   Linien sind am Ende zugeklappt (**Beendet · N**). In einem schmalen Fenster und auf dem Telefon ist die Übersicht
   ein Blatt: statt des Griffs für die Reihenfolge Pfeile ▲▼.
+- **Ab App 3.31.0 mit Forschung 1.36.0:** jede Richtung kann einen eigenen Agenten bekommen, **Agent auf diese
+  Richtung ansetzen** ([S4.3.3](#S4.3.3)). Die Zeile einer Richtung mit eigenem Lauf sagt „Agent arbeitet: Claude“ mit
+  dem Link **In Jetzt ›**, der **Jetzt** aufklappt und den Block des Laufs hervorhebt ([S4.1.8](#S4.1.8)). Das
+  Gespräch **An dieser Richtung arbeiten** hat den Hinweis „Gespräch mit dem Agenten über die Richtung im Terminal“.
 
 <!-- zdroj: app:v3.21.2 src/ui/research-directions-ui.ts:156 linesMulti, :350-353 appendOverviewDirections, :385 canDo, :528 dirWork · strings.ts live.dirTitle, live.dirOutside, live.dirInactive, live.dirWork · research:v1.25.2 assets/lang/cs.json ui.link.what.direction.pause/done/resume · 3.22.0: research-directions-ui.ts:703 dirEnded, :852 dirNow, :878 dirFoundIn, :720 sheet; strings.ts live.dirLimitGen, dirLimitBefore, dirFound* -->
 
@@ -658,6 +795,16 @@ sich nicht, und nichts wird bezahlt.
 - **Bedienung:** App: **Forschungsübersicht → Richtungen**, **+ Neue Richtung**, bei der Linie **⋯**; Menü der
   Person **Forschung ›**.
 - **Gilt seit:** App 3.22.0 (Forschung 1.26.0)
+- **Ab App 3.31.0 mit Forschung 1.36.0:** eine neue Richtung innerhalb einer weiteren Richtung
+  ([R2.1.5](R2-lines-and-queue.md#R2.1.5)): das Formular **Neue Richtung** sagt „Die neue Richtung liegt innerhalb der
+  Richtung Vorfahren von Jan Horák. Die Personen darin bleiben auch in der weiteren Richtung.“ und bietet angehakt
+  „7 offene Aufgaben aus der Richtung Vorfahren von Jan Horák hierher übernehmen (zu den Personen dieser Richtung)“
+  (bei mehreren weiteren Richtungen „aus den weiteren Richtungen“). Nach dem Anlegen mit Übernahme bleibt 10 s die
+  Meldung „Richtung angelegt. 7 Aufgaben übernommen.“ mit **Übernahme rückgängig** und **An dieser Richtung
+  arbeiten**. **Übernahme rückgängig** (**Wird rückgängig gemacht…**) macht nur die Übernahme rückgängig, die Richtung
+  bleibt: „Übernahme rückgängig gemacht · 7 Aufgaben zurück in der weiteren Richtung“; haben sich die Aufgaben
+  inzwischen geändert, **Nichts rückgängig zu machen.** Ohne Übernahme (Feld nicht angehakt, nichts zu übernehmen,
+  ältere Forschung) ist die Meldung wie bisher; auf dem Telefon ohne **An dieser Richtung arbeiten**.
 
 <!-- zdroj: app:HEAD src/ui/research-directions-ui.ts:372 DIRECTIONS_WRITE_SINCE, :628 · src/research-directions-write.ts createDirection, editDirection, setDirectionState, writeDirectionOrder · src/ui/research-actions-ui.ts:1015-1024, :1067 openDirectionForm · strings.ts live.dirNew, dirFormNew, dirFree, dirEditFree, dirLocked, dirOrderWeight, dirOrderStrict, dirArchive, dirPhoneOnly, dirBridgeDown, dirOldResearch, dirBusy, dirRetry, dirDupActive, dirShowIt, dirAnyway · research:src/core/live.ts /directions -->
 
@@ -701,6 +848,52 @@ einstellen.
   dem Fenster der Übersicht seit App 3.29.0
 
 <!-- zdroj: app:HEAD src/ui/research-offline-ui.ts:3, :104 (caps.offLineBranches, ≥2 linie) · src/research-directions-write.ts setBranchMode, setOffLineTree, answerBranchWaiting · strings.ts live.offModeLink, live.offModeCap, live.branchAddPick, live.branchCreate, live.branchNever, live.branchReset · research-offline-ui.ts:202-228 growingBranchLine, :542 branch choices, :680 branchQueueBeyond, :740 pick · strings.ts live.dirNear, branchGrows, branchOwnChoice, branchQueueHead, branchQueuePos, branchAllTasks, branchTaken, branchDefaultTag, branchAdd(Paused), branchNeverGroup, waitBranchLeave, waitBranchHint, setOutTitle, setOutOcc, setSuggest, setOwnChoice, setManualTasks, menu treeSettings · spec 038 K7 · 3.27.0: strings.ts live.setOutIntro (app 4e4f6d8c, spec 036 K1.8) · 3.29.0: app:70d50162 research-offline-ui.ts openOffLineSettings bez sledování (prohlížený strom), overview-window offline-settings → hlavní okno · 0a00fb2b research-tree-settings-ui.ts offLineSettingsOffered (archiv, čeká na agenta: text, ne odkaz) -->
+
+<a id="S4.3.3"></a>
+### S4.3.3 Agent auf diese Richtung ansetzen
+
+Bei jeder aktiven Richtung lässt sich ein eigener Lauf anfordern: ein Agent, der nur die Aufgaben dieser Richtung
+nimmt ([R7.10](R7-when-the-agent-works.md#R7.10)). Die App startet nichts: sie öffnet das Terminal der Forschung in
+einem neuen Fenster, und dieses startet den Lauf ([R7.10.4](R7-when-the-agent-works.md#R7.10.4)). Die Arbeit des
+Agenten verbraucht das KI-Abonnement.
+
+- **Wo:** Detail der Richtung, Schaltfläche **Agent auf diese Richtung ansetzen** (Marke KI und Terminal) mit dem Satz
+  „Der Agent nimmt die Aufgaben dieser Richtung selbst (7 in der Warteschlange), in einem neuen Terminalfenster.“;
+  Menü **⋯** bei der Richtung, der Punkt vor **An dieser Richtung arbeiten** (Hinweis „Der Agent nimmt die Aufgaben
+  der Richtung selbst“).
+- **Richtung mit Lauf:** im Detail statt der Schaltfläche „● Agent arbeitet · Claude · seit 10:42“ und **In
+  Jetzt ›**; im Menü fehlt der Punkt. Ein zweiter Lauf derselben Richtung ist nicht möglich.
+- **Wenn es nicht geht:** Schaltfläche und Punkt bleiben, nicht verfügbar, mit dem Grund:
+  - „Die Richtung ist pausiert.“ (daneben bleibt **Neu starten**);
+  - „In der Warteschlange der Richtung ist nichts.“;
+  - „Es arbeiten 3 Agenten, mehr erlauben die Einstellungen nicht.“ mit **Einstellungen ›** ([S4.4.12](#S4.4.12));
+  - „Auf diesem Computer ist kein Agent installiert, den die Forschung starten kann.“;
+  - „Am Stammbaum arbeitet ein Agent, den eine ältere Forschungsversion gestartet hat; daneben startet kein Agent der
+    Richtung. Das geht, sobald er fertig ist.“;
+  - sonst „Ein Agent lässt sich jetzt nicht auf diese Richtung ansetzen.“
+  Bei einer beendeten Richtung fehlt die Aktion.
+- **Dialog Agent auf Richtung ansetzen:** in der Überschrift Zeichen, Name und Nummer der Richtung.
+  - **Agent** (nur wenn die Forschung zwei und mehr Agenten kennt): Wahl des Agenten, der Standardagent mit
+    „(Standard)“, darunter „Die Wahl bleibt für diese Richtung gespeichert.“ Vorgewählt ist der Agent, mit dem die
+    Richtung zuletzt lief, sonst der Standardagent der Forschung;
+  - **Automatisch** („Der Agent nimmt eine Aufgabe dieser Richtung nach der anderen, solange das Abo-Limit es
+    erlaubt.“) oder **Nur 5 Aufgaben**, **Als Erstes kommt** und **Weitere (n)** wie in [S4.2.3](#S4.2.3), nur aus der
+    Warteschlange der Richtung; darunter „und 12 weitere Aufgaben der Richtung in der Warteschlange“;
+  - wenn schon ein Lauf arbeitet: „Es arbeitet bereits 1 Agent. Die Abo-Nutzung summiert sich.“ Das blockiert nichts;
+  - **Abbrechen** und **Starten** (Marke KI und Terminal) mit dem Satz „Der Agent beginnt in einem neuen
+    Terminalfenster. Die Arbeit stoppt Strg-C in dessen Fenster oder „Abschließen und beenden“ im Bereich Jetzt.“
+    Wird die Richtung inzwischen blockiert, ist **Starten** mit dem Grund nicht verfügbar.
+- **Nach Starten:** **Jetzt** zeigt sofort „Wird gestartet… · Vorfahren von Jan Horák (G0002)“ mit „Der Agent startet
+  in einem neuen Terminalfenster der Forschung.“; ohne Antwort innerhalb von 30 s „Lauf der Richtung nicht
+  gestartet? · Vorfahren von Jan Horák“ mit **Erneut versuchen** wie in [S4.2.3](#S4.2.3).
+- **Grenzen:** nur bei einer Forschung, die Läufe von Linien kann, mit einer Brücke, die antwortet, und mit einem
+  Agenten; nicht im Strom-Archiv, nicht in einer Forschung, die auf einen Agenten wartet, und nicht auf dem Telefon
+  (dort werden Läufe nur gezeigt, [S4.1.8](#S4.1.8)).
+- **Bedienung:** App: **Forschungsübersicht → Richtungen**, Detail der Richtung oder **⋯**. Terminal: `strom run
+  --research G…`, Menü **Den Agenten allein arbeiten lassen** ([R7.10](R7-when-the-agent-works.md#R7.10)).
+- **Gilt seit:** App 3.31.0 (Forschung 1.36.0)
+
+<!-- zdroj: app:4de0835a src/ui/research-directions-ui.ts (managedDirectionDetail blok běhu, openManagedDirectionMenu položka před dirWork, managedDirectionMeta lineRunWorkingMeta + lineRunInNow, lineRunWhy) · src/research-runs.ts lineRunBlock (ended, running, canStart/why z mostu, paused > empty > limit), atRunLimit · src/ui/queue-work-dialog.ts showLineRunDialog, syncLineRunDialog (lineRunKicker, lineRunAgent, lineRunAgentDefault, lineRunAgentKept, lineRunAutoHint, lineRunRest, runsAddUp, lineRunStart, lineRunConfirm) · beginRunWork (work?research=G&agent=), lineRunStarting, lineRunStartingSub, lineRunNotStarted · strings.ts live.lineRun*, runsLimitReached, runsSettingsLink, dirWorkHint · app:docs/ZADANI_DEV_beh-po-liniich.md §1, §2, Kolo 2 B · dirigent:spec/126 K2.1, K2.2, K2.4, K2.7, K2.8 · research: researches[].run/canStart/why/agent, agents[] -->
 
 <a id="S4.4"></a>
 ## S4.4 Wartet auf Bearbeitung in der App
@@ -1157,12 +1350,93 @@ und bietet eine Korrektur in einem Schritt an. Der Eintrag wartet weiter, die Za
 
 <!-- zdroj: app:929d7813, ed7f7a04, 287ebc72, 01a1e760 src/ui/waiting-task-ui.ts openWaitingAuditFix (GET waiting/<T>/fix, auditLoading, jeden náhled), náhled (auditChanges, auditThisTask, auditNewTask, auditRemains, chat u první knihy, ne sheet; auditFixNote), confirmWaitingAuditFix (auditBusy, expect = stamp), writeWaitingAuditFix (toast auditFixed / auditFixedWoke 8000 ms, Vrátit = waitingWrite.undo), undoWaitingAuditFix (unfix, auditUndone, auditUndoFailed), cancelWaitingAuditFix (Esc, fokus na audit-fix), auditErrorText (409 auditErr409 + auditReload, 503, locked, disk), AUDIT_SHEET_ID (telefon) · src/research-audit.ts auditChangeLines (wait-images, wait-book, folder, split), auditLeftLines · src/research-link.ts postWaitingAudit (do fix/unfix/keep/unkeep, expect) · strings.ts live.waitingAudit.* · ZADANI_DEV_kontrola-ukolu.md §2 · dirigent:prace/1117-app-109-kontrola (D3 texty náhledu z op/images/title, D5 Vrátit jen v toastu) -->
 
+<a id="S4.4.10"></a>
+### S4.4.10 Forschung für diesen Stammbaum › Volkszählungen
+
+Volkszählungen als Quelle der Forschung ([R9.12](R9-archives.md#R9.12)) lassen sich auch in der App ein- und
+ausschalten. Geschrieben wird über die Brücke sofort nach dem Klick, in beide Richtungen, und es ist die Entscheidung
+des Menschen in der App: ein Systemfenster erscheint nicht.
+
+- **Gruppe Quellen** mit dem Schalter **Volkszählungen** und dem Satz „Die Forschung darf Volkszählungen als Quelle
+  nutzen: ein Haushalt in einem Jahr zeigt, wer zusammen wohnte und woher jemand kam. Die meisten Archive zeigen
+  Volkszählungen nur an, die Bögen werden daher meist von Hand als Bildschirmfoto geliefert.“
+- **Grenzen:**
+  - nur mit einer Forschung, die Volkszählungen anbietet; mit einer älteren Forschung gibt es die Gruppe nicht. Nicht
+    beim Strom-Archiv und nicht bei einer Forschung, die auf einen Agenten wartet; wechselt die Forschung inzwischen
+    zum Strom-Archiv, verschwindet die Gruppe;
+  - nach dem Klick erscheint der neue Zustand sofort, gestrichelt und gesperrt, bis die Forschung das Schreiben
+    bestätigt;
+  - ausgeschaltet mit zurückgestellten Aufgaben ([R9.12.4](R9-archives.md#R9.12.4)): unter der Zeile „Zurückgestellt:
+    3 Volkszählungsaufgaben. Beim Einschalten kommen diese zurück.“;
+  - ohne Brücke ist der Schalter inaktiv: „Die Forschung läuft nicht. Ändern lässt es sich, sobald sie läuft.“;
+  - eine Ablehnung nennt den Grund unter der Zeile, und der Schalter bleibt, wie er war (z. B. „Die Forschung ist
+    beschäftigt. Gleich geht es wieder.“, gesperrte Forschung, voller Datenträger).
+- **Bedienung:** App: **Forschung → Weitere Aktionen → Forschung für diesen Stammbaum… → Quellen →
+  Volkszählungen**. Terminal: [R9.12](R9-archives.md#R9.12).
+- **Gilt seit:** Forschung 1.36.0, App 3.31.0
+
+<!-- zdroj: app:6edc7dc7 src/research-link.ts CENSUS_FEATURE census, LiveCensus {on, held}, sanitizeCensus · src/history-bridge.ts postBridgeCensus, censusReply (held, invalid, archive 409 census.archive, busy, locked, full) · app:80d6358c src/ui/research-tree-settings-ui.ts renderResearchCensusRow (jen s funkcí census, ne archiv ani výzkum bez agenta, gone po 409; pend přerušovaně a zamčeno; censusHeld jen vypnuto a held > 0; bez mostu storiesBridgeDown), setResearchCensus · strings.ts history.censusSection, censusTitle, censusDesc, censusHeld, storiesBridgeDown, errBusy · e2e/research-census.spec.ts · research:c7b117cd src/core/live.ts POST /census (config set census --for-tree v prostředí aplikace, bez okna) · CHANGELOG.cs.md 3.31.0 „Sčítání lidu z výzkumu“ · dirigent:spec/106 K1.1, K1.4 -->
+
+<a id="S4.4.11"></a>
+### S4.4.11 Forschung für diesen Stammbaum › Materialien: Dateien geht der Agent selbst durch
+
+Ob der Agent an die Forschung gesendete Dateien selbst durchgeht ([R11.6](R11-material-from-the-user.md#R11.6)),
+lässt sich auch in der App ein- und ausschalten. Geschrieben wird über die Brücke sofort nach dem Klick, in beide
+Richtungen, und es ist die Entscheidung des Menschen in der App.
+
+- **Gruppe Materialien** mit dem Schalter **An die Forschung gesendete Dateien geht der Agent selbst durch** und dem
+  Satz „An die Forschung gesendete Dateien (Stapel, einzelne Dateien, Scans von Quellen) erhalten Aufgaben für den
+  Agenten: Er ordnet sie Personen zu, benennt sie und legt Quellen an. Nutzt das Abo oder Guthaben. Aus: Die Dateien
+  warten unter Materialien und werden nur auf Anfrage sortiert.“ Standardmäßig ist er ausgeschaltet.
+- **Grenzen:**
+  - nur mit einer Forschung, die die Einstellung anbietet; mit einer älteren Forschung gibt es die Gruppe nicht, und
+    es gelten die bisherigen Texte. Nicht beim Strom-Archiv und nicht bei einer Forschung, die auf einen Agenten
+    wartet; wechselt die Forschung inzwischen zum Strom-Archiv, verschwindet die Gruppe;
+  - nach dem Klick erscheint der neue Zustand sofort, gestrichelt und gesperrt, bis die Forschung das Schreiben
+    bestätigt;
+  - ohne Brücke ist der Schalter inaktiv: „Die Forschung läuft nicht. Ändern lässt es sich, sobald sie läuft.“;
+  - eine Ablehnung nennt den Grund unter der Zeile, und der Schalter bleibt, wie die Forschung ihn hat (beschäftigte
+    oder gesperrte Forschung, das Schreiben hält ein anderer, voller Datenträger);
+  - der Schalter gilt für diesen Stammbaum; dieselbe Einstellung gilt auch für Fotos vom Telefon
+    ([S5.4](S5-phone.md#S5.4)).
+- **Bedienung:** App: **Forschung → Weitere Aktionen → Forschung für diesen Stammbaum… → Materialien → An die
+  Forschung gesendete Dateien geht der Agent selbst durch**. Terminal: [R11.6](R11-material-from-the-user.md#R11.6).
+- **Gilt seit:** Forschung 1.36.0, App 3.31.0
+
+<!-- zdroj: app:74d06317 src/ui/research-tree-settings-ui.ts renderResearchIntakeRow (features intake.auto, /status.intake, researchAgentlessFor, storiesBridgeDown, pend), setResearchIntake (POST /intake, archive → gone, busy, held, locked, full) · src/research-link.ts postBridgeIntake · strings.ts history.intakeSection, intakeTitle, intakeDesc · research:src/core/live.ts POST /intake (intake.body, intake.archive), /status intake · dirigent:spec/130 K2.1 -->
+
+<a id="S4.4.12"></a>
+### S4.4.12 Forschung für diesen Stammbaum › Agenten gleichzeitig höchstens
+
+Im Fenster **Forschung für diesen Stammbaum…** steht unter der Wahl des Agenten die Zeile **Agenten gleichzeitig
+höchstens**: wie viele Läufe gleichzeitig am Stammbaum arbeiten dürfen, der Lauf der ganzen Warteschlange und die
+Läufe der Richtungen zusammen ([R7.10.1](R7-when-the-agent-works.md#R7.10.1)).
+
+- **Grenzen:**
+  - ein Feld mit **−** und **+**, von 1 bis zur Obergrenze, die die Forschung angibt (10); darunter „Standard 3. Die
+    Arbeit an der ganzen Warteschlange zählt mit.“;
+  - ein Senken schreibt die App sofort über die Brücke. Ein Senken unter die Zahl der laufenden Läufe hält keinen an;
+    neue starten nicht;
+  - ein Erhöhen aus der App ist nicht möglich: der Wert kehrt zurück, und die Zeile sagt „Erhöhen lässt es sich nur
+    im Terminal der Forschung.“ mit dem Befehl `strom config set run.parallel 4` zum Kopieren;
+  - bei voller Zahl sind **Agent auf diese Richtung ansetzen** ([S4.3.3](#S4.3.3)) und **An der Warteschlange
+    arbeiten…** ([S4.2.3](#S4.2.3)) nicht verfügbar, und der Link **Einstellungen ›** öffnet dieses Fenster bei dieser
+    Zeile. Die laufenden Läufe ändern sich nicht;
+  - die Zeile fehlt bei einer älteren Forschung (es gilt 3), im Strom-Archiv und bei einer Forschung, die auf einen
+    Agenten wartet.
+- **Bedienung:** App: **Forschung → Weitere Aktionen → Forschung für diesen Stammbaum… → Agenten gleichzeitig
+  höchstens**. Terminal: `strom config set run.parallel <n>`.
+- **Gilt seit:** App 3.31.0 (Forschung 1.36.0)
+
+<!-- zdroj: app:4de0835a src/ui/research-tree-settings-ui.ts renderResearchRunsRow (pod dl.research-tree-agent; bez run.limit, v archivu a bez agenta se nekreslí; RUN_LIMIT_MIN 1, cap z výzkumu), setResearchRunsMax (POST settings/runs, 403 runs.raise → runsMaxRaise + příkaz) · src/research-runs.ts atRunLimit · strings.ts research.runsMax, runsMaxHint, runsMaxRaise, live.runsLimitReached, runsSettingsLink · research:src/core/live.ts runsLimitWrite, src/core/liveruns.ts runLimits (cap 10) · app:docs/ZADANI_DEV_beh-po-liniich.md §5 · dirigent:spec/126 K2.3 -->
+
 <a id="S4.5"></a>
 ## S4.5 Aktionen, die die Forschung öffnen
 
 Die meisten Aktionen der Forschung in der App sind ein Link `strom-research://`. Der Link öffnet das Terminal der
 Forschung auf demselben Computer. Das Terminal sagt, worum die App bittet, und fragt nach. Ohne Bestätigung im
-Terminal wird nichts geschrieben und nichts bezahlt.
+Terminal wird nichts geschrieben und nichts bezahlt. Ausgenommen ist nur die Arbeit des Agenten auf das Abonnement
+oder KI-Guthaben, wenn dieser Computer so eingestellt ist ([S4.5.5](#S4.5.5)).
 
 - **Grenzen:**
   - Eine Aktion ist nur am Computer zu sehen (nicht auf einem Touch-Gerät), nur wenn die Forschung den Link gemeldet
@@ -1171,7 +1445,8 @@ Terminal wird nichts geschrieben und nichts bezahlt.
   - Das Terminal beginnt mit **Die Strom-App bittet um: … / Forschung: …** und fragt **Fortfahren?** Bei
     Arbeit des Agenten fügt es **Der Agent arbeitet auf das eigene Abonnement oder KI-Guthaben.** hinzu, bei der
     Vergabe von Aufgaben **Die Forschung schreibt Aufgaben für den Agenten – jetzt wird nichts gesucht und nichts
-    bezahlt.**
+    bezahlt.** Bei **Agent aus der Strom-App starten: ohne Rückfrage** startet die Arbeit des Agenten ohne Frage
+    ([S4.5.5](#S4.5.5)).
   - Das Strom-Archiv und eine Forschung, die auf einen Agenten wartet, lehnen Arbeit des Agenten ab (Gespräch,
     Prüfung, Suche, Orte, Geschichte).
   - Gibt es dieselbe aktive Linie schon, sagt **Vorfahren suchen** nur **Diese Forschung gibt es schon: „…“ –
@@ -1261,6 +1536,9 @@ Aufgabe und fragt, was jetzt mit ihr geschehen soll.
   in der Zeile bei der Quelle ([R8.8.3](R8-reading-scans.md#R8.8.3)). Terminal: `strom chat --task T…` nimmt die
   Aufgabe aus der Warteschlange direkt ins Gespräch.
 - **Gilt seit:** Forschung 1.29.0, App 3.25.0
+- **Ab Forschung 1.36.0:** Bei **Agent aus der Strom-App starten: ohne Rückfrage** beginnt das Gespräch nur dann ohne
+  Frage, wenn der Preis ähnlicher Sitzungen noch nicht bekannt ist. Mit bekanntem Preis wird weiter gefragt
+  ([S4.5.5](#S4.5.5)).
 
 <!-- zdroj: research:c2a690ea src/cli/menu-links.ts (odkaz task bez do, úkol open) · assets/lang/cs.json ui.link.open.title/why/done/pick/chat/ahead/keep/already/kept/busy/estimate/estimate.none, ui.chat.task.open.say · strom help chat (--task: „a task in the queue (open): gone through now, taken up in the conversation“) · commit 9bd14e84 · test/cli/link-open-task.test.ts · dirigent:prace/1107-vyzkum-drobnosti-ukoly/karta.md Výsledek (Popis chování 7; klik v aplikaci neověřen) · app:6bd8609e strings.ts read.openTaskN, src/__tests__/read-source-state-view.test.ts:75 (researchLinkMark task) -->
 
@@ -1306,6 +1584,45 @@ geöffnet hat ([S4.5](#S4.5)).
 
 <!-- zdroj: research:fbae81fc src/core/handoffs.ts (HANDOFF tvar UUID, HANDOFF_MS 60 s, HANDOFF_MAX 64, handoffsNow úklid, noteHandoff) · src/core/links.ts parseLink (handoff malými písmeny, jiná hodnota vynechána), linkText · src/commands/links.ts link open noteTaken (tty hned; bez terminálu done: true; researchesWithId) · src/core/live.ts withHandoffs (/status i parts=1, mimo stav), BRIDGE_FEATURES handoffs · test/cli/link-handoffs.test.ts · CHANGELOG.cs.md 1.35.0 (odkaz aplikace Strom … výzkum aplikaci potvrdí) · app:574e7ef9, f63cc742 src/ui/research-open-busy.ts (handoffProven: handoffs s feature handoffs, jinak nové sezení; OPEN_ASK_MS 1000, OPEN_LATE_ASK_MS 2000, OPEN_LATE_WATCH_MS 60 s, OPEN_REPEAT_MS 400, bridgeDown 30 s, quietLimit new?app=) · src/research-link.ts HANDOFFS_FEATURE · app:docs/ZADANI_VYZKUM_tlacitka-cekani.md „Odpověď výzkumu“ · app:c3e09951 (79a05311) src/ui/research-open-busy.ts unprovable (poslední status bez feature handoffs → quietEnd: po limitu bez věty a bez pozdního hlídání; most dole → věta hned; opts.proof fronty beze změny) · dirigent:prace/1118-app-tlacitka-n1 (N2, Milan 18. 11.) -->
 
+<a id="S4.5.5"></a>
+### S4.5.5 Den Agenten aus der App ohne Bestätigung starten
+
+Die Einstellung dieses Computers **Agent aus der Strom-App starten** bestimmt, ob das Terminal vor Arbeit des Agenten,
+um die die App gebeten hat, **Fortfahren?** fragt. Standard ist **mit Rückfrage**: Das Terminal sagt, worum die App
+bittet, dass der Agent auf das Abonnement oder KI-Guthaben arbeitet, und wartet auf ein Ja ([S4.5](#S4.5)). **Ohne
+Rückfrage** startet die Arbeit des Agenten sofort, und das Terminal sagt es in einer Zeile: **▶ Startet ohne Rückfrage
+(Forschung …): …** und wo die Rückfrage wieder eingeschaltet wird.
+
+- **Prüft der Code:**
+  - ohne Frage starten nur Aktionen, die den Agenten auf das Abonnement oder KI-Guthaben starten: ein Gespräch mit dem
+    Agenten (auch zu einer Person oder Richtung), ein Gespräch zu einer Aufgabe in der Warteschlange
+    ([S4.5.3](#S4.5.3)) oder in **Wartet auf Bearbeitung**, ein dem Agenten überlassener Widerspruch
+    ([R5.6](R5-conflicts.md#R5.6)), die Arbeit an der Warteschlange ([R7.1.2](R7-when-the-agent-works.md#R7.1.2)) und
+    die Bestimmung der Orte;
+  - weiter gefragt wird:
+    - eine Frage, die einen Preis in Geld nennt: die Schätzung einer Aufgabe in der Warteschlange, die Bestimmung der
+      Orte mit gemessenem Preis der Sitzungen;
+    - jeder Link, den ein Agent oder ein Skript ohne Terminal eines Menschen öffnet;
+    - das Absenden einer Anfrage, Zustimmungen zu Archiven und Hosts (`strom allow`), Löschen, die Vergabe von Aufgaben
+      an den Agenten und die Geschichte eines Ortes;
+    - die Bedingung der Alleinarbeit (`run.gate`): Die Arbeit an der Warteschlange fragt sie wie bisher
+      ([R7.4](R7-when-the-agent-works.md#R7.4), [R7.4.1](R7-when-the-agent-works.md#R7.4.1));
+  - läuft in der Forschung schon eine andere Sitzung oder ein Lauf, startet nichts weiter, auch ohne Rückfrage nicht;
+  - die Einstellung gilt für alle Forschungen auf diesem Computer, nicht für einen Baum. Im Strom-Archiv bietet das
+    Menü sie nicht an;
+  - **ohne Rückfrage** schaltet nur der Mensch ein: Das Terminal sagt, was weiter gefragt wird, und will ein zweites
+    Ja (Enter = nein). Stellt es ein Agent oder ein Befehl ohne Terminal ein, fragt ein Systemfenster den Menschen;
+    ohne Fenster lehnt strom die Einstellung ab. Zurück zu **mit Rückfrage** darf jeder, ohne Frage;
+  - die Strom-App hat diese Einstellung nicht und ändert sie nicht. Den Wert zeigen `strom config` und der Bericht
+    `strom error` ([R13](R13-reporting-a-problem.md#R13)).
+- **Bedienung:** Terminal: Menü **Einstellungen** → **Sprache, Agent, Modell, was der Agent allein darf, Geschichten…
+  (die Einrichtung)** → **Agent aus der Strom-App starten: …** → **Vor dem Start fragen (Standard)** oder **Ohne
+  Rückfrage starten**; `strom config set run.confirm no`, zurück `strom config unset run.confirm`. Den geltenden Wert
+  zeigt `strom config where`.
+- **Gilt seit:** Forschung 1.36.0
+
+<!-- zdroj: research:8aa0f374 src/core/config.ts run.confirm (ask|no, tree: false, env žádná), Settings.runConfirm · src/cli/menu-links.ts asksToStart (priced || runConfirm !== no || !ctx.interactive || isAgent → asks; jinak ui.link.noconfirm) u openTask (priced = taskEstimate), waitingDo chat, placesRun (priced = est.session.usd || fronta), workRun, workOn · src/commands/links.ts conflict do=agent, chat (direction/person) · placeSearch dál asks (placeCost), review/research ui.link.tasks dál asks · src/commands/setup.ts setUserSetting run.confirm no → requireHumanYes (ui.consent.run.confirm), FALLBACKS run.confirm ask · src/cli/context.ts requireHuman (terminál → humanYes, jinak okno systému, jinak odmítnutí) · src/cli/menu-settings.ts runConfirmStep (ui.runconfirm.*, ui.runconfirm.about; jen !archive), unset pro ask · src/core/report.ts CONFIG_PLAIN runConfirm · cs.json ui.settings.runconfirm, ui.runconfirm.*, ui.link.noconfirm · strom help link · CHANGELOG.cs.md 1.36.0 „Agent z aplikace Strom bez potvrzení“ · test/cli/run-confirm.test.ts, test/cli/gates.test.ts · spec 123 K1.1–K1.5 (K1.4 bez zápisu do logu výzkumu: rozhodnutí dirigenta 20. 11.) -->
+
 <a id="S4.6"></a>
 ## S4.6 Was nur im Terminal geht
 
@@ -1317,7 +1634,8 @@ immer im Terminal der Forschung bestätigt, auch wenn es mit einem Klick in der 
     ([R7.1](R7-when-the-agent-works.md#R7.1)), die Bedingung, die Wahl des Agenten, die Einstellungen der
     Warteschlange und die Einträge **Nur hier im Terminal** ([R6.1.1](R6-awaiting-action.md#R6.1.1)).
   - Im Terminal bestätigt werden: alles mit der Marke Terminal oder KI ([S4.5.1](#S4.5.1)), in 3.21.2 auch Aktionen
-    der Linien und der Warteschlange.
+    der Linien und der Warteschlange. Ab Forschung 1.36.0 kann die Arbeit des Agenten ohne Preis in Geld ohne
+    Bestätigung starten ([S4.5.5](#S4.5.5)); das schaltet nur der Mensch ein, im Terminal.
   - Auf dem Telefon gibt es keine Links; geantwortet wird in der Forschung am Computer ([S5](S5-phone.md)).
 - **Gilt seit:** App 3.4.0 (Forschung 1.6.0)
 - **Ab App 3.22.0:** mit der Forschung 1.26.0 gehen ohne Terminal die Linien ([S4.3.1](#S4.3.1)), die Arbeit

@@ -31,6 +31,8 @@ import { readCodexConfig } from "../agents/effort.ts";
 import { clearSessionWait, permissionWait, waitingForDecision } from "./archivewait.ts";
 import { forgetLeftAlone } from "./leftalone.ts";
 import { Settings } from "./config.ts";
+import { unsavedOwnWait } from "./ownsave.ts";
+import { runs } from "../cli/format.ts";
 import { claimSite, heldSiteOfTask, heldSites, holderWords, releaseHolder, restrictedSiteOfTask, transferSite, type Holder, type SiteClaim } from "./archiveholds.ts";
 import { forGaps, regionOfTask, takeRegion } from "./pastevents.ts";
 import { placeOfTask, takePlace } from "./placehistory.ts";
@@ -658,6 +660,18 @@ export function closeSession(tree: Tree, s: Session, input: CloseInput): Session
       } else {
         const back: Task = { ...onceDone(task), state: "open", notes: [...task.notes, note], updated: now() };
         tree.put(back, { op: "task.continue", targets: [task.id, s.id], summary: `${task.id} back to the queue` });
+      }
+    } else if (task && task.state === "waiting") {
+      // waiting for images its own agent's browser was to save, none of which came (core/ownsave.ts): back in the queue
+      // with the images left — a wait no file would ever end, never the person's
+      const settings = new Settings(tree.env, {});
+      const left = unsavedOwnWait(tree, task, { shared: settings.shared()?.value, downloads: settings.downloads() });
+      if (left) {
+        const images = runs(left.map((r) => r.n));
+        const note = makeNote(tree, `${input.interrupted ? "interrupted" : "closed"} in ${s.id}: image ${images} of ${task.awaits!.recordset} still to be saved through the browser (strom media save) — nothing came`.slice(0, 500));
+        const back: Task = { ...onceDone(task), state: "open", notes: [...task.notes, note], updated: now() };
+        for (const k of ["waitingOn", "awaits", "awaitsCheck", "awaitsPermission", "wait", "sent"] as const) delete back[k];
+        tree.put(back, { op: "task.continue", targets: [task.id, s.id], summary: `${task.id} back to the queue: image ${images} of ${task.awaits!.recordset} not saved through the browser` });
       }
     }
     // a session on the places: what it did counted by strom (identified, verified, asked …) before the agent's words

@@ -207,6 +207,34 @@ export function sitePagesHere(stateDir: string, site: string, windowMs: number, 
   return readSite(stateDir, site).requests.filter((r) => r.at > now - windowMs && r.at <= now + windowMs).length;
 }
 
+/**
+ * When the site takes a page of the agents' web tools again on this computer: the moment fewer than `limit − free + 1`
+ * of its pages lie within `windowMs` — the oldest that must leave the window, plus the window (page by page: one more
+ * used, the next frees as the one after it leaves). `free`: how many pages must be free (1: the next page). `now` when
+ * that many are free already.
+ */
+export function siteFreeAt(stateDir: string, site: string, windowMs: number, limit: number, now = Date.now(), free = 1): number {
+  const ats = readSite(stateDir, site)
+    .requests.map((r) => r.at)
+    .filter((at) => at > now - windowMs && at <= now + windowMs)
+    .sort((a, b) => a - b);
+  const leave = ats.length - (limit - Math.max(1, Math.min(free, limit)));
+  if (leave <= 0) return now;
+  return ats[leave - 1]! + windowMs;
+}
+
+/** The sites whose pages the agents' web tools had on this computer (their files in the limiter's folder). */
+export function webSites(stateDir: string): string[] {
+  try {
+    return fs
+      .readdirSync(stateDir)
+      .filter((f) => f.startsWith("site~") && f.endsWith(".web.json"))
+      .map((f) => f.slice(5, -9));
+  } catch {
+    return [];
+  }
+}
+
 /** One page of a site more, of the session `who` (under the site's lock where the caller has it). Never throws. */
 export function noteSitePage(stateDir: string, site: string, who: string, now = Date.now()): void {
   try {

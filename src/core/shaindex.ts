@@ -8,7 +8,8 @@
 // Anything that fails — no file, another format, a commit git no longer has (a reset, a gc) — and it is made again
 // from the records. It is only a help: what it names is read and checked (the record's own sha), and what this
 // process holds or wrote itself is looked at too, so a second file of the same content in one hold of the lock is
-// the first one's (never a second record).
+// the first one's (never a second record). An input's working copy (the app's file whose original is another) is kept
+// under its own hash too (spec 133: the app asks by the bytes it would send), as `<id>~w`.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -21,7 +22,9 @@ import type { Tree } from "./tree.ts";
 
 type ShaType = "media" | "input";
 const TYPES: readonly ShaType[] = ["media", "input"];
-const FORMAT = 1;
+const FORMAT = 2;
+/** The key of an input's working copy in the index (its own hash): `<id>~w`. */
+const WORKING = "~w";
 
 interface Stored {
   v: number;
@@ -89,16 +92,21 @@ function add(index: Index, id: string, sha: unknown): void {
 function reread(index: Index, root: string, rel: string): void {
   const id = idOfPath(rel);
   if (!id) return;
-  let rec: { sha?: unknown } | undefined;
+  let rec: { sha?: unknown; working?: { sha?: unknown } } | undefined;
   try {
-    rec = readJson<{ sha?: unknown }>(path.join(root, ...rel.split("/")));
+    rec = readJson<{ sha?: unknown; working?: { sha?: unknown } }>(path.join(root, ...rel.split("/")));
   } catch (e) {
     // one another program holds (Windows): no answer without it, as tree.list
     if ((e as HeldError).heldFile) throw e;
     rec = undefined;
   }
-  if (rec && typeof rec === "object") add(index, id, rec.sha);
-  else drop(index, id);
+  if (rec && typeof rec === "object") {
+    add(index, id, rec.sha);
+    add(index, `${id}${WORKING}`, rec.working?.sha);
+  } else {
+    drop(index, id);
+    drop(index, `${id}${WORKING}`);
+  }
 }
 
 /** Each folder's modification time (ns), and whether all changed long enough ago to be trusted to it. */
@@ -272,12 +280,28 @@ const fileOrder = (a: string, b: string) => {
 export function recordsBySha<T extends Media | Input>(tree: Tree, type: ShaType, sha: string): T[] {
   if (tree.loaded(type)) return tree.list<T>(type).filter((x) => x.sha === sha);
   const prefix = RECORD_TYPES[type].prefix;
-  const ids = new Set((indexOf(tree).bySha.get(sha) ?? []).filter((id) => id.startsWith(prefix)));
+  const ids = new Set((indexOf(tree).bySha.get(sha) ?? []).filter((id) => id.startsWith(prefix) && !id.endsWith(WORKING)));
   for (const rec of tree.heldRecords<T>(type as RecordType)) if (rec.sha === sha) ids.add(rec.id);
   const out: T[] = [];
   for (const id of [...ids].sort(fileOrder)) {
     const rec = tree.get<T>(id);
     if (rec && rec.type === type && rec.sha === sha) out.push(rec);
+  }
+  return out;
+}
+
+/**
+ * The inputs whose working copy is this content (`working.sha`: the bytes the app shows of a file whose original is
+ * another), found as recordsBySha finds records. Retracted ones too: the caller says which count.
+ */
+export function inputsByWorkingSha(tree: Tree, sha: string): Input[] {
+  if (tree.loaded("input")) return tree.list<Input>("input").filter((x) => x.working?.sha === sha);
+  const ids = new Set((indexOf(tree).bySha.get(sha) ?? []).filter((id) => id.endsWith(WORKING)).map((id) => id.slice(0, -WORKING.length)));
+  for (const rec of tree.heldRecords<Input>("input")) if (rec.working?.sha === sha) ids.add(rec.id);
+  const out: Input[] = [];
+  for (const id of [...ids].sort(fileOrder)) {
+    const rec = tree.get<Input>(id);
+    if (rec && rec.type === "input" && rec.working?.sha === sha) out.push(rec);
   }
   return out;
 }

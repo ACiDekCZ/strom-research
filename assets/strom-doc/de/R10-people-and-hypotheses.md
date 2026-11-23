@@ -304,6 +304,9 @@ hat seinen eigenen Datensatz. Namen werden so erfasst, wie sie im Eintrag stehen
   - ein Name ohne Familiennamen („Marie“) wird um den vollen Namen aus dem Eintrag ergänzt, und die Person wird dann
     mit ihm gezeigt. Derselbe Name noch einmal fügt nur eine Zitation hinzu;
   - eine Frau wird mit ihrem Geburtsnamen gezeigt; der Ehename bleibt daneben;
+  - von mehreren Namen nach der Heirat ist der aktuelle der aus der letzten Ehe oder der, den der Benutzer in der App
+    gewählt hat. Die anderen bleiben Namen nach der Heirat; die Datei für die App gibt den aktuellen zuletzt
+    ([A4.6.1](A4-surnames-and-families.md#A4.6.1), [A4.6.2](A4-surnames-and-families.md#A4.6.2));
   - ein mit dem Namen geschriebener Titel („Ing.“, „MUDr.“, „ml.“) kommt in das Präfix oder Suffix des Namens
     (`--prefix`, `--suffix`), nicht in den Vornamen oder den Familiennamen;
   - **der Name, mit dem eine Person gezeigt wird** (eine geschiedene Frau wieder mit ihrem Geburtsnamen), ist eine
@@ -323,9 +326,9 @@ hat seinen eigenen Datensatz. Namen werden so erfasst, wie sie im Eintrag stehen
   "…"` (`--clear` stellt den Geburtsnamen wieder her). Formen des Nachnamens in der App:
   [A4.5](A4-surnames-and-families.md#A4.5), [A4.6](A4-surnames-and-families.md#A4.6).
 - **Gilt seit:** Forschung 1.0.0; Präfix und Suffix 1.13.0; der Name, mit dem eine Person gezeigt wird, 1.27.0; ein
-  nicht benanntes Kind 1.27.0
+  nicht benanntes Kind 1.27.0; der aktuelle Name nach der Heirat 1.36.0
 
-<!-- zdroj: research:src/core/model.ts NAME_KINDS · research:src/commands/people.ts name add (description), name primary (od v1.27.0), TITLE_OPTIONS (od v1.13.0) · research:assets/method/recording.md "The names a record gives", "A child the record does not name" (od v1.27.0), "People named wrongly by the weaker record" · research:assets/method/intake.md krok 4 -->
+<!-- zdroj: research:src/core/model.ts NAME_KINDS · research:src/commands/people.ts name add (description), name primary (od v1.27.0), TITLE_OPTIONS (od v1.13.0) · research:assets/method/recording.md "The names a record gives", "A child the record does not name" (od v1.27.0), "People named wrongly by the weaker record" · research:assets/method/intake.md krok 4 · aktuální jméno po sňatku: research:5476514e src/core/married.ts marriedInOrder, src/gedcom/export.ts, src/core/sync.ts name.now (spec 010 K4.1, K4.2) -->
 
 <a id="R10.5.1"></a>
 ### R10.5.1 Ein falscher Name und eine Notiz werden zurückgezogen
@@ -346,6 +349,79 @@ bleiben nur in der Historie.
 - **Gilt seit:** Forschung 1.18.0
 
 <!-- zdroj: research:src/commands/people.ts name retract (description), name restore, name add ("name.retracted"), note edit/retract/restore (od v1.18.0) · GitHub issue strom-research #3 -->
+
+<a id="R10.5.2"></a>
+### R10.5.2 Wie sicher ein Name ist
+
+Der Name einer Person hat einen Grad der Sicherheit wie eine Angabe ([R3.1](R3-verification-and-citation.md#R3.1)):
+**Belegt**, **Wahrscheinlich**, **Möglich** oder **Hinweis**. Den Grad gibt der Eintrag, der die Person nennt und den
+der Name zitiert.
+
+- **Prüft der Code:**
+  - der Grad wird mit der Zitation eingetragen: `strom cite P… S… --status …` gibt die Zitation dem Namen der Person
+    und den Grad dem Namen; `strom name add … --cite S… --status …` einem anderen Namen; `strom person add … --cite
+    S… --name-status …` dem Namen einer neuen Person (`--status` bei `person add` gilt weiter für Geburt und Tod);
+  - **Belegt** nur nach dem ursprünglichen Eintrag mit Primärinformation, genau wie bei einer Angabe
+    ([R3.2](R3-verification-and-citation.md#R3.2)). Eine Kopie, ein Register oder ein Stammbaum wird abgelehnt;
+  - eine Zitation ohne `--status` gibt einem Namen ohne Grad **Wahrscheinlich**, wenn es ein Eintrag der Forschung
+    ist: eine Quelle mit Qualität 2 oder 3, die weder ein Register noch ein abgeleitetes Werk ist und auch keine Quelle
+    aus der Strom-App, die die Forschung nicht gelesen hat. Sonst bekommt der Name keinen Grad;
+  - ein Name hat nicht den Grad **Widerlegt**: ein anderer Name ist ein Widerspruch ([R5](R5-conflicts.md)) oder ein
+    weiterer Name der Person;
+  - einen Grad darf jeder Name einer Person haben. Die Bestätigung durch einen Menschen, die Prüfung durch den Agenten
+    und die Nummer für die Brücke (`P….N`) hat nur der Identitätsname der Person: der Geburtsname oder der erste Name
+    ohne Art ([R10.5](#R10.5)), nicht der Name, mit dem die Person gezeigt wird. Nur er zählt für die Marke des
+    Kärtchens in der App ([S7.10](S7-reliability-and-verification.md#S7.10));
+  - einen Namen, den ein Mensch anhand des Scans bestätigt hat, ändert der Agent nicht: ein anderer Grad vom Agenten
+    wird abgelehnt, eine Zitation ohne `--status` geht durch. Ein Name, den ein Mensch selbst eingetragen hat, bleibt
+    ohne Grad, wie er ist;
+  - eine Änderung der Wörter eines Namens beendet seine Bestätigung und seine Prüfung.
+- **Nur Methodik:** ein Eintrag, der die Person nennt (Taufe, Heirat, Tod), belegt auch ihren Namen. Der Agent
+  zitiert den Namen so, wie er im Eintrag steht (`--quote`): **Belegt**, wenn er den Eintrag selbst im Original gelesen
+  hat; **Wahrscheinlich**, wenn der Eintrag denselben Namen in einer anderen Sprache schreibt („Joannes“ für „Jan“).
+  Ein anderer Name ist kein Grad, sondern ein Widerspruch oder ein weiterer Name (`strom name add`).
+- **Prüfung des Namens:** eine Aufgabe zur Prüfung einer Geburt oder Taufe, deren Eintrag auch den Namen zitiert,
+  nimmt den Namen mit: der Agent liest denselben Eintrag und vergleicht auch den Namen. Ein von einem Menschen
+  bestätigter oder schon belegter Name wird nicht mitgenommen. Der Name allein wird nur auf Wunsch eines Menschen
+  geprüft (App, `strom verify facts --fact P….N`). Den Wert des Namens ändert die Prüfung nie
+  ([S7.7](S7-reliability-and-verification.md#S7.7)).
+- **Bedienung:** Terminal: `strom cite P… S… --quote "…" --status proven|probable|possible|lead`, `strom name add P…
+  "…" --cite S… --status …`, `strom person add … --cite S… --name-status …`, `strom person show P…` (Grad des Namens),
+  `strom verify done P….N --proven|--kept`, Bestätigung durch einen Menschen `strom verify confirm P….N [--undo]`.
+  App: [S7.10](S7-reliability-and-verification.md#S7.10).
+- **Warum:** solange ein Name keinen Grad hatte, blieb ein Name aus einem übernommenen Stammbaum für immer **Aus dem
+  Stammbaum**, auch wenn der Agent Geburt und Tod aus den Matriken belegt hatte, und die Marke der Person im Baum
+  sagte so weniger, als die Forschung weiß (spec 066 P5).
+- **Gilt seit:** Forschung 1.36.0
+
+<!-- zdroj: research:6a266761 src/core/namestatus.ts (nameEid P….N, parseNameStatus NAME_STATUSES bez disproven, namesThePerson: !retracted, !isWeak, app jen s reading, quay ≥ 2; usersName confirmed nebo origin user; nameStatusAfter: asked → checkStatus, jinak probable; refuseConfirmedName event.confirmed jen primaryName) · src/core/model.ts:39 NAME_STATUSES · src/core/actions.ts:271-331 person add --name-status ("a status of a name needs the record that names the person"), :783 cite, :854-861 name add · src/core/people.ts:191 primaryName (bez druhu nebo birth), currentName · research:8b92b3ae src/core/verify.ts:19-21, 243-256 nameAlong (BIRT/BAPM/CHR se stejným pramenem, ne confirmed, ne proven), src/commands/verify.ts:70-78 verify facts --fact P….N · assets/method/recording.md:43-52 (cite P… --quote --status proven; probable jinojazyčný tvar; jiné jméno rozpor/name add) · assets/lang/cs.json verify.search.done.name · CHANGELOG.cs.md 1.36.0 „Jména – jak jistá a po sňatku“ · dirigent:spec/066 K6.2, K6.4 · app:docs/ZADANI_VYZKUM_stav-jmena.md Odpověď výzkumu -->
+
+<a id="R10.5.3"></a>
+### R10.5.3 Sicherheit der Namen in älteren Forschungen
+
+Eine Forschung, die vor Version 1.36.0 angelegt wurde, zitiert bei Namen Einträge, aber die Namen haben keinen Grad.
+Die Korrektur **Wie sicher die Namen sind** errechnet ihn einmal aus den Zitationen, die schon in der Forschung sind.
+
+- **Prüft der Code:**
+  - die Korrektur läuft einmal von selbst, beim ersten Start der neuen Version nach der Sicherung der Forschung und
+    beim Start der Brücke; auch im Strom-Archiv. Eine neue Forschung startet sie nicht;
+  - ein Name ohne Grad, der einen Eintrag der Forschung zitiert (Qualität 2 oder 3, weder ein Register noch ein
+    abgeleitetes Werk), bekommt **Wahrscheinlich**. Nie **Belegt**: das gibt nur eine neue Lesung des Originals
+    (Prüfung oder eine Zitation mit `--status proven`);
+  - eine Zitation, die ein Import mitgebracht hat (ein übernommener Stammbaum, die Quelle, aus der der Name kam, eine
+    Quelle aus der Strom-App, die die Forschung nicht gelesen hat), gibt keinen Grad;
+  - ein von einem Menschen bestätigter oder eingetragener Name ändert sich nicht;
+  - es ändert sich nur der Grad: kein Name, keine Zitation und keine Quelle. Es ist ein Schritt der Historie mit einem
+    Grund, kostenlos, nichts wird irgendwohin gesendet;
+  - `strom fixes undo name-status` nimmt den Grad wieder weg; einen Namen, der sich seit der Korrektur geändert hat,
+    lässt es, wie er ist.
+- **In der App:** die App selbst wandelt nichts um; den Grad des Namens nimmt sie nur aus der Datei der Forschung
+  ([S7.10](S7-reliability-and-verification.md#S7.10)).
+- **Bedienung:** Terminal: `strom fixes` (Liste der Korrekturen), `strom fixes show name-status`, `strom fixes undo
+  name-status`.
+- **Gilt seit:** Forschung 1.36.0
+
+<!-- zdroj: research:6a266761 src/core/namestatusfix.ts (NAME_STATUS_SINCE 1.36.0, NAME_STATUS_SETTLED, NAME_STATUS_FIX_FILE quality/name-status.json, importsCitation: Source.imported, origin.source, was.cites, app bez reading; researchRecords namesThePerson; nameStatusFixes: !status, !usersName; settleNameStatus první start po záloze, start mostu, i archiv; undo jen nezměněná) · src/core/links.ts LINK_FIX_IDS name-status · assets/lang/cs.json ui.fixes.name-status.* · dirigent:spec/066 K6.5 · app:docs/ZADANI_VYZKUM_stav-jmena.md „Starší stromy“ -->
 
 <a id="R10.6"></a>
 ## R10.6 Personen, die ein Eintrag nennt

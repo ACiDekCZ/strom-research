@@ -40,6 +40,9 @@ jeden úkol. Běh spustí jedno nebo víc sezení za sebou; mezi nimi se může 
 - **Platí od:** výzkum 1.0.0; čekání na archiv, který neodpovídá, od 1.22.0
 - **Od výzkumu 1.32.0:** běh s `--tasks` skončí **vyřízené úkoly: N**, nebo po 2×n sezeních **sezení: … (nejvíc pro
   žádaný počet úkolů) – vyřízené úkoly: …**.
+- **Od výzkumu 1.36.0:** běh, kterému zbyly jen úkoly na omezeném archivu, který používá jiné sezení, počká nejvýš
+  `archive.wait` a skončí **nic dalšího k práci – zbylé úkoly potřebují archiv …**
+  ([R9.13](R9-archives.md#R9.13)).
 
 <!-- zdroj: research:src/commands/session.ts:853 Stop, :1220-1268, :1277-1285 · cs.json ui.run.summary, ui.run.stop.*, ui.run.asleep.wait · CHANGELOG.cs.md 1.22.0 · 1.32.0: session.ts Stop tasks|sessions, cs.json ui.run.stop.tasks, ui.run.stop.sessions -->
 
@@ -65,8 +68,15 @@ jeden úkol. Běh spustí jedno nebo víc sezení za sebou; mezi nimi se může 
   3.28.0 **Pracovat na frontě…** ([S4.2.3](S4-research-from-the-app.md#S4.2.3)); terminál:
   `strom link open "<odkaz>"`.
 - **Platí od:** výzkum 1.32.0
+- **Od výzkumu 1.36.0:** při **Spouštění agenta z aplikace Strom: bez potvrzení** se práce spustí bez dotazu na ano;
+  podmínka se ptá dál ([S4.5.5](S4-research-from-the-app.md#S4.5.5)).
+- **Od výzkumu 1.36.0:** odkaz může jmenovat úkoly (`do=tasks` s `task=T…,T…`, jen čísla úkolů, nejvýš 100, nikdy
+  s `n`): **Zpracovat hned** po zkoušce ověření ([S7.5.1](S7-reliability-and-verification.md#S7.5.1)). Terminál
+  ukáže „Tyto úkoly, v tomto pořadí:“ a „Každý úkol jedno sezení (N sezení), pak konec; co se nedokončí, vrátí se
+  do fronty.“ Po **ano** spustí `strom run --task` s těmi úkoly v pořadí odkazu. Úkoly, které už nečekají (hotové,
+  vzaté zpět nebo je má jiný), vynechá a řekne kolik; když nečeká žádný, nic se nespustí.
 
-<!-- zdroj: research:src/cli/menu-links.ts workRun (WORK_LIST=5, agentCliHere, busyIn, taskQueue s RUN_TURNS, loop jen s run.gate, choose výchozí „Teď nic“, asks … false, run --tasks | --loop) · src/core/links.ts LINK_WORK_DOS, LINK_WORK_MAX=100, LINK_WORK_DEFAULT=5 · src/commands/links.ts case "work" · cs.json ui.link.work.*, ui.link.what.work.*, ui.run.next, ui.run.limit, ui.link.cost · CHANGELOG.cs.md 1.32.0 · spec 052 K6.2 (cesta terminál, most agenta nespouští) -->
+<!-- zdroj: 1.36.0: research:7116bb60 src/cli/menu-links.ts workOn, src/core/links.ts (task= jen s do=tasks, ne s n, 1–LINK_WORK_MAX) · cs.json ui.link.work.picked.* · research:src/cli/menu-links.ts workRun (WORK_LIST=5, agentCliHere, busyIn, taskQueue s RUN_TURNS, loop jen s run.gate, choose výchozí „Teď nic“, asks … false, run --tasks | --loop) · src/core/links.ts LINK_WORK_DOS, LINK_WORK_MAX=100, LINK_WORK_DEFAULT=5 · src/commands/links.ts case "work" · cs.json ui.link.work.*, ui.link.what.work.*, ui.run.next, ui.run.limit, ui.link.cost · CHANGELOG.cs.md 1.32.0 · spec 052 K6.2 (cesta terminál, most agenta nespouští) -->
 
 <a id="R7.2"></a>
 ## R7.2 Každé sezení má časový limit
@@ -101,6 +111,8 @@ skončí a další sezení nezačne. Nic se nezastaví násilím.
   výzkumu**, u pracujícího agenta **Dokončit a skončit**; potvrzuje se v terminálu výzkumu. Když běh čeká na podmínku,
   tlačítko chybí.
 - **Platí od:** výzkum 1.8.0, aplikace 3.5.0
+- **Od výzkumu 1.36.0:** běh jde zastavit i zvenku a zvlášť, `strom run stop <run-…> [--finish]`; při více bězích
+  má každý v aplikaci vlastní **Dokončit a skončit** ([R7.10.2](#R7.10.2)).
 
 <!-- zdroj: research:src/commands/session.ts:198-221 session finish, :865 onSignal, :1194 askedToFinish · src/core/clock.ts askFinish, refuseReadersWhenFinishing · runners/runner.ts:296 OWN_GROUP · src/cli/menu-links.ts:473 finishSession · app:v3.21.2 research-overview-ui.ts:810,868 (!w.paused) · strings.ts live.finishSession -->
 
@@ -250,6 +262,8 @@ Když agent během sezení narazí na limit svého předplatného, sezení se za
   - beze změny: ruční běh (jeden úkol, `--tasks n`, `--max` bez `--loop`) a běh bez podmínky skončí **limit
     předplatného** jako dřív. Claude Code hláška „You've hit your limit · resets …“ i odmítnutí agenta kvůli limitu
     se berou jako limit.
+- **Od výzkumu 1.36.0:** limit, na který narazí jeden běh, zastaví nová sezení všech běhů téhož agenta na počítači
+  ([R7.10.3](#R7.10.3)).
 
 <!-- zdroj: research:src/commands/session.ts:1196-1206 closeSession (session.limit), :1255-1259 · src/core/session.ts:248-262 · runners/runner.ts:226 looksLikeLimit · cs.json ui.run.stop.limit, ui.run.stop.resets · 1.34.0: research:8f24e9f7 src/commands/session.ts:1453-1483 (gateHolds && gate, limitResume, limitReserve, DEFAULT_WAIT_MS 15 min, until → time, markPaused), :1363 metrics.limit, src/core/planlimit.ts limitResume, timeOf, LIMIT_RESERVE_MS 60 s, FURTHEST_MS · 03146702 (B8: „You've hit your limit“, odmítnutý rate_limit_event) · cs.json ui.run.limit.wait, ui.run.limit.unknown, ui.run.limit.why, ui.run.limit.five_hour, ui.run.limit.seven_day · dirigent:prace/1115-vyzkum-k036-limit-obnova -->
 
@@ -334,3 +348,162 @@ Do té doby se chová jako Archiv Stromu.
   než nastavený), nebo když je nastavený agent zase na počítači.
 
 <!-- zdroj: research:src/core/state.ts (hlavička, stateOf, actsAsArchive, kindOf, refuseInArchive agent.missing) · cs.json ui.mode.is.waiting, ui.waiting.refuse, ui.menu.keeparchive · CHANGELOG 1.15.0 · 1.35.0: research:31def74a src/core/state.ts heldWhereNobody (parked, heldBy archive, waiting.held), settleWaiting (atWork: session start, run, chat; jinak stateOf research) · src/core/records.ts create · CHANGELOG.cs.md 1.35.0 „Rodinný materiál … odložený, dokud tu agent není“ -->
+
+<a id="R7.9"></a>
+## R7.9 Úkol drží sezení, které na něm pracuje
+
+Na jednom výzkumu může pracovat víc agentů najednou: samostatná práce (`strom run`), rozhovor (`strom chat`), agent,
+který volá `strom` přímo ve svém terminálu, i jiný počítač nad týmž výzkumem. Úkol má vždy jen jednoho pracujícího:
+drží ho otevřené sezení, dokud jeho agent dává znamení života. Opuštěný úkol se uvolní sám.
+
+- **Hlídá kód:**
+  - výběr úkolu a jeho zabrání proběhnou naráz. Když o tentýž úkol stojí dva, dostane ho jeden; druhý vezme další volný.
+    Platí pro `strom run`, `strom chat`, `strom session start`, `strom task start`, odkaz z aplikace Strom i agenta,
+    který pracuje přímo;
+  - znamení života: proces běhu nebo rozhovoru, který spustil strom, na tomto počítači; jinak každý příkaz `strom`
+    toho sezení. Agenta, který pracuje přímo, pozná výzkum podle čísla jeho konverzace (Claude Code, Codex…): dva
+    takoví agenti mají každý své sezení;
+  - bez znamení života déle než `task.hold` (výchozí 30 min) držení propadne. Když proces držitele na tomto počítači
+    skončil, propadne hned;
+  - propadlé sezení převezme jen jeden zájemce. Staré sezení se zavře jako přerušené s poznámkou „převzato po N
+    minutách bez známky života; rozdělaná práce v N…“; co v něm bylo zapsáno, zůstává, a úkol se vrátí do fronty;
+  - starý držitel, který se po převzetí probudí (uspaný počítač, zastavený proces), už nic nezapíše: zapisující příkaz
+    se odmítne a řekne, které sezení úkol převzalo a kdy. Číst smí dál. `strom task done` a další zápisy k úkolu, který
+    drží jiné sezení, se odmítnou;
+  - kdo chce úkol, který drží jiné sezení, dostane jednu větu: „T12 drží Claude Code (sezení N0040) od 14:05,
+    naposledy 14:31; uvolní se nejpozději v 15:01.“ Když ho drží živý proces na tomto počítači, místo času stojí
+    „uvolní se, až skončí“. `strom run` vezme další volný úkol, `strom session start T…` se odmítne s nabídkou dalšího
+    (`strom task next`). Na uvolnění se nečeká;
+  - `strom run` převezme propadlá sezení na začátku každého sezení a úkoly, které drží jiné sezení, vynechá („T12
+    vynechán: pracuje na něm jiný agent“).
+- **Jen metodika:** agent, který pracuje přímo, dá aspoň jednou za 20 minut příkaz `strom`; dlouhé čtení skenů bez
+  něj by úkol uvolnilo.
+- **Hranice:**
+  - čas je ze stejného počítače; u výzkumu na sdíleném disku z jiného počítače rozhoduje jen poslední znamení života.
+    Při posunutých hodinách drží rezervace spíš déle, nikdy se nezdvojí;
+  - starší strom vedle tohoto úkoly nedrží: jeho sezení posuzuje nový strom podle jeho běhu a podle posledního zápisu,
+    jinak od začátku sezení;
+  - nic z toho není v datech výzkumu; držení je jen místní stav vedle výzkumu.
+- **V aplikaci:** kdo úkol drží a do kdy, ukazuje Přehled výzkumu ([S4.1](S4-research-from-the-app.md#S4.1),
+  [S4.2](S4-research-from-the-app.md#S4.2)).
+- **Ovládání:** terminál: `strom config set task.hold <minuty>` (např. `45m`, `2h`; 5 min až 24 h, platí pro tento
+  počítač, ne pro jeden výzkum), `strom task next`; menu ukazuje v řádku o práci i agenty, kteří pracují přímo
+  („Přímo ve výzkumu teď pracuje agent.“).
+- **Platí od:** výzkum 1.36.0
+
+<!-- zdroj: research:1e58aa7b, f08b6574, 23b20c27 src/core/holds.ts (Hold by run|chat|agent, agentSession, BEAT_MS 60 s, holdAlive: proces tady mrtvý → hned, jinak lastSign < task.hold; lastSign max(beat, mtime), budoucnost jako teď; sessionLife: bez holdu worker, run.lock, ops logy, jinak start) · src/core/session.ts claimTask, takeOver (session.taken: „převzato po … bez známky života; rozdělaná práce v …“), :574 session.taken · src/core/errors.ts:122 task.held, task.held.here · src/commands/session.ts:217-225 (session start: sign of life, at least once every 20 minutes, task.held), :985-997 (run: vynechá držené, převzetí na začátku sezení) · src/brief/brief.ts:1668, src/commands/guide.ts:152 (aspoň jednou za 20 minut) · src/core/config.ts:242-246, :335 task.hold (tree: false, 5 min–24 h, výchozí 30) · ověřeno: strom config set task.hold 3 / 25h / --for-tree odmítnuto (izolovaně) · cs.json ui.error.task.held(.here), ui.error.session.taken, ui.run.skip.held, ui.menu.working.direct(.more), session.taken · CHANGELOG.cs.md 1.36.0 „Více agentů a výzkumů najednou“ · dirigent:spec/127 K1.1–K1.5, K5.1–K5.3, navrh-rezervace.md kap. 1–4, 6 -->
+
+<a id="R7.10"></a>
+## R7.10 Běh linie: každá linie může mít vlastní běh
+
+Samostatnou práci ([R7.1](#R7.1)) jde pustit na jednu linii (`strom run --research G…`). Každá linie má nejvýš jeden
+běh. Běhy různých linií a běh celé fronty pracují vedle sebe, každý na jiných úkolech.
+
+- **Hlídá kód:**
+  - běh linie drží svou linii, dokud jeho proces žije. Druhý běh téže linie se hned odmítne jednou větou: „Linie
+    Předci Jana Horáka už má běh (od 14:05) – jedna linie, jeden běh. Zastavit ho jde v jeho okně.“;
+  - běh linie bere úkoly, jejichž hlavní linie je jeho. Hlavní linie úkolu je jeho vlastní linie, a když ta skončila,
+    nejužší aktivní linie jeho lidí ([R2.1.3](R2-lines-and-queue.md#R2.1.3)). Dál bere sdílené úkoly (společný
+    předek, pomoc jiné linii, [R2.3](R2-lines-and-queue.md#R2.3)), jejichž hlavní linie vlastní běh nemá. Úkol,
+    jehož hlavní linii drží jiný běh, nevezme nikdy;
+  - běh celé fronty vynechá každý úkol linie, která má vlastní běh, i sdílený úkol, jehož lidé do takové linie
+    patří. Práce mimo linie, dějiny a místa zůstávají jemu;
+  - posuzuje se při každém výběru úkolu, před jeho zabráním ([R7.9](#R7.9)). Úkol, na kterém už pracuje jiné
+    sezení, se nepřebírá: rozpracované sezení ho dokončí;
+  - rozhovory (`strom chat`) linii nedrží a do počtu běhů se nepočítají ([R7.10.1](#R7.10.1));
+  - běh linie nezačne vedle běhu stromu staršího než 1.25. Vedle běhu novějšího stromu, který linie nezná, začne
+    a řekne to: ten může brát i úkoly této linie, nikdy ale ten rozpracovaný.
+- **Hranice:**
+  - běh linie má vlastní okno terminálu s názvem „Strom · Horákovi · Předci Jana Horáka (G0002)“; agent pojmenuje
+    své sezení podle linie. Mezitím jde z menu pustit běh jiné linie;
+  - okno téže linie se znovu neotevře hned po prvním („Okno pro linii … se otevřelo před chvílí – běh pokračuje
+    tam.“);
+  - jen aktivní linie: pozastavená ani ukončená linie běh nedostane ([R2.1.2](R2-lines-and-queue.md#R2.1.2));
+  - výzkum si pamatuje agenta, se kterým linie běžela naposledy, a nabídne ho příště v menu i v aplikaci;
+  - varování při běhu vedle jiného běhu říká, že se čerpání předplatného sčítá.
+- **V aplikaci:** **Pustit agenta na tuto linii** ([S4.3.3](S4-research-from-the-app.md#S4.3.3)); běhy v oddílu
+  **Teď** ([S4.1.8](S4-research-from-the-app.md#S4.1.8)).
+- **Ovládání:** terminál: menu **Nechat agenta pracovat samotného**; se dvěma a více aktivními liniemi se zeptá **Na
+  čem pracovat?**: **celá fronta (linie s vlastním během stranou)**, nebo linie („– ve vlastním okně“; linie s během
+  „– už má běh“ a nespustí se). Příkaz `strom run --research G…` (s dalšími volbami [R7.1](#R7.1));
+  `strom research list` ukáže čísla linií.
+- **Platí od:** výzkum 1.36.0
+
+<!-- zdroj: research:089875ec src/core/linerun.ts (lineHolds .strom/lines/<G>.json zámek s procesem, run.line.held, run.line.older pro strom před 1.25, lineRunFilter: obecný běh vynechá úkol s linií drženou jiným během; běh linie bere hlavní linii G nebo úkoly v G, jejichž hlavní linii nedrží jiný běh; linie úkolu = vlastní + hlavní (placer core/offline.ts) + linie jeho lidí; mimo linie, dějiny, místa žádnou; rememberLineAgent) · src/cli/menu.ts runMenu (ui.run.where, ui.run.whole, ui.run.line.item/busy/held, openInNewTerminal title Strom · strom · linie (G…), key linie, ui.run.window, ui.run.window.recent; dějiny jen celá fronta) · src/commands/session.ts:1107 enterRun (research, agent) · cs.json ui.run.line, ui.run.line.older, ui.run.beside, ui.run.others · help run (Runs of lines) · CHANGELOG.cs.md 1.36.0 · dirigent:spec/126 U11, prace/1121-research-126-linie-b1 -->
+
+<a id="R7.10.1"></a>
+### R7.10.1 Nejvýš běhů najednou: `run.parallel`
+
+V jednom stromu pracuje najednou nejvýš `run.parallel` běhů (výchozí 3, 1–10): běh celé fronty a běhy linií
+dohromady. Rozhovory se nepočítají.
+
+- **Hlídá kód:**
+  - počítá se při startu běhu pod krátkým zámkem linií stromu. Běh navíc se odmítne a řekne, které běhy pracují
+    a jak je zastavit;
+  - zvýšit hodnotu smí jen člověk: `strom config set run.parallel <n>` se zeptá „Dovolit až N běhů agenta najednou
+    v jednom rodokmenu (nyní M)? Každý běh čerpá předplatné agenta – čerpání se sčítá.“ Agent hodnotu nezvýší.
+    Snížit smí kdokoli, i aplikace ([S4.4.12](S4-research-from-the-app.md#S4.4.12));
+  - snížení pod počet běžících běhů žádný nezastaví; nový běh se spustí, až jich bude méně.
+- **Hranice:** nastavení platí pro tento počítač, ne pro jeden strom.
+- **Ovládání:** terminál: `strom config set run.parallel <n>`, zpět `strom config unset run.parallel`.
+- **Platí od:** výzkum 1.36.0
+
+<!-- zdroj: research:089875ec src/core/linerun.ts (run.parallel, hint strom config set run.parallel <n>, rozhovory se nepočítají) · src/core/config.ts run.parallel (tree: false, DEFAULT_RUN_PARALLEL 3, RUN_PARALLEL_MAX 10, „only you raise it“) · src/commands/setup.ts runsDecision (requireHuman jen při zvýšení), cs.json ui.consent.runParallel · src/core/live.ts runsLimitWrite (POST settings/runs: snížení, zvýšení 403 runs.raise s příkazem, mimo 1–10 400 runs.max) · src/core/liveruns.ts runLimits · help run -->
+
+<a id="R7.10.2"></a>
+### R7.10.2 Zastavit jeden běh
+
+Každý běh jde zastavit zvlášť; ostatní běhy pracují dál. Zastavení nic nepřeruší násilím.
+
+- **Hranice:**
+  - `strom run stop <run-…>`: rozpracované sezení dokončí svůj úkol a další nezačne. S `--finish` je i rozpracované
+    sezení požádáno o dokončení hned: agent zapíše, co našel, a sezení zavře jako `strom session finish`
+    ([R7.3](#R7.3));
+  - běh, který čeká (na podmínku, limit předplatného nebo archiv), skončí hned;
+  - běh žádost přečte do jedné až dvou sekund a řekne ji ve svém terminálu. Ctrl-C v okně běhu zastaví jen ten běh;
+  - číslo běhu (`run-…`) říká odmítnutí běhu navíc ([R7.10.1](#R7.10.1)) a `strom session list --open`;
+  - po konci běhu linie bere její úkoly zase běh celé fronty.
+- **V aplikaci:** **Zastavit** a **Dokončit a skončit** v bloku běhu ([S4.1.8](S4-research-from-the-app.md#S4.1.8)).
+- **Ovládání:** terminál: `strom run stop <run-…> [--finish]`, Ctrl-C v okně běhu.
+- **Platí od:** výzkum 1.36.0
+
+<!-- zdroj: research:src/commands/session.ts run stop (help: the task at work is finished, no next one starts; --finish; a run that waits ends at once; read within a second or two) · src/core/live.ts POST runs/stop · src/commands/links.ts finish?run= finishRun (strom run stop <run> --finish) · STOP_HINT src/core/linerun.ts · help run stop -->
+
+<a id="R7.10.3"></a>
+### R7.10.3 Co si běhy na počítači dělí
+
+Běhy na jednom počítači (všechny výzkumy se stejnou sdílenou složkou) si dělí limit předplatného agenta, dotazy
+podmínky, požadavky na weby a čtenáře skenů.
+
+- **Hlídá kód:**
+  - limit předplatného, na který narazí jeden běh ([R7.6](#R7.6)), platí pro všechny běhy téhož agenta (a účtu) na
+    počítači: do obnovy limitu nezačne žádné nové sezení. Běh pod podmínkou s `--loop` nebo `--until` počká, jiný
+    skončí (**limit předplatného**). Rozpracované sezení pokračuje;
+  - podmínky ([R7.4](#R7.4)) se běhy ptají jeden po druhém: další až poté, co začalo sezení, které podmínka pustila;
+  - stránky jednoho webu, které agenti otevřou, se do `web.perHost` ([R9.3](R9-archives.md#R9.3)) počítají ze všech
+    sezení na počítači za posledních `run.minutes`;
+  - skeny čte najednou nejvýš `read.parallel` čtenářů na celém počítači ([R8.3.1](R8-reading-scans.md#R8.3.1)).
+- **Platí od:** výzkum 1.36.0
+
+<!-- zdroj: research:src/core/machine.ts (limit-<agent>.json ve sdílené složce agents/, brána po jednom, sloty čtenářů) · src/core/web.ts web.perHost za run.minutes ze všech sezení · src/core/config.ts read.parallel, web.perHost (počítáno na počítač) · help run (What runs share on this computer) · CHANGELOG.cs.md 1.36.0 · dirigent:spec/126 U8 -->
+
+<a id="R7.10.4"></a>
+### R7.10.4 Běh linie z odkazu aplikace Strom
+
+- Odkaz `strom-research://work` s `research=G…` (a případně `agent=…`) požádá o běh jedné linie. Terminál výzkumu ho
+  otevře v novém okně s názvem linie, řekne „Běh linie … : jen její úkoly – jiná linie může mít vedle něj vlastní
+  běh.“, agenta a prvních 5 úkolů linie, a spustí `strom run --research G…` s `--tasks N` nebo `--loop` jako
+  [R7.1.2](#R7.1.2).
+- **Hranice:**
+  - nic se nespustí, když linie ve výzkumu není, je pozastavená nebo ukončená, když program zvoleného agenta na
+    počítači není, když linie už má běh, když na výzkumu pracuje běh stromu staršího než 1.25, nebo při plném počtu
+    běhů („Najednou už pracuje nejvíc běhů (3 z 3, nastavení run.parallel). Nic dalšího se nespustilo.“);
+  - potvrzení se řídí **Spouštěním agenta z aplikace Strom** ([S4.5.5](S4-research-from-the-app.md#S4.5.5));
+  - odkaz na celou frontu se dál odmítne vedle běhu celé fronty nebo sezení mimo běhy linií. Běhy linií se mu
+    počítají jen do `run.parallel`; fronta, kterou ukáže, je bez úkolů linií s vlastním během;
+  - `strom-research://finish` s `run=run-…` požádá běh o dokončení a konec jako `strom run stop <run-…> --finish`
+    ([R7.10.2](#R7.10.2)).
+- **Ovládání:** aplikace ([S4.3.3](S4-research-from-the-app.md#S4.3.3)); terminál: `strom link open "<odkaz>"`.
+- **Platí od:** výzkum 1.36.0
+
+<!-- zdroj: research:src/cli/menu-links.ts workRun byLine (ui.link.direction.none, ui.link.work.line.state, ui.link.work.agent, ui.link.work.older, ui.run.line.held, ui.link.work.cap; obecný odkaz: busy bez běhů linií, runRefusal max; lineRunFilter; ui.run.line, ui.link.work.agent.is; run --research [--agent] --tasks|--loop) · src/commands/links.ts lineWindow (titulek Strom · strom · linie (G…), klíč linie), finish run= → finishRun · src/core/links.ts work research=, agent= -->

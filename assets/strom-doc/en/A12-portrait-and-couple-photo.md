@@ -4,7 +4,7 @@
 A person's portrait is a square cut from a photo. The crop is chosen in an editor over the whole photo and can be
 changed at any time, because the whole photo stays with the person as an attachment. A couple can have its own
 **couple's photo** (a wedding or joint photo) and the portraits of both partners from it. The chapter describes the
-Strom app 3.30.0.
+Strom app 3.30.0; changes from a newer version carry its number.
 
 <!-- zdroj: dirigent:spec/107-vyrez-portretu (K1.1–K2.3) · app:59b9dde9..6a00396f (dirigent:prace/1116-app-107-vyrez) · app:docs/ZADANI_DEV_vyrez-portretu.md §1–§10, rozhodnutí D1–D12 · app:src/photo.ts, src/portrait-editor-model.ts, src/ui/portrait-editor.ts · app:CHANGELOG.cs.md 3.30.0 -->
 
@@ -47,8 +47,11 @@ card stands still and the photo moves, zooms and rotates under it.
 - **Controls:** editing a person, **Choose photo** at the photo. On a phone (up to 640 px) the editor fills the whole
   screen: the card preview, the switch **Zoom** | **Straighten** with one slider and under it ↺ ↻ and **Flip**.
 - **Since:** app 3.30.0; the buttons for rotating the photo in editing a person are in the editor from 3.30.0.
+- **From app 3.31.0:** **Choose photo** at a person who has photos to offer first opens the picker **Portrait from
+  a photo** ([A12.2](#A12.2)); a file from the computer comes through **From the computer…** in it (on touch **From
+  this device…**). A new person and a person without such photos get the file picker as before.
 
-<!-- zdroj: app:327d9734 src/ui/portrait-editor.ts (rámeček, posun, kolečko, dva prsty, ↺ ↻, narovnání s mřížkou, Zrcadlit, náhled karty / Stránka osoby / Rodinné stránky, telefon), src/photo.ts PHOTO_SIZE 256, PORTRAIT_MIN_SOURCE_PX 128, PORTRAIT_MAX_ANGLE 45, PORTRAIT_ANGLE_STEP 0.5, minZoomForAngle, cropToJpeg (bílý podklad) · src/portrait-editor-model.ts isIdentityPortrait (Hotovo beze změny z nového souboru = compressPhoto), isSmallPortrait · app:88859da2 src/ui/person-modal.ts handlePhotoInput → editor, Zrušit/Escape nechá dialog, dialog zavřený bez Uložit nic nenechá, #photo-rotate-left/right odstraněny · app:a2af453a jen ke čtení / zamčená osoba, personGone · app:ef688950 dlouhá jména, telefon na šířku · strings.ts portrait.title, preview, personPage, familyPages, savedCircle, savedRounded, rotate, straighten, zoom, reset, mirror, small, personGone · ZADANI_DEV §1, §9, §10 -->
+<!-- zdroj: app:327d9734 src/ui/portrait-editor.ts (rámeček, posun, kolečko, dva prsty, ↺ ↻, narovnání s mřížkou, Zrcadlit, náhled karty / Stránka osoby / Rodinné stránky, telefon), src/photo.ts PHOTO_SIZE 256, PORTRAIT_MIN_SOURCE_PX 128, PORTRAIT_MAX_ANGLE 45, PORTRAIT_ANGLE_STEP 0.5, minZoomForAngle, cropToJpeg (bílý podklad) · src/portrait-editor-model.ts isIdentityPortrait (Hotovo beze změny z nového souboru = compressPhoto), isSmallPortrait · app:88859da2 src/ui/person-modal.ts handlePhotoInput → editor, Zrušit/Escape nechá dialog, dialog zavřený bez Uložit nic nenechá, #photo-rotate-left/right odstraněny · app:a2af453a jen ke čtení / zamčená osoba, personGone · app:ef688950 dlouhá jména, telefon na šířku · strings.ts portrait.title, preview, personPage, familyPages, savedCircle, savedRounded, rotate, straighten, zoom, reset, mirror, small, personGone · ZADANI_DEV §1, §9, §10 · 3.31.0: app:c6fbb3ff src/ui/person-modal.ts choosePersonPhoto (#photo-choose-btn; bez currentId → #input-photo), src/ui/portrait-picker-ui.ts openPortraitPicker (prázdný model → portraitPickFile), portraitPickerHtml (fromComputer / fromDevice) · strings.ts labels.photoChoose, portrait.pickTitle, fromComputer, fromDevice · dirigent:prace/1122-app-portret-dev · app:docs/ZADANI_DEV_portret-z-materialu.md §1.2, §1.3 -->
 
 <a id="A12.1.1"></a>
 ### A12.1.1 Keyboard, mouse and touch in the editor
@@ -106,8 +109,38 @@ tagged **Portrait**, and so the crop can be changed at any time without losing s
 - **Controls:** editing a person, the section of the photo and **Attachments**; the person page, the materials and the
   attachment's viewer.
 - **Since:** app 3.30.0
+- **From app 3.31.0:**
+  - **Use as portrait…** is also at a JPEG or PNG picture of the research that names the person (⋯ in the person's
+    materials, the file viewer). The editor opens over a working copy from the research. The picture becomes the
+    tree's file at the person only after **Done** (in editing a person after **Save**), in one step of **Undo**. From
+    a photo of several people each person gets their own crop; the file is in the tree once, at each person as
+    another place. While the research does not run, the action is not available at a file only in the research;
+    a research that does not assign files to people does not offer it.
+  - **The picker Portrait from a photo** offers the person's photos a portrait can be cut from: the tree's pictures
+    at the person and the research's JPEG and PNG pictures that name the person, newest first (undated ones last).
+    A PDF, a file that is only an original in the research, hidden files and family tree files are not in it. The
+    photo of today's portrait is in it too (a new crop of the same photo), with the tag **Portrait**. A photo that
+    also names other people has "and 2 more" under its name and their names in its tooltip ("Also in the photo:
+    …"); people only from the batch the file came with do not count. Choosing a photo opens the editor
+    ([A12.1](#A12.1)); from editing a person the portrait is saved with **Save**, from the person page at once with
+    **Undo**. The last row is **From the computer…** (on touch **From this device…**).
+  - **How the picker looks:** on a computer with a mouse in a window wider than 1024 px a popover at the button; on
+    touch and in a window up to 1024 px a sheet from below with the person's name, on a phone held sideways a panel
+    on the right. Escape, a click beside it and choosing a photo close it.
+  - **States of the picker:** while the research does not run, photos only in the research are missing and the
+    picker says "Photos from the research (3) are available while the research runs.", on a computer with **Start
+    the research**. With an older research, without a research and on touch it offers only the tree's photos, without
+    the sentence. A tree's file that has not come yet after the tree opened
+    ([S1.4.1](S1-connecting-app-and-research.md#S1.4.1)) is loading and cannot be chosen; a file that did not come is
+    not in the picker. A chosen photo from the research loads in the picker ("Loading the photo from the
+    research…"); when it does not load, the picker stays open with "The photo could not be loaded." and **Try again**.
+  - **Portrait from a photo…:** a person without a portrait who can be changed and has a photo to offer has the
+    link **Portrait from a photo…** under the name in the header of editing a person. The circle in the header and
+    the empty circle in the photo section open the same. The person page has the link **Portrait from a photo…**
+    under the initials; a saved page (**Save as HTML**), printing and a read-only tree do not have it. Only photos
+    from a research that does not run give no link.
 
-<!-- zdroj: app:59b9dde9 src/types.ts PortraitCrop, PortraitSource (attachmentId | partnershipId), Person.photoSource · app:88859da2 originál = cropToJpeg celé fotky, ATTACHMENT_MAX_SIDE 1600, ATTACHMENT_QUALITY 0.8, jen z nového souboru · app:e6f0595d src/ui/attachments-ui.ts štítek Portrét, Jako portrét… (isImage && !originalOnly && !locked, ne u zdroje), materials-ui.ts / material-viewer-ui.ts Použít jako portrét… (před Odstranit ze stromu…; app 3.30.0 material-viewer-ui.ts m.removeFromTree), danger.portraitSourceNote, unlinkPortraitFromAttachment, toast portraitReplaced s Vrátit · app:a2af453a Odebrat portrét → zdroj se smaže, příloha zůstane · D5 (bez běžícího výzkumu) · strings.ts attachments.asPortrait, portraitTag, portraitTagTitle, materials.useAsPortrait, portrait.replaceNote, current, newOne, replaced · ZADANI_DEV §4, §10 -->
+<!-- zdroj: app:59b9dde9 src/types.ts PortraitCrop, PortraitSource (attachmentId | partnershipId), Person.photoSource · app:88859da2 originál = cropToJpeg celé fotky, ATTACHMENT_MAX_SIDE 1600, ATTACHMENT_QUALITY 0.8, jen z nového souboru · app:e6f0595d src/ui/attachments-ui.ts štítek Portrét, Jako portrét… (isImage && !originalOnly && !locked, ne u zdroje), materials-ui.ts / material-viewer-ui.ts Použít jako portrét… (před Odstranit ze stromu…; app 3.30.0 material-viewer-ui.ts m.removeFromTree), danger.portraitSourceNote, unlinkPortraitFromAttachment, toast portraitReplaced s Vrátit · app:a2af453a Odebrat portrét → zdroj se smaže, příloha zůstane · D5 (bez běžícího výzkumu) · strings.ts attachments.asPortrait, portraitTag, portraitTagTitle, materials.useAsPortrait, portrait.replaceNote, current, newOne, replaced · ZADANI_DEV §4, §10 · 3.31.0: app:43d87c60 src/ui/portrait-actions-ui.ts materialPortraitOffer (vlastní obrázek stromu, nebo JPEG/PNG výzkumu se jménem osoby; bridge jen s caps.assign), useMaterialAsPortrait, linkPortraitFile; src/materials.ts isMaterialPortraitCandidate, PORTRAIT_MIMES · dirigent:prace/1121-app-portret-z-materialu · app:c6fbb3ff src/portrait-candidates.ts portraitCandidates (offer, bridge && !bridgeUp → researchOnly, waits failed vynechané, nejnovější první, isSource), photoPeopleOthers (directPersons bez dávky, místa přílohy), src/ui/portrait-picker-ui.ts (popover !isCoarsePointer && !isTabletOrMobile, jinak presentPortraitSheet; Escape, klik vedle; pickPortraitCandidate: busy, failed, Zkusit znovu = materials.retry; start jen na počítači s researchStartUrl) · app:3f6c9dfd src/ui/person-modal.ts updatePortraitOffer (#pm-portrait-link, #pm-avatar, #photo-preview is-pick), src/person-page.ts portraitPick (jen mode app, links app, ne readOnly), src/ui/person-page-ui.ts personPagePortraitPick · strings.ts portrait.pickTitle, fromComputer, fromDevice, fromPhoto, others, alsoIn, researchDown, pickLoading, pickFailed, materials.retry, sync.startResearch · dirigent:prace/1122-app-portret-dev · app:docs/ZADANI_DEV_portret-z-materialu.md §1–§4 -->
 
 <a id="A12.3"></a>
 ## A12.3 Editing the crop later
@@ -134,8 +167,12 @@ only change within its square.
 - **Controls:** editing a person, **Edit crop** between **Choose photo** and **Remove** (only with a photo); the
   person page, ⋯ **More actions** → **Edit portrait crop** (only at a person with a portrait that can be changed).
 - **Since:** app 3.30.0
+- **From app 3.31.0:** ⋯ **More actions** on the person page has the item **Change portrait…** before **Edit portrait
+  crop**: it opens the picker **Portrait from a photo** ([A12.2](#A12.2)) under ⋯ and the new portrait is written at
+  once with **Undo**. The item is only at a person with a portrait who can be changed and has a photo to offer
+  (photos from a research that does not run count too). A click on the portrait still opens the enlargement.
 
-<!-- zdroj: app:1feae064 src/ui/person-modal.ts #photo-recrop-btn (labels.photoRecrop), editor nad zdrojem s photoSource, jinak squareOnly + chooseAgain → #input-photo · src/ui/person-page-ui.ts item('crop', editCrop) jen canEdit && person.photo, Hotovo = jedna transakce, toast portraitUpdated s Vrátit · app:dab74024 src/ui/image-viewer.ts přepínač Portrét | Celá fotka (jen s existujícím zdrojem), src/person-page.ts portraitLightbox odkaz Celá fotka jen když soubor fotku nese · strings.ts labels.photoRecrop, personPage.moreActions, editCrop, portrait, wholePhoto, portrait.noOriginal, chooseAgain, updated · ZADANI_DEV §2, §10 -->
+<!-- zdroj: app:1feae064 src/ui/person-modal.ts #photo-recrop-btn (labels.photoRecrop), editor nad zdrojem s photoSource, jinak squareOnly + chooseAgain → #input-photo · src/ui/person-page-ui.ts item('crop', editCrop) jen canEdit && person.photo, Hotovo = jedna transakce, toast portraitUpdated s Vrátit · app:dab74024 src/ui/image-viewer.ts přepínač Portrét | Celá fotka (jen s existujícím zdrojem), src/person-page.ts portraitLightbox odkaz Celá fotka jen když soubor fotku nese · strings.ts labels.photoRecrop, personPage.moreActions, editCrop, portrait, wholePhoto, portrait.noOriginal, chooseAgain, updated · ZADANI_DEV §2, §10 · 3.31.0: app:3f6c9dfd src/ui/person-page-ui.ts togglePersonPageMenu item('portrait') před crop, personPageCanChangePortrait (shown + researchOnly > 0), runPersonPageMenu → openPortraitPicker pod .pp-more · strings.ts personPage.changePortrait · dirigent:prace/1122-app-portret-dev · app:docs/ZADANI_DEV_portret-z-materialu.md §1.3 -->
 
 <a id="A12.4"></a>
 ## A12.4 The couple's photo

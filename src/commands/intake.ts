@@ -350,6 +350,8 @@ register(
                   ...(nt.objects ? [ui(tree.lang, "ui.intake.notTaken.objects", { n: nt.objects })] : []),
                   ...(nt.links ? [ui(tree.lang, "ui.intake.notTaken.links", { n: nt.links })] : []),
                   ...Object.entries(nt.tags).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 8).map(([t, n]) => `${t} ×${n}`),
+                  // what of a contact the research does not keep (spec 134 U11): a phone, a fax, a web page
+                  ...Object.entries(nt.contact ?? {}).sort((a, b) => a[0].localeCompare(b[0])).map(([t, n]) => `${t} ×${n}`),
                 ]
               : [];
             if (ntList.length) report.push(`  ${ui(tree.lang, "ui.intake.notTaken", { list: `${ntList.join(", ")}${nt && Object.keys(nt.tags).length > 8 ? " …" : ""}` })}`);
