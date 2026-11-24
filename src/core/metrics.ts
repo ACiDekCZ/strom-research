@@ -472,6 +472,20 @@ export function siteRefusedSince(root: string, site: string, since: number): boo
   return refused;
 }
 
+/** Two addresses of one page as a viewer keeps it: the same site, path, parameters (in any order) and anchor. */
+export function samePage(a: string, b: string): boolean {
+  let x: URL, y: URL;
+  try {
+    x = new URL(a);
+    y = new URL(b);
+  } catch {
+    return false;
+  }
+  const keys = (u: URL) => [...u.searchParams].map((kv) => kv.join("=")).sort().join("&");
+  const bare = (h: string) => (h === "#" ? "" : h);
+  return x.origin === y.origin && x.pathname === y.pathname && keys(x) === keys(y) && bare(x.hash) === bare(y.hash);
+}
+
 /**
  * The times (ms) the agent's web fetches to one host went out in the last hour as this tree's journal tells them (each
  * counted one: its line's time and the pause it made for the pace) — what a host's state that cannot be read is made

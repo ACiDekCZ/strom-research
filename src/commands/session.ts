@@ -192,7 +192,7 @@ function censusCloseLine(tree: Tree, s: Session, settings: Settings): string | u
 function takeSaved(tree: Tree, shared: string | undefined): TakenFolder[] {
   if (!shared || tree.dryRun) return [];
   try {
-    return takeWaiting(tree, shared).filter((t) => t.added.length || t.problem || t.aside?.length);
+    return takeWaiting(tree, shared).filter((t) => t.added.length || t.problem || t.aside?.length || t.back?.length || t.later !== undefined || t.sheets?.length);
   } catch {
     return [];
   }

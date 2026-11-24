@@ -43,7 +43,8 @@ import { hasHouseMark } from "./streets.ts";
 import { eventMarksOf, gedcomRole, participantRole, roleWord } from "./roles.ts";
 import { LABELS, labels, type LabelKey } from "../gedcom/labels.ts";
 import { eventName, humanDate, humanDay } from "../cli/human.ts";
-import { UI, ui, type UIKey } from "../cli/ui.ts";
+import { ui } from "../cli/ui.ts";
+import { kindOfLabel } from "./labelkind.ts";
 import { StromError, UsageError } from "./errors.ts";
 import * as git from "./git.ts";
 import { now, Tree, typeOfId } from "./tree.ts";
@@ -5039,29 +5040,6 @@ function knownNewcomers(incoming: Snapshot, ours: Snapshot): void {
       f.children = f.children.map((k) => (k === key ? hit.key : k));
     }
   }
-}
-
-/** The words a fact's label may name a kind of fact by (EVEN + TYPE): its tag, its name, the app's and strom's words for it. */
-let labelKinds: Map<string, string> | undefined;
-function kindOfLabel(label: string | undefined): string | undefined {
-  if (!labelKinds) {
-    const m = new Map<string, string>();
-    const set = (word: string, kind: string) => {
-      const k = fold(word);
-      if (k && !m.has(k)) m.set(k, kindOf(kind));
-    };
-    for (const [kind, name] of Object.entries(FACT_KINDS)) {
-      if (kind === "EVEN") continue;
-      set(kind, kind);
-      set(name, kind);
-      for (const lang of ["en", "cs", "de", "pl", "sk"]) {
-        if (`ui.ev.${kind}` in UI) set(ui(lang, `ui.ev.${kind}` as UIKey), kind);
-        if (kind in LABELS.en) set(labels(lang)(kind as LabelKey), kind);
-      }
-    }
-    labelKinds = m;
-  }
-  return label ? labelKinds.get(fold(label)) : undefined;
 }
 
 /** The kind a fact is of: its tag, or for an event of its own (EVEN) the kind its label names, if it names one. */

@@ -822,7 +822,7 @@ function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, sha
             ? `a part sharper: strom fetch ${route.connector} --recordset ${b.id} --images <n> --crop x,y,w,h`
             : // an archive your own browser saves images of: the image once more, sharper — never a wait for the person
               saveAgain
-              ? `a sharper scan through your browser: ${saveAgain} (the viewer zoomed in on the entry, or its full resolution; a new copy beside it, nothing removed — the sharpest is the image)`
+              ? `a sharper scan through your browser: ${saveAgain} (the viewer zoomed in on the entry, or its full resolution; strom media add --inbox --waiting takes it at once — no media aside --take: the one there is kept)`
               : SHARPER_SCAN
         }`
       : "",

@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.37.0
 
-*In preparation: the betas up to 1.37.0-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.37.0-beta.3. The section is complete with the release.*
 
 - **A research's archive no longer holds a portal of strom's list:** a book whose address is on a portal strom's list
   knows (Porta fontium, Acta Publica…) no longer makes the portal as strict as the archive the book is recorded under —
@@ -20,7 +20,13 @@ The changes of each version in short. The full notes and the install lines are o
   on), `fond12_kniha3_236.jpg`: of several numbers in a name, the one of the images asked for, the one that changes from
   file to file of the folder, else the last one before the extension. A screenshot's date and time is never an image's
   number, nor a year after it (`33 1784.jpg`) when which images is not known; a name with two of the images asked for is
-  not guessed but said with the file.
+  not guessed but said with the file. A name that gives no image's number never holds back the rest (`000.jpg` lies
+  there, said once — no advice to rename it). Files named by the entries on them (`001-004.jpg`) or otherwise not by the images' numbers are taken in
+  the folder's order once nothing more is saved for 20 minutes, the entries kept with each image, and the task comes
+  back saying which file became which image. Another sheet under one number (`7a.jpg`) is told by its content: a copy,
+  a zoomed-in part, or a scan of its own kept under its name, never hidden — in the same batch or a later one, after
+  the task came back too, and with `strom media add --inbox <folder>`. A task a part of whose images came goes back
+  after the same quiet with what came and what is missing — a scan on the boundary of two years is counted once.
 - **A used-up site's limit no longer waited out for nothing:** past `web.perHost` the agent hears when the site takes
   pages again — the limit of this computer, or none more in its session — and what to do until then: the task left
   open, other work, else the session ended; never a page tried again before then nor a wait. `strom run` leaves a task
@@ -28,6 +34,18 @@ The changes of each version in short. The full notes and the install lines are o
   nothing sent), or ends saying when. A task waiting for an image the agent's browser never saved (its page refused)
   goes back to the queue as its session ends, never said held back by the browser. A run ended this way is a
   finished run to the Strom app, not an error.
+  Images the agent's browser saves are its own work: while the agent's session saves images through its browser
+  (`strom media save`), the task is no longer in What waits — nor in its counts, labels or notices — and the Strom app
+  is told it as work going on (`working[].saving`: images saved of those given). Only an image the browser held back
+  waits for the person — to allow downloading several files from the site, said first — and a session that ended
+  mid-way: saving stopped at its image, the next session goes on with it. Waits written before show so with no change.
+  A scan saved once more with `--again` is taken as the image at once, the one there withdrawn and kept — no `strom
+  media aside --take` for each image. Several images at a time cost far less: `strom media save --image 40,41,45` (at
+  most ten, a page each or one address with `{n}`) gives one shorter script for them all — each image still on its own
+  page at the person's pace — and one `strom media add --inbox --waiting` takes them; an agent with subagents hands more than
+  three to the tree's subagent `strom-image-saver` (its context small, on the person's `model.cheap`, under the same
+  hooks). A copy saved properly is the image ahead of a screenshot of the screen around it, even one of more pixels, and
+  `strom media cites M… --move-to M…` moves the sources citing the screenshot to it, the screenshot kept.
 - **Sends from the app lighter and faster:** a send from the Strom app is planned once instead of twice, and files the
   research already has travel by reference (their hash) instead of their whole data; a send naming a file the research
   cannot find is refused whole before anything is kept, and the app sends it again with the data. What waits never
@@ -37,6 +55,10 @@ The changes of each version in short. The full notes and the install lines are o
   person show` and on the person's card — never an event or a place the person lived, never given to the agent. Sync
   with the app adds and takes off e-mails like other edits. The new check `strom fixes contact-residences` turns
   residences an older strom made of e-mails into the contact (withdrawn, never deleted, undone by `strom fixes undo`).
+  **Censuses written as an event of their own:** a person's census written as an event named "Census" ("Sčítání
+  lidu", "Volkszählung"…) goes to the Strom app as the census it is, so loading the research's version no longer shows
+  such censuses struck out each time; the record in the research stays as it was written. `strom check` warns of one
+  person's two censuses of the same date, and a record cited twice says its words once in the fact's note.
 - **Material sent to a list of people:** the Strom app can send a scan to a whole list of people (a census sheet, a
   register page) instead of one person. The material keeps the list as it was sent — its name, kind, rule and the IDs
   of its people; up to 50 of them are the people it is of, a longer list is named with a file of all its people. The
@@ -44,11 +66,20 @@ The changes of each version in short. The full notes and the install lines are o
   tree only after.
   A scan of a source can be sent so too: it stays an image of the source, keeps the list the same way, and the task
   to read it has the list's people (up to 50) among those it concerns.
+  **Sorting the material without the question:** a setting `sort.confirm` (per research with `--for-tree`, else for
+  this computer): `ask` — the default, as before: the person's yes to the paid readings before every sort — or `no`:
+  `strom material sort` sorts at once when the person asks for it, saying it was not asked; never by itself, and a run
+  nobody watches still asks. Only the person sets `no`, in their own terminal; asking again is anyone's, the Strom app
+  too.
 - **A research for a copy of a family tree:** the Strom app's link that starts a new research may suggest its name (a
   copy of a tree: "… (copy)"), offered in the terminal to keep or write over; the bridge tells the app the folder new
   researches are made in. A tree handed over with the numbers of another research (a copy of a tree that had one, from
   an older app) gets its people and sources the new research's numbers by the file's own marks — never the other
   research's numbers, a source's citations kept.
+- **What helps most:** each thing that waits for the person with tasks behind it says how much dealing with it grows
+  the family tree — a new generation above a person the research reaches, the direct line, the tasks it frees — and
+  why, in a few words in the research's language; the Strom app can put what helps most first.
+  `strom task list --state waiting --order gain` does the same in the terminal.
 
 ## 1.36.0
 

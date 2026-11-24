@@ -10,8 +10,10 @@ import { UsageError } from "./errors.ts";
 import { retryingHeld } from "./json.ts";
 import type { Input, Media, Region, Source } from "./model.ts";
 import type { Tree } from "./tree.ts";
-import { safeFolderName } from "./text.ts";
+import { foldText, safeFolderName } from "./text.ts";
 import { runsArg } from "../cli/format.ts";
+import { formatOf } from "../image/index.ts";
+import { entriesOf } from "./scannames.ts";
 
 export const MAX_IN_TREE = 20 * 1024 * 1024;
 
@@ -34,9 +36,9 @@ export function sharedMediaPath(sharedDir: string, sha: string, ext: string): st
   return path.join(sharedDir, "media", sha.slice(0, 2), sha.slice(2, 4), `${sha}${ext.toLowerCase()}`);
 }
 
-/** Copy into the shared store (no-op when the same content is already there). */
-export function storeShared(sharedDir: string, file: string, sha: string): string {
-  const dest = sharedMediaPath(sharedDir, sha, path.extname(file));
+/** Copy into the shared store (no-op when the same content is already there): under its own extension, or the one given. */
+export function storeShared(sharedDir: string, file: string, sha: string, ext: string = path.extname(file)): string {
+  const dest = sharedMediaPath(sharedDir, sha, ext);
   if (!fs.existsSync(dest)) {
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     // a clone where Node can make one (Linux on Btrfs or XFS: no space taken until one of them changes), else a copy —
@@ -76,6 +78,84 @@ export const IMAGE_FILE_EXT: ReadonlySet<string> = new Set([".jpg", ".jpeg", ".p
 
 export function mimeOf(file: string): string {
   return MIME[path.extname(file).toLowerCase()] ?? "application/octet-stream";
+}
+
+/** The type of bytes strom does not tell ("application/octet-stream"). */
+const OCTET = "application/octet-stream";
+
+/** A type that says what a file is: neither empty nor OCTET. */
+const told = (mime: string | undefined): boolean => {
+  const t = (mime ?? "").trim().toLowerCase();
+  return !!t && t !== OCTET;
+};
+
+/** The types strom tells by a file's first bytes (image/index.ts formatOf), with the extension each is kept under. */
+const TYPE_OF_FORMAT: Record<string, { mime: string; ext: string }> = {
+  jpeg: { mime: "image/jpeg", ext: ".jpg" },
+  png: { mime: "image/png", ext: ".png" },
+  tiff: { mime: "image/tiff", ext: ".tif" },
+  gif: { mime: "image/gif", ext: ".gif" },
+  webp: { mime: "image/webp", ext: ".webp" },
+  heic: { mime: "image/heic", ext: ".heic" },
+  pdf: { mime: "application/pdf", ext: ".pdf" },
+};
+const EXT_OF_TYPE: Record<string, string> = Object.fromEntries(Object.values(TYPE_OF_FORMAT).map((x) => [x.mime, x.ext]));
+
+/** The type of a file by its first bytes (JPEG, PNG, TIFF, GIF, WebP, HEIC, PDF); undefined when not told or not read. */
+export function mimeOfContent(file: string): string | undefined {
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync(file, "r");
+    const head = Buffer.alloc(16);
+    const n = fs.readSync(fd, head, 0, head.length, 0);
+    return TYPE_OF_FORMAT[formatOf(head.subarray(0, n))]?.mime;
+  } catch {
+    return undefined;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
+/**
+ * The type a file is registered under (1124): by its name; a name that says none (a file of the inbox set aside,
+ * "33.jpg.other-than-M0003") by its content, else by the name it was saved under (`from`, "33.jpg"); else OCTET.
+ */
+export function mimeOfFile(file: string, from?: string): string {
+  const named = mimeOf(file);
+  if (told(named)) return named;
+  const content = mimeOfContent(file);
+  if (content) return content;
+  const was = from ? mimeOf(from) : OCTET;
+  return told(was) ? was : OCTET;
+}
+
+/** The extension the shared store keeps a file under: its own when its name says its type, else its type's (mimeOfFile). */
+export function storeExtOf(file: string, mime: string): string {
+  return told(mimeOf(file)) ? path.extname(file) : (EXT_OF_TYPE[mime] ?? path.extname(file));
+}
+
+/** The type of a copy's bytes as read from its file, by its hash (only a type told: a file not here yet is read again). */
+const contentTypes = new Map<string, string>();
+
+/**
+ * The type of a registered copy (1124): as its record says; a record that says none (OCTET — a file set aside,
+ * registered under its name of then, "33.jpg.other-than-M0003", before strom read its type) by its file's content when
+ * the shared store is given, else by the name it was saved under (`from`, "33.jpg"). Derived each time it is asked:
+ * nothing written, the records as they are.
+ */
+export function mediaMime(m: Pick<Media, "mime" | "from" | "file" | "sha">, shared?: string): string {
+  if (told(m.mime)) return m.mime;
+  if (shared && m.file) {
+    const key = m.sha || path.join(shared, m.file);
+    let got = contentTypes.get(key);
+    if (!got) {
+      got = mimeOfContent(path.join(shared, m.file));
+      if (got) contentTypes.set(key, got);
+    }
+    if (got) return got;
+  }
+  const was = m.from ? mimeOf(m.from) : OCTET;
+  return told(was) ? was : (m.mime ?? OCTET);
 }
 
 /**
@@ -209,6 +289,12 @@ export function parseImageList(s: string, max = 2000): number[] | undefined {
  * fonds code that stays the same).
  */
 export function imageNumbers(files: string[]): (number | undefined)[] {
+  // a name that is a range of the entries on it ("001-004.jpg", spec 141): never one image's number
+  if (files.some((f) => entriesOf(f))) {
+    const own = files.filter((f) => !entriesOf(f));
+    const read = imageNumbers(own);
+    return files.map((f) => (entriesOf(f) ? undefined : read[own.indexOf(f)]));
+  }
   const groups = files.map(digitGroups);
   const n = groups[0]?.length ?? 0;
   if (files.length > 1 && n > 0 && groups.every((g) => g.length === n)) {
@@ -236,13 +322,98 @@ export function inboxFolders(inbox: string): { folder: string; files: string[] }
 }
 
 /**
+ * The names a screen saved as a picture comes under, as the systems give them in their languages (folded: foldText) —
+ * "Snímek obrazovky 2026-…", "Screenshot …", "Bildschirmfoto …", "Zrzut ekranu …".
+ */
+const SCREENSHOT_NAME = /screen ?shot|snimek obrazovky|snimka obrazovky|bildschirmfoto|zrzut ekranu|capture d.ecran|schermata|captura de pantalla|captura de tela|skarmavbild|schermafbeelding|kepernyokep|снимок экрана|знімок екрана/u;
+
+/** A copy saved by hand as a screenshot, as its original file name says (never one a connector fetched). */
+export function screenshotNamed(m: Media): boolean {
+  return !m.fetched && !!m.from && SCREENSHOT_NAME.test(foldText(m.from));
+}
+
+/**
+ * strom's own name of a file the agent's browser saved for a waiting task (strom media save:
+ * strom-3f2a9c1b-T0007-0040.jpg, given before the research's mark strom-T0007-0040.jpg, a second save of it "… (1).jpg"),
+ * kept as the copy's original name (takeWaiting) — a connector's file is named so too (strom-<connector>-<book>-0009).
+ */
+const STROM_SAVE_NAME = /^strom-[\p{L}\p{M}\p{N}._-]*-\p{N}{4,}(?:-part)?(?: \(\p{N}+\))?\.[\p{L}\p{N}]{2,5}$/u;
+
+/**
+ * A copy saved properly, as its record says: fetched by a connector, or saved by the agent's browser for a waiting task
+ * (its original name strom's own, STROM_SAVE_NAME). Never taken for a screenshot, whatever its type or proportions.
+ */
+export function savedProperly(m: Media): boolean {
+  return !!m.fetched || (!!m.from && STROM_SAVE_NAME.test(m.from.normalize("NFC")));
+}
+
+/** Its type, lower case: as the record keeps it, a type not told by the name it was saved under (mediaMime). */
+function mimeOfCopy(m: Media): string {
+  return mediaMime(m).trim().toLowerCase();
+}
+
+/** Its long side over its short one (the turn of a file left aside); undefined without its size. */
+function sideRatio(m: Media): number | undefined {
+  return m.width && m.height ? Math.max(m.width, m.height) / Math.min(m.width, m.height) : undefined;
+}
+
+/** Two copies whose sides keep proportions further apart than this show two frames, not one picture. */
+const FRAME_APART = 1.15;
+
+/** Their proportions further apart than FRAME_APART; unknown without the size of either. */
+function ratioApart(a: Media, b: Media): boolean {
+  const ra = sideRatio(a);
+  const rb = sideRatio(b);
+  return !!ra && !!rb && Math.max(ra, rb) / Math.min(ra, rb) > FRAME_APART;
+}
+
+/**
+ * `a` is taken for a screenshot beside `b` (proportions aside), as their records say: never a copy saved properly
+ * (savedProperly); a screenshot by its name (screenshotNamed) beside a copy that is none; or, its name saying nothing
+ * (a screen saved by hand under the image's number: "33.png"), a PNG beside a JPEG — a screen is saved as PNG, a scan
+ * comes as JPEG. Two PNGs, two JPEGs, a type not known: not told.
+ */
+function screenBeside(a: Media, b: Media): boolean {
+  if (savedProperly(a) || screenshotNamed(b)) return false;
+  if (screenshotNamed(a)) return true;
+  return mimeOfCopy(a) === "image/png" && mimeOfCopy(b) === "image/jpeg";
+}
+
+/**
+ * Two copies of one image that show other frames (1124): one of them taken for a screenshot beside the other
+ * (screenBeside: by its name, or a PNG beside a JPEG, never a copy saved properly), and their proportions far apart
+ * (FRAME_APART) — the screen around the scan, or a cut of it, against the scan itself. A place on the one (a clip's
+ * region) is not that place on the other. Anything in doubt (no size, no type, both screenshots or neither, the
+ * proportions alike): not apart.
+ */
+export function framedApart(a: Media, b: Media): boolean {
+  return (screenBeside(a, b) || screenBeside(b, a)) && ratioApart(a, b);
+}
+
+/** A copy that is a screenshot of another frame than a copy of the same image beside it (framedApart). */
+export function screenOfOther(m: Media, copies: readonly Media[]): boolean {
+  return copies.some((x) => x.id !== m.id && screenBeside(m, x) && ratioApart(m, x));
+}
+
+/**
+ * Copies of one whole image, the image first: the sharpest — but a screenshot of another frame than a copy beside it
+ * (screenOfOther) goes after every such copy, whatever its pixels (1124: a screen of 3552×1040 around a scan saved
+ * properly at 2000×1620 is no sharper scan). Copies of one kind (two saved, two screenshots), as ever by their pixels.
+ * Derived each time from what the records say: nothing written, a research written before reads so too.
+ */
+export function rankCopies(copies: readonly Media[]): Media[] {
+  const pixels = (m: Media) => (m.width ?? 0) * (m.height ?? 0);
+  const back = new Set(copies.filter((m) => screenOfOther(m, copies)).map((m) => m.id));
+  return [...copies].sort((a, b) => Number(back.has(a.id)) - Number(back.has(b.id)) || pixels(b) - pixels(a));
+}
+
+/**
  * Image n of a record set: the whole image, before any part of it fetched sharper —
- * of several copies of the whole image (a reduced download, then the full one), the sharpest.
+ * of several copies of the whole image (a reduced download, then the full one), the sharpest (rankCopies).
  */
 export function findImage(all: Media[], recordset: string, image: number): Media | undefined {
   const of = all.filter((m) => !m.retracted && m.recordset === recordset && m.image === image);
-  const pixels = (m: Media) => (m.width ?? 0) * (m.height ?? 0);
-  return of.filter((m) => !m.part).sort((a, b) => pixels(b) - pixels(a))[0] ?? of[0];
+  return rankCopies(of.filter((m) => !m.part))[0] ?? of[0];
 }
 
 /**
@@ -300,12 +471,11 @@ export function coveringPart(parts: Media[], r: Region): { part: Media; crop: Re
   return best && { part: best.part, crop: best.crop };
 }
 
-/** The other copies of the same whole image, sharpest first. */
+/** The other copies of the same whole image, the image first (rankCopies: sharpest first, a screenshot of another frame after). */
 export function otherCopies(all: Media[], m: Media): Media[] {
   if (m.part || m.recordset === undefined || m.image === undefined) return [];
-  return all
-    .filter((x) => x.id !== m.id && !x.retracted && !x.part && x.recordset === m.recordset && x.image === m.image)
-    .sort((a, b) => (b.width ?? 0) * (b.height ?? 0) - (a.width ?? 0) * (a.height ?? 0));
+  const others = all.filter((x) => x.id !== m.id && !x.retracted && !x.part && x.recordset === m.recordset && x.image === m.image);
+  return rankCopies(m.retracted ? others : [m, ...others]).filter((x) => x.id !== m.id);
 }
 
 /** The same part of an image (to a thousandth of it). */
@@ -400,6 +570,8 @@ export function sharperPart(all: Media[], whole: Media, r: Region): { part: Medi
   for (const m of sameImage(all, whole)) {
     const p = m.part ?? (m.id !== whole.id ? { x: 0, y: 0, w: 1, h: 1 } : undefined);
     if (!p || !m.width || m.retracted || m.recordset !== whole.recordset || m.image !== whole.image) continue;
+    // another copy of another frame (a screenshot of the screen around the scan, 1124): the place is elsewhere on it
+    if (!m.part && framedApart(m, whole)) continue;
     if (!inside(r, p)) continue;
     const gain = m.width / p.w / whole.width;
     if (gain < SHARPER || (best && gain <= best.gain)) continue;
@@ -555,7 +727,10 @@ export function inputPath(tree: Tree, input: Input): string | undefined {
  */
 export function transcriptNote(tree: Tree, s: Source): string | undefined {
   if (s.retracted || s.transcript?.trim()) return undefined;
-  const onScan = s.clips?.length || s.media?.some((id) => /^image\/(jpeg|png)$/.test(tree.get<Media>(id)?.mime ?? ""));
+  const onScan = s.clips?.length || s.media?.some((id) => {
+    const m = tree.get<Media>(id);
+    return !!m && /^image\/(jpeg|png)$/.test(mediaMime(m));
+  });
   if (!onScan) return undefined;
   return `note: write the words of the entry as they stand (its own language and spelling, unread letters [?]): strom source edit ${s.id} --transcript @<file> — the Strom app shows them next to its image`;
 }
@@ -566,7 +741,10 @@ export function transcriptNote(tree: Tree, s: Source): string | undefined {
  */
 export function clipNote(tree: Tree, s: Source): string | undefined {
   if (s.retracted || s.clips?.length || !s.media?.length) return undefined;
-  const image = s.media.find((id) => /^image\/(jpeg|png)$/.test(tree.get<Media>(id)?.mime ?? ""));
+  const image = s.media.find((id) => {
+    const m = tree.get<Media>(id);
+    return !!m && /^image\/(jpeg|png)$/.test(mediaMime(m));
+  });
   if (!image) return undefined;
   return `note: say where the entry is on ${image}: strom source edit ${s.id} --clip ${image}@x,y,w,h (the view you read it in prints it: strom media view ${image} --crop …) — the Strom app shows it cut out next to its words`;
 }

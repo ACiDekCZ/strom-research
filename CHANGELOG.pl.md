@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.37.0
 
-*W przygotowaniu: bety do 1.37.0-beta.2. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.37.0-beta.3. Sekcja będzie kompletna z wydaniem.*
 
 - **Wpis archiwum w badaniu nie utrzymuje już portalu z listy stroma:** księga z adresem na portalu, który zna lista
   stroma (Porta fontium, Acta Publica…), nie czyni już portalu tak surowym jak archiwum, pod którym jest zapisana –
@@ -21,7 +21,14 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   nie), `fond12_kniha3_236.jpg`: z kilku liczb w nazwie ta, która należy do potrzebnych skanów, ta, która zmienia się
   między plikami folderu, inaczej ostatnia przed rozszerzeniem. Data i godzina zrzutu ekranu nigdy nie są numerem skanu,
   ani rok za nim (`33 1784.jpg`), gdy nie wiadomo, które skany; nazwa z dwoma potrzebnymi numerami nie jest zgadywana,
-  lecz zgłaszana razem z plikiem.
+  lecz zgłaszana razem z plikiem. Nazwa, która nie daje numeru skanu, nie wstrzymuje już reszty (`000.jpg` zostaje
+  w folderze i jest zgłoszony raz, bez rady zmiany nazwy). Pliki nazwane według aktów na nich (`001-004.jpg`) lub inaczej niż numerami skanów są
+  przejmowane w kolejności folderu, gdy przez 20 minut nic więcej nie zostanie zapisane; akty zostają zapisane przy
+  każdym skanie, a zadanie wraca z listą, który plik jest którym skanem. Kolejny arkusz pod tym samym numerem (`7a.jpg`)
+  jest rozpoznawany po treści: kopia, powiększony fragment albo osobny skan zachowany pod swoją nazwą, nigdy ukryty – w tej
+  samej lub późniejszej partii, także po powrocie zadania i przy `strom media add --inbox <folder>`.
+  Zadanie, do którego przyszła tylko część skanów, wraca po tym samym czasie ciszy z tym, co przyszło i czego brakuje –
+  skan na granicy dwóch roczników liczy się raz.
 - **Wyczerpany limit strony nie jest już przeczekiwany na próżno:** po `web.perHost` agent słyszy, kiedy strona znów da
   strony – limit tego komputera albo w jego sesji już żadnej – i co do tego czasu: zadanie zostaje otwarte, inna praca,
   w przeciwnym razie koniec sesji; żadnej strony ponownie wcześniej ani czekania. `strom run` na razie pomija zadanie
@@ -29,6 +36,19 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   wysyłane), albo kończy i mówi kiedy. Zadanie czekające na skan, którego przeglądarka agenta nigdy nie zapisała (strona
   odrzucona), wraca z końcem sesji do kolejki i nigdy nie jest uznane za wstrzymane przez przeglądarkę. Tak zakończony
   przebieg jest dla aplikacji Strom ukończonym przebiegiem, nie błędem.
+  Skany zapisywane przez przeglądarkę agenta są jego pracą: dopóki sesja agenta zapisuje skany przez swoją
+  przeglądarkę (`strom media save`), zadania nie ma już w „Co czeka” – ani w liczbach, etykietach czy powiadomieniach
+  – a aplikacja Strom dostaje je jako trwającą pracę (`working[].saving`: ile z podanych skanów jest zapisanych). Na
+  człowieka czeka tylko skan wstrzymany przez przeglądarkę – zezwolić na pobieranie wielu plików z witryny,
+  powiedziane od razu na początku – oraz sesja zakończona w połowie: zapisywanie zatrzymane na jej skanie, kontynuuje
+  następna sesja. Wcześniej zapisane oczekiwania pokazują się tak bez ingerencji. Skan zapisany ponownie z `--again`
+  jest od razu przejmowany jako obraz skanu, dotychczasowy wycofany i zachowany – bez `strom media aside --take` przy
+  każdym skanie. Kilka skanów naraz kosztuje znacznie mniej: `strom media save --image 40,41,45` (najwyżej dziesięć,
+  strona dla każdego lub jeden adres z `{n}`) daje jeden krótszy skrypt dla wszystkich – każdy skan nadal na własnej
+  stronie w tempie człowieka – a jedno `strom media add --inbox --waiting` je przejmuje; agent z podagentami przekazuje
+  więcej niż trzy subagentowi drzewa `strom-image-saver` (mały kontekst, `model.cheap` osoby, te same hooki). Prawidłowo zapisana
+  kopia ma pierwszeństwo przed zrzutem ekranu, nawet o większej liczbie pikseli, a `strom media cites M… --move-to M…`
+  przenosi na nią źródła cytujące zrzut ekranu – zrzut pozostaje zachowany.
 - **Wysyłki z aplikacji lżejsze i szybsze:** wysyłka z aplikacji Strom jest planowana raz zamiast dwa razy, a pliki,
   które badanie już ma, idą przez odwołanie (swój skrót) zamiast całych danych; wysyłka wskazująca plik, którego
   badanie nie znajduje, jest odrzucana w całości, zanim cokolwiek zostanie zapisane, a aplikacja wysyła ją ponownie
@@ -39,17 +59,31 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   do agenta. Synchronizacja z aplikacją dodaje i usuwa e-maile jak inne zmiany. Nowa kontrola `strom fixes
   contact-residences` zamienia miejsca zamieszkania, które starszy strom zrobił z e-maili, na kontakt (wycofane, nigdy
   usunięte, cofa je `strom fixes undo`).
+  **Spisy zapisane jako własne zdarzenie:** spis ludności osoby zapisany jako zdarzenie nazwane „Spis ludności”
+  („Census”, „Sčítání lidu”…) trafia do aplikacji Strom jako spis, więc wczytanie wersji badania nie pokazuje już
+  takich spisów za każdym razem jako przekreślonych; zapis w badaniu zostaje taki, jak go zapisano. `strom check`
+  ostrzega przed dwoma spisami jednej osoby z tą samą datą, a zapis cytowany dwa razy ma swoje słowa w notatce faktu
+  tylko raz.
 - **Materiał do listy osób:** aplikacja Strom może wysłać skan do całej listy osób (arkusz spisu, strona księgi
   metrykalnej) zamiast do jednej osoby. Materiał zachowuje listę taką, jaką wysłano – nazwę, rodzaj, regułę i ID jej
   osób; do 50 z nich to osoby materiału, dłuższa lista jest podana nazwą i plikiem wszystkich jej osób. Zadanie agenta
   nosi nazwę listy i każe porównać każde imię ze skanu najpierw z tymi osobami, a dopiero potem z całym drzewem.
   Tak samo można wysłać skan źródła: pozostaje obrazem źródła, zachowuje listę tak samo, a zadanie jego odczytania ma
   osoby z listy (do 50) wśród dotyczących.
+  **Sortowanie materiałów bez pytania:** ustawienie `sort.confirm` (dla badania z `--for-tree`, w przeciwnym razie
+  dla tego komputera): `ask` – domyślne, jak dotąd: zgoda osoby na płatne odczyty przed każdym sortowaniem – albo
+  `no`: `strom material sort` sortuje od razu, gdy osoba o to poprosi, i mówi, że nie pytano; nigdy samoczynnie,
+  a przebieg, którego nikt nie obserwuje, nadal pyta. `no` ustawia tylko osoba we własnym terminalu; powrót do pytania
+  może każdy, także aplikacja Strom.
 - **Badanie dla kopii drzewa:** link aplikacji Strom, który zakłada nowe badanie, może zaproponować jego nazwę (kopia
   drzewa: „… (kopia)”); terminal proponuje ją do zachowania lub nadpisania, a most podaje aplikacji folder, w którym
   powstają nowe badania. Drzewo przekazane z numerami innego badania (kopia drzewa, które miało badanie, ze starszej
   aplikacji) dostaje dla swoich osób i źródeł numery nowego badania według własnych oznaczeń pliku – nigdy numery
   tamtego badania, cytowania źródeł zostają.
+- **Co najbardziej pomoże:** każda rzecz, która czeka na załatwienie i za którą stoją zadania, mówi, jak bardzo jej
+  załatwienie rozszerzy drzewo – nowe pokolenie nad osobą, do której sięga badanie, linia prosta, zadania, które
+  odblokuje – i dlaczego, w kilku słowach w języku badania; aplikacja Strom może więc pokazać najpierw to, co
+  najbardziej pomoże. W terminalu to samo: `strom task list --state waiting --order gain`.
 
 ## 1.36.0
 

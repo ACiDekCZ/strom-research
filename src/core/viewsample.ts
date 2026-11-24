@@ -14,6 +14,7 @@ import { dateYears } from "./gdate.ts";
 import { parentsOf, primaryName } from "./people.ts";
 import { imageSize } from "../image/index.ts";
 import { saysNothing } from "./reader.ts";
+import { mediaMime } from "./media.ts";
 
 /** Fewer images than this decide nothing: the calibration does not run. */
 export const SAMPLE_MIN = 5;
@@ -127,7 +128,7 @@ function sizeOf(m: Media, file: string): { width: number; height: number } | und
   }
 }
 
-const isScan = (m: Media) => /^image\/(jpeg|png)$/.test(m.mime);
+const isScan = (m: Media, shared: string) => /^image\/(jpeg|png)$/.test(mediaMime(m, shared));
 
 /** The question for a record: its kind, whom, the year — and the words of it a reader is not told. */
 function truthOf(tree: Tree, facts: Fact[], text: string): { target: string; keys: string[] } {
@@ -192,7 +193,7 @@ export function pickSample(tree: Tree, shared: string): { cases: CalCase[]; nega
     const clip = s.clips?.find((c) => byId.get(c.media));
     const named = s.media?.map((id) => byId.get(id)).find((m): m is Media => !!m);
     const first = clip ? wholeOf(all, byId.get(clip.media)!, clip.region) : named ? wholeOf(all, named) : undefined;
-    if (!first || first.media.retracted || !isScan(first.media)) continue;
+    if (!first || first.media.retracted || !isScan(first.media, shared)) continue;
     const file = path.join(shared, first.media.file);
     if (!fs.existsSync(file)) continue;
     const size = sizeOf(first.media, file);
@@ -221,7 +222,7 @@ export function pickSample(tree: Tree, shared: string): { cases: CalCase[]; nega
     if (negatives.length >= NEGATIVES_MAX || c.media.image === undefined || !c.media.recordset) continue;
     const cited = new Set(tree.get<Source>(c.source)?.clips?.map((x) => x.media) ?? []);
     for (const n of [c.media.image + 1, c.media.image - 1]) {
-      const m = all.find((x) => !x.retracted && !x.part && x.recordset === c.media.recordset && x.image === n && isScan(x) && !used.has(x.id) && !cited.has(x.id));
+      const m = all.find((x) => !x.retracted && !x.part && x.recordset === c.media.recordset && x.image === n && isScan(x, shared) && !used.has(x.id) && !cited.has(x.id));
       const file = m ? path.join(shared, m.file) : "";
       const size = m && fs.existsSync(file) ? sizeOf(m, file) : undefined;
       if (!m || !size) continue;

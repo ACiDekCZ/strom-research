@@ -1237,6 +1237,7 @@ const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | unde
   "sync.review": () => "off",
   "read.sourceTask": () => "ask",
   "run.confirm": () => "ask",
+  "sort.confirm": () => "ask",
   "hypotheses.decide": () => "agent",
   "excerpts.quality": (s, tree) => s.excerpts(tree).quality,
   "excerpts.for": (s, tree) => s.excerpts(tree).for,
@@ -1673,6 +1674,26 @@ function intakeDecision(ctx: Context, key: string, value: string | number | unde
   );
 }
 
+/**
+ * A sort of the material without the question about its paid readings (sort.confirm no, spec 102 U8): a standing yes
+ * to what the readers spend — turned on by the person alone, their yes in a terminal too (a window where an agent asks;
+ * the Strom app's bridge never: 403 sort.raise); back to ask is anyone's. false: the person said no — nothing changed.
+ */
+async function sortDecision(ctx: Context, key: string, value: string | number | undefined, scope: "tree" | "user"): Promise<boolean> {
+  if (key !== "sort.confirm") return true;
+  const { now, next } = layerChange(ctx, key, value, scope);
+  if (next !== "no" || now === "no") return true;
+  const forTree = scope === "tree" ? " --for-tree" : "";
+  return !!(await ctx.requireHumanYes(
+    scope === "tree"
+      ? "Sort files of this research's material by its readers at once when asked, without the question about the paid readings?"
+      : "Sort files of the material by the readers of the research at once when asked, without the question about the paid readings, in every research on this computer?",
+    value === undefined ? `strom config unset sort.confirm${forTree}` : `strom config set sort.confirm no${forTree}`,
+    "sort.confirm",
+    ui(ctx.uiLang(), "ui.consent.sort.confirm"),
+  ));
+}
+
 /** The tree here, or undefined where none opens. */
 function safeTree(ctx: Context): Tree | undefined {
   try {
@@ -1833,6 +1854,7 @@ async function setUserSetting(ctx: Context, key: string, value: string | number 
   experimentsDecision(ctx, key, value, "user");
   censusDecision(ctx, key, value, "user");
   intakeDecision(ctx, key, value, "user");
+  if (!(await sortDecision(ctx, key, value, "user"))) return false;
   const pace = await askPace(ctx, key, value);
   browserDecision(ctx, key, value, "user");
   effortDecision(ctx, key, value, "user");
@@ -2022,6 +2044,7 @@ register(
       let text: string;
       let data: Record<string, unknown>;
       if (opts["for-tree"]) {
+        if (!(await sortDecision(ctx, def.key, value, "tree"))) return kept(ctx, def);
         const tree = setTreeSetting(ctx, def.key, value);
         text = `${def.key} = ${display(ctx, def, value)}${who} for tree "${tree.config.name}"`;
         data = { key: def.key, value, scope: "tree", ...(forAgent ? { agent: forAgent } : {}) };
@@ -2070,8 +2093,10 @@ register(
     examples: ["strom config unset shared", "strom config unset agent --for-tree"],
     async run(ctx, { args, opts }) {
       const def = settingDef(args[0]!);
-      if (opts["for-tree"]) setTreeSetting(ctx, def.key, undefined);
-      else if (!(await setUserSetting(ctx, def.key, undefined))) return kept(ctx, def);
+      if (opts["for-tree"]) {
+        if (!(await sortDecision(ctx, def.key, undefined, "tree"))) return kept(ctx, def);
+        setTreeSetting(ctx, def.key, undefined);
+      } else if (!(await setUserSetting(ctx, def.key, undefined))) return kept(ctx, def);
       const r = effective(ctx, def);
       // a setting with no default: nothing holds now, said once (never "now (unset) (unset)")
       const now = r.value === undefined ? "nothing set now" : `now ${display(ctx, def, r.value)} (${r.source})`;

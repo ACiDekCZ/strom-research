@@ -119,7 +119,8 @@ never open again a view cleared from your context — your notes hold it.
   user, impersonal (never "you"), in the research language, so that they need
   nothing else: the book (title, call number), its link, which images as the
   portal's viewer counts them (or the pages and years, where you know only
-  those), each saved named by its number (40.jpg). Where the portal gives only
+  those: `--kind web --book B…`, never a guessed count; what the numbers mean
+  said), each saved named by its number (40.jpg). Where the portal gives only
   a small image, add: the entry zoomed in, that view saved too (40a.jpg); a full-resolution scan can be
   ordered from the archive. Then take the next task; once all are saved
   the task comes back by itself.

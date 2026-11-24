@@ -19,7 +19,7 @@ import { crop, fileToShown, grid, resize, rotate, shownBoxToFile, shownToFile, s
 import { decodeImage, encodeImage, exifOrientation, exifOrientationOf, formatOf, ImageFormatError, imageSize } from "../image/index.ts";
 import { readableFile } from "./readable.ts";
 import { knownOrient, rememberOrient } from "./orients.ts";
-import { findImage } from "./media.ts";
+import { findImage, mediaMime } from "./media.ts";
 import type { Media, Region } from "./model.ts";
 import { IMAGE_MAX, VIEW_MIN } from "../agents/images.ts";
 import { isWorkerId } from "./workers.ts";
@@ -345,7 +345,7 @@ export function describeView(v: View, display: (p: string) => string, fetchPart?
 
 /** The EXIF orientation a registered image is shown turned by (2–8), when its file is here; none for 1 or no file. */
 export function mediaOrient(shared: string | undefined, m: Media | undefined): number | undefined {
-  if (!shared || !m || !/^image\/jpeg$/.test(m.mime)) return undefined;
+  if (!shared || !m || !/^image\/jpeg$/.test(mediaMime(m, shared))) return undefined;
   // remembered by its content: its file opened once (core/orients.ts)
   const known = m.sha ? knownOrient(shared, m.sha) : undefined;
   if (known !== undefined) return known !== 1 ? known : undefined;

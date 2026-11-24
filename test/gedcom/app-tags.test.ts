@@ -100,3 +100,38 @@ console.log(JSON.stringify({ dropped: [...parsed.droppedTags.entries()], couple:
   assert.match(JSON.stringify(out.couple), /Lhota/);
   w.cleanup();
 });
+
+// K052: the app 3.28–3.31 makes an event of its own named a census a census only when it saves the tree, so the
+// research's version read for its preview never paired with the tree saved; sent as 1 CENS it is a census as read. The
+// app of today (../strom-beta) reads either shape so; the census-shape tests say what strom sends. ../strom is an
+// older app, which read every CENS as an event of its own.
+const betaRepo = path.resolve(import.meta.dirname, "..", "..", "..", "strom-beta");
+const betaTsx = path.join(betaRepo, "node_modules", ".bin", process.platform === "win32" ? "tsx.cmd" : "tsx");
+test("the Strom app's own parser reads a person's census written as an event of its own (Sčítání lidu) as a census, not an event of its own", { skip: !hasGit || !fs.existsSync(betaTsx) }, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["person", "add", "Jan /Lhoták/", "--sex", "M"]);
+  await w.ok(["event", "add", "P1", "EVEN", "--label", "Sčítání lidu", "--date", "31 DEC 1890", "--place", "Lhota"]);
+  await w.ok(["event", "add", "P1", "EVEN", "--label", "Sčítání lidu 1921", "--date", "1921"]);
+  const ged = path.join(w.dir, "census.ged");
+  fs.writeFileSync(ged, exportGedcom(Tree.open(w.cwd, w.env), { for: "strom" }).text);
+  const script = path.join(w.dir, "read.ts");
+  fs.writeFileSync(
+    script,
+    `import fs from "node:fs";
+import { parseGedcom, convertToStrom } from ${JSON.stringify(path.join(betaRepo, "src", "ged-parser.ts"))};
+const parsed = parseGedcom(fs.readFileSync(process.argv[2], "utf8"));
+const p = (Object.values(convertToStrom(parsed).data.persons) as any[]).find((x) => x.refn === "P0001");
+console.log(JSON.stringify({ dropped: [...parsed.droppedTags.entries()], events: (p?.events ?? []).map((e: any) => [e.type, e.customLabel ?? null, e.date ?? null]) }));
+`,
+  );
+  const r = spawnSync(betaTsx, [script, ged], { cwd: betaRepo, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout.trim().split("\n").pop()!);
+  assert.deepEqual(out.dropped, []);
+  const census = (out.events as [string, string | null, unknown][]).filter((e) => e[0] === "census");
+  assert.equal(census.length, 1, JSON.stringify(out.events));
+  assert.ok(!(out.events as [string, string | null][]).some((e) => e[1] === "Sčítání lidu"), "no event of its own of that name left");
+  assert.ok((out.events as [string, string | null][]).some((e) => e[0] === "custom" && e[1] === "Sčítání lidu 1921"), "another label stays its own");
+  w.cleanup();
+});

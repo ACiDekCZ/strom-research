@@ -7,15 +7,17 @@ import { lines } from "../cli/format.ts";
 import { answerShellEvent, BRIDGE_NOTES, SHELL_TOOLS, shellEvent, shellHookOutput } from "../core/bridgeguard.ts";
 import { DESKTOP_TERMINAL_TOOLS } from "../core/desktopterminal.ts";
 import { answerDelegateEvent, delegateEvent, delegateHookOutput, delegateModel, STROM_DELEGATES } from "../core/delegate.ts";
+import { IMAGE_SAVER } from "../agents/imagesaver.ts";
 
 register({
   path: ["agents", "delegate"],
   summary: "The subagents strom defines and the model each runs on (the tree's hook runs it with --hook before each subagent call)",
   group: "setup",
   description:
-    "strom defines subagents of its own for Claude Code (strom-scan-reader reads scans). Each runs on the model strom set\n" +
-    "for it: the user's model.vision, else inherit (your own model). Call them without `model`: which model reads old\n" +
-    "handwriting is the user's choice, never the agent's. The tree's settings run strom agents delegate --hook before each\n" +
+    "strom defines subagents of its own for Claude Code (strom-scan-reader reads scans; strom-image-saver saves images\n" +
+    "through the browser). Each runs on the model strom set for it: the reader on the user's model.vision, the saver on\n" +
+    "model.cheap, else inherit (your own model). Call them without `model`: which model does that work is the user's\n" +
+    "choice, never the agent's. The tree's settings run strom agents delegate --hook before each\n" +
     "call of the subagent tool (Task, Agent): a call naming a strom subagent and another model is refused.",
   options: [{ name: "hook", type: "boolean", description: "read the agent's hook event (JSON) on stdin and answer it (the tree's settings run it)" }],
   examples: ["strom agents delegate"],
@@ -34,7 +36,7 @@ register({
     const models = Object.fromEntries(STROM_DELEGATES.map((d) => [d, delegateModel(tree, d)]));
     return {
       text: lines(
-        ...STROM_DELEGATES.map((d) => `${d}  model: ${models[d]}${models[d] === "inherit" ? " (yours)" : " (model.vision)"}`),
+        ...STROM_DELEGATES.map((d) => `${d}  model: ${models[d]}${models[d] === "inherit" ? " (yours)" : d === IMAGE_SAVER ? " (model.cheap)" : " (model.vision)"}`),
         "Call them without `model` — a call that sets another model is refused.",
       ),
       data: { delegates: models },

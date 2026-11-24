@@ -42,7 +42,7 @@ import path from "node:path";
 import { APP_BROWSER_NAVIGATE, APP_BROWSER_PAGE_TOOLS, APP_BROWSER_PREFIXES, CHROME_NAVIGATE, CHROME_PAGE_TOOLS, CHROME_TOOL_PREFIX } from "./browser.ts";
 import { bridgeMarks, bridgeRefusal, reachesBridge } from "./bridgeguard.ts";
 import { readJsonIfExists, writeJson } from "./json.ts";
-import { metricsDir, webHost } from "./metrics.ts";
+import { metricsDir, samePage, webHost } from "./metrics.ts";
 import { clock } from "./net.ts";
 import { Settings } from "./config.ts";
 import { currentSession } from "./session.ts";
@@ -211,6 +211,17 @@ export function tabOf(root: string, ev: ChromeEvent): TabNote | undefined {
   const tabs = readTabs(root);
   const n = tabs[tabKey(ev)] ?? (ev.tab ? tabs[tabKey(ev, "?")] : undefined);
   return n && typeof n.url === "string" && typeof n.host === "string" ? n : undefined;
+}
+
+/**
+ * When the hook last let a tab of the agent's browser go to this page, at or after a time (ms), as the tabs kept tell it
+ * (each tab's last page only); never, or since gone on to another page: undefined. One of several images given one
+ * script (strom media save --image 40,41,…, 1124) is waited for once its page was opened.
+ */
+export function pageShownSince(root: string, url: string, since: number): number | undefined {
+  let at: number | undefined;
+  for (const n of Object.values(readTabs(root))) if (typeof n?.url === "string" && typeof n.at === "number" && n.at >= since && samePage(n.url, url)) at = Math.max(at ?? 0, n.at);
+  return at;
 }
 
 /** Keep the tab's address (written whole, atomically; old tabs forgotten). */

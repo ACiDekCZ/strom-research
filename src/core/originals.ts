@@ -13,7 +13,7 @@ import { UsageError } from "./errors.ts";
 import { removeRetrying, retryingHeld } from "./json.ts";
 import type { Family, Input, InputList, Media, Person, Region, Source, Task } from "./model.ts";
 import { sameList, takeList } from "./lists.ts";
-import { mimeOf, sharedMediaPath } from "./media.ts";
+import { mediaMime, mimeOf, sharedMediaPath } from "./media.ts";
 import { create, update } from "./records.ts";
 import { makeNote } from "./actions.ts";
 import { foldText } from "./text.ts";
@@ -122,7 +122,7 @@ export function originalProblem(file: string, mime: string): { text: string; cod
 /** What the research has of this content: an input or an image (by SHA-256), with where its file is. */
 export function knownOriginal(tree: Tree, shared: string | undefined, sha: string): { id: string; kind: "input" | "media"; mime: string; bytes: number; name?: string; file?: string } | undefined {
   const m = recordsBySha<Media>(tree, "media", sha).find((x) => !x.retracted);
-  if (m) return { id: m.id, kind: "media", mime: m.mime, bytes: m.size, ...(m.from ? { name: m.from } : {}), ...(shared ? { file: path.join(shared, m.file) } : {}) };
+  if (m) return { id: m.id, kind: "media", mime: mediaMime(m, shared), bytes: m.size, ...(m.from ? { name: m.from } : {}), ...(shared ? { file: path.join(shared, m.file) } : {}) };
   // a file deleted for good (core/materialdelete.ts) is none: the same content sent again is new
   const i = recordsBySha<Input>(tree, "input", sha).find((x) => x.file && x.retracted?.reason !== "deleted");
   if (!i) return undefined;

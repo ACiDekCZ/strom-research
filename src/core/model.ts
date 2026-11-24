@@ -874,7 +874,7 @@ export interface Task extends BaseRecord {
   heldFrom?: "waiting";
   waitingOn?: string;
   /** The images it waits for, which the user saves by hand: of this record set, into this folder of the shared inbox. */
-  awaits?: { recordset: string; images: string; folder: string };
+  awaits?: { recordset: string; images: string; folder: string; since?: string };
   /**
    * The person's check of a site it waits for (strom task wait --check): the address, and what to check there — a
    * site that keeps automated tools off, the source still necessary. Only the person answers it.
@@ -1331,6 +1331,11 @@ export interface Media extends BaseRecord {
   url?: string;
   /** Where it came from: the original file name, a portal. */
   from?: string;
+  /**
+   * The entries on it as its file's name gave them, a portal naming its scans by them ("001-004.jpg": entries 1–4 —
+   * never image 4; spec 141): what the agent checks against what it reads.
+   */
+  entries?: { from: number; to: number };
   /** Fetched through a connector: which one, its ID of the book, and whether the user's browser fetched it. */
   fetched?: { connector: string; book: string; via?: "browser" };
   accessed?: string;

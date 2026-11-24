@@ -135,8 +135,25 @@ test("the bridge: /status waiting from the same list, feature waiting.groups, ev
   const { w } = await world();
   const info = (await w.ok(["live", "start", "--json"])).json;
   try {
-    const status = (await fetch(`${info.url}/status`, { headers: { Origin: "https://beta.stromapp.info" } }).then((r) => r.json())) as { features: string[]; waiting: { id: string; kind: string; group: { key: string }; order: number; tasks?: string[] }[] };
+    const status = (await fetch(`${info.url}/status`, { headers: { Origin: "https://beta.stromapp.info" } }).then((r) => r.json())) as {
+      features: string[];
+      waiting: { id: string; kind: string; group: { key: string }; order: number; tasks?: string[]; gain?: { score: number; says: string; parts: Record<string, unknown>[] } }[];
+    };
     assert.ok(status.features.includes("waiting.groups"));
+    // what helps most (feature waiting.gain, spec 105 K4.1): Kryštof, the focus, has no parents yet — a new generation and
+    // the direct line on every task about him, the tasks each frees; the order stays strom's
+    assert.ok(status.features.includes("waiting.gain"));
+    const gain = (id: string) => status.waiting.find((i) => i.id === id)!.gain;
+    assert.deepEqual(gain("T0001"), {
+      score: 90,
+      says: "nová generace: rodiče osoby Kryštof Žďárský · přímá linie",
+      parts: [{ kind: "generation", person: "P0001", name: "Kryštof Žďárský", missing: "parents" }, { kind: "line" }],
+    });
+    // the archive's question: its two tasks freed
+    assert.deepEqual([gain(`permission:${PERMISSION_HOST}`)!.score, gain(`permission:${PERMISSION_HOST}`)!.parts.at(-1)], [100, { kind: "unblocks", n: 2 }]);
+    // the part of the waiting list carries it too
+    const part = (await fetch(`${info.url}/status/waiting`, { headers: { Origin: "https://beta.stromapp.info" } }).then((r) => r.json())) as { waiting: { id: string; gain?: { score: number } }[] };
+    assert.equal(part.waiting.find((i) => i.id === "T0001")!.gain!.score, 90);
     assert.deepEqual(
       status.waiting.map((i) => i.id),
       [`permission:${PERMISSION_HOST}`, "T0008", "T0006", "T0005", "T0001", "T0002", "T0004", "T0003"],

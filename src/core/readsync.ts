@@ -11,7 +11,7 @@ import { normalizeDate } from "./gdate.ts";
 import { Settings } from "./config.ts";
 import { exifOrientation, imageSizeOfFile } from "../image/index.ts";
 import { shownToFile } from "../image/image.ts";
-import { inputPath, mimeOf, storeShared } from "./media.ts";
+import { inputPath, mediaMime, mimeOf, storeShared } from "./media.ts";
 import { create, update } from "./records.ts";
 import { foldText } from "./text.ts";
 import type { Clip, Input, Media, Place, Source } from "./model.ts";
@@ -325,7 +325,7 @@ export function takeReadingImages(tree: Tree, source: Source, check: ReadingChec
     const file = shared ? path.join(shared, media.file) : undefined;
     // the entry where it lies in the file: the reading's region is of the page upright
     const r = entry.region;
-    const clip = r && CLIPPED.has(media.mime) && !source.clips?.length ? { media: media.id, region: shownToFile({ x: r[0], y: r[1], w: r[2], h: r[3] }, file && fs.existsSync(file) ? exifOrientation(file) : undefined) } : undefined;
+    const clip = r && CLIPPED.has(mediaMime(media, shared)) && !source.clips?.length ? { media: media.id, region: shownToFile({ x: r[0], y: r[1], w: r[2], h: r[3] }, file && fs.existsSync(file) ? exifOrientation(file) : undefined) } : undefined;
     if (clip) out.clip = clip;
     update<Source>(tree, source.id, "source", (x) => ({ ...x, media: [...new Set([...(x.media ?? []), media.id])], ...(clip ? { clips: [clip] } : {}) }), {
       op: "source.media",

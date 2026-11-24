@@ -1,5 +1,6 @@
-// The delegates strom defines for an agent (Claude Code's strom-scan-reader, agents/scanreader.ts) run on the model strom
-// set for them: the person's model.vision, else "inherit" — the model of the agent that starts them. Which model reads
+// The delegates strom defines for an agent (Claude Code's strom-scan-reader, agents/scanreader.ts; strom-image-saver,
+// agents/imagesaver.ts, on model.cheap) run on the model strom set for them: the person's model.vision, else "inherit" —
+// the model of the agent that starts them. Which model reads
 // old handwriting is the person's choice, never the agent's (found in a live run: the main agent on opus called the
 // scan reader with its own `model: "sonnet"`). The tree's Claude Code settings run `strom agents delegate --hook` before
 // each call of its subagent tool (Task, later Agent): a call naming a strom delegate and another model is refused, with
@@ -15,6 +16,7 @@ import { findTreeUpwards, Tree } from "./tree.ts";
 import { calibrationKey, loadAliases, resolveKey, splitKey, type Aliases } from "./modelkey.ts";
 import type { Env } from "./paths.ts";
 import { SCAN_READER, scanReaderModel } from "../agents/scanreader.ts";
+import { IMAGE_SAVER, imageSaverModel } from "../agents/imagesaver.ts";
 import { treeHookCommand } from "./web.ts";
 
 /** Claude Code's subagent tool, by both names it has had. */
@@ -24,7 +26,7 @@ export const DELEGATE_TOOLS = ["Task", "Agent"] as const;
 export const DELEGATE_HOOK_TIMEOUT_S = 15;
 
 /** The delegates strom defines for Claude Code (the subagent types of the tree's .claude/agents and of a run's --agents). */
-export const STROM_DELEGATES: readonly string[] = [SCAN_READER];
+export const STROM_DELEGATES: readonly string[] = [SCAN_READER, IMAGE_SAVER];
 
 /** One call of the subagent tool, as the hook gets it. */
 export interface DelegateEvent {
@@ -121,9 +123,14 @@ export interface DelegateAnswer {
   reason?: string;
 }
 
-/** The model strom set for a delegate of this tree: the person's model.vision, else "inherit". */
+/** The setting of a delegate's model: the scan reader's model.vision, the image saver's model.cheap (agents/imagesaver.ts). */
+const delegateSetting = (subagent: string) => (subagent === IMAGE_SAVER ? "model.cheap" : "model.vision");
+
+/** The model strom set for a delegate of this tree: the person's model.vision (the saver: model.cheap), else "inherit". */
 export function delegateModel(tree: Tree, subagent: string): string {
-  return subagent === SCAN_READER ? (scanReaderModel(tree, "claude") ?? "inherit") : "inherit";
+  if (subagent === SCAN_READER) return scanReaderModel(tree, "claude") ?? "inherit";
+  if (subagent === IMAGE_SAVER) return imageSaverModel(tree, "claude") ?? "inherit";
+  return "inherit";
 }
 
 /** Answer one call of the subagent tool (never fails: anything wrong is no answer). */
@@ -146,11 +153,13 @@ export function answerDelegateEvent(ev: DelegateEvent, o: { env: Env; cwd: strin
     if (!expected) return {};
   }
   if (expected && sameModel("claude", ev.model, expected, aliases)) return {};
-  const on = set === "inherit" ? `the model you run on (${expected})` : `${set} (model.vision)`;
+  const setting = delegateSetting(ev.subagent);
+  const on = set === "inherit" ? `the model you run on (${expected})` : `${set} (${setting})`;
+  const whose = ev.subagent === IMAGE_SAVER ? "Which model saves the images" : "Which model reads old handwriting";
   return {
     decision: "deny",
     reason:
-      `strom: ${ev.subagent} reads on the model strom set for it — ${on}, not ${ev.model}. Which model reads old handwriting is the user's choice (model.vision), never the agent's. ` +
+      `strom: ${ev.subagent} ${ev.subagent === IMAGE_SAVER ? "runs" : "reads"} on the model strom set for it — ${on}, not ${ev.model}. ${whose} is the user's choice (${setting}), never the agent's. ` +
       `Call it again the same way without \`model\`.`,
   };
 }

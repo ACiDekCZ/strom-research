@@ -312,7 +312,8 @@ export const PHRASES = {
   "wait.group.connectors": "Downloaders",
   "browser.wait": "images {images} of {book}, saved by the agent's browser from {url}",
   "browser.save.other": "the browser's tab shows another image than {n} ({url}), nothing was saved",
-  "browser.wait.held": "images {images} of {book}, saved by the agent's browser from {url} — the browser held image {n} back: {host} to be allowed to download several files in the browser profile the agent works in, once (the icon at the right end of the browser's address bar)",
+  "browser.wait.held": "downloading several files from {host} to be allowed in the browser — in the profile the agent works in, once (the icon at the right end of the address bar): the browser held back image {n} of {book}, saved by the agent from {url} (images {images})",
+  "browser.wait.stopped": "saving through the agent's browser stopped at image {n} of {book}: the agent's session ended — the next session goes on with it; or images {images} to be saved by hand from {url} into the task's folder",
   "browser.range.stopped": "images {images} of {book}: the archive stopped the agent's browser at image {n} ({why}) — to be saved by hand from {url} into the task's folder; nothing goes to {host} through the agent's browser before {until}",
   "browser.range.why.check": "its check whether a person is there",
   "browser.range.why.login": "it asked for a login",
@@ -488,6 +489,12 @@ export const PHRASES = {
   "proposal.read.confirm": "confirmed in the Strom app",
   "proposal.read.earlier": "read before",
   "wait.group.transcripts": "Transcripts to decide",
+  // why a thing that waits helps most (core/waitgain.ts): its parts, joined by " · "
+  "wait.gain.parents": "a new generation: the parents of {name}",
+  "wait.gain.father": "a new generation: the father of {name}",
+  "wait.gain.mother": "a new generation: the mother of {name}",
+  "wait.gain.line": "the direct line",
+  "wait.gain.unblocks": "unblocks {n, plural, one {# task} other {# tasks}}",
   // the agent's proposal to switch census records on (spec 106, strom census propose); its result once switched on
   "census.propose.what": "Census records could help this research: {why} They can be switched on in the settings of this research.",
   "census.propose.who": "Census records could help with {who}: {why} They can be switched on in the settings of this research.",

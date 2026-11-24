@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.37.0
 
-*In Vorbereitung: die Betas bis 1.37.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.37.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein Archiveintrag der Forschung hält kein Portal der Liste von strom mehr:** ein Buch mit einer Adresse auf einem
   Portal, das die Liste von strom kennt (Porta fontium, Acta Publica…), macht das Portal nicht mehr so streng wie das
@@ -22,7 +22,15 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   auffüllt, ab Bild 100 nicht mehr), `fond12_kniha3_236.jpg`: von mehreren Zahlen im Namen die eines gewünschten Bildes,
   die von Datei zu Datei des Ordners wechselnde, sonst die letzte vor der Endung. Datum und Uhrzeit eines
   Bildschirmfotos sind nie eine Bildnummer, ebenso wenig ein Jahr dahinter (`33 1784.jpg`), wenn nicht bekannt ist,
-  welche Bilder; ein Name mit zwei gewünschten Nummern wird nicht geraten, sondern mit der Datei genannt.
+  welche Bilder; ein Name mit zwei gewünschten Nummern wird nicht geraten, sondern mit der Datei genannt. Ein Name, der
+  keine Bildnummer ergibt, hält den Rest nicht mehr auf (`000.jpg` bleibt liegen und wird einmal genannt, ohne Rat zum Umbenennen). Dateien, die nach den
+  Einträgen darauf (`001-004.jpg`) oder sonst nicht nach Bildnummern benannt sind, werden in der Reihenfolge des Ordners
+  übernommen, sobald 20 Minuten lang nichts mehr gespeichert wird; die Einträge bleiben bei jedem Bild vermerkt, und die
+  Aufgabe kommt mit der Liste zurück, welche Datei welches Bild wurde. Ein weiteres Blatt unter derselben Nummer
+  (`7a.jpg`) wird am Inhalt erkannt: eine Kopie, ein vergrößerter Ausschnitt oder ein eigener Scan, unter seinem Namen
+  behalten, nie versteckt – im selben oder einem späteren Stapel, auch nach der Rückkehr der Aufgabe und mit `strom
+  media add --inbox <Ordner>`. Eine Aufgabe, für die nur ein Teil der Bilder kam, geht nach derselben Ruhezeit mit dem
+  zurück, was kam und was fehlt – ein Scan an der Grenze zweier Jahrgänge zählt einmal.
 - **Eine erschöpfte Seitengrenze wird nicht mehr ins Leere abgewartet:** nach `web.perHost` erfährt der Agent, wann die
   Website wieder Seiten gibt – die Grenze dieses Computers, oder in seiner Sitzung keine mehr – und was bis dahin zu tun
   ist: die Aufgabe bleibt offen, andere Arbeit, sonst Ende der Sitzung; keine Seite vorher erneut und kein Warten.
@@ -31,6 +39,20 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Bild wartet, das der Browser des Agenten nie gespeichert hat (Seite abgewiesen), kehrt mit dem Ende der Sitzung in
   die Warteschlange zurück und gilt nie als vom Browser zurückgehalten. Ein so beendeter Lauf ist für die
   Strom-App ein fertiger Lauf, kein Fehler.
+  Bilder, die der Browser des Agenten speichert, sind seine Arbeit: solange die Sitzung des Agenten Bilder über seinen
+  Browser speichert (`strom media save`), steht die Aufgabe nicht mehr unter „Was wartet“ – auch nicht in deren
+  Zahlen, Markierungen oder Hinweisen – und die Strom-App erfährt sie als laufende Arbeit (`working[].saving`: wie
+  viele der gegebenen Bilder gespeichert sind). Auf den Menschen wartet nur ein Bild, das der Browser zurückgehalten
+  hat – das Herunterladen mehrerer Dateien von der Website erlauben, gleich zuerst gesagt – und eine mittendrin
+  beendete Sitzung: Speichern bei ihrem Bild angehalten, die nächste Sitzung setzt es fort. Früher geschriebene
+  Wartezustände zeigen sich so ohne Eingriff. Ein mit `--again` erneut gespeichertes Bild wird sofort als das Bild
+  übernommen, das bisherige zurückgezogen und aufbewahrt – kein `strom media aside --take` für jedes Bild. Mehrere
+  Bilder auf einmal kosten weit weniger: `strom media save --image 40,41,45` (höchstens zehn, je eine Seite oder eine
+  Adresse mit `{n}`) gibt ein kürzeres Skript für alle – jedes Bild weiter auf seiner eigenen Seite im Tempo eines
+  Menschen – und ein `strom media add --inbox --waiting` übernimmt sie; ein Agent mit Subagenten gibt mehr als drei an den
+  Subagenten des Baums `strom-image-saver` (kleiner Kontext, `model.cheap` der Person, dieselben Hooks). Eine ordentlich
+  gespeicherte Kopie geht einem Bildschirmfoto vor, auch einem mit mehr Pixeln, und `strom media cites M… --move-to M…`
+  verlegt die Quellen, die das Bildschirmfoto zitieren, auf sie – das Bildschirmfoto bleibt erhalten.
 - **Sendungen aus der App leichter und schneller:** eine Sendung aus der Strom-App wird einmal statt zweimal geplant,
   und Dateien, die die Forschung schon hat, reisen per Verweis (ihrem Hash) statt mit allen Daten; eine Sendung, die
   eine Datei nennt, die die Forschung nicht findet, wird ganz abgewiesen, bevor etwas gespeichert wird, und die App
@@ -41,6 +63,11 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Agenten gegeben. Der Abgleich mit der App fügt E-Mails hinzu und nimmt sie weg wie andere Änderungen. Die neue
   Prüfung `strom fixes contact-residences` macht aus Wohnorten, die ein älterer strom aus E-Mails gemacht hat, den
   Kontakt (zurückgezogen, nie gelöscht, rückgängig mit `strom fixes undo`).
+  **Volkszählungen als eigenes Ereignis:** die Volkszählung einer Person, als Ereignis namens „Volkszählung“
+  („Census“, „Sčítání lidu“…) geschrieben, geht als Volkszählung in die Strom-App, so dass das Laden der Version der
+  Forschung solche Volkszählungen nicht mehr jedes Mal durchgestrichen zeigt; der Datensatz der Forschung bleibt, wie er
+  geschrieben wurde. `strom check` warnt vor zwei Volkszählungen einer Person mit demselben Datum, und ein zweimal
+  zitierter Eintrag steht in der Notiz des Fakts nur einmal.
 - **Material zu einer Personenliste:** die Strom-App kann einen Scan statt an eine Person an eine ganze Personenliste
   schicken (einen Zählbogen, eine Matrikenseite). Das Material behält die Liste so, wie sie geschickt wurde – Name,
   Art, Regel und die IDs ihrer Personen; bis zu 50 davon sind die Personen des Materials, eine längere Liste wird mit
@@ -48,12 +75,21 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Scan zuerst mit diesen Personen zu vergleichen, erst dann mit dem ganzen Baum.
   Auch der Scan einer Quelle lässt sich so schicken: er bleibt ein Bild der Quelle, behält die Liste ebenso, und die
   Aufgabe, ihn zu lesen, hat die Personen der Liste (bis zu 50) unter den betroffenen.
+  **Material ohne Rückfrage sortieren:** eine Einstellung `sort.confirm` (pro Forschung mit `--for-tree`, sonst für
+  diesen Computer): `ask` – der Standard, wie bisher: die Zustimmung der Person zu den bezahlten Lesungen vor jeder
+  Sortierung – oder `no`: `strom material sort` sortiert sofort, wenn die Person darum bittet, und sagt, dass nicht
+  gefragt wurde; nie von selbst, und ein Lauf, den niemand beobachtet, fragt weiterhin. `no` setzt nur die Person im
+  eigenen Terminal; zurück zur Rückfrage kann jeder, auch die Strom-App.
 - **Eine Forschung für die Kopie eines Stammbaums:** der Link der Strom-App, der eine neue Forschung beginnt, kann ihren
   Namen vorschlagen (Kopie eines Baums: „… (Kopie)“); das Terminal bietet ihn zum Behalten oder Überschreiben an, und
   die Brücke nennt der App den Ordner, in dem neue Forschungen entstehen. Ein Baum, der mit den Nummern einer anderen
   Forschung übergeben wird (Kopie eines Baums mit Forschung, aus einer älteren App), bekommt für seine Personen und
   Quellen die Nummern der neuen Forschung nach den eigenen Marken der Datei – nie die Nummern der anderen Forschung,
   die Zitate der Quellen bleiben.
+- **Was am meisten hilft:** alles, was auf die Person wartet und hinter dem Aufgaben stehen, sagt, wie sehr seine
+  Erledigung den Stammbaum erweitert – eine neue Generation über einer Person, die die Forschung erreicht, die direkte
+  Linie, die Aufgaben, die es freigibt – und warum, in wenigen Worten in der Sprache der Forschung; die Strom-App kann
+  so zuerst zeigen, was am meisten hilft. Im Terminal dasselbe: `strom task list --state waiting --order gain`.
 
 ## 1.36.0
 

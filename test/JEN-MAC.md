@@ -5,7 +5,7 @@ A test that cannot run there is never removed or turned off quietly: it skips it
 the developer's folders still runs it (the whole `npm test` before a release). The workflow's step "Skipped here"
 lists what each shard skipped.
 
-On ubuntu-24.04: 41 tests skip (measured 2026-11-22). They are:
+On ubuntu-24.04: 42 tests skip (measured 2026-11-22). They are:
 
 ## macOS itself (11)
 
@@ -17,7 +17,7 @@ On ubuntu-24.04: 41 tests skip (measured 2026-11-22). They are:
 | `test/unit/readable.test.ts` | 1 | `sips` and PDFKit (`osascript`): a HEIC photo, a PDF of text |
 | `test/cli/links-bridge.test.ts` | 1 | links of another installation set up through the macOS app bundle |
 
-## The Strom app's sources beside the repository (26)
+## The Strom app's sources beside the repository (27)
 
 Run only where `../strom` and `../strom-beta` (the Strom app, with its `node_modules`) are next to this repository: the
 app's own parser and exporter read what strom writes. A runner has only this repository.

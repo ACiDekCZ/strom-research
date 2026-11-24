@@ -94,8 +94,10 @@ test("B0408: a number from a file's name only when it says one — a copy's, a c
   assert.deepEqual(personNumbers(["/x/Lhota_1850-1870_00141_sign-4411.jpg", "/x/1784 33.jpg", "/x/Snímek obrazovky 2026-11-04 v 10.07.12.png".normalize("NFD"), "/x/снимок ٣٣.jpg"], [141, 40]), [141, undefined, undefined, undefined]);
   assert.deepEqual(personNumbers(["/x/Lhota_1850-1870_00141_sign-4411.jpg", "/x/1784 33.jpg", "/x/Snímek obrazovky 2026-11-04 v 10.07.12.png".normalize("NFD"), "/x/снимок ٣٣.jpg"]), [141, 33, undefined, undefined]);
   // one file of the batch with a number, one without: never numbered by the order (1.jpg of a task waiting for 33 → 33)
+  // — none of the images asked for: in the folder's order once it settled, above every number (spec 141 K1.3)
   const mixed = numberFiles(["/x/1.jpg", "/x/obrázek.jpg"], [33, 34], new Set(), "B0001");
-  assert.ok("problem" in mixed && mixed.code === "inbox.count", JSON.stringify(mixed));
+  assert.deepEqual(mixed, { later: true });
+  assert.deepEqual(numberFiles(["/x/1.jpg", "/x/obrázek.jpg"], [33, 34], new Set(), "B0001", undefined, { quiet: true }), { numbers: [35, 36], by: "folder" });
   // no number in any: by the order
   assert.deepEqual(numberFiles(["/x/a.jpg", "/x/Снимок.jpg".normalize("NFD")], [33, 34], new Set(), "B0001"), { numbers: [33, 34], by: "order" });
 });
@@ -356,6 +358,40 @@ test("B0374: another scan under a number taken already is set aside and asked (W
     assert.ok(unsure.out.includes(`the file for image 3 of B0001 is not surely the same scan as ${took.json.added[0]}, image 3 registered already — not taken as a sharper copy of it`), unsure.out);
     assert.deepEqual((await w.ok(["media", "aside", "--json"])).json.aside.map((a: { kind: string }) => a.kind), ["other"]);
     assert.deepEqual(images().map((m) => m.id), took.json.added);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("1124: another scan taken from aside (strom media aside --take, --image) is registered as what it is — a JPEG kept as .jpg, never application/octet-stream of the name strom set it aside under", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  await w.ok(["research", "new", "X", "--new-person", "Jan /Lhoták/"]);
+  const shared = path.join(w.home, "shared");
+  try {
+    await w.ok(["recordset", "add", "Lhota N 1850–1870", "--url", "https://archive.example.org/book/77"]); // B1
+    await w.ok(["task", "add", "Křest Jana", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b"]); // T1
+    await w.ok(["task", "wait", "T1", "--images", "B1:3-5", "--on", "snímky 3–5 knihy Lhota"]);
+    const dir = path.join(shared, "inbox", inboxFolderFor({ id: "B0001", title: "Lhota N 1850–1870" }));
+    save(page(1), path.join(dir, "3.jpg"), 90);
+    await w.ok(["media", "add", "--inbox", "--waiting"]);
+    const setAside = async (seed: number) => {
+      save(page(seed), path.join(dir, "3.jpg"), 90);
+      await w.ok(["media", "add", "--inbox", "--waiting"]);
+      const a = (await w.ok(["media", "aside", "--json"])).json.aside[0];
+      assert.match(a.file, /^3\.jpg\.other-than-M\d+$/u);
+      return a.file as string;
+    };
+    for (const [seed, answer] of [[2, ["--take"]], [3, ["--image", "7"]]] as const) {
+      const file = await setAside(seed);
+      const took = await w.ok(["media", "aside", file, ...answer, "--json"]);
+      const m = Tree.open(w.cwd, w.env).get<Media>(took.json.added[0])!;
+      assert.equal(m.mime, "image/jpeg", file);
+      assert.match(m.file, /\.jpg$/u, file);
+      assert.ok(fs.existsSync(path.join(shared, m.file)), file);
+      assert.equal(m.from, "3.jpg");
+      assert.match((await w.ok(["media", "show", m.id])).out, /kB · image\/jpeg · from 3\.jpg/u);
+    }
   } finally {
     w.cleanup();
   }

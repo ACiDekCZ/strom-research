@@ -35,6 +35,8 @@ import { imageFileTimesOf } from "./knownterms.ts";
 import { hostOf } from "./terms.ts";
 import { imagesIndex } from "./mediaindex.ts";
 import { runs } from "../cli/format.ts";
+import { entriesOf, sheetNamed, type Entries } from "./scannames.ts";
+import { settlesAt } from "./inboxsettle.ts";
 
 /** A file not written for this long has settled: it may be taken. */
 export const SETTLE_MS = 3_000;
@@ -204,7 +206,8 @@ export function readNumbers(files: string[], want?: readonly number[]): ReadNumb
   const asked = (n: number) => !known || wanted.has(n);
   const read = files.map((f) => {
     const stem = copyless(f);
-    const groups = stem.match(/\p{Nd}+/gu) ?? [];
+    // a name that is a range of entries ("001-004.jpg", 141 K1.2): never one image's number
+    const groups = entriesOf(f) ? [] : (stem.match(/\p{Nd}+/gu) ?? []);
     // digits of another script: not read as a number
     return { groups: groups.every((g) => /^[0-9]+$/u.test(g)) ? groups : [], dated: DATED.some((d) => d.test(stem)) };
   });
@@ -287,65 +290,105 @@ export function bookFolders(tree: Tree): BookFolder[] {
 /**
  * The image numbers of the files of a book's folder by their names alone (K1.4): a portal's .jp2 counted back by `times`
  * (one that is no multiple: its number is not known). The files with a number are taken, each as named; a file with no
- * number (or one that is no image's) is left lying — it never holds back the rest (`left`). None with a number: nothing
- * taken, and what the files need is said.
+ * number (or one that is no image's: 000.jpg) is left lying — it never holds back the rest (`left`). None with a number:
+ * nothing taken, nothing said (spec 141 K1.1, K2.2: a file the person left there on purpose — said once when its task
+ * came back, never again at every look of the bridge or a session, never advice to rename it).
  */
-export function numberBookFiles(files: string[], recordset: string, times?: number): BookNumbered {
+export function numberBookFiles(files: string[], _recordset: string, times?: number): BookNumbered {
   const all = personNumbers(files).map((n, i) => (n === undefined || !times || path.extname(files[i]!).toLowerCase() !== ".jp2" ? n : n % times === 0 ? n / times : undefined));
   const named = files.map((file, i) => ({ file, n: all[i] })).filter((x): x is { file: string; n: number } => x.n !== undefined && x.n > 0);
-  const left = files.length - named.length;
-  if (named.length) return { files: named.map((x) => x.file), numbers: named.map((x) => x.n), by: "names", left };
-  return {
-    problem: `${left === 1 ? "a file" : `${left} files`} of ${recordset} without an image number in the name: name each by the number its viewer counts (40.jpg) — a name with the number in it does too (__0040.jpg)`,
-    code: "inbox.unnamed",
-    params: { files: String(left), recordset },
-  };
+  return { files: named.map((x) => x.file), numbers: named.map((x) => x.n), by: "names", left: files.length - named.length };
 }
 
-/** The files of a book's folder with a number in the name, and how many are left lying without one — or why none is taken. */
-export type BookNumbered =
-  | { files: string[]; numbers: number[]; by: "names"; left: number }
-  | { problem: string; code: "inbox.unnamed"; params: Record<string, string> };
+/** The files of a book's folder with a number in the name (none: nothing to take), and how many are left lying without one. */
+export type BookNumbered = { files: string[]; numbers: number[]; by: "names"; left: number };
 
 /** How the files of a folder are numbered, or why they cannot be taken (for the person: what is needed). */
 export type Numbered =
-  | { numbers: number[]; by: "names" | "order" }
+  | {
+      numbers: number[];
+      /** names: each by its name; order: onto the images missing; folder: the folder's order, once it settled (K1.3). */
+      by: "names" | "order" | "folder";
+      /** The files taken (the numbers', in their order) when some are left lying — else all of them. */
+      files?: string[];
+      /** Files left lying, not taken: their names give no image's number (141 K1.1) — never holding back the rest. */
+      left?: LeftFile[];
+      /** Of `by: folder`: the entries each file's name gives ("001-004.jpg"), where it gives them. */
+      entries?: (Entries | undefined)[];
+    }
+  /** Named not by the images' numbers (entries, no number): taken in the folder's order once it settled (inboxsettle.ts). */
+  | { later: true }
   | { problem: string; code: "inbox.unnamed" | "inbox.count"; params: Record<string, string> };
 
+/** A file left lying in a task's folder, and why: its name gives 0 (no image's), two images asked for, or no number. */
+export interface LeftFile {
+  file: string;
+  why: "zero" | "two" | "none";
+}
+
+/** The highest number of `ns`, 0 when none. */
+const top = (ns: Iterable<number>): number => {
+  let t = 0;
+  for (const n of ns) if (n > t) t = n;
+  return t;
+};
+
 /**
- * The image number of each file: by the names when they say one each, unambiguously (personNumbers; and, of images
- * asked for, at least one of those); else by their order onto the images still missing when there are as many files
- * and no file of them has a number of its own in its name (B0408: "1.jpg" of a task waiting for 33 was taken for 33 —
- * a number in a name is never overruled by the order, a portal's own "kniha-00090.jpg" neither; a screenshot's date and
- * time, a name with no number is); else why not. `times`: a portal's .jp2 counted back (numberBookFiles).
+ * The image number of each file (141, K053), as the folder's names say it:
+ *   - files named by images' numbers (readNumbers; a portal's .jp2 counted back by `times`), one of them asked for or
+ *     which ones not known: each taken by its number; a file of the batch whose name gives 0 ("000.jpg"), two images
+ *     asked for, or no number is left lying beside them, said (`left`), never holding back the rest;
+ *   - none named so, as many files as images missing: onto them in their order (a screenshot's date and time is no
+ *     number);
+ *   - a name that is a range of entries ("001-004.jpg": named by the entries, never one image's number), numbers none
+ *     of which is asked for (another count than the viewer's: a number in a name is never overruled by the order,
+ *     B0408), or no number and not as many as missing, or which images not known: none is put onto an image asked for — `later` until the
+ *     folder settled (`quiet`: nothing saved for QUIET_MS, core/inboxsettle.ts), then all of them in the folder's
+ *     order as the next numbers of the book above every one registered or asked for (`by: folder`, with their
+ *     entries): what each is, the agent reads off them;
+ *   - one file alone whose name gives two images asked for: not guessed, said (1123).
  */
-export function numberFiles(files: string[], want: number[] | undefined, have: ReadonlySet<number>, recordset: string, times?: number): Numbered {
+export function numberFiles(files: string[], want: number[] | undefined, have: ReadonlySet<number>, recordset: string, times?: number, o: { quiet?: boolean } = {}): Numbered {
   const { numbers: own, ambiguous } = readNumbers(files, want);
-  // a name with two of the images asked for: not guessed, said with the file (1123)
-  const two = ambiguous[0];
-  if (two)
-    return {
-      problem: `${path.basename(two.file)}: its name gives ${runs(two.numbers)}, ${two.numbers.length} of the images of ${recordset} asked for — not guessed: name it by the one it is (${two.numbers.at(-1)!}.jpg)`,
-      code: "inbox.count",
-      params: { files: String(files.length), missing: runs((want ?? []).filter((n) => !have.has(n))), want: runs(want ?? []), recordset, ambiguous: path.basename(two.file), numbers: runs(two.numbers), n: String(two.numbers.at(-1)!) },
-    };
+  const entries = files.map((f) => entriesOf(f));
   const names = own.map((n, i) => (n === undefined || !times || path.extname(files[i]!).toLowerCase() !== ".jp2" ? n : n % times === 0 ? n / times : undefined));
-  const named = names.every((n): n is number => n !== undefined && n > 0);
-  if (named && (!want?.length || names.some((n) => want.includes(n!)))) return { numbers: names as number[], by: "names" };
+  const two = new Set(ambiguous.map((a) => a.file));
   const missing = (want ?? []).filter((n) => !have.has(n));
-  if (want?.length && missing.length && files.length === missing.length && own.every((n) => n === undefined)) return { numbers: missing, by: "order" };
-  const said = names.filter((n): n is number => n !== undefined);
-  if (!want?.length)
-    return {
-      problem: `${files.length === 1 ? "a file" : `${files.length} files`} of ${recordset} without an image number in the name: name each by the number its viewer counts (40.jpg) — a name with the number in it does too (__0040.jpg)`,
-      code: "inbox.unnamed",
-      params: { files: String(files.length), recordset },
-    };
-  return {
-    problem: `images ${runs(want)} of ${recordset} were asked for${missing.length && missing.length < want.length ? ` (missing ${runs(missing)})` : ""}, but the file names give ${said.length ? runs(said) : "no number"} — ${files.length === 1 ? "1 file" : `${files.length} files`} for ${missing.length || want.length} image${(missing.length || want.length) === 1 ? "" : "s"}: name each by the number its viewer counts (${(missing[0] ?? want[0])!}.jpg) — a name with the number in it does too (__0${(missing[0] ?? want[0])!}.jpg)`,
-    code: "inbox.count",
-    params: { files: String(files.length), missing: runs(missing), want: runs(want), recordset },
+  const all = files.map((_, i) => i);
+  const left = (keep: number[]): LeftFile[] =>
+    files.flatMap((file, i) => (keep.includes(i) ? [] : [{ file, why: names[i] === 0 ? ("zero" as const) : two.has(file) ? ("two" as const) : ("none" as const) }]));
+  // of these files, the rest left lying
+  const taking = (keep: number[], numbers: number[], by: "names" | "order" | "folder", more: { entries?: (Entries | undefined)[] } = {}): Numbered =>
+    keep.length === files.length ? { numbers, by, ...more } : { numbers, by, files: keep.map((i) => files[i]!), left: left(keep), ...more };
+  // the folder's order once it settled: the next numbers of the book above every one registered or asked for
+  const folder = (keep: number[]): Numbered => {
+    if (!o.quiet) return { later: true };
+    const from = top([...have, ...(want ?? [])]) + 1;
+    return taking(keep, keep.map((_, k) => from + k), "folder", entries.some(Boolean) ? { entries: keep.map((i) => entries[i]) } : {});
   };
+  // named by the entries: the folder's order once it settled, every file of it
+  if (entries.some(Boolean)) return folder(all);
+  const named = all.filter((i) => names[i] !== undefined && names[i]! > 0);
+  // named by numbers, one of them an image asked for (or which ones not known): each by its name
+  // (or another sheet of an image registered already, "7a.jpg": told by its content, K1.4)
+  if (named.length && (!want?.length || named.some((i) => want.includes(names[i]!) || (have.has(names[i]!) && sheetNamed(files[i]!))))) return taking(named, named.map((i) => names[i]!), "names");
+  // numbers none of which is an image asked for (another count than the viewer's, "kniha-00090.jpg" for 9, "1.jpg" for
+  // 33): never put onto the images asked for (B0408), never registered under numbers the viewer may not mean — a foreign
+  // scheme, in the folder's order once it settled
+  if (named.length) return folder(all);
+  // a name with two of the images asked for, nothing else there: not guessed, said with the file (1123)
+  const lone = ambiguous[0];
+  if (lone && ambiguous.length === files.length)
+    return {
+      problem: `${path.basename(lone.file)}: its name gives ${runs(lone.numbers)}, ${lone.numbers.length} of the images of ${recordset} asked for — not guessed: name it by the one it is (${lone.numbers.at(-1)!}.jpg)`,
+      code: "inbox.count",
+      params: { files: String(files.length), missing: runs(missing), want: runs(want ?? []), recordset, ambiguous: path.basename(lone.file), numbers: runs(lone.numbers), n: String(lone.numbers.at(-1)!) },
+    };
+  // what gives 0 or two images asked for lies there; the rest — no number in any name — by the order
+  const rest = all.filter((i) => names[i] === undefined && !two.has(files[i]!));
+  if (!rest.length) return taking([], [], "names");
+  if (missing.length && rest.length === missing.length) return taking(rest, missing, "order");
+  return folder(rest);
 }
 
 /** How far a task's images saved by hand got: its folder, how many of what it asked for are there, what is missing. */
@@ -373,6 +416,13 @@ export interface InboxState {
   ambiguous?: string;
   /** One of the images that name gives, for the example of what it is named by (the agent's problem names the same one). */
   ambiguousNumber?: number;
+  /**
+   * The files lying there are named not by the images' numbers (the entries on them, not as many as missing; spec 141
+   * K1.3): taken in the folder's order once nothing more is saved — about this time (ISO).
+   */
+  waitsUntil?: string;
+  /** Files lying there that are not taken: their names give no image's number (000.jpg; K1.1). */
+  left?: string[];
 }
 
 /** The state of a task's folder of the shared inbox, if it waits for one. */
@@ -384,11 +434,13 @@ export function inboxState(tree: Tree, shared: string | undefined, t: Task): Inb
   const reg = registeredImages(tree, w.recordset);
   const want = w.want ?? [];
   const numbered = files.length ? numberFiles(files, w.want, reg, w.recordset, bookTimes(tree, w.recordset)) : undefined;
+  const until = numbered && "later" in numbered ? settlesAt(tree, dir, files, inboxWaits(tree).filter((x) => x.folder.normalize("NFC") === w.folder.normalize("NFC"))) : undefined;
+  const left = numbered && "left" in numbered ? (numbered.left ?? []).map((l) => path.basename(l.file).normalize("NFC")) : [];
   const lyingNums = numbered && "numbers" in numbered ? new Set(numbered.numbers) : new Set<number>();
   const missing = want.filter((n) => !reg.has(n) && !lyingNums.has(n));
   // which ones not known: the files lying there and the images the Strom app handed to it for this wait
   const have = want.length ? want.length - missing.length : files.length + handedImages(tree, t, w.recordset).length;
-  return { dir, folder: w.folder, recordset: w.recordset, have, want: want.length, missing, lying: files.length, next: nextImage(reg, files), ...(numbered && "problem" in numbered ? { problem: numbered.problem, problemCode: numbered.code, ...(numbered.params.ambiguous ? { ambiguous: numbered.params.ambiguous, ambiguousNumber: Number(numbered.params.n) } : {}) } : {}) };
+  return { dir, folder: w.folder, recordset: w.recordset, have, want: want.length, missing, lying: files.length, next: nextImage(reg, files), ...(numbered && "problem" in numbered ? { problem: numbered.problem, problemCode: numbered.code, ...(numbered.params.ambiguous ? { ambiguous: numbered.params.ambiguous, ambiguousNumber: Number(numbered.params.n) } : {}) } : {}), ...(until ? { waitsUntil: new Date(until).toISOString() } : {}), ...(left.length ? { left } : {}) };
 }
 
 /**

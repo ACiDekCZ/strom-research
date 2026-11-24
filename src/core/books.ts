@@ -161,6 +161,33 @@ export function downloadOf(tree: Tree, b: RecordSet, repo?: Repository): { downl
   return { download, terms: { how: t.how, says: t.says, from: t.from, host: t.host } };
 }
 
+/** A book's tasks as bookRows counts them: the book, its tasks' IDs each state apart (by ID), the images its waiting tasks ask for. */
+export interface BookTasks {
+  b: RecordSet;
+  ids: BookRow["ids"];
+  need: Set<number>;
+}
+
+/**
+ * Every book some task still needs, with its tasks (needsBooks: open — those at work among them —, parked, waiting),
+ * each book as it stands (booksOfTask) — once over the tasks: what strom task books counts (bookRows), and what the gain
+ * of what waits counts as the tasks a book serves (core/waitgain.ts).
+ */
+export function bookTasks(tree: Tree): Map<string, BookTasks> {
+  const rows = new Map<string, BookTasks>();
+  for (const t of tree.list<Task>("task")) {
+    if (!needsBooks(t)) continue;
+    for (const b of booksOfTask(tree, t)) {
+      const r = rows.get(b.id) ?? { b, ids: { open: [], parked: [], waiting: [] }, need: new Set<number>() };
+      rows.set(b.id, r);
+      (t.state === "waiting" ? r.ids.waiting : t.state === "parked" ? r.ids.parked : r.ids.open).push(t.id);
+      if (t.state === "waiting" && t.awaits && liveBook(tree, t.awaits.recordset)?.id === b.id) for (const n of parseImageList(t.awaits.images) ?? []) r.need.add(n);
+    }
+  }
+  for (const { ids } of rows.values()) for (const l of [ids.open, ids.parked, ids.waiting]) l.sort(byId);
+  return rows;
+}
+
 /**
  * Every book some task still needs, the most tasks first (then the most waiting, then by ID); offered by `minTasks`
  * (default the research's books.minTasks).
@@ -176,19 +203,8 @@ export function bookRows(tree: Tree, minTasks = minTasksOf(tree)): BookRow[] {
     for (const n of s.images) set.add(n);
     registered.set(b.id, set);
   }
-  const rows = new Map<string, { b: RecordSet; ids: BookRow["ids"]; need: Set<number> }>();
-  for (const t of tree.list<Task>("task")) {
-    if (!needsBooks(t)) continue;
-    for (const b of booksOfTask(tree, t)) {
-      const r = rows.get(b.id) ?? { b, ids: { open: [], parked: [], waiting: [] }, need: new Set<number>() };
-      rows.set(b.id, r);
-      (t.state === "waiting" ? r.ids.waiting : t.state === "parked" ? r.ids.parked : r.ids.open).push(t.id);
-      if (t.state === "waiting" && t.awaits && liveBook(tree, t.awaits.recordset)?.id === b.id) for (const n of parseImageList(t.awaits.images) ?? []) r.need.add(n);
-    }
-  }
   const out: BookRow[] = [];
-  for (const { b, ids, need } of rows.values()) {
-    for (const l of [ids.open, ids.parked, ids.waiting]) l.sort(byId);
+  for (const { b, ids, need } of bookTasks(tree).values()) {
     const repo = b.repository ? tree.get<Repository>(b.repository) : undefined;
     const reg = registered.get(b.id) ?? new Set<number>();
     const images = b.images && b.images > 0 ? b.images : undefined;

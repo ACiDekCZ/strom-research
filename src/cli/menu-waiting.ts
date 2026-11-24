@@ -16,6 +16,7 @@
 // An archive: only what an archive has — no agent, no conversation.
 
 import { inboxState, inboxWaitOf, type AsideFile, type InboxState } from "../core/inboxwait.ts";
+import { laterWords as laterOf } from "../core/inboxwords.ts";
 import fs from "node:fs";
 import path from "node:path";
 import type { Context } from "./context.ts";
@@ -868,7 +869,7 @@ function imagesToSave(ctx: Context, lang: string, tree: Tree, x: Task): string[]
     if (!w) return [];
     const b = tree.get<RecordSet>(w.recordset);
     const dir = `${ctx.display(st?.dir ?? `inbox/${w.folder}`)}${path.sep}`;
-    return [`    ${t("ui.wait.save.web", { book: b?.title ?? w.recordset, dir })}`, ...(st?.problemCode ? [`    ${problemWords(t, st)}`] : st?.lying ? [`    ${t("ui.wait.saved", { have: st.lying, want: "?" })}`] : [])];
+    return [`    ${t("ui.wait.save.web", { book: b?.title ?? w.recordset, dir })}`, ...(st?.problemCode ? [`    ${problemWords(t, st)}`] : st?.waitsUntil || st?.left?.length ? [`    ${laterOf(t, st)}`] : st?.lying ? [`    ${t("ui.wait.saved", { have: st.lying, want: "?" })}`] : [])];
   }
   const b = tree.get<RecordSet>(x.awaits.recordset);
   return [
@@ -877,6 +878,7 @@ function imagesToSave(ctx: Context, lang: string, tree: Tree, x: Task): string[]
     // how far it got: saved X of Y, which are missing, why what lies there is not taken
     ...(st && st.want ? [`    ${[t("ui.wait.saved", { have: st.have, want: st.want }), st.missing.length ? t("ui.wait.missing", { missing: runs(st.missing) }) : ""].filter(Boolean).join(" · ")}`] : []),
     ...(st?.problemCode ? [`    ${problemWords(t, st)}`] : []),
+    ...(st && (st.waitsUntil || st.left?.length) ? [`    ${laterOf(t, st)}`] : []),
     // an archive only a person's browser goes to: whether the agent could save them itself (spec 048 K5.2)
     ...browserWords(ctx, t, tree, b?.url),
   ];
@@ -893,10 +895,15 @@ function browserWords(ctx: Context, t: ReturnType<typeof translator>, tree: Tree
   return [`    ${t(note.key, note.key === "ui.waiting.browser.agent" ? { agent: PROFILES[agent]?.name ?? agent } : note.params)}`];
 }
 
+/** What lies in a task's folder and is not taken yet, in the person's words (core/inboxwords.ts). */
+export const laterWords = (t: ReturnType<typeof translator>, st: InboxState): string => laterOf(t, st);
+
 /** Why the files saved for a task are not taken, in the person's words. */
 export function problemWords(t: ReturnType<typeof translator>, st: InboxState): string {
   if (st.ambiguous) return t("ui.wait.inbox.ambiguous", { file: st.ambiguous, n: st.ambiguousNumber ?? st.missing[0] ?? "40" });
-  return st.problemCode === "inbox.unnamed" ? t("ui.wait.inbox.unnamed") : t("ui.wait.inbox.count", { files: st.lying, n: st.missing.length || st.want, first: st.missing[0] ?? "40" });
+  const first = st.missing[0] ?? 40;
+  // the number padded as a viewer's file names it (__0009.jpg — never __09.jpg)
+  return st.problemCode === "inbox.unnamed" ? t("ui.wait.inbox.unnamed") : t("ui.wait.inbox.count", { files: st.lying, n: st.missing.length || st.want, first, padded: String(first).padStart(4, "0") });
 }
 
 /** What to do for a task that waits: the images to save and where, or what it asks. */

@@ -9,7 +9,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { World, hasGit } from "../helpers.ts";
-import { inboxFolderFor } from "../../src/core/media.ts";
+import { inboxFolderFor, savedProperly } from "../../src/core/media.ts";
+import type { Media } from "../../src/core/model.ts";
+import { Tree } from "../../src/core/tree.ts";
 import { SETTLE_MS } from "../../src/core/inboxwait.ts";
 import { waitFileBase } from "../../src/core/browser.ts";
 
@@ -146,6 +148,11 @@ test("one image through the agent's browser: the script for the one page, the do
     assert.match(taken.out, /images 9 of B0001 registered — back in the queue: T0001/);
     const media = (await w.ok(["media", "list", "--json"])).json;
     assert.deepEqual(JSON.stringify(media).match(/"image":\d+/gu)?.sort(), ['"image":10', '"image":9']);
+    // each keeps the name strom gave its save as where it is from: a copy saved properly, never taken for a screenshot
+    const fromOf = (n: number) => Tree.open(w.cwd, w.env).list<Media>("media").find((m) => m.image === n)?.from;
+    assert.equal(fromOf(9), `${named(w, "T0001", 9)}.jpg`);
+    assert.match(fromOf(10) ?? "", new RegExp(`^${named(w, "T0001", 10)}(?: \\(1\\))?\\.jpg$`, "u"));
+    assert.ok(Tree.open(w.cwd, w.env).list<Media>("media").every(savedProperly));
     assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "open");
     // what is not the task's stays where it is
     assert.deepEqual(fs.readdirSync(downloads).map((f) => f.normalize("NFC")).sort(), ["Snímek obrazovky.png", `${named(w, "T0001", 9)}.jpg.crdownload`, `${named(w, "T0002", 9)}.jpg`]);
@@ -259,7 +266,7 @@ test("the second image held back by the browser: said to the agent and in the ta
     // the person reads it in the task's wait, impersonal, in the research language
     const t = (await w.ok(["task", "show", "T1", "--json"])).json.task;
     assert.equal(t.state, "waiting");
-    assert.equal(t.waitingOn, `snímky 10 knihy B0001 Lhota N 1850–1870, ukládá je prohlížeč agenta z ${page10} — prohlížeč snímek 10 zadržel: povolit webu genbaza.pl stahování více souborů v profilu prohlížeče, ve kterém agent pracuje, jednou (ikona vpravo v adresním řádku prohlížeče)`);
+    assert.equal(t.waitingOn, `v prohlížeči povolit stahování více souborů z webu genbaza.pl – v profilu, ve kterém agent pracuje, jednou (ikona vpravo v adresním řádku): prohlížeč zadržel snímek 10 knihy B0001 Lhota N 1850–1870, který agent ukládá z ${page10} (snímky 10)`);
     // said again to the agent on the next look
     const again = await w.ok(["media", "add", "--inbox", "--waiting", "--json"]);
     assert.deepEqual(again.json.held.map((h: { image: number; host: string }) => [h.image, h.host]), [[10, "genbaza.pl"]]);

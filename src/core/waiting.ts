@@ -45,6 +45,11 @@ import { ui } from "../cli/ui.ts";
 import { humanDay } from "../cli/human.ts";
 import { UsageError } from "./errors.ts";
 import { auditOf, audited, bookIndex, type BookIndex } from "./taskaudit.ts";
+import { waitGains } from "./waitgain.ts";
+import { agentSaveWait, type AgentSaveWait } from "./ownsave.ts";
+import { loadSaves, type SaveRecord } from "./browser.ts";
+import { heldTasks } from "./holdsview.ts";
+import { runs } from "../cli/format.ts";
 
 /** What waits: a task's kind, a question about an archive, a story, and the terminal's own (a send of the app, a question about the reading of scans). */
 export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune" | "aside" | "conflict" | "place" | "branch" | "hypothesis" | "proven" | "transcript";
@@ -225,6 +230,11 @@ export interface WaitingOptions {
    * strom finds not as it needs it, and the person did not keep as it is, carries `audit` {kinds, fix, stamp}.
    */
   audit?: boolean;
+  /**
+   * What helps most (the bridge, feature waiting.gain; strom task list --order gain; core/waitgain.ts): an item with
+   * tasks behind it whose dealing with grows the tree carries `gain` {score, says, parts} — the order stays as it is.
+   */
+  gain?: boolean;
 }
 
 /** An address a person may open: http(s) only. */
@@ -393,6 +403,47 @@ function archiveGroup(tree: Tree, host: string, title: string | undefined): Wait
   return institutionGroup(bare) ?? { key: `host:${bare}`, name: title ?? bare, kind: "web" };
 }
 
+/**
+ * What a wait for images of the agent's own browser says to the person, as it is now (computed, so a wait written by an
+ * older strom says it too): the browser held one back — to allow the downloads of its site, the person's; else no
+ * session holds the task any more — the saving stopped at its first image missing, how it goes on.
+ */
+function ownSaveSaid(tree: Tree, own: AgentSaveWait): string {
+  const b = tree.get<RecordSet>(own.recordset);
+  const book = b ? `${b.id} ${b.title}` : own.recordset;
+  const first = own.held[0] ?? own.saves.find((r) => r.n === own.missing[0]) ?? own.saves[0]!;
+  if (own.held.length) return phrase(tree.lang, "browser.wait.held", { images: runs(own.missing), book, url: first.url, n: runs(own.held.map((r) => r.n)), host: first.host });
+  return phrase(tree.lang, "browser.wait.stopped", { images: runs(own.missing), book, url: first.url, n: String(own.missing[0]) });
+}
+
+/**
+ * What a waiting task says to the person (strom's terminal lines): a wait for images of the agent's own browser as it is
+ * now (held back, stopped), else what was written.
+ */
+export function waitOnNow(tree: Tree, t: Task, saves?: SaveRecord[]): string {
+  const own = t.awaits ? agentSaveWait(tree, t, saves) : undefined;
+  return own ? ownSaveSaid(tree, own) : (t.waitingOn ?? "");
+}
+
+/**
+ * The tasks whose images the agent's own browser saves now (strom media save) while an open session holds them — the
+ * agent's work, none of them waiting for the person (not in waitingFor, nor in a count of what waits); one the browser
+ * held an image of back waits for the person (allowing the downloads), one nobody holds any more as well.
+ */
+export function savedByAgentNow(tree: Tree, tasks: Task[] = tree.list<Task>("task")): Set<string> {
+  const out = new Set<string>();
+  const waiting = tasks.filter((t) => t.state === "waiting" && t.awaits);
+  if (!waiting.length) return out;
+  const saves = loadSaves(tree.root);
+  if (!saves.length) return out;
+  let holders: Map<string, unknown> | undefined;
+  for (const t of waiting) {
+    const own = agentSaveWait(tree, t, saves);
+    if (own && !own.held.length && (holders ??= heldTasks(tree)).has(t.id)) out.add(t.id);
+  }
+  return out;
+}
+
 /** Everything that waits for the person, ordered (see the top of this file). */
 export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
   const lang = tree.lang;
@@ -419,6 +470,9 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
   let line: ((t: Task) => string | undefined) | undefined;
   // the books of the research, read once for every wait checked
   let books: BookIndex | undefined;
+  // the saves of the agent's browser and the tasks open sessions hold, read once when a task needs them
+  let saves: SaveRecord[] | undefined;
+  let holders: Map<string, unknown> | undefined;
   for (const t of tasks) {
     // a new wording proposed for a transcript the person read: the proposal and the transcript now, taken or kept in
     // the app (POST <token>/sources/proposal) or at the terminal its link opens
@@ -443,6 +497,9 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
       });
       continue;
     }
+    // images its agent's browser saves while its session holds it: the agent's work, nothing for the person (1124)
+    const own = t.awaits ? agentSaveWait(tree, t, (saves ??= loadSaves(tree.root))) : undefined;
+    if (own && !own.held.length && (holders ??= heldTasks(tree)).has(t.id)) continue;
     const kind = waitKindOf(t);
     const group = waitGroupOf(tree, t, lang);
     const phase = SENDABLE.includes(kind) ? waitPhaseOf(t) : "todo";
@@ -462,7 +519,7 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
       item: {
         id: t.id,
         what: t.what,
-        on: t.waitingOn ?? "",
+        on: own ? ownSaveSaid(tree, own) : (t.waitingOn ?? ""),
         // since when it waits: its last change is the one that made it wait
         at: t.updated,
         kind,
@@ -684,6 +741,23 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
   const names = new Map<string, string>();
   for (const x of out) if (!names.has(x.item.group.key)) names.set(x.item.group.key, x.item.group.name);
   for (const x of out) x.item.group = { ...x.item.group, name: names.get(x.item.group.key)! };
+  // what helps most: worked out once for every item, the tasks behind each — a task's own (never a new wording of a
+  // transcript: a decision, no work in a book), an archive question's tasks
+  if (o.gain) {
+    const behind = (x: Unordered): Task[] =>
+      x.task
+        ? x.task.proposal
+          ? []
+          : [x.task]
+        : x.item.kind === "permission" && Array.isArray(x.item.tasks)
+          ? (x.item.tasks as unknown[]).map((id) => tree.get<Task>(String(id))).filter((t): t is Task => t?.type === "task")
+          : [];
+    const gains = waitGains(tree, out.map((x) => ({ id: x.item.id, tasks: behind(x) })), all);
+    for (const x of out) {
+      const g = gains.get(x.item.id);
+      if (g) x.item = { ...x.item, gain: g };
+    }
+  }
   return ordered(out);
 }
 

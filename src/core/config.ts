@@ -405,6 +405,7 @@ export const SETTINGS: SettingDef[] = [
   // app, a terminal), for every research on this computer or for one (strom.json, both ways); off is anyone's.
   // the person's switch alone (like census): an agent never turns it on — sorting spends the plan and changes the tree
   { key: "intake.auto", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "files sent to the research — a batch of the Strom app or a phone once whole, a single file of the app, material the person adds (strom intake): off (default — nothing of an agent starts by itself: the files wait in the material unsorted until the person asks: the app's Sort by agent…, strom input batch done --sort, strom intake --sort) or on (tasks for the agent: a batch's sorting tasks of about 25 files each, taken up first; an intake task for a file; a task to read the scan of a source). Turned on by the person alone" },
+  { key: "sort.confirm", env: "", tree: true, kind: "choice", choices: ["ask", "no"], description: "the question before files of the material are sorted by readers of the research (strom material sort, the person's ask): ask (default — the person's yes to the paid readings before every sort) or no (sorted at once on the person's own ask, no question about the readings; never by itself, a run nobody watches still asks) — for this tree with --for-tree, else every research on this computer; only you set it" },
   { key: "census", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "census records as a source of the research: a household in one year shows who lived with whom and where each came from — tasks of kind census and the method's page for them (most archives only show their census sheets: they come by hand, as a screenshot, a task waiting for its images; nothing promises them fetched): on or off (unset: off) — only you turn it on (the menu's settings, the Strom app, strom config set census on in a terminal), for every research on this computer or with --for-tree for one (a tree's own value wins both ways); the agent may propose it once (strom census propose); off is anyone's" },
   { key: "mode", env: "", tree: false, kind: "choice", choices: ["research", "archive"], description: "what a new research on this computer is: research (default — an agent works on it; while none is here it waits for one, kept as an archive) or archive (the data come from the Strom app, no agent — the person's choice: the setup wizard asks it with an agent here, the menu's settings) — a research's own: strom mode" },
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
@@ -977,6 +978,15 @@ export class Settings {
    */
   intakeAuto(tree?: TreeConfig): boolean {
     return (readStored(tree, "intake.auto", "") ?? readStored(this.config, "intake.auto", "")) === "on";
+  }
+
+  /**
+   * The question before a sort of the material (spec 102 U8): ask (the default) or no — sorted at once on the person's
+   * own ask, the paid readings not asked about; the tree's strom.json both ways, else the user's own config — never a
+   * variable or a flag. Set to no by the person alone (strom config set).
+   */
+  sortConfirm(tree?: TreeConfig): "ask" | "no" {
+    return (readStored(tree, "sort.confirm", "") ?? readStored(this.config, "sort.confirm", "")) === "no" ? "no" : "ask";
   }
 
   /**

@@ -21,7 +21,8 @@ import { keepSourceReading } from "../../src/core/sourceread.ts";
 import { queueRun } from "../../src/core/sort.ts";
 import { enterWorker } from "../../src/core/workers.ts";
 
-import { encodeImage } from "../../src/image/index.ts";
+import { decodeImage, encodeImage } from "../../src/image/index.ts";
+import { resize } from "../../src/image/image.ts";
 import { makePdf } from "../image-samples.ts";
 const opts = { skip: !hasGit };
 
@@ -81,6 +82,11 @@ async function seeded(): Promise<World> {
   fs.mkdirSync(downloads, { recursive: true });
   for (const f of ["s0001.jpg", "s0002.jpg", "s0003.jpg"]) fs.copyFileSync(path.join(scans, f), path.join(downloads, f));
   await w.ok(["media", "add", downloads, "--recordset", "B0001"]);
+  // a smaller copy of image 3 (M0004) beside M0003, which the baptism cites (below): the example of media cites --move-to
+  const smaller = path.join(w.dir, "s0003-small.jpg");
+  const three = decodeImage(fs.readFileSync(path.join(scans, "s0003.jpg")));
+  fs.writeFileSync(smaller, encodeImage(resize(three, Math.round(three.width / 2), Math.round(three.height / 2)), "jpeg", 70));
+  assert.equal((await w.ok(["media", "add", smaller, "--recordset", "B0001", "--image", "3", "--json"])).json.added[0].id, "M0004", "the copy of the example of media cites");
   await w.ok(["recordset", "calibrate", "B0001", "--point", "1=110", "--point", "3=114"]);
   // another scan saved as image 3 of B0001, set aside beside it (strom media aside)
   const book = path.join(w.home, "shared", "inbox", inboxFolderFor(Tree.open(w.cwd, w.env).get<RecordSet>("B0001")!));

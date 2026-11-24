@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.37.0
 
-*Připravuje se: bety do 1.37.0-beta.2. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.37.0-beta.3. Oddíl bude úplný s vydáním.*
 
 - **Záznam archivu už nedrží portál ze seznamu stromu:** kniha s adresou na portálu, který seznam stromu zná (Porta
   fontium, Acta Publica…), už nedělá portál tak přísný jako archiv, pod kterým je zapsaná – portál se řídí svými
@@ -20,12 +20,30 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   `fond12_kniha3_236.jpg`: z několika čísel v názvu to, které patří k chtěným snímkům, to, které se mezi soubory složky
   mění, jinak poslední před příponou. Datum a čas snímku obrazovky se za číslo snímku nikdy nebere, ani rok za ním (`33
   1784.jpg`), když není známo, které snímky; jméno se dvěma chtěnými čísly se nehádá, ale ohlásí se i se souborem.
+  Jméno, které nedává číslo snímku, už nezdrží ostatní (`000.jpg` zůstane ležet a ohlásí se jednou, bez rady přejmenovat). Soubory pojmenované podle
+  aktů na nich (`001-004.jpg`) nebo jinak než čísly snímků se převezmou v pořadí složky, když se 20 minut nic dalšího
+  neuloží; akty zůstanou zapsané u každého snímku a úkol se vrátí se seznamem, který soubor je který snímek. Další list
+  pod stejným číslem (`7a.jpg`) se pozná podle obsahu: kopie, přiblížená část, nebo samostatný sken uložený pod svým
+  jménem, nikdy neschovaný – ve stejné i pozdější dávce, i po návratu úkolu a při `strom media add --inbox <složka>`. Úkol, ke kterému přišla jen část snímků, se po stejné době ticha vrátí s tím, co přišlo a co
+  chybí – sken na hranici dvou ročníků se počítá jednou.
 - **Vyčerpaný limit webu se už nečeká naprázdno:** po `web.perHost` agent slyší, kdy web zase dá stránky – limit tohoto
   počítače, nebo v jeho sezení už žádné – a co do té doby: úkol zůstane otevřený, jiná práce, jinak konec sezení; žádná
   stránka znovu dřív ani čekání. `strom run` úkol na takovém webu zatím vynechá a vezme jiný; když jiný není, počká,
   až bude volných stránek dost (bez agenta, nic se neodešle), nebo skončí a řekne kdy. Úkol čekající na snímek, který
   prohlížeč agenta nikdy neuložil (stránka odmítnutá), se s koncem sezení vrátí do fronty a nikdy se o něm neřekne,
   že ho prohlížeč zadržel. Běh skončený takto je pro aplikaci Strom hotový běh, ne chyba.
+  Snímky, které ukládá prohlížeč agenta, jsou jeho práce: dokud sezení agenta ukládá snímky přes svůj prohlížeč
+  (`strom media save`), úkol už není v „Co čeká“ – ani v počtech, štítcích či oznámeních – a aplikace Strom ho dostane
+  jako běžící práci (`working[].saving`: kolik z daných snímků je uloženo). Na člověka čeká jen snímek, který
+  prohlížeč zadržel – povolit stahování více souborů z webu, řečeno hned na začátku – a sezení, které skončilo
+  uprostřed: ukládání zastaveno na jeho snímku, pokračuje příští sezení. Dřív zapsaná čekání se tak ukážou bez zásahu.
+  Snímek uložený znovu s `--again` se rovnou převezme jako obraz snímku, dosavadní se stáhne a zůstane zachovaný –
+  žádné `strom media aside --take` u každého snímku. Víc snímků najednou stojí mnohem méně: `strom media save --image
+  40,41,45` (nejvýš deset, stránka ke každému nebo jedna adresa s `{n}`) dá jeden kratší skript pro všechny – každý
+  snímek dál na vlastní stránce lidským tempem – a jedno `strom media add --inbox --waiting` je převezme; agent s podřízenými
+  agenty předá víc než tři pomocníkovi stromu `strom-image-saver` (malý kontext, model `model.cheap` osoby, stejné hlídání).
+  Řádně uložená kopie má přednost před snímkem obrazovky, i když má méně pixelů, a `strom media cites M… --move-to M…`
+  na ni převede zdroje, které citují snímek obrazovky – ten zůstane zachovaný.
 - **Odeslání z aplikace lehčí a rychlejší:** odeslání z aplikace Strom se plánuje jednou místo dvakrát a soubory, které
   výzkum už má, putují odkazem (svým otiskem) místo celých dat; odeslání, které jmenuje soubor, jejž výzkum nenajde, se
   odmítne celé dřív, než se cokoli uloží, a aplikace ho pošle znovu i s daty. „Co čeká“ odeslání, které se ještě
@@ -35,17 +53,29 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   osoby – nikdy událostí ani místem, kde osoba žila, a agent je nedostane. Synchronizace s aplikací e-maily přidává
   i odebírá jako jiné úpravy. Nová kontrola `strom fixes contact-residences` převede bydliště, která ze e-mailů udělal
   starší strom, na kontakt (bydliště stažené, nikdy smazané, vrátí ho `strom fixes undo`).
+  **Sčítání zapsaná jako vlastní událost:** sčítání osoby zapsané jako událost pojmenovaná „Sčítání lidu“ („Census“,
+  „Volkszählung“…) jde do aplikace Strom jako sčítání, takže načtení verze výzkumu už taková sčítání pokaždé neukazuje
+  přeškrtnutá; záznam ve výzkumu zůstává, jak byl zapsán. `strom check` upozorní na dvě sčítání jedné osoby se stejným
+  datem a záznam citovaný dvakrát má svá slova v poznámce údaje jen jednou.
 - **Materiál k seznamu osob:** aplikace Strom může poslat sken k celému seznamu osob (sčítací arch, stránka matriky)
   místo k jedné osobě. Materiál si seznam pamatuje tak, jak byl poslán – název, druh, pravidlo a ID jeho osob; do 50
   osob jsou osobami materiálu, delší seznam je uveden názvem a souborem všech jeho osob. Úkol pro agenta nese název
   seznamu a říká porovnat každé jméno ze skenu nejdřív s těmito osobami, celý strom až potom.
   Poslat se dá i sken pramene: zůstane obrazem pramene, pamatuje si seznam stejně a úkol přečíst ho má osoby seznamu
   (do 50) mezi dotčenými.
+  **Třídění materiálu bez dotazu:** nastavení `sort.confirm` (pro výzkum s `--for-tree`, jinak pro tento počítač):
+  `ask` – výchozí, jako dosud: souhlas člověka s placenými čteními před každým tříděním – nebo `no`: `strom material
+  sort` třídí hned, když o to člověk požádá, a řekne, že se neptalo; nikdy samo od sebe a běh, který nikdo nesleduje,
+  se ptá dál. `no` nastaví jen člověk ve vlastním terminálu; zpět na dotaz může kdokoli, i aplikace Strom.
 - **Výzkum pro kopii rodokmenu:** odkaz aplikace Strom, který zakládá nový výzkum, může navrhnout jeho název (kopie
   stromu: „… (kopie)“); terminál ho nabídne k ponechání nebo přepsání a most aplikaci řekne složku, kde nové výzkumy
   vznikají. Strom předaný s čísly jiného výzkumu (kopie stromu, který výzkum měl, ze starší aplikace) dostane pro své
   osoby a prameny čísla nového výzkumu podle vlastních značek souboru – nikdy čísla toho druhého výzkumu, citace
   pramenů zůstanou.
+- **Co nejvíc pomůže:** každá věc, která čeká na vyřízení a stojí za ní úkoly, říká, jak moc její vyřízení rozšíří
+  rodokmen – nová generace nad osobou, ke které výzkum míří, přímá linie, úkoly, které uvolní – a proč, pár slovy
+  v jazyce výzkumu; aplikace Strom podle toho může dát na první místo to, co nejvíc pomůže.
+  V terminálu totéž `strom task list --state waiting --order gain`.
 
 ## 1.36.0
 

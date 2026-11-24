@@ -17,7 +17,7 @@ import { makeView } from "../core/views.ts";
 import { readableFile } from "../core/readable.ts";
 import { fileToShown } from "../image/image.ts";
 import { exifOrientation } from "../image/index.ts";
-import { inputPath, regionText, sharperPart } from "../core/media.ts";
+import { inputPath, mediaMime, regionText, sharperPart } from "../core/media.ts";
 import { SCOPE_MAX, sourceNearness, withMargin } from "../core/excerpt.ts";
 import { batches, READER_MINUTES_HELP } from "../core/reader.ts";
 import { checkTranscriptPrompt, parseTranscriptChecks, parseTranscribed, transcribePrompt, type TranscribeJob } from "../core/transcriber.ts";
@@ -82,7 +82,7 @@ register({
           const src = sharper?.part ?? m;
           const file = path.join(shared, src.file);
           // a clip is kept as the file lies; the reader's view is upright
-          return /^image\/(jpeg|png)$/.test(src.mime) && fs.existsSync(file) ? [{ media: m.id, file, crop: regionText(fileToShown(sharper?.crop ?? wanted, exifOrientation(file))) }] : [];
+          return /^image\/(jpeg|png)$/.test(mediaMime(src, shared)) && fs.existsSync(file) ? [{ media: m.id, file, crop: regionText(fileToShown(sharper?.crop ?? wanted, exifOrientation(file))) }] : [];
         });
       const input = s.input ? tree.get<Input>(s.input) : undefined;
       const file = input ? inputPath(tree, input) : undefined;

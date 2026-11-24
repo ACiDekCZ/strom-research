@@ -144,7 +144,7 @@ test("media save --again: a weak image saved once more — a new copy beside it,
       const r = await w.run(["media", "save", c.task, "--image", String(c.n), "--at", c.at, "--json"], { env: CLAUDE });
       assert.equal(r.code, 2, r.out + r.err);
       assert.equal(r.json.message, `image ${c.n} of ${c.book} is registered already`);
-      assert.ok(String(r.json.hint).includes(`strom media save ${c.task} --image ${c.n} --recordset ${c.book} --at ${c.at} --again — a new copy beside it, nothing removed`), r.json.hint);
+      assert.ok(String(r.json.hint).includes(`strom media save ${c.task} --image ${c.n} --recordset ${c.book} --at ${c.at} --again — taken at once, the one there kept`), r.json.hint);
       // the brief: a weak scan of an archive the agent's browser saves images of — the image once more, never a wait
       const brief = (await w.ok(["brief", c.task], { env: CLAUDE })).out;
       assert.match(brief, new RegExp(String.raw`weak scans \(long side \d+ px\): a negative on them is weak — a sharper scan through your browser: strom media save ${c.task} --image <n> --recordset ${c.book} --at <the archive's page of that image> --again`), brief);

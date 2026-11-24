@@ -19,7 +19,7 @@ import { isValidLang } from "../core/lang.ts";
 import { makeView, mediaOrient, SPREAD_OVERLAP } from "../core/views.ts";
 import { VIEW_MIN } from "../agents/images.ts";
 import { fileToShown, shownToFile } from "../image/image.ts";
-import { findImage, regionText, sharperCover } from "../core/media.ts";
+import { findImage, framedApart, regionText, sharperCover } from "../core/media.ts";
 import { byHandOnly, listConnectors, missingConsents } from "../core/connector.ts";
 import { readableFile } from "../core/readable.ts";
 import { shownSize } from "../image/index.ts";
@@ -336,6 +336,8 @@ function sharperFetch(ctx: Context, tree: Tree, page: ReadPage, source?: string)
   const m = tree.get<Media>(page.file);
   if (!m || m.part || sharperOf(tree, shared, page, source)) return undefined;
   const whole = m.recordset !== undefined && m.image !== undefined ? findImage(tree.list<Media>("media"), m.recordset, m.image) : undefined;
+  // a copy of another frame than the image (a screenshot, 1124): its place is not that place of the image
+  if (whole && framedApart(m, whole)) return undefined;
   const from = whole?.fetched ? listConnectors(shared).find((c) => c.name === whole.fetched!.connector) : undefined;
   if (!from || !from.manifest.can.includes("part") || byHandOnly(from) || missingConsents(ctx.env, from).code) return undefined;
   const inFile = shownToFile({ x, y, w, h }, mediaOrient(shared, m));

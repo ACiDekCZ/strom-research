@@ -75,7 +75,7 @@ export function reduceFor(size: { width: number; height: number } | undefined): 
 }
 
 /** The picture of a file as shown, grey — only of a JPEG or a PNG (what strom reads itself); a large JPEG made smaller. */
-function pictureOf(file: string): RawImage | undefined {
+export function pictureOf(file: string): RawImage | undefined {
   const bytes = new Uint8Array(fs.readFileSync(file));
   const f = formatOf(bytes);
   if (f !== "jpeg" && f !== "png") return undefined;
@@ -127,11 +127,14 @@ function lessMedian(src: Float64Array, out: Float64Array, start: number, stride:
  * The writing of a picture made small (w × h, grey): the ink (the light of the page around taken away), less what runs on
  * along its row and then along its column (the printed rules and columns of a form: the median of the row or the column
  * around). Handwriting — short strokes — is what stays.
+ *
+ * How near "around" is follows the width of the page at this size: `across`, by default the picture's own width. A part
+ * of a page (findpart.ts) passes the width the whole page has at the same size, so both are filtered alike.
  */
-function writingOf(small: RawImage): Float64Array {
+export function writingOf(small: RawImage, across = small.width): Float64Array {
   const { width: w, height: h } = small;
   const v = small.data;
-  const r = Math.max(2, Math.round(w / 40));
+  const r = Math.max(2, Math.round(across / 40));
   const sum = new Float64Array((w + 1) * (h + 1));
   for (let y = 0; y < h; y++) {
     let row = 0;
@@ -150,7 +153,7 @@ function writingOf(small: RawImage): Float64Array {
       const s = sum[y1 * (w + 1) + x1]! - sum[y0 * (w + 1) + x1]! - sum[y1 * (w + 1) + x0]! + sum[y0 * (w + 1) + x0]!;
       ink[y * w + x] = s / ((x1 - x0) * (y1 - y0)) - v[y * w + x]!;
     }
-  const L = Math.max(4, Math.round(w / 10));
+  const L = Math.max(4, Math.round(across / 10));
   const win = new Float64Array(2 * L + 2);
   const rows = new Float64Array(w * h);
   for (let y = 0; y < h; y++) lessMedian(ink, rows, y * w, 1, w, L, win);

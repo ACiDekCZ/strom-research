@@ -23,6 +23,8 @@ import { branchModeOf, lineOf, notTaken, placer, readOffline } from "../core/off
 import { resolvePerson } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { now, typeOfId, type Tree } from "../core/tree.ts";
+import { quietMinutes } from "../core/inboxsettle.ts";
+import { laterWords } from "../core/inboxwords.ts";
 import { resolveResearch } from "./research.ts";
 import { makeNote, makeNotes, splitText } from "../core/actions.ts";
 import { phrase } from "../core/phrases.ts";
@@ -47,7 +49,8 @@ import { permissionWait } from "../core/archivewait.ts";
 import type { Repository } from "../core/model.ts";
 import { WAIT_KINDS } from "../core/model.ts";
 import { SENDABLE, waitKindOf, waitState } from "../core/waitkind.ts";
-import { requestNote, requestPath } from "../core/waiting.ts";
+import { requestNote, requestPath, savedByAgentNow, waitingFor, waitOnNow } from "../core/waiting.ts";
+import type { Gain } from "../core/waitgain.ts";
 import { addressesPerson } from "../core/impersonal.ts";
 import { applyAuditFix, auditOf, auditTasks, audited, bookIndex, changesSaid, findingsOf, keepAudit, readWait, refuseWait, sealAuditFix, undoAuditFix, waitCommands, WAIT_CHECKLIST, auditLine, type TaskAudit } from "../core/taskaudit.ts";
 import { head } from "../core/git.ts";
@@ -56,6 +59,7 @@ import { BOOKS_MIN_TASKS, bookOfTask, bookRows, booksOfTask, liveBook, minTasksO
 import { parseTaskKind, TASK_KINDS, taskKind } from "../core/taskkind.ts";
 import { CENSUS_PREFIX, censusHeld, censusProposal } from "../core/census.ts";
 import { closeCoverage, coverageLine } from "../core/coverage.ts";
+import { loadSaves, storeSaves } from "../core/browser.ts";
 
 
 function written(tree: Tree): string {
@@ -114,10 +118,11 @@ function defaultResearch(tree: Tree, ref: unknown, subject: string[] = []): stri
 /** What the research waits for from outside — mostly from the user: scans to download, a book to find, a reply. */
 
 export function waitingForUser(tree: Tree): { id: string; what: string; on: string }[] {
-  return tree
-    .list<Task>("task")
-    .filter((t) => t.state === "waiting" && !actsAsArchive(tree))
-    .map((t) => ({ id: t.id, what: t.what, on: t.waitingOn ?? "" }));
+  if (actsAsArchive(tree)) return [];
+  const tasks = tree.list<Task>("task");
+  // the images the agent's own browser saves while its session holds the task: the agent's work (1124)
+  const agents = savedByAgentNow(tree, tasks);
+  return tasks.filter((t) => t.state === "waiting" && !agents.has(t.id)).map((t) => ({ id: t.id, what: t.what, on: waitOnNow(tree, t) }));
 }
 
 /**
@@ -125,7 +130,10 @@ export function waitingForUser(tree: Tree): { id: string; what: string; on: stri
  * the book's link and the folder they go into: facts, while the request itself is in their language.
  */
 export function waitingLines(tree: Tree, where: { shared?: string; display?: (p: string) => string } = {}, max = 5): string | undefined {
-  const w = actsAsArchive(tree) ? [] : tree.list<Task>("task").filter((t) => t.state === "waiting");
+  const all = actsAsArchive(tree) ? [] : tree.list<Task>("task");
+  // the images the agent's own browser saves while its session holds the task: the agent's work, not the person's (1124)
+  const agents = all.length ? savedByAgentNow(tree, all) : new Set<string>();
+  const w = all.filter((t) => t.state === "waiting" && !agents.has(t.id));
   // the new versions of stories the user approved: they decide (the lock)
   const stories = storiesToApprove(tree).map((s) => s.id);
   const storyLine = stories.length ? `  ${ui(tree.lang, "ui.wait.stories", { ids: stories.join(" ") })}` : undefined;
@@ -158,6 +166,8 @@ export function waitingLines(tree: Tree, where: { shared?: string; display?: (p:
       `         ${ui(lang, "ui.wait.save", { dir: `${dir}${path.sep}` })}`,
       // how far it got: saved X of Y, which are missing
       ...(st && st.want && (st.have || st.lying) ? [`         ${[ui(lang, "ui.wait.saved", { have: st.have, want: st.want }), st.missing.length ? ui(lang, "ui.wait.missing", { missing: runs(st.missing) }) : ""].filter(Boolean).join(" · ")}`] : []),
+      // named otherwise, taken once the folder settled; files whose names give no image number (spec 141)
+      ...(st && (st.waitsUntil || st.left?.length) ? [`         ${laterWords((k, p) => ui(lang, k, p), st, tree.env)}`] : []),
     ];
   };
   return lines(
@@ -165,7 +175,7 @@ export function waitingLines(tree: Tree, where: { shared?: string; display?: (p:
     sentLine,
     conflictLine,
     askedLine,
-    ...w.slice(0, max).flatMap((t) => [`  ${t.id}  ${truncate(t.waitingOn || t.what, 150)}`, ...images(t)]),
+    ...w.slice(0, max).flatMap((t) => [`  ${t.id}  ${truncate(waitOnNow(tree, t) || t.what, 150)}`, ...images(t)]),
     w.length > max ? `  … strom task list --state waiting` : undefined,
     storyLine,
     `  ${ui(lang, "ui.wait.how1")}`,
@@ -832,8 +842,14 @@ register(
       { name: "off-tree", type: "boolean", description: "the open tasks that wait out of the queue: about people nothing links to the tree yet" },
       { name: "book", type: "string", value: "<B…>", description: "the tasks that need this book (open, at work, parked, waiting — open first; with --state only those): strom task books" },
       { name: "full", type: "boolean", description: "--json: whole records instead of one row each" },
+      {
+        name: "order",
+        type: "string",
+        value: "gain",
+        description: "with --state waiting: what helps the tree most first (gain: a new generation +50, the direct line +30, +10 a task it frees, at most 10), then as listed — each row says why",
+      },
     ],
-    examples: ["strom task list", "strom task list --state waiting", "strom task list --kind verify", "strom task list --book B0001"],
+    examples: ["strom task list", "strom task list --state waiting", "strom task list --state waiting --order gain", "strom task list --kind verify", "strom task list --book B0001"],
     run(ctx, input) {
       const tree = ctx.tree();
       if (input.opts.all && input.opts.state !== undefined && input.opts.state !== "all")
@@ -843,6 +859,11 @@ register(
       const research = typeof opts.research === "string" ? resolveResearch(tree, opts.research).id : undefined;
       const kind = opts.kind === undefined ? undefined : parseTaskKind(String(opts.kind));
       if (opts.kind !== undefined && !kind) throw new UsageError(`no kind of work ${String(opts.kind)}: ${TASK_KINDS.join(", ")}`, { code: "task.kind", hint: "strom task list --kind verify" });
+      // what helps most first (spec 105 K4.1): the gain of What waits, so only of the tasks that wait
+      const byGain = opts.order !== undefined;
+      if (byGain && opts.order !== "gain") throw new UsageError(`--order ${String(opts.order)}: only gain (what helps the tree most first)`, { code: "task.order", hint: "strom task list --state waiting --order gain" });
+      if (byGain && (opts.state !== "waiting" || opts.book !== undefined || opts["off-tree"]))
+        throw new UsageError("--order gain orders the tasks that wait for the user: only with --state waiting (no --book, no --off-tree)", { code: "task.order", hint: "strom task list --state waiting --order gain" });
       let all: Task[];
       const why = new Map<string, string>();
       const ranks = new Map<string, Ranked>();
@@ -885,10 +906,23 @@ register(
       const censusHeldNow = censusNow ? [] : tree.list<Task>("task").filter((t) => censusHeld(t, false) && (!opts.level || t.level === opts.level) && (!research || t.research === research));
       if (!opts.state && !opts["off-tree"] && !book && kind === "census") all = [...all, ...censusHeldNow.filter((t) => !all.includes(t))];
       if (kind) all = all.filter((t) => taskKind(t) === kind);
+      // the gain of each waiting task: its own item's, else (a task only one of an archive question's tasks) the question's
+      const gains = new Map<string, Gain>();
+      if (byGain) {
+        const items = waitingFor(tree, { shared: ctx.settings.shared()?.value, stories: false, gain: true });
+        for (const w of items) if (w.task && w.item.gain) gains.set(w.task.id, w.item.gain as Gain);
+        for (const w of items)
+          if (!w.task && w.item.gain && Array.isArray(w.item.tasks)) for (const id of w.item.tasks as unknown[]) if (!gains.has(String(id)) && !items.some((x) => x.task?.id === id)) gains.set(String(id), w.item.gain as Gain);
+        // the most first, then as they were listed (a stable sort)
+        all = [...all].sort((a, b) => (gains.get(b.id)?.score ?? 0) - (gains.get(a.id)?.score ?? 0));
+      }
       const censusMark = (t: Task) => !censusNow && censusHeld(t, false);
       const row = (t: Task) => {
         const r = taskLine(t);
-        return censusMark(t) ? [...r.slice(0, -1), `${r[r.length - 1]} · held: census off`] : r;
+        const shown = censusMark(t) ? [...r.slice(0, -1), `${r[r.length - 1]} · held: census off`] : r;
+        if (!byGain) return shown;
+        const g = gains.get(t.id);
+        return [...shown, g ? `+${g.score}${g.says ? ` ${g.says}` : ""}` : ""];
       };
       // a page at most LIST_PAGE_MAX rows, whatever --limit says: under ~20 kB
       const page = paginate(all, Math.min(ctx.limit, LIST_PAGE_MAX), ctx.page);
@@ -925,6 +959,7 @@ register(
             ...(ranks.get(t.id) ? rankData(ranks.get(t.id)!) : {}),
             ...waitState(tree, t),
             ...(censusMark(t) ? { held: "census off" } : {}),
+            ...(gains.has(t.id) ? { gain: gains.get(t.id) } : {}),
           })),
           ...(censusHeldNow.length ? { censusHeld: censusHeldNow.length } : {}),
         },
@@ -1338,7 +1373,7 @@ register(
         }
         const [one] = books.values();
         b = one!.b;
-        awaits = { recordset: b.id, images: runs([...one!.nums].sort((x, y) => x - y)), folder: inboxFolderFor(b) };
+        awaits = { recordset: b.id, images: runs([...one!.nums].sort((x, y) => x - y)), folder: inboxFolderFor(b), since: now() };
       }
       if (b && wait?.book) {
         // --images names its book itself: the same one only repeats it
@@ -1360,6 +1395,13 @@ register(
         refuseWait(tree, { ...would, ...(wait ? { wait } : {}), ...(awaits ? { awaits } : {}), ...(awaitsCheck ? { awaitsCheck } : {}), ...decision });
       }
       const t = stateChange(tree, args[0]!, "waiting", { waitingOn: on, ...(wait ? { wait } : {}), ...(awaits ? { awaits } : {}), ...(awaitsCheck ? { awaitsCheck } : {}), ...decision, ...where }, undefined, "wait");
+      // images the agent's browser was to save for it (strom media save) and never did: the agent's own wait replaces them —
+      // the person's now, said in the agent's words, never hidden as the agent's work going on (R4)
+      if (awaits && !tree.dryRun) {
+        const saves = loadSaves(tree.root);
+        const rest = saves.filter((r) => r.task !== t.id || r.taken !== undefined);
+        if (rest.length < saves.length) storeSaves(tree.root, rest);
+      }
       if (awaitsCheck) return { text: lines(written(tree), `the user checks ${awaitsCheck.url} (strom's menu, What waits; the Strom app): the task comes back with their answer — meanwhile other work`), data: { task: t } };
       const s = ctx.settings.shared()?.value;
       // a site the person looks at for the one book the task works in: images of it saved into its folder bring it back
@@ -1398,8 +1440,8 @@ register(
       return {
         text: lines(
           written(tree),
-          `the user saves images ${awaits.images} of ${b!.id} into ${shown}, each named by its number (${parseImageList(awaits.images)![0]}.jpg; the number in the name is enough, __0${parseImageList(awaits.images)![0]}.jpg; named otherwise, they are taken by their order when as many as asked for)`,
-          "once all of them are saved the task comes back by itself — as they are saved while the bridge runs, else at the next session's start (strom media add --inbox --waiting takes them now); a part of them, it waits on and says which are missing; the user sees it in strom's menu (What waits) and the Strom app",
+          `the user saves images ${awaits.images} of ${b!.id} into ${shown}, each named by its number (${parseImageList(awaits.images)![0]}.jpg; the number in the name is enough, __${String(parseImageList(awaits.images)![0]).padStart(4, "0")}.jpg; named otherwise, they are taken by their order when as many as asked for; named by their entries, 001-004.jpg, or as many otherwise: in the folder's order once nothing was saved for ${quietMinutes(tree.env)} minutes, and the task comes back to tell which is which by the content)`,
+          `once all of them are saved the task comes back by itself — as they are saved while the bridge runs, else at the next session's start (strom media add --inbox --waiting takes them now); a part of them, it waits on and says which are missing, and once nothing was saved for ${quietMinutes(tree.env)} minutes it comes back with what came and what is missing (a scan on the boundary of two years is one scan); the user sees it in strom's menu (What waits) and the Strom app`,
           // an archive only a person's browser goes to: what the agent's own browser would do there (spec 048 K5.2)
           ((a) => (a ? `its archive only through a person's browser — ${agentBrowserAdvice(ctx.env, detectAgent(ctx.env) ?? ctx.settings.agent(tree.config).value, a, t.id, b!.id, false, tree.root)}` : undefined))(bookBrowserArchive(tree, b!.url, s)),
           checkWaitLine(tree, t, s),

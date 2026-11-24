@@ -21,6 +21,7 @@ import { within } from "../core/relocate.ts";
 import { agentBrowser } from "../core/connector.ts";
 import { CHROME_ALLOW, CHROME_DENY, chromeDomain } from "../core/browser.ts";
 import { claudeScanReader, opencodeScanReader, SCAN_READER, scanReaderModel, treeReading } from "./scanreader.ts";
+import { claudeImageSaver, IMAGE_SAVER } from "./imagesaver.ts";
 import { claudeWebHooks, grokWebHooks, webRuleLines } from "../core/web.ts";
 import { CODEX_HOOKS, codexHooks } from "../core/codexhook.ts";
 import { claudeShellHooks, grokShellHook } from "../core/bridgeguard.ts";
@@ -125,7 +126,9 @@ the researcher; \`strom\` is your only way to read and change the research.
     it: one at a time, \`strom media save T… --image <n> --at <its page>\`
     (the script for your tab), then \`strom media add --inbox --waiting\`,
     which says what came and where it is now — never read the downloads
-    folder yourself. What a task waits for (\`--on\`) is a sentence the user reads in strom's
+    folder yourself. Several: \`--image 40,41,45\` with an \`--at\` each (or one
+    with {n}) gives one script for them all — each page opened in turn, the
+    script run there, one \`strom media add --inbox --waiting\` after the last. What a task waits for (\`--on\`) is a sentence the user reads in strom's
     menu: impersonal, what is needed and from whom, never addressed to them;
     say its kind (\`--kind letter|family|web|other\`) and, when known,
     \`--to\`, \`--request notes/<file>.md\`, \`--url\`.
@@ -694,6 +697,7 @@ function dropAgentFiles(tree: Tree): string[] {
     ["CLAUDE.md", claudeMd(tree)],
     [path.join(".claude", "settings.json"), JSON.stringify(claudeSettings(tree), null, 2) + "\n"],
     [CLAUDE_SCAN_READER, claudeScanReader(tree)],
+    [CLAUDE_IMAGE_SAVER, claudeImageSaver(tree)],
     ["opencode.json", JSON.stringify(opencodeConfig(tree), null, 2) + "\n"],
     [path.join(".grok", "config.toml"), grokConfig(tree)],
     [path.join(".grok", "rules", "strom.md"), GROK_RULES],
@@ -744,10 +748,13 @@ export const GROK_HOOKS = path.join(".grok", "hooks", "strom.json");
 /** Claude Code's subagent for reading scans, in the tree. */
 export const CLAUDE_SCAN_READER = path.join(".claude", "agents", `${SCAN_READER}.md`);
 
+/** Claude Code's subagent for saving images through the browser, in the tree (agents/imagesaver.ts). */
+export const CLAUDE_IMAGE_SAVER = path.join(".claude", "agents", `${IMAGE_SAVER}.md`);
+
 // Antigravity has none of its own here: agy takes its permissions only from the person's settings
 // (~/.gemini/antigravity-cli/settings.json, strom's `command(strom)` there: agents/global.ts) and knows no rules file of a
 // folder strom could write — it reads AGENTS.md, and in a run alone what its settings do not allow is refused (strom doc R12.7)
-export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), CLAUDE_SCAN_READER, "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md"), GROK_HOOKS, CODEX_RULES, CODEX_HOOKS];
+export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), CLAUDE_SCAN_READER, CLAUDE_IMAGE_SAVER, "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md"), GROK_HOOKS, CODEX_RULES, CODEX_HOOKS];
 
 /**
  * strom's files of the agents written for the tree (only what changed: the files written, to commit). `said.shim`: the
@@ -775,6 +782,7 @@ export function syncAgentFiles(tree: Tree, said: { shim?: boolean } = {}): strin
   write("CLAUDE.md", claudeMd(tree));
   write(path.join(".claude", "settings.json"), JSON.stringify(claudeSettings(tree), null, 2) + "\n");
   write(CLAUDE_SCAN_READER, claudeScanReader(tree));
+  write(CLAUDE_IMAGE_SAVER, claudeImageSaver(tree));
   write("opencode.json", JSON.stringify(opencodeConfig(tree), null, 2) + "\n");
   write(path.join(".grok", "config.toml"), grokConfig(tree));
   write(path.join(".grok", "rules", "strom.md"), GROK_RULES);

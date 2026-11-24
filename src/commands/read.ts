@@ -14,7 +14,7 @@ import type { Media, RecordSet, Task } from "../core/model.ts";
 import { normId, requireRecord } from "../core/records.ts";
 import { bookRoute } from "../core/samebook.ts";
 import { pageOf } from "../core/calibration.ts";
-import { coveringPart, findImage, IMAGE_RANGE_MAX, imageOfRef, imageRange, onlyParts, regionText, sharperCover, wholeSizeOf } from "../core/media.ts";
+import { coveringPart, findImage, framedApart, IMAGE_RANGE_MAX, imageOfRef, imageRange, onlyParts, regionText, sharperCover, wholeSizeOf } from "../core/media.ts";
 import { cropOf, halves, makeView, mediaOrient, parseCrop, readInHalves, tiles, type ViewMeta } from "../core/views.ts";
 import { IMAGE_MAX, IMAGE_MAX_LARGE } from "../agents/images.ts";
 import { viewSizesFor } from "../core/viewsizes.ts";
@@ -282,9 +282,11 @@ register({
       images = args.map((a) => {
         const at = /^([Bb]\d+):(\d+)$/.exec(a.trim());
         if (!at) {
-          // a copy of an image: the sharpest copy of it is read
+          // a copy of an image: the sharpest copy of it is read — not for a copy of another frame (a screenshot of the
+          // screen around the scan, 1124): a place asked on it is elsewhere on the image
           const m = requireRecord<Media>(tree, normId(a), "media");
-          return (!m.part && m.recordset !== undefined && m.image !== undefined ? findImage(all, m.recordset, m.image) : undefined) ?? m;
+          const image = !m.part && m.recordset !== undefined && m.image !== undefined ? findImage(all, m.recordset, m.image) : undefined;
+          return image && !framedApart(m, image) ? image : m;
         }
         const b = requireRecord<RecordSet>(tree, at[1]!, "recordset");
         // registered only in parts: a crop of the whole image is read from the part that covers it
