@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.37.0
 
-*W przygotowaniu: bety do 1.37.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.37.0-beta.2. Sekcja będzie kompletna z wydaniem.*
 
 - **Wpis archiwum w badaniu nie utrzymuje już portalu z listy stroma:** księga z adresem na portalu, który zna lista
   stroma (Porta fontium, Acta Publica…), nie czyni już portalu tak surowym jak archiwum, pod którym jest zapisana –
@@ -39,6 +39,17 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   do agenta. Synchronizacja z aplikacją dodaje i usuwa e-maile jak inne zmiany. Nowa kontrola `strom fixes
   contact-residences` zamienia miejsca zamieszkania, które starszy strom zrobił z e-maili, na kontakt (wycofane, nigdy
   usunięte, cofa je `strom fixes undo`).
+- **Materiał do listy osób:** aplikacja Strom może wysłać skan do całej listy osób (arkusz spisu, strona księgi
+  metrykalnej) zamiast do jednej osoby. Materiał zachowuje listę taką, jaką wysłano – nazwę, rodzaj, regułę i ID jej
+  osób; do 50 z nich to osoby materiału, dłuższa lista jest podana nazwą i plikiem wszystkich jej osób. Zadanie agenta
+  nosi nazwę listy i każe porównać każde imię ze skanu najpierw z tymi osobami, a dopiero potem z całym drzewem.
+  Tak samo można wysłać skan źródła: pozostaje obrazem źródła, zachowuje listę tak samo, a zadanie jego odczytania ma
+  osoby z listy (do 50) wśród dotyczących.
+- **Badanie dla kopii drzewa:** link aplikacji Strom, który zakłada nowe badanie, może zaproponować jego nazwę (kopia
+  drzewa: „… (kopia)”); terminal proponuje ją do zachowania lub nadpisania, a most podaje aplikacji folder, w którym
+  powstają nowe badania. Drzewo przekazane z numerami innego badania (kopia drzewa, które miało badanie, ze starszej
+  aplikacji) dostaje dla swoich osób i źródeł numery nowego badania według własnych oznaczeń pliku – nigdy numery
+  tamtego badania, cytowania źródeł zostają.
 
 ## 1.36.0
 

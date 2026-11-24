@@ -1201,6 +1201,22 @@ export interface Lesson extends BaseRecord {
 export const INPUT_KINDS = ["document", "photo", "tree", "text", "other"] as const;
 
 /** Material the research starts from: kept unchanged, the base. */
+/**
+ * A list of people of the Strom app the material was sent to (spec 137): its name, kind and rule as the app said them,
+ * how many of its people the research has (count) and has not (missing), when it was sent, and its file (notes/lists/
+ * <hash>.json: the IDs of its people then). Up to 50 of them are the input's people too.
+ */
+export interface InputList {
+  id: string;
+  name: string;
+  kind?: "fixed" | "auto" | "work";
+  rule?: string;
+  count: number;
+  missing?: number;
+  at: string;
+  file: string;
+}
+
 export interface Input extends BaseRecord {
   type: "input";
   name: string;
@@ -1254,6 +1270,8 @@ export interface Input extends BaseRecord {
   materialKind?: (typeof MATERIAL_KINDS)[number];
   /** The couples (F…) it is of, as the app said with an original (X-Strom-Family). */
   families?: string[];
+  /** The list of people the app sent it to (X-Strom-List-Ref, spec 137): named, its people as sent in its file. */
+  list?: InputList;
   /** Its places in the tree of the Strom app: a record is in the tree while one of them is not retracted. */
   links?: MediaLink[];
   notes: Note[];
@@ -1316,6 +1334,8 @@ export interface Media extends BaseRecord {
   /** Fetched through a connector: which one, its ID of the book, and whether the user's browser fetched it. */
   fetched?: { connector: string; book: string; via?: "browser" };
   accessed?: string;
+  /** The list of people the app sent the scan of a source to (X-Strom-Source with X-Strom-List-Ref, spec 137). */
+  list?: InputList;
   notes: Note[];
 }
 

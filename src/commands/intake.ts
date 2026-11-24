@@ -5,6 +5,7 @@
 // unchanged BASE of a research; the agent builds the working tree from them
 // through tasks, and the tree it builds is exported as GEDCOM.
 
+import { takeList } from "../core/lists.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
@@ -459,6 +460,7 @@ register(
         i.from ? `from   ${i.from}` : undefined,
         i.batch ? `batch  ${i.batch}${i.path ? ` · ${i.path}` : ""}` : undefined,
         i.persons?.length ? `of     ${i.persons.join(", ")}` : undefined,
+        i.list ? `list   "${i.list.name}" · ${i.list.count} ${i.list.count === 1 ? "person" : "people"}${i.list.missing ? ` (${i.list.missing} more not in the research)` : ""}${i.list.rule ? ` · rule: ${i.list.rule}` : ""} · ${path.join(tree.root, ...i.list.file.split("/"))}` : undefined,
         i.sorted ? `sorted ${i.sorted.as}${i.sorted.source ? ` → ${i.sorted.source}` : ""}${i.sorted.reason ? ` (${i.sorted.reason})` : ""}` : undefined,
         i.mime ? `type   ${i.mime}${i.size !== undefined ? ` · ${Math.round(i.size / 1024)} kB` : ""}` : undefined,
         i.imported ? `import ${i.imported.persons} persons, ${i.imported.families} families as leads, cited as ${i.source}` : undefined,
@@ -724,6 +726,7 @@ register(
       { name: "person", type: "string", multiple: true, value: "<P…>", description: "a person it is of (repeatable)" },
       { name: "family", type: "string", multiple: true, value: "<F…>", description: "a couple it is of (repeatable): material of both partners" },
       { name: "note", type: "string", value: "<text>", description: "what the user said of it" },
+      { name: "list", type: "string", value: "<id>", description: "the list of people the app sent it to (the bridge keeps it): kept on the input as sent now, up to 50 of its people its people too" },
     ],
     examples: ["strom input amend I0002 --person P0001 --note \"<what the user said of it>\""],
     run(ctx, { args, opts }) {
@@ -731,7 +734,11 @@ register(
       const id = normId(args[0]!, "input");
       const persons = (Array.isArray(opts.person) ? opts.person : opts.person ? [opts.person] : []).flatMap((p) => String(p).split(",")).map((p) => p.trim().toUpperCase()).filter(Boolean);
       const families = (Array.isArray(opts.family) ? opts.family : opts.family ? [opts.family] : []).flatMap((f) => String(f).split(",")).map((f) => f.trim().toUpperCase()).filter(Boolean);
-      const got = tree.withTreeLock(() => amendInput(tree, id, { persons, note: typeof opts.note === "string" ? opts.note : undefined, ...(families.length ? { families } : {}) }, { auto: ctx.settings.intakeAuto(tree.config) }));
+      const got = tree.withTreeLock(() => {
+        // the list it was sent to now: its people up to 50 its people too, after those named
+        const sent = typeof opts.list === "string" ? takeList(tree, opts.list) : undefined;
+        return amendInput(tree, id, { persons: [...new Set([...persons, ...(sent?.persons ?? [])])], note: typeof opts.note === "string" ? opts.note : undefined, ...(families.length ? { families } : {}), ...(sent ? { list: sent.list } : {}) }, { auto: ctx.settings.intakeAuto(tree.config) });
+      });
       return { text: tree.written.length ? lines(...tree.written.map((o) => o.summary)) : `${id}: nothing new`, data: got };
     },
   },

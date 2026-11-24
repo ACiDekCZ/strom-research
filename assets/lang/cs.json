@@ -24,6 +24,7 @@
   "request.done": "žádost je odeslaná (strom task wait … --on \"<odpověď>\") nebo uživatel rozhodne, že linie tu končí",
   "app.media.what": "Rozebrat {count, plural, one {# soubor poslaný} few {# soubory poslané} other {# souborů poslaných}} z aplikace Strom – {who} ({first}–{last})",
   "app.media.nobody": "pro výzkum",
+  "app.media.list": "seznam „{name}“ ({count, plural, one {# osoba} few {# osoby} other {# osob}})",
   "app.media.why": "Originály od uživatele poslané z aplikace Strom (uložené beze změny): zjistit, co každý je, koho se týká a co může doložit.",
   "app.scan.what": "Přečíst snímek, který uživatel poslal k prameni {source} ({title})",
   "app.scan.why": "Uživatel poslal z aplikace Strom samotný záznam: výzkum si ho přečte sám – jeho čtení potvrdí přepis uživatele, nebo odhalí chybu.",

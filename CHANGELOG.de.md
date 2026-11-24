@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.37.0
 
-*In Vorbereitung: die Betas bis 1.37.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.37.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein Archiveintrag der Forschung hält kein Portal der Liste von strom mehr:** ein Buch mit einer Adresse auf einem
   Portal, das die Liste von strom kennt (Porta fontium, Acta Publica…), macht das Portal nicht mehr so streng wie das
@@ -41,6 +41,19 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Agenten gegeben. Der Abgleich mit der App fügt E-Mails hinzu und nimmt sie weg wie andere Änderungen. Die neue
   Prüfung `strom fixes contact-residences` macht aus Wohnorten, die ein älterer strom aus E-Mails gemacht hat, den
   Kontakt (zurückgezogen, nie gelöscht, rückgängig mit `strom fixes undo`).
+- **Material zu einer Personenliste:** die Strom-App kann einen Scan statt an eine Person an eine ganze Personenliste
+  schicken (einen Zählbogen, eine Matrikenseite). Das Material behält die Liste so, wie sie geschickt wurde – Name,
+  Art, Regel und die IDs ihrer Personen; bis zu 50 davon sind die Personen des Materials, eine längere Liste wird mit
+  einer Datei aller ihrer Personen genannt. Die Aufgabe des Agenten trägt den Namen der Liste und sagt, jeden Namen vom
+  Scan zuerst mit diesen Personen zu vergleichen, erst dann mit dem ganzen Baum.
+  Auch der Scan einer Quelle lässt sich so schicken: er bleibt ein Bild der Quelle, behält die Liste ebenso, und die
+  Aufgabe, ihn zu lesen, hat die Personen der Liste (bis zu 50) unter den betroffenen.
+- **Eine Forschung für die Kopie eines Stammbaums:** der Link der Strom-App, der eine neue Forschung beginnt, kann ihren
+  Namen vorschlagen (Kopie eines Baums: „… (Kopie)“); das Terminal bietet ihn zum Behalten oder Überschreiben an, und
+  die Brücke nennt der App den Ordner, in dem neue Forschungen entstehen. Ein Baum, der mit den Nummern einer anderen
+  Forschung übergeben wird (Kopie eines Baums mit Forschung, aus einer älteren App), bekommt für seine Personen und
+  Quellen die Nummern der neuen Forschung nach den eigenen Marken der Datei – nie die Nummern der anderen Forschung,
+  die Zitate der Quellen bleiben.
 
 ## 1.36.0
 

@@ -11,7 +11,7 @@ import type { Env } from "./paths.ts";
 import { desktopDir, userHome } from "./paths.ts";
 import { appUrlInvalid, checkValue, settingDef, Settings } from "./config.ts";
 import { UsageError } from "./errors.ts";
-import { foldText } from "./text.ts";
+import { foldText, oneLineName } from "./text.ts";
 import { compareVersions, updateChannel } from "./update.ts";
 
 export const STROM_APP_URL = "https://stromapp.info/run/";
@@ -133,8 +133,7 @@ export function appCopyOfInstall(env: { STROM_FROM_APP?: string | undefined; STR
  */
 export function appTreeNameFromInstall(env: { STROM_FROM_APP?: string | undefined; STROM_FROM_APP_NAME?: string | undefined }): string | undefined {
   if (!env.STROM_FROM_APP?.trim()) return undefined;
-  const name = (env.STROM_FROM_APP_NAME ?? "").normalize("NFC").replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/gu, " ").trim().slice(0, 80).trim();
-  return name || undefined;
+  return oneLineName(env.STROM_FROM_APP_NAME, 80) || undefined;
 }
 
 /** strom.app.url as it is said here (appUrlSetting): `invalid` when it says no address of the Strom app. */

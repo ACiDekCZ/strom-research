@@ -6,8 +6,9 @@
 // what does not fit is cut to a pointer: the command that shows the rest.
 
 import { noteWhole } from "../core/model.ts";
+import { LIST_PEOPLE } from "../core/lists.ts";
 import { orderCitations } from "../core/citeorder.ts";
-import type { Citation, Conflict, Family, Hypothesis, HypothesisVariant, Input, Lesson, Media, Name, Person, Place, RecordSet, Repository, Research, Search, Session, Source, Task, VariantLink } from "../core/model.ts";
+import type { Citation, Conflict, Family, Hypothesis, HypothesisVariant, Input, InputList, Lesson, Media, Name, Person, Place, RecordSet, Repository, Research, Search, Session, Source, Task, VariantLink } from "../core/model.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { inboxFolders, inputPath } from "../core/media.ts";
@@ -468,6 +469,32 @@ function lookAlike(a: string, b: string): boolean {
     prev = row;
   }
   return prev[y.length]! <= max;
+}
+
+/**
+ * The list of people the material was sent to (spec 137 K2.4): its name, kind and rule, how many of its people the
+ * research has (and has not), and its file — the IDs of all its people as they were sent, when the list is longer than
+ * the people it is of (those are in People concerned).
+ */
+function listLine(tree: Tree, l: InputList, of: number): string {
+  const kind = l.kind === "auto" ? `automatic${l.rule ? `, rule: ${l.rule}` : ""}` : l.kind === "work" ? "a working list" : l.kind === "fixed" ? "fixed" : l.rule ? `rule: ${l.rule}` : "";
+  const people = `${l.count} ${l.count === 1 ? "person" : "people"}${l.missing ? `, ${l.missing} more not in the research yet` : ""}`;
+  return `list: "${l.name}" (${[kind, people, `as sent ${l.at.slice(0, 10)}`].filter(Boolean).join("; ")})${l.count > of ? ` — the IDs of all its people: ${path.join(tree.root, ...l.file.split("/"))} (look them up yourself: strom person show P…)` : ""}`;
+}
+
+/**
+ * The list of people a scan of a source the task reads was sent to (spec 137, media.list.source): named, and whom the
+ * names read on it are matched to first — up to LIST_PEOPLE of its people are in about, a longer list in its file.
+ */
+function scanLists(tree: Tree, task: Task): string[] {
+  const lists = task.where
+    .map((w) => (/^M\d{4,}$/.test(w) ? tree.get<Media>(w) : undefined))
+    .filter((m): m is Media => !!m && m.type === "media" && !!m.list);
+  if (!lists.length) return [];
+  return [
+    ...lists.map((m) => `${m.id} ${listLine(tree, m.list!, m.list!.count <= LIST_PEOPLE ? m.list!.count : 0)}`),
+    `(the user sent the scan for the list's people: match each name you read on it to them first — only a name none of them fits is looked for in the whole tree, strom find "<name>")`,
+  ];
 }
 
 /** What the material of an intake task says, for the lessons it needs: its words, or unknown (an image, a document). */
@@ -1153,6 +1180,7 @@ export function buildBrief(
         `why:   ${task.why}`,
         `done:  ${task.doneWhen}`,
         task.subject.length ? `about: ${task.subject.join(" ")}` : "",
+        ...scanLists(tree, task),
         ...surnameFormLines(tree, task),
         ...task.notes.slice(-3).map((n) => `note:  ${n.text}`),
         task.notes.length > 3 ? `(notes: the last 3 of ${task.notes.length} — all: strom task show ${task.id})` : "",
@@ -1214,12 +1242,17 @@ export function buildBrief(
             read ? `read: ${read}` : "",
             i.batch ? `batch: ${i.batch}${i.path ? ` · ${i.path}` : ""}` : "",
             i.persons?.length ? `of: ${i.persons.join(", ")}` : "",
+            i.list ? listLine(tree, i.list, (i.persons ?? []).length) : "",
             i.sorted ? `sorted: ${i.sorted.as}${i.sorted.source ? ` → ${i.sorted.source}` : ""}${i.sorted.reason ? ` (${i.sorted.reason})` : ""}` : "",
             i.imported ? `imported: ${i.imported.persons} persons, ${i.imported.families} families as leads, cited as ${i.source}` : "",
             ...i.notes.map((n) => `note: ${n.text}`),
             i.text ? `text:\n${i.text}` : small ? `text:\n${small}` : "",
           ].filter(Boolean).join("\n");
         }),
+        // whom the names read on it are matched to first (spec 137 K2.2): the people it was sent for, its list's
+        ...(inputs.some((i) => i.persons?.length || i.list)
+          ? [`(the user sent it for these people${inputs.some((i) => i.list) ? " and the list's" : ""}: match each name you read on it to them first — only a name none of them fits is looked for in the whole tree, strom find "<name>")`]
+          : []),
       ].join("\n"),
     });
   } else

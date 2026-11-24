@@ -1172,7 +1172,7 @@ export function treesToOpen(ctx: Context): { name: string; root: string; kind: K
  * agent chosen, made; the app opened to hand the tree over (?adopt=<the bridge>), the tree taken in as leads,
  * the research sent back to the app — then the conversation offered.
  */
-export async function newFromApp(ctx: Context, runIn: RunIn, token: string, openAt: (url: string) => boolean, forward: () => void, opts: { browser?: BrowserKind; file?: string } = {}): Promise<boolean> {
+export async function newFromApp(ctx: Context, runIn: RunIn, token: string, openAt: (url: string) => boolean, forward: () => void, opts: { browser?: BrowserKind; file?: string; name?: string } = {}): Promise<boolean> {
   // family trees here already (the app's data cleared, an empty app): one of them opened in the app as strom app opens
   // it, before anything is moved or set up — or a new research from the app's tree; 0 is nothing (b-D4)
   const here = ctx.interactive ? treesToOpen(ctx) : [];
@@ -1247,8 +1247,9 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
     }
   }
   const joined = Boolean(root);
-  // suggested: the app's tree's name (its line carries it), else the usual one — Enter never ends the handover
-  const suggested = (move?.mark.tree || undefined) ?? appTreeNameFromInstall(ctx.env) ?? t("ui.tree.default");
+  // suggested: the name the app's link gives (a copy of a tree: its own name, never the original's research), else the
+  // app's tree's name (its move, its line), else the usual one — Enter never ends the handover
+  const suggested = opts.name || (move?.mark.tree || undefined) || appTreeNameFromInstall(ctx.env) || t("ui.tree.default");
   const ways = waysHere(agentsHere(ctx.env));
   const mine = ctx.settings.agent().value;
   let agent = mine;

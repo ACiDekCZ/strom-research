@@ -122,6 +122,8 @@ export interface Incoming {
   persons: string[];
   /** The couples it is of (X-Strom-Family, spec 108 V9). */
   families?: string[] | undefined;
+  /** The list of people it was sent to (X-Strom-List-Ref, spec 137): the bridge's list of that mark. */
+  list?: string | undefined;
   source?: string | undefined;
   region?: string | undefined;
   batch?: string | undefined;
@@ -206,7 +208,8 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
     // an input of the people, said of again — people it lacks, a note it has not got: added by a strom of its own
     // (found live: the app said "Sent" while the research took nothing)
     const had = known.kind === "input" && !batch ? tree.get<Input>(known.id) : undefined;
-    const more = had && (f.persons.some((p) => !(had.persons ?? []).includes(p)) || (f.families ?? []).some((x) => !(had.families ?? []).includes(x)) || (!!note?.trim() && !had.notes.some((n) => foldText(n.text) === foldText(note!.trim()))));
+    // (a list: what it is now is compared by the strom that takes it — sent again it changes nothing)
+    const more = had && (!!f.list || f.persons.some((p) => !(had.persons ?? []).includes(p)) || (f.families ?? []).some((x) => !(had.families ?? []).includes(x)) || (!!note?.trim() && !had.notes.some((n) => foldText(n.text) === foldText(note!.trim()))));
     // (a file to read: what it is of goes with its reading, never into an intake task)
     // nothing written (or what came again not added): the head as it is, which is its parent too (the bridge's answers)
     const unchanged = (): Record<string, unknown> => {
@@ -215,7 +218,7 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
     };
     if (!more || f.read) return refuse(200, { known: known.id, kind: known.kind, ...(batch ? { batch } : {}), ...unchanged() });
     req.resume();
-    runOf(r)(["input", "amend", known.id, ...f.persons.flatMap((p) => ["--person", p]), ...(f.families ?? []).flatMap((x) => ["--family", x]), ...(note ? [`--note=${note}`] : []), "--json"], ({ code, stdout, error }) => {
+    runOf(r)(["input", "amend", known.id, ...f.persons.flatMap((p) => ["--person", p]), ...(f.families ?? []).flatMap((x) => ["--family", x]), ...(f.list ? ["--list", f.list] : []), ...(note ? [`--note=${note}`] : []), "--json"], ({ code, stdout, error }) => {
       if (error) return reply(200, { known: known.id, kind: known.kind, ...unchanged() });
       let data: { added?: unknown; task?: unknown } = {};
       try {
@@ -226,7 +229,10 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
       if (code !== 0) r.note(`what came again for ${known.id} was not added (exit ${code})`);
       if (code === EXIT.locked) return reply(503, { ...refusal("the research is busy — send it again in a while", "research.busy"), retry: 30 });
       const c = committed(data as Record<string, unknown>, () => r.head?.());
-      reply(200, { known: known.id, kind: known.kind, ...(code === 0 && data.added ? { added: data.added } : {}), ...(code === 0 && data.task ? { task: data.task } : {}), ...(code === 0 ? { head: c.head, ...(c.parent !== undefined ? { parent: c.parent } : {}) } : unchanged()) });
+      // added only what came (a list sent again the same: nothing)
+      const a = data.added as { persons?: unknown[]; note?: boolean; families?: unknown[]; list?: boolean } | undefined;
+      const came = !!a && (!!a.persons?.length || !!a.note || !!a.families?.length || !!a.list);
+      reply(200, { known: known.id, kind: known.kind, ...(code === 0 && came ? { added: data.added } : {}), ...(code === 0 && data.task ? { task: data.task } : {}), ...(code === 0 ? { head: c.head, ...(c.parent !== undefined ? { parent: c.parent } : {}) } : unchanged()) });
     });
     return;
   }
@@ -303,6 +309,7 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
           job = enqueue(r.root, part, {
             sha, name, persons: f.persons,
             ...(f.families?.length ? { families: f.families } : {}),
+            ...(f.list ? { list: f.list } : {}),
             ...(note ? { note } : {}),
             ...(batch ? { batch, path: where ?? batchPath(name) ?? name, ...(zip ? { zip: true } : {}) } : {}),
             client: { ...(f.async.origin ? { origin: f.async.origin } : {}), ...(f.async.app ? { app: f.async.app } : {}) },
@@ -321,6 +328,7 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
         "media", "original", part, "--sha", sha, `--name=${name}`,
         ...f.persons.flatMap((p) => ["--person", p]),
         ...(f.families ?? []).flatMap((x) => ["--family", x]),
+        ...(f.list ? ["--list", f.list] : []),
         ...(f.source ? ["--source", f.source] : []),
         ...(region ? ["--region", region] : []),
         ...(note ? [`--note=${note}`] : []),

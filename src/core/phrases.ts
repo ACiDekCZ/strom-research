@@ -202,6 +202,7 @@ export const PHRASES = {
 
   "app.media.what": "Analyse {count, plural, one {# file} other {# files}} the user sent from the Strom app — {who} ({first}–{last})",
   "app.media.nobody": "for the research",
+  "app.media.list": "the list “{name}” ({count, plural, one {# person} other {# people}})",
   "app.media.why": "Originals from the user, sent from the Strom app (kept unchanged): find out what each is, whom it is about and what it can prove.",
   "app.scan.what": "Read the scan the user sent of {source} ({title})",
   "app.scan.why": "The user sent the record itself from the Strom app: the research reads it for itself — its reading confirms the user's transcript or shows a mistake.",

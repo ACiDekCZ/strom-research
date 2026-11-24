@@ -279,12 +279,22 @@
 //                          the app takes head as its version only when parent is the head it knew
 //   GET <token>/media/<sha256>?thumb=128|256|512   a small JPEG preview of a file (core/thumbs.ts, kept in
 //                          .strom/thumbs): 400 thumb.size, 404, 410 media.gone, 415 thumb.type (none of this kind here)
+//   PUT <token>/lists/<id>  a list of people material is sent to ({name, kind: fixed|auto|work, rule?: the rule as the
+//                          app says it, ruleData?, persons: [P…] as they are now, missing?: how many of its people the
+//                          research has not got, at?}): kept by the bridge (.strom/lists/<id>.json; the same id again
+//                          replaces it) until a file names it; {list, persons, unknown}. 400 list.bad-body, 413
+//                          list.large, 403 app.only
 //   PUT <token>/media/<sha256>   an original from the app, unchanged (the body; X-Strom-Name, -Person, -Source,
 //                          -Region, -Note): streamed to disk, its hash checked, kept outside git
 //                          (strom media original) — of a source an image, else material of people; a task for the
 //                          agent (an intake task, a task to read the scan of a source) only with intake.auto on, else
 //                          the file waits in the material: {input} or {known, added?} with no task (spec 130 K1.3);
 //                          X-Strom-Batch, -Path (and -Zip: 1, a ZIP unpacked here): one file of a batch
+//                          X-Strom-List-Ref: <id> — sent to a list of people (spec 137, media.list) the app put
+//                          first (below): kept on the input (Input.list, its people as sent in notes/lists/), up to 50
+//                          of its people the input's people too; with -Source (media.list.source) kept on the scan
+//                          (Media.list), up to 50 of its people those of its task to read it; not with -Task, -Read,
+//                          -Batch; 404 media.no-list {list} for a list not sent
 //                          X-Strom-Family: F… (with commas; X-Strom-Person beside it too) — a couple's original
 //                          (spec 108 V9, accepts.media.family): material of both partners (Input.families) with an
 //                          intake task as for a person's with intake.auto on (put aside in an archive); media.bad-header for no F…, 404
@@ -795,6 +805,7 @@ import { checkDeleteConfirm, checkRetractWith, deleteConfirm, DELETE_MOST_FILES,
 import { checkRetractConfirm, keepable, restorable, RETRACT_MOST, retractConfirm, retractImpacts } from "./sourceretract.ts";
 import { cachedThumb, THUMB_SIZES } from "./thumbs.ts";
 import { checkOriginalMeta, cleanIncoming, freeBytes, knownOriginal, materialWaiting, originalMax, ORIGINAL_RESERVE, ORIGINAL_TYPES, parseRegion } from "./originals.ts";
+import { checkSentList, keepSentList, LIST_BODY_MAX, LIST_ID, readSentList } from "./lists.ts";
 import { BATCH_ID, batchEstimate, batchLimits, batchPath, batchStatus, idleBatches, readBatch } from "./batches.ts";
 
 /** New images for the app, made for at most so long when the tree changed (the rest the next time). */
@@ -931,7 +942,7 @@ function placeOk(v: unknown): v is string {
   return typeof v === "string" && !!v.trim() && v.length <= 300 && !/[\u0000-\u001f\u007f]/u.test(v);
 }
 
-const APP_WRITES = new Set(["sync", "adopt", "media", "batch", "waiting", "group", "material", "read", "history", "experiments", "quality", "places", "directions", "offline", "queue", "census", "intake"]);
+const APP_WRITES = new Set(["sync", "adopt", "media", "lists", "batch", "waiting", "group", "material", "read", "history", "experiments", "quality", "places", "directions", "offline", "queue", "census", "intake"]);
 /** A file refused (its error's code): what the bridge says of it. */
 const REFUSED: Record<string, keyof typeof CODES> = {
   "tree.other-research": "ui.sync.bridge.other",
@@ -954,7 +965,9 @@ function said(lang: string, key: keyof typeof CODES, params: Record<string, stri
  *   -Path, -Name, -Note, -Task)
  * - `media.bad-region` 400 {region} — X-Strom-Region is no part of an image
  * - `media.no-person` 404 {person} — no such person in the research; `media.no-family` 404 {family} — no such couple
- *   (X-Strom-Family); `media.no-source` 404 {source} — no such source
+ *   (X-Strom-Family); `media.no-source` 404 {source} — no such source; `media.no-list` 404 {list} — no list of that
+ *   mark sent (X-Strom-List-Ref: PUT lists/<id> first)
+ * - `list.bad-body` 400, `list.large` 413 — PUT lists/<id>: a body that is no list, a list too large
  * - `media.no-shared` 500 — the research has no shared folder for files (strom setup)
  * - `media.large` 413 {mb} (and `max`) — larger than the research takes; `media.full` 507 (and `free`) — no room
  *   (these two: `error` in the research's language, `text` English — said() above)
@@ -1902,7 +1915,7 @@ const MEDIA_REF_UNKNOWN = "sync.media-ref-unknown";
 /** How many hashes POST /media/known takes at once. */
 export const MEDIA_KNOWN_MAX = 5000;
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sync.mediaRef", "person.contact"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sync.mediaRef", "person.contact", "media.list", "media.list.source"] as const;
 
 /** What only a research with its agent here does (accepts.read: none in an archive, nor where it waits for its agent). */
 const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move"]);
@@ -3046,6 +3059,15 @@ export function saidAppVersion(req: { url?: string | undefined; headers: http.In
   return said && isAppVersion(said) ? said : undefined;
 }
 
+/**
+ * The folder a new research of this computer is made in (strom.trees, else the home: `strom init`'s), for the app to show
+ * where a research of a copy of its tree would go (spec 139 K5.4) — only a text to show; none where nothing is set up.
+ */
+function treesRootOf(env: Env, settings: Settings = new Settings(env, {})): { treesRoot?: string } {
+  const at = settings.trees()?.value;
+  return at ? { treesRoot: at } : {};
+}
+
 /** What the app shows beside the tree. */
 /**
  * /status worked out (on the bridge's thread of /status, core/livestatus.ts: it reads the whole research — never on the
@@ -3062,6 +3084,7 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
       ...channelOf(env),
       tree: { id: config?.id, name: config?.name, lang: config?.lang },
       path: root,
+      ...treesRootOf(env),
       locked: { code: refused.code, reason: refused.message, way: refused.hint, ...(refused.params ?? {}) },
       live: liveState(env),
       links: links(env),
@@ -3102,6 +3125,7 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     // what the research is (an archive, a research, one waiting for its agent) — the app says it beside the tree
     tree: { id: tree.config.id, name: tree.config.name, lang: tree.lang, state: stateOf(tree), kind: kindOf(tree) },
     path: root,
+    ...treesRootOf(env, settings),
     // sealed on this computer (writing works), or on another (its folder brought here, strom's settings gone): the
     // app's writes are refused with seal.foreign until the person takes it over (strom seal adopt, the menu, the link seal)
     seal: tree.key ? "here" : "elsewhere",
@@ -4031,6 +4055,10 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     }
     if (req.method === "POST" && t === token && what === "adopt") {
       receive(req, res, origin, "adopt");
+      return;
+    }
+    if (req.method === "PUT" && t === token && what === "lists" && sub && !act) {
+      listPut(req, res, origin, decodeURIComponent(sub));
       return;
     }
     if (req.method === "PUT" && t === token && what === "media") {
@@ -5047,6 +5075,7 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     let named: string | undefined;
     let note: string | undefined;
     let meta: { persons: string[]; source?: string; families?: string[] };
+    let list: string | undefined;
     let region: string | undefined;
     let batch: string | undefined;
     let where: string | undefined;
@@ -5104,12 +5133,19 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       if (toRead && (batch || source || task)) throw new Error("X-Strom-Read: a file to read comes in no batch, for no task and is no image of a source");
       read = toRead === "1";
       if (families.length && (source || task || batch)) throw new Error("X-Strom-Family: a couple's original comes in no batch, for no task and is no image of a source");
+      at = "X-Strom-List-Ref";
+      // the list of people it is sent to (spec 137, media.list): one the app put first (PUT lists/<id>)
+      list = header("x-strom-list-ref")?.trim() || undefined;
+      if (list !== undefined && !LIST_ID.test(list)) throw new Error("X-Strom-List-Ref: the list's mark (PUT lists/<id>)");
+      // (with X-Strom-Source: a scan of a source of the list's people — media.list.source)
+      if (list && (task || batch || read)) throw new Error("X-Strom-List-Ref: a file sent to a list comes in no batch, for no task and not to read");
+      if (list && !readSentList(root, list)) throw new StromError(`no list ${list} sent here — send the list (PUT lists/${list}) and the file again`, { code: "media.no-list", params: { list } });
       meta = checkOriginalMeta(tree, { persons, source, families });
     } catch (e) {
       // a person or a source the research has not got: 404, its JSON body telling it from an address that is no bridge's
       const m = (e as Error).message;
       const coded = e instanceof StromError && e.code ? refusal(m, e.code, e.params ?? {}) : refusal(m, "media.bad-header", { header: at });
-      return refuse(/^no (person|source|family)/.test(m) ? 404 : 400, coded);
+      return refuse(/^no (person|source|family|list)/.test(m) ? 404 : 400, coded);
     }
     // a file for a task (its "Add a file"): only for a task that waits for one — else refused before anything is kept
     // (the app offers the inbox folder then)
@@ -5124,7 +5160,46 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     // whose answer says what became of it
     const later = /(?:^|[,;\s])respond-async(?:$|[,;\s])/i.test(header("prefer") ?? "") && !forTask && !read && !meta.source && !region;
     const app = header("x-strom-app-version");
-    receiveOriginal(receiver, req, res, { sha, name, note, persons: meta.persons, ...(meta.families ? { families: meta.families } : {}), source: meta.source, region, batch, where, zip, task: forTask, ...(image !== undefined ? { image } : {}), ...(replace ? { replace } : {}), ...(read ? { read } : {}), ...(later ? { async: { origin, ...(app ? { app } : {}) } } : {}) });
+    receiveOriginal(receiver, req, res, { sha, name, note, persons: meta.persons, ...(meta.families ? { families: meta.families } : {}), ...(list ? { list } : {}), source: meta.source, region, batch, where, zip, task: forTask, ...(image !== undefined ? { image } : {}), ...(replace ? { replace } : {}), ...(read ? { read } : {}), ...(later ? { async: { origin, ...(app ? { app } : {}) } } : {}) });
+  };
+
+  /**
+   * A list of people the app sends material to (PUT lists/<id>, spec 137, feature media.list): checked and kept by the
+   * bridge (.strom/lists/<id>.json) until a file names it (X-Strom-List-Ref) — the strom that takes the file writes it
+   * into the research. {list, persons, unknown}: how many of its people, how many of them the research has not got.
+   */
+  const listPut = (req: http.IncomingMessage, res: http.ServerResponse, origin: string | undefined, id: string) => {
+    const json = (code: number, body: Record<string, unknown>) => {
+      if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
+    };
+    if (!origin) {
+      req.resume();
+      return json(403, refusal("only the Strom app may send a list here", "app.only"));
+    }
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let over = false;
+    req.on("data", (c: Buffer) => {
+      if (over) return;
+      size += c.length;
+      if (size > LIST_BODY_MAX) over = true;
+      else chunks.push(c);
+    });
+    req.on("end", () => safely(req, res, () => {
+      if (over) return json(413, refusal(`a list's body is at most ${LIST_BODY_MAX} bytes`, "list.large", { max: String(LIST_BODY_MAX) }));
+      let body: unknown;
+      try {
+        body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      } catch {
+        body = undefined;
+      }
+      const l = checkSentList(id, body);
+      if ("code" in l) return json(l.code === "list.large" ? 413 : 400, refusal(l.why, l.code));
+      keepSentList(root, l);
+      const tree = readTree(root, env);
+      const unknown = l.persons.filter((p) => tree.get(p)?.type !== "person").length;
+      json(200, { list: l.id, persons: l.persons.length, unknown });
+    }));
   };
 
   // closed one at a time with the queue's writes: the batch's queued files and its close one commit

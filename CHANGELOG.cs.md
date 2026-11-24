@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.37.0
 
-*Připravuje se: bety do 1.37.0-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.37.0-beta.2. Oddíl bude úplný s vydáním.*
 
 - **Záznam archivu už nedrží portál ze seznamu stromu:** kniha s adresou na portálu, který seznam stromu zná (Porta
   fontium, Acta Publica…), už nedělá portál tak přísný jako archiv, pod kterým je zapsaná – portál se řídí svými
@@ -35,6 +35,17 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   osoby – nikdy událostí ani místem, kde osoba žila, a agent je nedostane. Synchronizace s aplikací e-maily přidává
   i odebírá jako jiné úpravy. Nová kontrola `strom fixes contact-residences` převede bydliště, která ze e-mailů udělal
   starší strom, na kontakt (bydliště stažené, nikdy smazané, vrátí ho `strom fixes undo`).
+- **Materiál k seznamu osob:** aplikace Strom může poslat sken k celému seznamu osob (sčítací arch, stránka matriky)
+  místo k jedné osobě. Materiál si seznam pamatuje tak, jak byl poslán – název, druh, pravidlo a ID jeho osob; do 50
+  osob jsou osobami materiálu, delší seznam je uveden názvem a souborem všech jeho osob. Úkol pro agenta nese název
+  seznamu a říká porovnat každé jméno ze skenu nejdřív s těmito osobami, celý strom až potom.
+  Poslat se dá i sken pramene: zůstane obrazem pramene, pamatuje si seznam stejně a úkol přečíst ho má osoby seznamu
+  (do 50) mezi dotčenými.
+- **Výzkum pro kopii rodokmenu:** odkaz aplikace Strom, který zakládá nový výzkum, může navrhnout jeho název (kopie
+  stromu: „… (kopie)“); terminál ho nabídne k ponechání nebo přepsání a most aplikaci řekne složku, kde nové výzkumy
+  vznikají. Strom předaný s čísly jiného výzkumu (kopie stromu, který výzkum měl, ze starší aplikace) dostane pro své
+  osoby a prameny čísla nového výzkumu podle vlastních značek souboru – nikdy čísla toho druhého výzkumu, citace
+  pramenů zůstanou.
 
 ## 1.36.0
 

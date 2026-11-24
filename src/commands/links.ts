@@ -488,7 +488,7 @@ async function openLink(ctx: Context, link: TakenLink, handed: { on: boolean }):
     if (ctx.io.tty) {
       const { newFromApp } = await import("../cli/menu-links.ts");
       const { openAppAt } = await import("./sync.ts");
-      const done = await newFromApp(ctx, runnerOf(ctx), link.app, (url) => openAppAt(ctx, url, { holdsTree: true }), () => bringForward(ctx.env), { ...(link.browser ? { browser: link.browser } : {}), ...(link.file ? { file: link.file } : {}) });
+      const done = await newFromApp(ctx, runnerOf(ctx), link.app, (url) => openAppAt(ctx, url, { holdsTree: true }), () => bringForward(ctx.env), { ...(link.browser ? { browser: link.browser } : {}), ...(link.file ? { file: link.file } : {}), ...(link.name ? { name: link.name } : {}) });
       if (!done) await pause(ctx, ctx.uiLang(), "ui.enter.close");
       return { text: "", data: { done, action: "new" } };
     }
@@ -646,13 +646,14 @@ register(
       "  its hash (the bridge's /log head, or its first 8), else the earlier changes to pick from — what returns shown, the\n" +
       "  return only on the person's word in the terminal.\n" +
       "strom-research://update|sessions|setup?tree=<id> — strom update, the agent's sessions and their cost, strom setup.\n" +
-      "strom-research://new?app=<the app's mark> — a tree of the app becomes a new research: named, made, the app hands the\n" +
-      "tree to its bridge (?adopt=, GET/POST /adopt), taken in as leads, sent back to the app. Family trees here already:\n" +
+      "strom-research://new?app=<the app's mark>[&name=<text>] — a tree of the app becomes a new research: named, made, the app hands the\n" +
+      "tree to its bridge (?adopt=, GET/POST /adopt), taken in as leads, sent back to the app. name= (one line, at most 120\n" +
+      "characters) is only the name suggested in the terminal, the person keeps it or writes another. Family trees here already:\n" +
       "opening one of them in the app (strom app) is offered first; with no terminal the result lists them (trees).\n" +
       "What writes tasks or starts the agent is said and asked in the terminal first; with run.confirm no (the person's,\n" +
       "this computer's) what only starts the agent on the subscription or AI credit starts at once, one line says so — a\n" +
       "price in money, a consent, a deletion, a request sent, the gate and an agent's own command still ask. Any page can open such a link:\n" +
-      "each part is checked (only IDs and fixed values, never text), an unknown research, person, task or excerpt is\n" +
+      "each part is checked (only IDs and fixed values, never text but new's suggested name), an unknown research, person, task or excerpt is\n" +
       "only said. No link: the menu.\n" +
       "&handoff=<uuid> (any link of a research): the app's id of it — written when the link was taken (the terminal it\n" +
       "opens came up, or what needs none was done) and said by the research's bridge in GET /status (handoffs) for a\n" +

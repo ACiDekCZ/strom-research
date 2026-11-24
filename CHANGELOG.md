@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.37.0
 
-*In preparation: the betas up to 1.37.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.37.0-beta.2. The section is complete with the release.*
 
 - **A research's archive no longer holds a portal of strom's list:** a book whose address is on a portal strom's list
   knows (Porta fontium, Acta Publica…) no longer makes the portal as strict as the archive the book is recorded under —
@@ -37,6 +37,18 @@ The changes of each version in short. The full notes and the install lines are o
   person show` and on the person's card — never an event or a place the person lived, never given to the agent. Sync
   with the app adds and takes off e-mails like other edits. The new check `strom fixes contact-residences` turns
   residences an older strom made of e-mails into the contact (withdrawn, never deleted, undone by `strom fixes undo`).
+- **Material sent to a list of people:** the Strom app can send a scan to a whole list of people (a census sheet, a
+  register page) instead of one person. The material keeps the list as it was sent — its name, kind, rule and the IDs
+  of its people; up to 50 of them are the people it is of, a longer list is named with a file of all its people. The
+  agent's task is named by the list and says to match each name read on the scan to those people first, the whole
+  tree only after.
+  A scan of a source can be sent so too: it stays an image of the source, keeps the list the same way, and the task
+  to read it has the list's people (up to 50) among those it concerns.
+- **A research for a copy of a family tree:** the Strom app's link that starts a new research may suggest its name (a
+  copy of a tree: "… (copy)"), offered in the terminal to keep or write over; the bridge tells the app the folder new
+  researches are made in. A tree handed over with the numbers of another research (a copy of a tree that had one, from
+  an older app) gets its people and sources the new research's numbers by the file's own marks — never the other
+  research's numbers, a source's citations kept.
 
 ## 1.36.0
 

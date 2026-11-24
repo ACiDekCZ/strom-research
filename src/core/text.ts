@@ -144,6 +144,18 @@ export function readable(page: string): { text: string; at: Int32Array } | undef
   return { text: parts.join(""), at: at.subarray(0, n + 1) };
 }
 
+/**
+ * A name another program gives (the Strom app's tree, a link's name=): one line in NFC, no control or format characters
+ * (the joiners of a script or an emoji kept),
+ * spaces made one, at most `max` characters (whole characters as people see them: never half of one) — "" when nothing
+ * is left.
+ */
+export function oneLineName(raw: string | null | undefined, max: number): string {
+  const line = (raw ?? "").normalize("NFC").replace(/[\p{Cc}\p{Zl}\p{Zp}]|(?![\u200c\u200d])\p{Cf}/gu, " ").replace(/\s+/gu, " ").trim();
+  const chars = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(line)].map((g) => g.segment);
+  return chars.length <= max ? line : chars.slice(0, max).join("").trim();
+}
+
 /** Folder-safe name keeping diacritics (works on Windows, macOS, Linux). */
 export function safeFolderName(name: string): string {
   const cleaned = name

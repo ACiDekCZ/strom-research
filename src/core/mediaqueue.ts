@@ -28,6 +28,8 @@ export interface QueueJob {
   name: string;
   persons: string[];
   families?: string[];
+  /** The list of people the app sent it to (X-Strom-List-Ref, spec 137). */
+  list?: string;
   note?: string;
   /** The batch it came in, its path there; a ZIP of the batch. */
   batch?: string;
@@ -313,7 +315,7 @@ export function takeQueued(tree: Tree, shared: string, env: Env, o: { batch: str
         else if (got.known) said.known = got.known;
         else said.input = got.input!;
       } else {
-        const got = takeOriginal(tree, shared, j.file, j.sha, { name: j.name, persons: j.persons, ...(j.families?.length ? { families: j.families } : {}), note: j.note, auto: !!o.auto });
+        const got = takeOriginal(tree, shared, j.file, j.sha, { name: j.name, persons: j.persons, ...(j.families?.length ? { families: j.families } : {}), ...(j.list ? { list: j.list } : {}), note: j.note, auto: !!o.auto });
         if (got.known) said.known = got.known;
         else said.input = got.input!;
         if (got.added) said.added = got.added;

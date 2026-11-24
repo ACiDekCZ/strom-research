@@ -154,6 +154,11 @@ export interface SCite {
 export interface SSource {
   /** Our ID (REFN S…) — or "x:<xref>" for one the file brought. */
   key: string;
+  /**
+   * The file's own mark of it (its xref without the @, the JSON's id) where the key is an ID it gives (REFN S…): one the
+   * research does not know (another research's number, a copy of a tree that had one) is the file's own (checkIdentity).
+   */
+  fileId?: string;
   title: string;
   /** The archive's name. */
   repo?: string;
@@ -202,6 +207,8 @@ export interface ReadOptions {
 export interface SPerson {
   /** Our ID (REFN) — or "x:<xref>" for someone the file brought. */
   key: string;
+  /** The file's own mark of them (its xref without the @, the JSON's id) where the key is an ID it gives (REFN P…). */
+  fileId?: string;
   names: string[];
   /** M, F — or U where the file means the sex left unknown (Snapshot.sexU, U01); none: the file says nothing of it. */
   sex?: string;
@@ -904,6 +911,7 @@ export function readGedcom(text: string, lang = "en", opts: ReadOptions = {}): S
     const note = children(r, "NOTE").map(noteText).map((t) => t.trim()).filter(Boolean).join("\n\n");
     sources.set(key, {
       key,
+      ...(key.startsWith("x:") ? {} : { fileId: r.xref!.replace(/@/g, "") }),
       title: (val(r, "TITL") ?? "").replace(/\s+/g, " ").trim(),
       ...(repoName?.trim() ? { repo: repoName.trim() } : {}),
       ...(page ? { page } : {}),
@@ -1069,6 +1077,7 @@ export function readGedcom(text: string, lang = "en", opts: ReadOptions = {}): S
     const emails = gedcomPersonContact(r, noteText).emails;
     persons.set(key, {
       key,
+      ...(key.startsWith("x:") ? {} : { fileId: r.xref!.replace(/@/g, "") }),
       names,
       ...(sex ? { sex } : {}),
       facts,
@@ -1363,6 +1372,7 @@ export function readStromJson(data: unknown, lang = "en"): Snapshot {
     const structured = typeof a.folio === "string" || typeof a.image === "string" || typeof a.callNumber === "string";
     sources.set(key, {
       key,
+      ...(key.startsWith("x:") ? {} : { fileId: String(a.id ?? id) }),
       title: (str(a.title) ?? "").replace(/\s+/g, " "),
       ...(str(a.repository) ? { repo: str(a.repository)! } : {}),
       ...(str(a.reference) ? { page: str(a.reference)! } : {}),
@@ -1481,6 +1491,7 @@ export function readStromJson(data: unknown, lang = "en"): Snapshot {
     const primary = p.primaryName === "birth" ? "birth" : p.primaryName === "married" && married ? `married|${nameKey(married)}` : undefined;
     persons.set(key, {
       key,
+      ...(key.startsWith("x:") ? {} : { fileId: String(p.id) }),
       ...(primary ? { primary } : {}),
       ...(titles ? { titles } : {}),
       names: names.filter((n, i) => n !== married || names.findIndex((m) => nameKey(m) === nameKey(n)) === i),
@@ -2723,13 +2734,17 @@ export function checkIdentity(tree: Tree, incoming: Snapshot, force = false): Id
   for (const key of strangers) {
     const p = incoming.persons.get(key)!;
     incoming.persons.delete(key);
-    const other = `x:${key}`;
+    // the file's own mark of them (a copy of a tree of another research, spec 139 K5.4): what the app learns their new
+    // ID by — the other research's number only where the file gives no mark of its own
+    const own = p.fileId ? `x:${p.fileId}` : undefined;
+    const other = own && !incoming.persons.has(own) ? own : `x:${key}`;
     incoming.persons.set(other, { ...p, key: other });
     for (const f of incoming.families) {
       f.partners = f.partners.map((k) => (k === key ? other : k));
       f.children = f.children.map((k) => (k === key ? other : k));
     }
   }
+  foreignSources(tree, incoming);
   // a research with nobody in it yet has nothing to compare with: its first tree is taken (found in an archive: the
   // first send from the app refused as "0 of 3 people")
   if (!force && !incoming.treeId && tree.countLive("person") > 0 && matched < Math.max(1, incoming.persons.size / 2))
@@ -2742,6 +2757,36 @@ export function checkIdentity(tree: Tree, incoming: Snapshot, force = false): Id
       },
     );
   return { matched, strangers };
+}
+
+/**
+ * The sources the file names by an ID the research never gave (REFN S… of another research: a copy of a tree that had
+ * one, spec 139 K5.4): the file's own, under its own mark — the citations of them too — so what they become is told the
+ * app by the file's xref. Only an ID with no record at all here: a source of the research merged or retracted is its own.
+ */
+function foreignSources(tree: Tree, incoming: Snapshot): void {
+  const sources = incoming.sources;
+  if (!sources?.size) return;
+  const moved = new Map<string, string>();
+  for (const [key, s] of [...sources]) {
+    if (key.startsWith("x:") || !s.fileId || tree.get(key)) continue;
+    const own = `x:${s.fileId}`;
+    if (sources.has(own)) continue;
+    sources.delete(key);
+    sources.set(own, { ...s, key: own });
+    moved.set(key, own);
+  }
+  if (!moved.size) return;
+  const cites = (list: SCite[] | undefined) => list?.forEach((c) => (c.source = moved.get(c.source) ?? c.source));
+  const facts = (list: SFact[]) => list.forEach((f) => cites(f.cites));
+  for (const p of incoming.persons.values()) {
+    cites(p.cites);
+    facts(p.facts);
+  }
+  for (const f of incoming.families) {
+    cites(f.cites);
+    facts(f.facts);
+  }
 }
 
 /** The same name, folded: one of a single letter or digit too ("1", "J."), which shares no word. */

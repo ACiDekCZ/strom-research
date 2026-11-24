@@ -24,6 +24,7 @@
   "request.done": "eine Anfrage ist verschickt (strom task wait … --on \"<Antwort>\") oder der Benutzer entscheidet, dass die Linie hier endet",
   "app.media.what": "{count, plural, one {# Datei} other {# Dateien}} auswerten, die der Nutzer aus der Strom-App geschickt hat – {who} ({first}–{last})",
   "app.media.nobody": "für die Forschung",
+  "app.media.list": "die Liste „{name}“ ({count, plural, one {# Person} other {# Personen}})",
   "app.media.why": "Originale vom Nutzer, aus der Strom-App geschickt (unverändert aufbewahrt): herausfinden, was jedes ist, wen es betrifft und was es belegen kann.",
   "app.scan.what": "Das Bild lesen, das der Nutzer zur Quelle {source} ({title}) geschickt hat",
   "app.scan.why": "Der Nutzer hat den Eintrag selbst aus der Strom-App geschickt: die Forschung liest ihn selbst – ihre Lesung bestätigt die Abschrift des Nutzers oder zeigt einen Fehler.",

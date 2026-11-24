@@ -24,6 +24,7 @@
   "request.done": "prośba jest wysłana (strom task wait … --on \"<odpowiedź>\") albo użytkownik zdecyduje, że linia tu się kończy",
   "app.media.what": "Przeanalizować {count, plural, one {# plik przesłany} few {# pliki przesłane} many {# plików przesłanych} other {# plików przesłanych}} z aplikacji Strom – {who} ({first}–{last})",
   "app.media.nobody": "dla badania",
+  "app.media.list": "lista „{name}” ({count, plural, one {# osoba} few {# osoby} many {# osób} other {# osoby}})",
   "app.media.why": "Oryginały od użytkownika przesłane z aplikacji Strom (zapisane bez zmian): ustalić, czym jest każdy z nich, kogo dotyczy i czego może dowieść.",
   "app.scan.what": "Odczytać skan, który użytkownik przesłał do źródła {source} ({title})",
   "app.scan.why": "Użytkownik przesłał z aplikacji Strom sam zapis: badanie odczytuje go samodzielnie – ten odczyt potwierdzi transkrypcję użytkownika albo ujawni błąd.",

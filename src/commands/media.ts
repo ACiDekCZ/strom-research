@@ -2182,6 +2182,7 @@ register(
             ? `other copies of the image: ${copies.map((c) => `${c.id}${c.width ? ` ${c.width}×${c.height}` : ""}`).join(" · ")} — the image is the sharpest (${image!.id}); a view of any copy uses it`
             : undefined,
           sources.length ? `sources on it: ${sources.map((s) => `${s.id} ${s.title}`).join(" · ")}` : "no source cites it yet",
+          m.list ? `sent to the list "${m.list.name}" · ${m.list.count} ${m.list.count === 1 ? "person" : "people"}${m.list.missing ? ` (${m.list.missing} more not in the research)` : ""}${m.list.rule ? ` · rule: ${m.list.rule}` : ""} · ${path.join(tree.root, ...m.list.file.split("/"))}` : undefined,
           `view: strom media view ${m.id} [--half left|right] [--crop x,y,w,h] [--grid]`,
         ),
         data: { media: m, parts: parts.map((p) => p.id), copies: copies.map((c) => c.id), sources: sources.map((s) => s.id), page: pageLabel(tree, m) || undefined },
@@ -2527,6 +2528,7 @@ register({
     { name: "replace", type: "boolean", description: "with --task: another scan at that number replaces the one there (withdrawn and kept, never deleted)" },
     { name: "phone", type: "boolean", description: "sent from a paired phone (its server runs it): material of a phone's batch" },
     { name: "read", type: "boolean", description: "sent to be read at once (strom document read): an input with no intake task" },
+    { name: "list", type: "string", value: "<id>", description: "the list of people the app sent it to (the bridge keeps it, PUT lists/<id>): kept on the input, up to 50 of its people its people too" },
   ],
   examples: ["strom media original ~/Downloads/dopis.png --name dopis.png --person P0001"],
   run(ctx, { args, opts }) {
@@ -2545,6 +2547,8 @@ register({
     const forTask = typeof opts.task === "string" ? opts.task : undefined;
     if (forTask !== undefined && (batch || typeof opts.source === "string")) throw new UsageError("a file for a task is no image of a source and comes in no batch", { hint: "--task alone, with --person, --note" });
     if (opts.read && (batch || forTask !== undefined || typeof opts.source === "string")) throw new UsageError("a file to read is no image of a source, comes in no batch and for no task", { hint: "--read alone, with --person, --note" });
+    const list = typeof opts.list === "string" ? opts.list : undefined;
+    if (list !== undefined && (batch || forTask !== undefined || opts.read)) throw new UsageError("a file sent to a list is material of people or a scan of a source: in no batch, for no task, not to read at once", { hint: "--list with --person, --source, --note", code: "media.bad-header", params: { header: "X-Strom-List-Ref" } });
     const image = opts.image !== undefined ? Number(opts.image) : undefined;
     if (image !== undefined && (!Number.isInteger(image) || image < 1 || image > 999_999)) throw new UsageError("--image is the image's number in the book (1 or more)", { code: "media.bad-header", params: { header: "X-Strom-Image" } });
     if ((image !== undefined || opts.replace) && forTask === undefined) throw new UsageError("--image and --replace go with --task (images a task waits for)");
@@ -2581,6 +2585,7 @@ register({
           region: parseRegion(typeof opts.region === "string" ? opts.region : undefined),
           note: typeof opts.note === "string" ? opts.note : undefined,
           ...(opts.read ? { read: true } : {}),
+          ...(list ? { list } : {}),
           // a task for an agent only where the person turned intake.auto on (spec 130 K1.3)
           auto: ctx.settings.intakeAuto(tree.config),
         });

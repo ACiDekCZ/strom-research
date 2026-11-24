@@ -136,7 +136,8 @@ export function openInNewTerminal(
   // the title without what a shell or a terminal reads as its own (quotes, controls, escapes)
   const title = opts.title?.replace(/[\p{Cc}\p{Cf}"'`$\\%^&|<>!]/gu, "").slice(0, 120);
   if (platform === "win32") {
-    const q = (a: string) => `"${a.replace(/"/g, '""')}"`;
+    // a .cmd reads %…% as a variable even in quotes (a link's name=, a folder with a %): each % doubled
+    const q = (a: string) => `"${a.replace(/"/g, '""').replace(/%/g, "%%")}"`;
     const file = path.join(dir, `strom-${stamp}.cmd`);
     const lines = ["@echo off", "chcp 65001 >nul", ...(title ? [`title ${title}`] : []), ...marks.map((k) => `set "${k}="`), ...own.map(([k, v]) => `set "${k}=${v}"`), 'set "STROM_HANDOVER=1"', `cd /d ${q(cwd)}`, [command, ...args, ...argv].map(q).join(" "), "if errorlevel 1 pause", ""];
     fs.writeFileSync(file, lines.join("\r\n"));
