@@ -5,6 +5,16 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.38.0
+
+- **Einstellungen der Forschung im Verlauf in Worten:** eine in der App oder im Menü geänderte Einstellung erscheint
+  in den letzten Änderungen mit Namen und Wert in der Sprache der Forschung („In der Forschung ausgeschaltet: Rückfrage
+  vor dem Sortieren des Materials“), nicht mehr als Schlüssel (`sort.confirm`).
+- **Der Agent findet sich mit weniger Versuchen zurecht:** `strom place find <Name>` und `strom place <Name>` führen zu
+  `strom place list <Name>`; `strom source list --note <Text>` listet mit einem Aufruf die Quellen, deren Notiz etwas
+  sagt (etwa dass ein Register die Adresse gab); `strom media view` erklärt, wie ein nur in Teilen registriertes Bild
+  und ein Ausschnitt davon anzusehen sind.
+
 ## 1.37.0
 
 *25.11.2026 · gehört zur Strom-App 3.32.0.*

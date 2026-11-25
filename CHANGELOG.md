@@ -5,6 +5,16 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.38.0
+
+- **A research's settings said in words in its history:** a setting changed from the app or the menu shows in the
+  recent changes by its name and value in the research's language ("Turned off in the research: Question before the
+  material is sorted"), no longer as its key (`sort.confirm`).
+- **The agent finds its way with fewer tries:** `strom place find <name>` and `strom place <name>` point to
+  `strom place list <name>`; `strom source list --note <text>` lists in one call the sources whose note says something
+  (that a register gave the address, for one); `strom media view` says how to look at an image registered only in
+  parts, and at a crop of it.
+
 ## 1.37.0
 
 *2026-11-25 · goes with the Strom app 3.32.0.*
