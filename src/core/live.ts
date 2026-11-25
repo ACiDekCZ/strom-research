@@ -177,7 +177,7 @@
 //                          {id, text}, person?, family?, run?}], runs: [{id, line, way, since, state, paused?, task?}],
 //                          lastWorked?, lines: [{id, n, name, direction, way, state, tasks, waiting, working, since, focus?,
 //                          reason?}], waiting {n, items: [{id, kind, section, phase, what, on?, at, sentAt?, group, person?,
-//                          line?, branch?, retry?, hypothesis?, do: [answer|sent|unsent|retry|line|keep|never|decide]}]},
+//                          line?, branch?, retry? {can, until?, says, n?}, hypothesis?, do: [answer|sent|unsent|retry|line|keep|never|decide]}]},
 //                          people {P…: {name, span?}}} — made of /status for the state now and the app's version (kept
 //                          for both, as /status is), the runs read
 //                          at each ask; texts as the phone's page says them, nothing of an agent, a model, a folder or a

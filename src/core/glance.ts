@@ -90,8 +90,11 @@ export interface GlanceWaiting {
   person?: string;
   line?: string;
   branch?: string;
-  /** A task returned to the agent again: whether it may be now, why it waits. */
-  retry?: { can: boolean; until?: string; says: string };
+  /**
+   * A task returned to the agent again: whether it may be now, why it waits, and how many images it still waits for
+   * where /status knows (n — "Try again through the agent · n images"; spec 094 D17).
+   */
+  retry?: { can: boolean; until?: string; says: string; n?: number };
   /** A hypothesis: its variants and what an agent proposes (the device decides it: device/hypothesis/<H…>). */
   hypothesis?: { variants: { label: string; claim: string }[]; proposal?: { variant?: string; abandon?: true; decision: string }; pick?: true };
   do: GlanceDo[];
@@ -268,7 +271,7 @@ export function glanceOf(tree: Tree, from: GlanceFrom): Glance {
       ...(person ? { person } : {}),
       ...(line ? { line } : {}),
       ...(str(w.branch) ? { branch: str(w.branch)! } : {}),
-      ...(retry && typeof retry.can === "boolean" ? { retry: { can: retry.can, ...(str(retry.until) ? { until: str(retry.until)! } : {}), says: forPhone(str(retry.says) ?? "") } } : {}),
+      ...(retry && typeof retry.can === "boolean" ? { retry: { can: retry.can, ...(str(retry.until) ? { until: str(retry.until)! } : {}), says: forPhone(str(retry.says) ?? ""), ...(Number.isInteger(retry.images) && (retry.images as number) > 0 ? { n: retry.images as number } : {}) } } : {}),
       ...(hyp?.type === "hypothesis"
         ? {
             hypothesis: {
