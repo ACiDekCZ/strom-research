@@ -158,6 +158,7 @@ test("media view: several parts of each image — both pages of a spread by the 
   const bare = await w.run(["media", "view", "B1:3", "--crop", "0.1,0.1,0.4,0.2", "B1:4", "B1:1", "--crop", "0,0,0.5,0.5"]);
   assert.equal(bare.code, 2);
   assert.match(bare.err, /B1:4 has no --crop of its own/);
+  assert.match(bare.err, /the image whole: a call of its own, strom media view B1:4/);
   // a half, a grid of parts, a grid of tenths after an image: of that image alone, as a crop is (C3: a half after the
   // second image was refused; N1: an image named by --image or by its number gave 4 views where 2 were meant)
   const clipOrPart = (j: { views: { image: string; clip?: string; part?: string }[] }) => j.views.map((v) => `${v.image} ${v.part ?? v.clip ?? "whole"}`);

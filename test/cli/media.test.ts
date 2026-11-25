@@ -64,7 +64,10 @@ test("media add --half / --crop: a part of an image saved on its own is register
   const refused = await w.run(["source", "add", "Křest 1850", "--media", "B1:3"]);
   assert.equal(refused.code, 2);
   assert.match(refused.err, /image 3 of B0001 is registered only in parts: M0004 \(part 0,0,0\.5,1\), M0005 \(part 0\.5,0,0\.5,1\)[\s\S]*M0004 or M0005/);
-  assert.equal((await w.run(["media", "view", "B1:3"])).code, 2);
+  const whole = await w.run(["media", "view", "B1:3"]);
+  assert.equal(whole.code, 2);
+  // how to look at it, said (a live run, 2026-11-25: tried again and again): the parts whole, or a half of the whole image
+  assert.match(whole.err, /to look at them: strom media view M0004 M0005; a half or a crop of the whole image: strom media view B0001:3 --half left/);
   assert.match((await w.ok(["source", "add", "Křest 1850", "--media", "M0005"])).out, /on M0005/);
   assert.match((await w.ok(["source", "add", "Detail 1851", "--media", "B1:2"])).out, /on M0003/, "one part only: that part");
   w.cleanup();
