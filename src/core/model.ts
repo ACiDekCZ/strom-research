@@ -942,6 +942,13 @@ export interface Task extends BaseRecord {
    */
   queueAt?: { do: "next" | "last"; at: string };
   /**
+   * The person returned it to the agent from What waits (strom task wake --retry: the menu, the Strom app) — images its
+   * archive's browser held back, or that the agent's browser reaches now: the last time (at), by whom, given in the app,
+   * and the last times (at most 5, ISO) — the queue counts only the sessions after it, at most RETRY_MAX returns a day
+   * (core/retry.ts). Optional: an older strom keeps it and ignores it.
+   */
+  retried?: { at: string; by: string; givenIn?: "app"; times: string[] };
+  /**
    * A new wording proposed for a transcript the person read or confirmed (core/proposal.ts): the person's decision alone,
    * to take it or keep the transcript — never the queue's nor an agent's (core/transcriptguard.ts). The latest
    * proposal; an earlier one is in the notes. Optional: an older strom keeps it and ignores it.
@@ -1012,8 +1019,13 @@ export interface Conflict extends BaseRecord {
   /** The fact it is about, by its GEDCOM tag (BIRT, DEAT, NAME, SEX, MARR…), when known. */
   fact?: string;
   subject: string[];
-  /** value: the claim as strom compares it; text: as a person reads it, in the research's language (the Strom app shows it). */
-  claims: { source?: string; value: string; note?: string; text?: string }[];
+  /**
+   * value: the claim as strom compares it; text: as a person reads it, in the research's language (the Strom app shows it).
+   * sent (spec 094): a conflict of two sends of the Strom app — the research's value an earlier send of the user wrote
+   * (its input, its device), the user's side the send that opened it (its device): both sides named by their devices.
+   * Optional; none where an agent or a record gave the research's value.
+   */
+  claims: { source?: string; value: string; note?: string; text?: string; sent?: { input?: string; client?: AppClient } }[];
   /**
    * A conflict of the user's edit in the Strom app with a fact of the research: that fact, the user's value of it and
    * the sources they gave it — what `strom conflict resolve --take user` writes.
@@ -1215,6 +1227,15 @@ export interface InputList {
   missing?: number;
   at: string;
   file: string;
+}
+
+/**
+ * A device of the Strom app a send came from (spec 094): a browser's or profile's own random ID and, when it says one, a
+ * name to read it by ("Chrome · Mac") — nothing of a person. Optional wherever it stands: an older app sends none.
+ */
+export interface AppClient {
+  id: string;
+  name?: string;
 }
 
 export interface Input extends BaseRecord {

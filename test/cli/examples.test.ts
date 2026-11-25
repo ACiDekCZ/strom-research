@@ -257,7 +257,10 @@ test("every example in the help runs", opts, async () => {
       // a run at work to be told to stop (strom run stop): present as strom run is, only for its examples
       const leaveRun = def.path.join(" ") === "run stop" ? enterWorker(w.cwd, "run-12345-abc", "Claude Code on its own") : undefined;
       const r = await w.run([...argv, ...(def.writes ? ["--dry-run"] : [])], person ? { tty: true, ...answers } : {}).finally(() => leaveRun?.());
-      if (r.code !== 0 && !(def.path.at(-1) === "revert" && /nothing to put back/.test(r.err + r.out))) failures.push(`${example}\n    → ${(r.err || r.out).trim().split("\n").slice(0, 2).join(" | ")}`);
+      // a task returned to the agent (task wake --retry): this world has no images the agent's browser could save — its
+      // answer that the task is not returned
+      const notReturned = def.path.join(" ") === "task wake" && argv.includes("--retry") && /not returned to the agent/.test(r.err + r.out);
+      if (r.code !== 0 && !notReturned && !(def.path.at(-1) === "revert" && /nothing to put back/.test(r.err + r.out))) failures.push(`${example}\n    → ${(r.err || r.out).trim().split("\n").slice(0, 2).join(" | ")}`);
     }
   }
   assert.deepEqual(failures, []);

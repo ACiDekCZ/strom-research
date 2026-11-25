@@ -30,6 +30,13 @@ import { receivedAll, resent, SYNC_INBOX } from "./sync.ts";
 import { refreshRollup } from "./readstats.ts";
 import { selfTune } from "./tune.ts";
 import { listSorts, shownSort, SORT_FINAL } from "./sort.ts";
+import { configDir, type Env } from "./paths.ts";
+import { Settings } from "./config.ts";
+import { isAppVersion } from "./stromapp.ts";
+import { compareVersions } from "./update.ts";
+import { devicesOn } from "./devices.ts";
+import { deviceAppFiles, deviceAppRoot, deviceAppState } from "./deviceapp.ts";
+import { DEVICE_VIA_ID } from "./devicevia.ts";
 
 const DAY = 24 * 3600_000;
 const MB = 1024 * 1024;
@@ -666,6 +673,143 @@ export function autoTidy(tree: Tree, budget: { bytes: number; ms: number } = LIM
     }
     const items = plan.items.map(unasked).filter((i) => i !== undefined);
     if (items.length) tidy(tree, { ...plan, items }, "auto", budget);
+  } catch {
+    // order is never a reason to fail
+  } finally {
+    if (!tree.dryRun) tidyComputer(tree);
+  }
+}
+
+/** A device's upload left unfinished this long goes (the device sends it again from the start). */
+export const DEVICE_UPLOAD_KEEP_MS = DAY;
+
+/** How many copies of the app for the devices are kept (deviceapp.ts keeps as many: the one served and the one before). */
+const DEVICE_APP_KEPT = 2;
+
+/** Whether a process of this id runs on this computer now. */
+function running(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/** A file or folder of its folder, no link (none: gone, or a link). */
+function plain(p: string): fs.Stats | undefined {
+  try {
+    const st = fs.lstatSync(p);
+    return st.isSymbolicLink() ? undefined : st;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * What strom keeps beside the researches for the other devices of the home network (spec 094), this computer's, kept in
+ * order unasked (autoTidy, strom tidy) — never anything else in their folders, never a link, nothing said of it:
+ * - what a device was sending and did not finish (<shared>/device-uploads/<device>/<sha>.part and its <sha>.json, the
+ *   bytes as they came, no longer sealed): untouched for a day — each of a pair by the newer of the two, one without
+ *   its pair by itself — removed whatever devices.mode is (the device sends it again from the start); a device's folder
+ *   left empty, untouched for a while, too;
+ * - the app served to them (<shared>/device-app/<version>/, deviceapp.ts — a cache, downloaded again when gone): only
+ *   while devices.mode is on, never while it is being downloaded — the copies beyond the one served and the newest
+ *   other, and what a download that ended left behind (.tmp-<pid>-…, .old-<pid>-…).
+ * Never fails; how many went, how much.
+ */
+export function tidyDevices(env: Env, at = Date.now()): { removed: number; freed: number } {
+  let removed = 0;
+  let freed = 0;
+  const gone = (p: string) => {
+    const bytes = sizeOf(p);
+    try {
+      fs.rmSync(p, { recursive: true, force: true });
+      removed++;
+      freed += bytes;
+    } catch {
+      // left as it is: tried again next time
+    }
+  };
+  let base: string;
+  try {
+    base = new Settings(env, {}).shared()?.value ?? configDir(env);
+  } catch {
+    base = configDir(env);
+  }
+  // unfinished uploads of the devices
+  const uploads = path.join(base, "device-uploads");
+  if (plain(uploads)?.isDirectory()) {
+    let devices: string[] = [];
+    try {
+      devices = fs.readdirSync(uploads).filter((n) => DEVICE_VIA_ID.test(n));
+    } catch {
+      devices = [];
+    }
+    for (const d of devices) {
+      const dir = path.join(uploads, d);
+      const st = plain(dir);
+      if (!st?.isDirectory()) continue;
+      let names: string[] = [];
+      try {
+        names = fs.readdirSync(dir);
+      } catch {
+        continue;
+      }
+      // each upload by its newer half: a pair goes together
+      const newest = new Map<string, number>();
+      for (const n of names) {
+        const m = /^([0-9a-f]{64})\.(part|json)$/.exec(n);
+        const f = m ? plain(path.join(dir, n)) : undefined;
+        if (m && f?.isFile()) newest.set(m[1]!, Math.max(newest.get(m[1]!) ?? 0, f.mtimeMs));
+      }
+      for (const n of names) {
+        const m = /^([0-9a-f]{64})\.(part|json)$/.exec(n);
+        if (!m || at - (newest.get(m[1]!) ?? at) <= DEVICE_UPLOAD_KEEP_MS) continue;
+        const f = path.join(dir, n);
+        if (plain(f)?.isFile()) gone(f);
+      }
+      // a device's folder nothing came into for a while, empty now
+      try {
+        if (at - st.mtimeMs > QUIET_MS && fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
+      } catch {
+        // something came meanwhile
+      }
+    }
+  }
+  // the app's copies: only while the devices are on (off: kept as they are, for the next time it is on)
+  if (!devicesOn(env)) return { removed, freed };
+  let apps: string;
+  try {
+    apps = deviceAppRoot(env);
+    if (!plain(apps)?.isDirectory() || deviceAppState(env).app === "fetching") return { removed, freed };
+  } catch {
+    return { removed, freed };
+  }
+  let names: string[] = [];
+  try {
+    names = fs.readdirSync(apps);
+  } catch {
+    return { removed, freed };
+  }
+  const served = deviceAppFiles(env)?.version;
+  const versions = names.filter((n) => isAppVersion(n) && n !== served && plain(path.join(apps, n))?.isDirectory()).sort((a, b) => compareVersions(b, a));
+  for (const n of versions.slice(served ? DEVICE_APP_KEPT - 1 : DEVICE_APP_KEPT)) gone(path.join(apps, n));
+  for (const n of names) {
+    const m = /^\.(tmp|old)-(\d+)-[0-9a-f]+$/.exec(n);
+    const st = m ? plain(path.join(apps, n)) : undefined;
+    if (!m || !st?.isDirectory() || running(Number(m[2])) || at - st.mtimeMs <= QUIET_MS) continue;
+    gone(path.join(apps, n));
+  }
+  return { removed, freed };
+}
+
+/** This computer's caches of the devices kept in order (tidyDevices), the count in the tree's tidy.log in plain words. */
+export function tidyComputer(tree: Tree): void {
+  try {
+    const r = tidyDevices(tree.env);
+    if (r.removed) fs.appendFileSync(path.join(tree.root, ".strom", "tidy.log"), `${new Date().toISOString()} kept in order (this computer's caches): ${r.removed} removed, ${(r.freed / MB).toFixed(1)} MB freed\n`);
   } catch {
     // order is never a reason to fail
   }

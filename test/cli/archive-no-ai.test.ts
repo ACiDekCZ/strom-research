@@ -64,7 +64,7 @@ test("an archive says nothing of an agent or AI anywhere a person or the app loo
     assert.doesNotMatch(help, new RegExp(`^  strom ${cmd}\\b`, "m"), cmd);
     assert.doesNotMatch(catalog, new RegExp(`(?:^ {2}|^ {4}|: | · )${cmd}\\b`, "m"), cmd);
   }
-  assert.match(help, /^ {2}strom sync undo +Vrátit, co poslání přineslo do výzkumu$/m, help);
+  assert.match(help, /^ {2}strom sync undo +Vrátit, co poslání přineslo do výzkumu \(co se od té doby změnilo, zůstane\)$/m, help);
   assert.match(help, /\nZdrojový kód \(GNU AGPL 3\.0 nebo pozdější\): https:\/\/github\.com\/ACiDekCZ\/strom-research\nJak Strom funguje: strom doc · stromapp\.info\/cs\/doc\/\n?$/, "an archive's help says where the source code is and how Strom works too");
   assert.match(catalog, /\bsync undo\b/);
   assert.match(said.find(([label]) => label === "strom help sync --human")![1], /^Načíst úpravy z aplikace Strom/m);

@@ -13,7 +13,7 @@ import { SINGLE_KINDS } from "../core/actions.ts";
 import { parseNameStatus } from "../core/namestatus.ts";
 import { UsageError } from "../core/errors.ts";
 import { INFORMATION } from "../core/evidence.ts";
-import { EVENT_KINDS, NAME_KINDS, noteWhole, type Citation, type Event, type Family, type Name, type Note, type Person, type Research, type RetractedNote, type Source, type Task } from "../core/model.ts";
+import { eventKind, EVENT_KINDS, NAME_KINDS, noteWhole, type Citation, type Event, type Family, type Name, type Note, type Person, type Research, type RetractedNote, type Source, type Task } from "../core/model.ts";
 import { orderCitations, removedByUser } from "../core/citeorder.ts";
 import {
   ancestorGenerations,
@@ -35,6 +35,7 @@ import {
 } from "../core/people.ts";
 import { resolveResearch } from "./research.ts";
 import { alignCopies } from "../core/household.ts";
+import { religionFactFor } from "../core/religion.ts";
 import { editNote, notesOf, restoreName, restoreNote, retractName, retractNote } from "../core/retractions.ts";
 import { DEATH_AFTER_YEARS, unprovenPeople, type UnprovenKind } from "../core/review.ts";
 import { foldText } from "../core/text.ts";
@@ -859,7 +860,10 @@ register(
     group: "people",
     tree: true,
     writes: true,
-    description: `Kinds: ${Object.keys(EVENT_KINDS).join(" ")} (or words like birth, death, occupation).\nWithout a citation a fact is a lead; proven/probable need a source.`,
+    description:
+      `Kinds: ${Object.keys(EVENT_KINDS).join(" ")} (or words like birth, death, occupation).\nWithout a citation a fact is a lead; proven/probable need a source.\n` +
+      "RELI: the religion as the record writes it of the person (--value, --date of the record); the same faith a person\n" +
+      "has a fact of already only gets the record cited there — a different one is a fact of its own; an agent's needs --cite.",
     args: [
       { name: "who", description: "person (ID or name) or family ID", required: true },
       { name: "kind", description: "event kind, e.g. BIRT, CHR, DEAT, MARR, OCCU, RESI", required: true },
@@ -883,6 +887,7 @@ register(
     examples: [
       'strom event add P0001 CHR --date "25 JUN 1905" --place "Týnec nad Labem" --house 12 --cite S0001 --locator "fol. 45, č. 12" --with "godparent:Marie Dvořáková" --information primary --status proven',
       'strom event add P0002 OCCU --value "miller" --status lead',
+      'strom event add P0001 RELI --value "katolické" --date "25 JUN 1905" --cite S0001',
       'strom event add P0002 EVEN --label "Fire of the farmhouse" --date "NOV 1905"',
     ],
     run(ctx, { args, opts }) {
@@ -900,6 +905,16 @@ register(
       const withs = listOpt(opts.with).map((w) => parseParticipant(tree, w));
       // a place is the municipality: the street and the house number its house
       checkStreetPlace(tree, opts.place as string | undefined, opts.house as string | undefined);
+      // a religion only as a record writes it: an agent's without the record is never written (the person's own word is theirs)
+      const religion = owner.startsWith("P") && eventKind(args[1]!) === "RELI";
+      if (religion && !cited && !tree.personWrites)
+        throw new UsageError("a religion is written only with the record that says it of the person: --cite S…", {
+          code: "event.religion-uncited",
+          hint: `strom event add ${owner} RELI --value "<as the record writes it>" --date <the record's> --cite S…`,
+        });
+      // one faith is one fact: another record of it is one more citation of the fact there (a changed faith is a new one)
+      const again = religion && String(opts.value ?? "").trim() ? tree.withTreeLock(() => religionAgain(tree, owner, opts, citations)) : undefined;
+      if (again) return again;
       const r = addEvent(tree, owner, {
         kind: args[1]!,
         date: opts.date as string | undefined,
@@ -1390,4 +1405,25 @@ function unprovenList(ctx: Context, tree: Tree, people: Person[], gens: Map<stri
       })),
     },
   };
+}
+
+/**
+ * strom event add P… RELI of a faith the person has a fact of already (core/religion.ts religionFactFor): the record
+ * cites that fact, nothing new written — or, without a record, nothing at all. Undefined: a fact of its own.
+ */
+function religionAgain(tree: Tree, owner: string, opts: Input["opts"], citations: Citation[]): { text: string; data: unknown } | undefined {
+  const value = String(opts.value).trim();
+  const person = tree.get<Person>(owner);
+  const same = person ? religionFactFor(person.events, value, opts.date as string | undefined) : undefined;
+  if (!same) return undefined;
+  const was = `${owner} already has RELI ${same.id} "${same.value ?? ""}"${same.date ? ` ${same.date}` : ""} — the same faith, one fact`;
+  const cited = citations[0];
+  if (!cited) return { text: `${was}: nothing written (a record of it: strom cite ${same.id} <S…>)`, data: { event: same, owner, same: same.id, cited: false } };
+  if (same.citations.some((c) => c.source === cited.source && c.locator === cited.locator))
+    return { text: `${was}, citing ${cited.source} there already: nothing written`, data: { event: same, owner, same: same.id, cited: false } };
+  if (opts.status !== undefined && !tree.personWrites && same.confirmed)
+    throw new UsageError(`${same.id} was confirmed by the user against the scan: its status is theirs, not changed by an agent`, { code: "event.confirmed", hint: `strom event add ${owner} RELI --value "${value}" --cite ${cited.source} without --status` });
+  const e = citeEvent(tree, same.id, cited, opts.status as string | undefined);
+  alignCopies(tree, same.id, { status: opts.status as string | undefined });
+  return { text: lines(`${was}: ${cited.source} cited there [${e.status}]`, written(tree)), data: { event: e, owner, same: same.id, cited: true } };
 }

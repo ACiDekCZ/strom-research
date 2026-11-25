@@ -21,7 +21,7 @@ import { runsAtWork } from "../core/workers.ts";
 import { choosePace } from "../commands/setup.ts";
 import type { Conflict, Family, Hypothesis, HypothesisVariant, HypothesisWrote, Person, Research, Session, Source, Task, VariantLink } from "../core/model.ts";
 import { costPartial, monthSpend, sessionCost } from "../core/session.ts";
-import { adoptAskedSince, adoptFailedSince, adoptedAt, adoptionNeverCame, awaitAdoption, nothingSince, removedByItsDecision, SYNC_INBOX, undoSync, withoutImages, type SyncInput } from "../core/sync.ts";
+import { adoptAskedSince, adoptFailedSince, adoptedAt, adoptionNeverCame, awaitAdoption, nothingSince, removedByItsDecision, SYNC_INBOX, keptLines, clientLabel, undoSync, withoutImages, type SyncInput, type UndoKept } from "../core/sync.ts";
 import { moveToTrash } from "../core/trash.ts";
 import { noteMovedByFile } from "../core/transfer.ts";
 import { appBrowsers, browserKind, kindReaches, type BrowserKind } from "../core/chromium.ts";
@@ -48,7 +48,7 @@ import { chooseWay } from "./ways.ts";
 import { claimText, displayName } from "../core/people.ts";
 import { normId } from "../core/records.ts";
 import { settledClaim } from "../core/labels.ts";
-import { sideOf, sideText, sidesOf } from "../core/conflicts.ts";
+import { sentDevices, sideOf, sideText, sidesOf } from "../core/conflicts.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { isAgent } from "../core/which.ts";
 import { foldText, safeFolderName } from "../core/text.ts";
@@ -780,7 +780,13 @@ export async function decideConflict(ctx: Context, run: Run, lang: string, root:
   const sides = take ? sidesOf(c) : undefined;
   if (take && sides) {
     const value = sideText(tree, c, sides[take]) || t("ui.link.conflict.empty");
-    if (!(await asks(ctx, lang, root, t(take === "user" ? "ui.link.what.conflict.user" : "ui.link.what.conflict.research", { title: c.title, value })))) return false;
+    // two sends of the Strom app (spec 094 K2.2): the side named by its device, as What waits and the app name it — the
+    // user's side is the later send that opened the conflict, the research's the earlier one it holds
+    const devices = sentDevices(lang, c);
+    const what = devices
+      ? t("ui.link.what.conflict.sent", { title: c.title, device: take === "user" ? devices.later : devices.earlier, value })
+      : t(take === "user" ? "ui.link.what.conflict.user" : "ui.link.what.conflict.research", { title: c.title, value });
+    if (!(await asks(ctx, lang, root, what))) return false;
     // the side picked in the app: confirmed is enough (the app says it only asks to confirm) — why may be said, Enter skips
     const said = (await ctx.ask(t("ui.link.conflict.whyMaybe"))).trim();
     if (said === "0") return false;
@@ -1106,15 +1112,19 @@ export async function undoSending(ctx: Context, run: Run, lang: string, root: st
   // of a send the app counted as 1, a yes on Enter)
   const preview = Tree.open(root, ctx.env);
   preview.dryRun = true;
-  preview.withTreeLock(() => undoSync(preview, input));
+  // what another device's send or the research changed since stays as it is (spec 094 K2.3): said with the rest
+  const kept: UndoKept[] = [];
+  preview.withTreeLock(() => undoSync(preview, input, kept));
   const ops = actsAsArchive(preview) ? preview.written.filter((o) => !o.op.startsWith("task.")) : preview.written;
   // what it is now beside what it goes back to (found on Mac: only the value it would have again)
   const said = [
     ...changeLines(preview, ops, "", lang, Tree.open(root, ctx.env)).map((l) => `  ${l.text}`),
+    ...keptLines(preview, kept).map((l) => `  ${l}`),
     // whom its removal took away on the person's word stays away (found by the verification: nothing said of it)
     ...removedByItsDecision(preview, input).map((r) => `  ${t("ui.sync.undone.stillRemoved", { name: r.name, person: r.person, id: r.conflict })}`),
   ];
-  const when = humanWhen(input.created, lang);
+  // the device of the app it came from (spec 094): beside when, so two devices' sends are told apart
+  const when = `${humanWhen(input.created, lang)}${input.sync?.client ? ` · ${clientLabel(input.sync.client)}` : ""}`;
   if (fromMenu) {
     out(ctx, lines(t("ui.more.undo.what", { when }), ...said, ""));
     if (!(await ctx.confirm(t("ui.link.go"), false))) return false;

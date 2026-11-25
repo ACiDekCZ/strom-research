@@ -21,7 +21,7 @@ import { compactHistory } from "../core/history.ts";
 import { globalTargets, installGlobal } from "../agents/global.ts";
 import { agentsHere } from "../core/apps.ts";
 import { placeholders, ui, type UIKey } from "../cli/ui.ts";
-import { mb, setTidyOn, sizeOf, tidy, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
+import { mb, setTidyOn, sizeOf, tidy, tidyComputer, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { installation } from "../core/self.ts";
 import { appDirsInUse, oldVersions, removeOldVersions } from "../core/update.ts";
 import { EXIT } from "../core/errors.ts";
@@ -469,6 +469,8 @@ register({
     );
     if (!plan.items.length && !program) {
       if (!tree.dryRun) setTidyOn(tree.root);
+      // this computer's caches, kept in order unasked as ever (core/tidy.ts tidyComputer: nothing said of them)
+      if (!tree.dryRun) tidyComputer(tree);
       return { text: lines(ui(lang, "ui.tidy.none", { size: mb(plan.size.strom, lang) }), plan.quarantine ? ui(lang, "ui.tidy.quarantine", { size: mb(plan.quarantine, lang) }) : undefined), data: { ...data, removed: 0 } };
     }
     const preview = lines(shown, "", ui(lang, "ui.tidy.frees", { size: mb(plan.frees + (program?.bytes ?? 0), lang) }));
@@ -481,6 +483,7 @@ register({
     }
     const done = tidy(tree, plan, "person");
     setTidyOn(tree.root);
+    tidyComputer(tree);
     const versions = program ? removeOldVersions(program.root, program.inUse, undefined, program.keep) : [];
     const freed = done.freed + (program ? Math.max(0, program.bytes - program.leftBytes()) : 0);
     return {

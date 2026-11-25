@@ -20,7 +20,8 @@ import { batchPath, batchRoom, noteBatch, openBatch } from "./batches.ts";
 import { spawnRun, type RunStrom } from "./warmwriter.ts";
 import { enqueue, queueTag, type QueueJob } from "./mediaqueue.ts";
 import { foldText } from "./text.ts";
-import type { Input, Source } from "./model.ts";
+import type { AppClient, Input, Source } from "./model.ts";
+import { viaEnv } from "./devicevia.ts";
 import { parseImageList } from "./media.ts";
 
 /**
@@ -29,7 +30,8 @@ import { parseImageList } from "./media.ts";
  * whatever the server was started from (an agent's shell, a session that revived it). No question asked.
  */
 export function forApp(env: Env, root: string): NodeJS.ProcessEnv {
-  const { STROM_SESSION: _s, STROM_WORKER: _w, ...rest } = withoutAgentMarks(env) as NodeJS.ProcessEnv;
+  // (a device of the home network named only by the gateway, for the one command it runs for it)
+  const { STROM_SESSION: _s, STROM_WORKER: _w, STROM_VIA_DEVICE: _d, STROM_VIA_DEVICE_NAME: _n, ...rest } = withoutAgentMarks(env) as NodeJS.ProcessEnv;
   return { ...rest, STROM_TREE: root, STROM_NONINTERACTIVE: "1", STROM_FOR_APP: "1", STROM_SPAWNED: "1" };
 }
 
@@ -112,6 +114,12 @@ export interface Receiver {
   run?: RunStrom;
   /** A file it queued (Prefer: respond-async): its job, for the writer of the queue (the bridge's). */
   queued?(job: QueueJob): void;
+  /**
+   * The device of the home network this write came from (spec 094): set by the bridge alone, for a request its gateway
+   * named a paired device in (devices.ts clientOfDevice) — named on each operation the write makes, kept with a job
+   * queued. Never read from a request here (the phone's server receives by these too).
+   */
+  via?: AppClient;
 }
 
 /** What came with a file, checked by the server already. */
@@ -164,7 +172,10 @@ function zipHead(file: string): boolean {
 }
 
 /** How a server runs a strom of its own as the person's: its warm writer (the bridge's), else a strom started for it. */
-const runOf = (r: Receiver): RunStrom => r.run ?? spawnRun(r.root, forApp(r.env, r.root), (c) => r.track(c));
+const runOf = (r: Receiver): RunStrom => {
+  const run = r.run ?? spawnRun(r.root, forApp(r.env, r.root), (c) => r.track(c));
+  return r.via ? (argv, done) => run(argv, done, viaEnv(r.via)) : run;
+};
 
 /** Receive a file whose sender and headers were checked (see the top of this file). */
 export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: http.ServerResponse, f: Incoming): void {
@@ -313,6 +324,7 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
             ...(note ? { note } : {}),
             ...(batch ? { batch, path: where ?? batchPath(name) ?? name, ...(zip ? { zip: true } : {}) } : {}),
             client: { ...(f.async.origin ? { origin: f.async.origin } : {}), ...(f.async.app ? { app: f.async.app } : {}) },
+            ...(r.via ? { via: r.via } : {}),
             bytes: size,
           }, queueTag(tree.config.id)).job;
         } catch (e) {

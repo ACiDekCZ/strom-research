@@ -19,7 +19,7 @@ import { acquireLock, withLock } from "./lock.ts";
 
 /** How long a writer waits for the tree while another one works (a long intake, a batch). */
 const LOCK_WAIT_MS = 120_000;
-import { RECORD_TYPES, ALL_PREFIXES, SCHEMA_VERSION, type AnyRecord, type RecordType, type TreeConfig } from "./model.ts";
+import { RECORD_TYPES, ALL_PREFIXES, SCHEMA_VERSION, type AnyRecord, type AppClient, type RecordType, type TreeConfig } from "./model.ts";
 import { factMarksAfter, settledRecord, validateRecord } from "./validate.ts";
 import { NeedsConsentError, StromError, UsageError } from "./errors.ts";
 import * as git from "./git.ts";
@@ -48,6 +48,11 @@ export interface Op {
   targets: string[];
   summary: string;
   by: string;
+  /**
+   * The device of the Strom app whose send it wrote (spec 094): its ID and name, beside `by` (the user's). Optional — an
+   * older strom reads it as any field it signs over.
+   */
+  via?: AppClient;
   reason?: string;
   /** Files written by this operation with their SHA-256 (tamper evidence). */
   files: SealedFile[];
@@ -211,6 +216,8 @@ export class Tree {
   readonly config: TreeConfig;
   /** Who writes: a session ID, "agent" (an agent outside a session) or "user". */
   actor = "user";
+  /** The device of the Strom app whose send this strom writes (spec 094): named on each operation (`via`). */
+  via?: AppClient;
   /**
    * Whether this strom writes as the person (core/transcriptguard.ts writesAsPerson): only then may a transcript the
    * person read or confirmed change, or their decision on a proposed one be made. Set by the CLI's context for the
@@ -787,7 +794,7 @@ export class Tree {
   appendOp(op: Omit<Op, "at" | "by" | "prev" | "sig" | "k">): Op {
     const key = this.requireKey();
     const opsFile = this.opsFile();
-    const entry: Op = { at: this.stamp(), by: this.actor, ...op, prev: this.lastSig(opsFile), k: fingerprint(key), sig: "" };
+    const entry: Op = { at: this.stamp(), by: this.actor, ...(this.via ? { via: this.via } : {}), ...op, prev: this.lastSig(opsFile), k: fingerprint(key), sig: "" };
     entry.sig = signOp(entry as unknown as Record<string, unknown>, key);
     this.written.push(entry);
     if (!this.dryRun) {

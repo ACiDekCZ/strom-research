@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.37.0
 
-*In Vorbereitung: die Betas bis 1.37.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.37.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein Archiveintrag der Forschung hält kein Portal der Liste von strom mehr:** ein Buch mit einer Adresse auf einem
   Portal, das die Liste von strom kennt (Porta fontium, Acta Publica…), macht das Portal nicht mehr so streng wie das
@@ -45,7 +45,11 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   viele der gegebenen Bilder gespeichert sind). Auf den Menschen wartet nur ein Bild, das der Browser zurückgehalten
   hat – das Herunterladen mehrerer Dateien von der Website erlauben, gleich zuerst gesagt – und eine mittendrin
   beendete Sitzung: Speichern bei ihrem Bild angehalten, die nächste Sitzung setzt es fort. Früher geschriebene
-  Wartezustände zeigen sich so ohne Eingriff. Ein mit `--again` erneut gespeichertes Bild wird sofort als das Bild
+  Wartezustände zeigen sich so ohne Eingriff. Ist die Ursache behoben, geht eine solche Aufgabe – und eine mit Aufnahmen,
+  zu denen nur ein Browser führt, sobald der Browser des Agenten dorthin reicht, oder nur vom Bildschirm eines Betrachters
+  gelesen – aus „Was wartet“ an den Agenten zurück, einzeln oder ein ganzes Archiv auf einmal (auch aus der Strom-App:
+  `waiting[].retry` sagt, worauf sie jetzt wartet und wie viele Aufnahmen): sofort an der Reihe, höchstens dreimal am
+  Tag, und wird sie wieder zurückgehalten, wartet sie erneut und sagt es. Ein mit `--again` erneut gespeichertes Bild wird sofort als das Bild
   übernommen, das bisherige zurückgezogen und aufbewahrt – kein `strom media aside --take` für jedes Bild. Mehrere
   Bilder auf einmal kosten weit weniger: `strom media save --image 40,41,45` (höchstens zehn, je eine Seite oder eine
   Adresse mit `{n}`) gibt ein kürzeres Skript für alle – jedes Bild weiter auf seiner eigenen Seite im Tempo eines
@@ -57,6 +61,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   und Dateien, die die Forschung schon hat, reisen per Verweis (ihrem Hash) statt mit allen Daten; eine Sendung, die
   eine Datei nennt, die die Forschung nicht findet, wird ganz abgewiesen, bevor etwas gespeichert wird, und die App
   sendet sie mit den Daten erneut. „Was wartet“ zeigt eine Sendung, die noch gezählt wird, nie als 0 Änderungen.
+  Mehrere Geräte an einer Forschung: eine Sendung nennt den Browser oder Computer, von dem sie kam (in
+  `strom input list`, im Verlauf und im Commit); ein Konflikt zweier Sendungen nennt beide Geräte; das Zurücknehmen
+  einer Sendung lässt einen Teil einer Angabe, den seitdem ein anderes Gerät oder die Forschung geändert hat, wie er ist,
+  und sagt es.
 - **E-Mails einer Person sind ein Kontakt, kein Wohnort:** E-Mails aus einem GEDCOM (ein Wohnort von MyHeritage nur mit
   E-Mail, die ältere Notiz „E-mail: …“ der Strom-App) werden zum Kontakt der Person, getrennt von den Fakten in `strom
   person show` und auf der Personenkarte gezeigt – nie ein Ereignis oder ein Ort, an dem die Person lebte, nie dem
@@ -68,6 +76,12 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Forschung solche Volkszählungen nicht mehr jedes Mal durchgestrichen zeigt; der Datensatz der Forschung bleibt, wie er
   geschrieben wurde. `strom check` warnt vor zwei Volkszählungen einer Person mit demselben Datum, und ein zweimal
   zitierter Eintrag steht in der Notiz des Fakts nur einmal.
+  **Religion als Angabe:** die Religion, die ein Eintrag bei einer Person nennt – als Wort in ihrer Spalte oder als
+  Zeichen darin –, wird als Angabe Religion (RELI) mit dem Eintrag als Quelle und seinem Datum erfasst, nie aus den
+  Eltern, der Pfarrei, dem Buch oder dem Ritus abgeleitet und nie aus einem nicht sicher gelesenen Wort. Ein weiterer
+  Eintrag derselben Konfession fügt der Angabe nur seine Quelle hinzu; eine gewechselte Konfession ist eine eigene
+  Angabe. Nennt die Abschrift eines eigenen Eintrags der Person eine Religion, die die Forschung noch nicht als Angabe
+  hat, erinnert das Briefing den Agenten daran, wenn er an dieser Person arbeitet.
 - **Material zu einer Personenliste:** die Strom-App kann einen Scan statt an eine Person an eine ganze Personenliste
   schicken (einen Zählbogen, eine Matrikenseite). Das Material behält die Liste so, wie sie geschickt wurde – Name,
   Art, Regel und die IDs ihrer Personen; bis zu 50 davon sind die Personen des Materials, eine längere Liste wird mit

@@ -20,6 +20,7 @@ import { canonicalize, readJsonIfExists } from "../core/json.ts";
 import { foldText } from "../core/text.ts";
 import { currentSession } from "../core/session.ts";
 import { isAgent } from "../core/which.ts";
+import { viaDevice, viaTaken } from "../core/devicevia.ts";
 import { updateChannel } from "../core/update.ts";
 import { stateOf, treeAgentHere } from "../core/state.ts";
 import { canShowDialog, systemDialog, WAIT_SECONDS, type ChoiceText, type DialogText } from "../core/dialog.ts";
@@ -595,6 +596,10 @@ export class Context {
     const session = this.env.STROM_FOR_APP === "1" ? undefined : currentSession(this.opened, this.env, this.refs);
     if (session) this.opened.actor = session.id;
     else if (isAgent(this.env) && this.env.STROM_FOR_APP !== "1") this.opened.actor = "agent";
+    // the person's write a device of the home network asked the gateway for (spec 094): the device named on each
+    // operation (via), as a send of the app names its own — never an agent's
+    const device = viaTaken(this.env) ? viaDevice(this.env) : undefined;
+    if (device) this.opened.via = device;
     // every command in a session is its sign of life: its task stays held (core/holds.ts; at most once a minute)
     if (session && !this.dryRun) beatSession(root, session, this.env, { create: true });
     // the person writes: their own terminal, or the Strom app's bridge — only then is what is theirs changed (a
@@ -622,3 +627,6 @@ export class Context {
     }
   }
 }
+
+/** (moved to core/devicevia.ts: the bridge names the device too) */
+export { viaDevice } from "../core/devicevia.ts";

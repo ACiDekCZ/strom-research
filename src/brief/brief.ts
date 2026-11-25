@@ -5,6 +5,7 @@
 // The brief has a hard token budget; sections come in priority order and
 // what does not fit is cut to a pointer: the command that shows the rest.
 
+import { religionNamed } from "../core/religion.ts";
 import { noteWhole } from "../core/model.ts";
 import { LIST_PEOPLE } from "../core/lists.ts";
 import { orderCitations } from "../core/citeorder.ts";
@@ -184,6 +185,19 @@ function notesShort(p: Person): string[] {
   return [`    note: ${noteStart(noteWhole(last), NOTE_LINE)}${p.notes.length > 1 ? ` (${p.notes.length} notes: strom person show ${p.id})` : [...noteWhole(last).replace(/\s+/gu, " ").trim()].length > NOTE_LINE ? ` (strom person show ${p.id})` : ""}`];
 }
 
+/**
+ * A religion the person's own record names in its transcript, with no RELI fact (core/religion.ts religionNamed): one
+ * line to write it down when working on them — the record's own words, never guessed; nothing when there is none.
+ */
+function religionLine(tree: Tree, p: Person): string[] {
+  const named = religionNamed(tree, p);
+  if (!named.length) return [];
+  const first = named[0]!;
+  return [
+    `    religion: the transcript of ${named.slice(0, 3).map((n) => `${n.source} says "${n.text}"`).join(", ")} — no RELI fact; if the record says it of ${p.id} clearly: strom event add ${p.id} RELI --value "${first.text}" --date <the record's> --cite ${first.source}`,
+  ];
+}
+
 /** Whom the task is about: every fact with its sources, other names, parents, families, the story — and the last notes (in short: the start of the last one). */
 function personBlock(tree: Tree, p: Person, depth: number, short = false): string[] {
   const out = [`  ${label(p)} ${p.sex}`];
@@ -201,6 +215,7 @@ function personBlock(tree: Tree, p: Person, depth: number, short = false): strin
       const kids = f.children.map((c) => tree.get<Person>(c.person)).filter(Boolean).map((x) => `${displayName(x!)}${lifespan(x!) ? ` ${lifespan(x!)}` : ""}`);
       out.push(`    ${f.id} with ${partner.join(", ") || "?"}${kids.length ? ` · children: ${kids.join(", ")}` : ""}`);
     }
+  out.push(...religionLine(tree, p));
   if (p.story) out.push(`    story: ${p.story.status}${p.story.title ? ` "${p.story.title}"` : ""}, ${p.story.text.split(/\s+/).length} words (strom story show ${p.id})`);
   if (short) return [...out, ...notesShort(p)];
   for (const n of p.notes.slice(-3)) out.push(`    note: ${noteWhole(n)}`);

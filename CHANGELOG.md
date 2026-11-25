@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.37.0
 
-*In preparation: the betas up to 1.37.0-beta.3. The section is complete with the release.*
+*In preparation: the betas up to 1.37.0-beta.4. The section is complete with the release.*
 
 - **A research's archive no longer holds a portal of strom's list:** a book whose address is on a portal strom's list
   knows (Porta fontium, Acta Publica…) no longer makes the portal as strict as the archive the book is recorded under —
@@ -39,6 +39,10 @@ The changes of each version in short. The full notes and the install lines are o
   is told it as work going on (`working[].saving`: images saved of those given). Only an image the browser held back
   waits for the person — to allow downloading several files from the site, said first — and a session that ended
   mid-way: saving stopped at its image, the next session goes on with it. Waits written before show so with no change.
+  Once the cause is gone, such a task — and one of images only a browser reaches, once the agent's browser does, or
+  only read from the screen of a viewer — goes back to the agent from What waits, one or a whole archive at once (the
+  Strom app too: `waiting[].retry` says why it waits now and how many images): first in the queue, at most three
+  times a day, and if held back again it waits once more, saying so.
   A scan saved once more with `--again` is taken as the image at once, the one there withdrawn and kept — no `strom
   media aside --take` for each image. Several images at a time cost far less: `strom media save --image 40,41,45` (at
   most ten, a page each or one address with `{n}`) gives one shorter script for them all — each image still on its own
@@ -49,7 +53,9 @@ The changes of each version in short. The full notes and the install lines are o
 - **Sends from the app lighter and faster:** a send from the Strom app is planned once instead of twice, and files the
   research already has travel by reference (their hash) instead of their whole data; a send naming a file the research
   cannot find is refused whole before anything is kept, and the app sends it again with the data. What waits never
-  shows a send still being counted as 0 changes.
+  shows a send still being counted as 0 changes. Several devices on one research: a send names the browser or computer
+  it came from (in `strom input list`, the history and the commit); a conflict of two sends names both devices; taking
+  back one send leaves a part of a fact another device or the research changed since as it is, and says so.
 - **A person's e-mails are a contact, not a residence:** e-mails from a GEDCOM (MyHeritage's residence with nothing but
   an e-mail, the Strom app's older note "E-mail: …") become the person's contact, shown apart from the facts in `strom
   person show` and on the person's card — never an event or a place the person lived, never given to the agent. Sync
@@ -59,6 +65,11 @@ The changes of each version in short. The full notes and the install lines are o
   lidu", "Volkszählung"…) goes to the Strom app as the census it is, so loading the research's version no longer shows
   such censuses struck out each time; the record in the research stays as it was written. `strom check` warns of one
   person's two censuses of the same date, and a record cited twice says its words once in the fact's note.
+  **Religion as a fact:** the religion a record writes of a person — the word in its column, or a mark there — is
+  recorded as the person's Religion (RELI), the record cited and its date with it, never inferred from the parents,
+  the parish, the book or the rite, nor from a word not read for sure. A second record of the same faith only adds its
+  citation to the fact; a changed faith is a fact of its own. Where a person's own record names a religion in its
+  transcript and the research has no fact of it, the agent's brief says so when the work is on that person.
 - **Material sent to a list of people:** the Strom app can send a scan to a whole list of people (a census sheet, a
   register page) instead of one person. The material keeps the list as it was sent — its name, kind, rule and the IDs
   of its people; up to 50 of them are the people it is of, a longer list is named with a file of all its people. The

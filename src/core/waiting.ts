@@ -22,7 +22,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { CHECK_ANSWERS, type Conflict, type Family, type Hypothesis, type Person, type RecordSet, type Repository, type Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
-import { SENDABLE, firstUrlIn, institutionGroup, repoAtHost, waitGroupOf, waitKindOf, waitPhaseOf, type WaitGroup, type WaitKind, type WaitPhase } from "./waitkind.ts";
+import { SENDABLE, firstUrlIn, institutionGroup, taskUrlOf, repoAtHost, waitGroupOf, waitKindOf, waitPhaseOf, type WaitGroup, type WaitKind, type WaitPhase } from "./waitkind.ts";
 import { archiveQuestions, archiveWaitingItems, levelWords } from "./archiveasks.ts";
 import type { PendingQuestion } from "./terms.ts";
 import { onHost } from "./archivewait.ts";
@@ -49,6 +49,7 @@ import { waitGains } from "./waitgain.ts";
 import { agentSaveWait, type AgentSaveWait } from "./ownsave.ts";
 import { loadSaves, type SaveRecord } from "./browser.ts";
 import { heldTasks } from "./holdsview.ts";
+import { retryOf, type RetryCache } from "./retry.ts";
 import { runs } from "../cli/format.ts";
 
 /** What waits: a task's kind, a question about an archive, a story, and the terminal's own (a send of the app, a question about the reading of scans). */
@@ -237,11 +238,6 @@ export interface WaitingOptions {
   gain?: boolean;
 }
 
-/** An address a person may open: http(s) only. */
-function webUrl(u: string | undefined): string | undefined {
-  return u && /^https?:\/\//iu.test(u) && URL.canParse(u) ? u : undefined;
-}
-
 /** A file of the tree's notes/ a task's words name: "notes/" where no path or word goes on before it, up to a space or ),;. */
 const NOTES_PATH_RE = /(?<![\p{L}\p{M}\p{N}_.\/\\-])notes[\/\\][^\s),;]+/gu;
 
@@ -377,14 +373,6 @@ function inboxJson(tree: Tree, t: Task, st: InboxState): Record<string, unknown>
   };
 }
 
-/** The site of a task: what it names, the check's, its book's or archive's, the first address in its words. */
-function urlOf(tree: Tree, t: Task, group: WaitGroup): string | undefined {
-  const book = t.awaits?.recordset ?? t.where.find((w) => /^B\d{4,}$/u.test(w));
-  const b = book ? tree.get<RecordSet>(book) : undefined;
-  const repo = group.kind === "archive" ? tree.get<Repository>(group.key.slice("repo:".length)) : undefined;
-  return webUrl(t.awaitsCheck?.url) ?? webUrl(t.wait?.url) ?? (t.awaits ? webUrl(b?.url) : undefined) ?? webUrl(firstUrlIn(`${t.waitingOn ?? ""}\n${t.what}`)) ?? webUrl(b?.url) ?? webUrl(repo?.url);
-}
-
 /** The one person a task is about (its subject names exactly one), for the app's badge on that person. */
 function personOf(t: Task): { person?: string } {
   const people = t.subject.filter((id) => /^P\d{1,7}$/u.test(id));
@@ -473,6 +461,8 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
   // the saves of the agent's browser and the tasks open sessions hold, read once when a task needs them
   let saves: SaveRecord[] | undefined;
   let holders: Map<string, unknown> | undefined;
+  // what returning a task to the agent reads (spec 089), once for all
+  const rc: RetryCache = { shared: o.shared };
   for (const t of tasks) {
     // a new wording proposed for a transcript the person read: the proposal and the transcript now, taken or kept in
     // the app (POST <token>/sources/proposal) or at the terminal its link opens
@@ -498,13 +488,13 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
       continue;
     }
     // images its agent's browser saves while its session holds it: the agent's work, nothing for the person (1124)
-    const own = t.awaits ? agentSaveWait(tree, t, (saves ??= loadSaves(tree.root))) : undefined;
+    const own = t.awaits ? agentSaveWait(tree, t, (saves ??= rc.saves ??= loadSaves(tree.root))) : undefined;
     if (own && !own.held.length && (holders ??= heldTasks(tree)).has(t.id)) continue;
     const kind = waitKindOf(t);
     const group = waitGroupOf(tree, t, lang);
     const phase = SENDABLE.includes(kind) ? waitPhaseOf(t) : "todo";
     const note = requestNote(tree, t);
-    const url = urlOf(tree, t, group);
+    const url = taskUrlOf(tree, t, group);
     const to = t.wait?.to?.trim() || (group.kind === "office" ? group.name : undefined);
     const inbox = inboxOf(tree, o.shared, t);
     all ??= scopes(tree);
@@ -514,6 +504,7 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
     // its book (spec 105: the app's groups by book): the one it waits for, else the one its where names
     const book = bookOfTask(tree, t);
     const audit = o.audit && audited(t) ? auditOf(tree, t, { shared: o.shared, index: (books ??= bookIndex(tree)) }) : undefined;
+    const retry = retryOf(tree, t, rc, { group, url });
     out.push({
       task: t,
       item: {
@@ -541,6 +532,9 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
         // its wait not as strom needs it (and not kept as it is by the person): the codes, the fix strom can make
         // (whole, part, none — GET /waiting/<T…>/fix says it) and what it takes the task to be (POST "expect")
         ...(audit?.findings.length && !audit.kept ? { audit: { kinds: audit.findings.map((f) => f.kind), fix: audit.fix.can, stamp: audit.fix.stamp } } : {}),
+        // images the agent could manage alone now (spec 089): returned to it from What waits — why it waits now, its
+        // images, returned before, whether it may be now (core/retry.ts)
+        ...(retry ? { retry } : {}),
       },
     });
   }

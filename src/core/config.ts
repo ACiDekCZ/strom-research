@@ -195,6 +195,8 @@ export interface UserConfig {
   liveIdleMinutes?: number;
   /** browser.tileWait: seconds a viewer's tiles are waited for while they still come (unset: 30 s, as before). */
   browserTileWait?: number;
+  /** devices.mode: on — the phone's server is also the gateway of other devices (core/devices.ts); unset: off. */
+  devicesMode?: string;
 }
 
 /** A route chosen for a connector: when, and from where (a terminal, or a command without one — an agent or the app). */
@@ -380,6 +382,10 @@ export const SETTINGS: SettingDef[] = [
   { key: "strom.version", env: "STROM_APP_VERSION", tree: true, kind: "version", description: "version of the Strom app the Strom GEDCOM is for (set by the app)" },
   { key: "connectors.consent", env: "STROM_CONNECTORS_CONSENT", tree: false, kind: "choice", choices: ["off", "on"], description: "off (default): connectors run without asking — paced by strom, only to their hosts; on: each needs the user's yes, in their terminal, to it and to each archive host" },
   { key: "browser.tileWait", env: "", tree: false, kind: "number", hidden: true, description: `seconds at most a script that saves from an archive's viewer (OpenSeadragon) through the browser waits for the viewer's tiles while they still come, ${TILE_WAIT_MIN_S} to ${TILE_WAIT_MAX_S} (${TILE_WAIT_SUGGESTED_S} suggested) — for a browser that draws the tab slowly (about a frame a second), whose images otherwise end "tiles did not all come in 30 s"; the script answers "strom-wait" meanwhile and is run again. Unset (default): 30 s` },
+  // Read from the user's config file only — no variable, no flag, no tree: turned on by the person alone in their own
+  // terminal (an agent is refused without a window, commands/setup.ts devicesDecision); off is anyone's and is stored as
+  // nothing. Hidden while it is tried: nothing says it but strom config where once it is on.
+  { key: "devices.mode", env: "", tree: false, kind: "choice", choices: ["off", "on"], hidden: true, description: "the phone's server is also the gateway of the Strom app on other devices of the home network: off (default) — the phone's page alone; on — the app for the devices, paired with a key of their own, everything between them encrypted. Turned on by the person alone in their own terminal; off keeps the devices paired" },
   { key: "browser.downloads", env: "STROM_BROWSER_DOWNLOADS", tree: false, kind: "path", description: "the folder your browser saves downloads into (default: the system's Downloads folder) — strom takes a connector's images over from there" },
   // Read from the config file only — no variable, no flag, no tree: nothing an agent can set.
   { key: "agent.permissions", env: "", tree: false, kind: "choice", choices: PERMISSION_LEVELS, description: "what the agent may do without asking you: ask (what the tree allows; anything else it asks), auto (default: what the tree allows; anything else the agent's own review decides, asking only when risky), full (everything but what the tree denies) — only you raise it" },
@@ -449,6 +455,7 @@ const FIELDS: Record<string, string> = {
   "connectors.consent": "connectorsConsent",
   "browser.downloads": "browserDownloads",
   "browser.tileWait": "browserTileWait",
+  "devices.mode": "devicesMode",
   "agent.permissions": "agentPermissions",
   "agent.where": "agentWhere",
   "agent.remote": "agentRemote",

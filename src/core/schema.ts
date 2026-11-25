@@ -163,6 +163,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     origin: S({ req: true }),
     helps: S({ max: 500 }),
     queueAt: { t: "object", of: { do: S({ req: true, enum: ["next", "last"] }), at: S({ req: true }) } },
+    retried: { t: "object", of: { at: S({ req: true }), by: S({ req: true, max: 100 }), givenIn: S({ enum: ["app"] }), times: { t: "strings" } } },
     kinds: { t: "strings" },
     proposal: { t: "object", of: { source: R("source", true), text: S({ req: true }), by: S({ req: true, max: 100 }), at: S({ req: true }), why: S({ max: 1000 }), reading: S({ max: 64 }) } },
   },

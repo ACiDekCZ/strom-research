@@ -60,6 +60,7 @@ import { parseTaskKind, TASK_KINDS, taskKind } from "../core/taskkind.ts";
 import { CENSUS_PREFIX, censusHeld, censusProposal } from "../core/census.ts";
 import { closeCoverage, coverageLine } from "../core/coverage.ts";
 import { loadSaves, storeSaves } from "../core/browser.ts";
+import { RETRY_KEPT, RETRY_MAX, retryOf, type RetryCache } from "../core/retry.ts";
 
 
 function written(tree: Tree): string {
@@ -495,6 +496,65 @@ function stateChange(tree: Tree, ref: string, state: Task["state"], fields: Part
     }
     return next;
   }, { op: `task.${verb}`, summary: `${id} ${verb}${fields.result ? `: ${truncate(fields.result, 60)}` : ""}`, reason });
+}
+
+/**
+ * strom task wake T… --retry (spec 089): the person returns waiting tasks to the agent from What waits — each one
+ * core/retry.ts offers, all or none, under one lock: open, first in the queue once (the same time for all: the queue's
+ * order between them), `retried` kept (the queue counts only the sessions after it), a note of what it waited on, the
+ * browser's saves of it not taken dropped. No answer is written.
+ */
+function retryWake(ctx: Context, args: string[], opts: Record<string, unknown>): { text: string; data: Record<string, unknown> } {
+  if ((typeof opts.answer === "string" && opts.answer.trim()) || opts.check !== undefined)
+    throw new UsageError("--retry returns tasks to the agent with no answer — not with --answer or --check", { hint: "strom task wake T… --retry", code: "task.retry-answer" });
+  const ids = [...new Set(args.map((a) => normId(a, "task")))];
+  if (!ids.length) throw new UsageError("which tasks — strom task wake T… --retry");
+  const expect = typeof opts.expect === "string" ? opts.expect : undefined;
+  if (expect !== undefined && ids.length > 1) throw new UsageError("--expect goes with one task", { hint: `strom task wake ${ids[0]} --retry --expect <at>` });
+  // the person's alone: strom's menu at their terminal, the Strom app's bridge — never an agent, nor a session's strom
+  if (isAgent(ctx.env) || (ctx.env.STROM_SESSION && ctx.env.STROM_FOR_APP !== "1"))
+    throw new UsageError(`returning a task to the agent is the person's (What waits: strom's menu, the Strom app) — never an agent's`, {
+      hint: "go on with other work; a task that waits comes back when the person returns it or answers it",
+      code: "task.retry-person",
+      params: { tasks: ids.join(", ") },
+    });
+  const fromApp = ctx.env.STROM_FOR_APP === "1";
+  const tree = ctx.tree();
+  const shared = ctx.settings.shared()?.value;
+  const why = [opts.reason, opts.note].find((v): v is string => typeof v === "string" && !!v.trim())?.trim();
+  return tree.withTreeLock(() => {
+    const at = now();
+    const saves = loadSaves(tree.root);
+    const cache: RetryCache = { shared, saves, now: Date.parse(at) };
+    const before = ids.map((id) => requireRecord<Task>(tree, id, "task"));
+    for (const t of before) {
+      if (t.state !== "waiting") throw new UsageError(`${t.id} does not wait (it is ${t.state}) — nothing to return to the agent`, { hint: `strom task show ${t.id}`, code: "task.not-waiting", params: { task: t.id } });
+      if (expect !== undefined && expect !== t.updated)
+        throw new UsageError(`${t.id} changed since (${t.updated}, not ${expect}) — nothing written`, { hint: `strom task show ${t.id}`, code: "task.changed", params: { task: t.id, at: t.updated } });
+      const r = retryOf(tree, t, cache);
+      if (!r)
+        throw new UsageError(`${t.id} waits for what the agent cannot manage alone (a letter, the family, a check of a site, an archive's permission, a request sent, images only the person saves) — not returned to the agent`, {
+          hint: `strom task show ${t.id}`,
+          code: "task.retry-not",
+          params: { task: t.id },
+        });
+      if (!r.can)
+        throw new UsageError(`${t.id} was returned to the agent ${RETRY_MAX} times within a day — again after ${r.until}`, { hint: `strom task show ${t.id}`, code: "task.retry-limit", params: { task: t.id, until: r.until ?? "" } });
+    }
+    const lang = tree.lang;
+    const done = before.map((t) => {
+      const on = truncate(waitOnNow(tree, t, saves) || t.what, 300);
+      const note: Note = { text: phrase(lang, fromApp ? "retry.note.app" : "retry.note", { on }), at, by: tree.actor };
+      const retried: NonNullable<Task["retried"]> = { at, by: tree.actor, ...(fromApp ? { givenIn: "app" as const } : {}), times: [...(t.retried?.times ?? []), at].slice(-RETRY_KEPT) };
+      return stateChange(tree, t.id, "open", { queueAt: { do: "next", at }, retried }, why ?? "returned to the agent from What waits", "wake", [note]);
+    });
+    // what the agent's browser was to save for them and never did: the next session saves it anew
+    if (!tree.dryRun) {
+      const rest = saves.filter((r) => !ids.includes(r.task) || r.taken !== undefined);
+      if (rest.length < saves.length) storeSaves(tree.root, rest);
+    }
+    return { text: written(tree), data: { tasks: done, at, ...(done.length === 1 ? { task: done[0] } : {}) } };
+  });
 }
 
 /** Tasks still to be done — the ones a new task must not repeat. */
@@ -1208,17 +1268,27 @@ register(
       "the task apart from its notes, with what it asked, so the agent reads it in its brief as the person's answer. A\n" +
       "task that waits for the user's check of a site comes back only with their answer.\n" +
       "The answer may come from the Strom app too (its What waits, through the bridge: POST /waiting/<T…> {\"do\":\n" +
-      "\"answer\"}) — kept the same, marked as given in the app (via app); the bridge runs this then, never an agent.",
-    args: [{ name: "task", description: "task ID", required: true }],
+      "\"answer\"}) — kept the same, marked as given in the app (via app); the bridge runs this then, never an agent.\n" +
+      "--retry: the person returns waiting tasks to the agent from What waits (strom's menu, the Strom app: POST\n" +
+      "/waiting/<T…> or /group/<key> {\"do\":\"retry\"}) — images of an archive only a browser reaches, once the cause is\n" +
+      "gone (the browser held the downloads back, the agent's session ended, the agent's browser reaches the archive now,\n" +
+      "a viewer only read from the screen). No answer is written; each goes first in the queue, once (several in the\n" +
+      "queue's order), its earlier sessions not counted against it. A running strom run takes it, else it waits in the\n" +
+      "queue. Never a letter, the family, a check of a site, an archive's permission, a request sent. At most 3 returns of\n" +
+      "a task a day (task.retry-limit); all the tasks or none. The person's alone: an agent never runs it.",
+    args: [{ name: "task", description: "task ID (with --retry: several)", required: true, variadic: true }],
     options: [
       { name: "answer", type: "string", value: "<text>", description: "the user's answer to what the task waited for (the user's alone; at most 4000 characters)" },
       { name: "expect", type: "string", value: "<at>", description: "only if the task is still as it was then (its updated time): else refused, task.changed (the bridge's answer from the app)" },
       { name: "check", type: "string", value: "works|view|no", description: "the user's answer to a check of a site: works, view (only to be viewed there), no (the user's alone)" },
+      { name: "retry", type: "boolean", description: "return waiting tasks to the agent (images it may manage now; the person's alone, from What waits): first in the queue, no answer written" },
       // what agents type for --reason here (the write option every writing command has): taken as it
       { name: "note", type: "string", value: "<text>", description: "the same as --reason: why it comes back", hidden: true },
     ],
-    examples: ["strom task wake T0002", 'strom task wake T0003 --answer "https://archive.example.org/book/5359"', 'strom task wake T0004 --check view --answer "the book is there, its images only in the viewer"'],
+    examples: ["strom task wake T0002", 'strom task wake T0003 --answer "https://archive.example.org/book/5359"', 'strom task wake T0004 --check view --answer "the book is there, its images only in the viewer"', "strom task wake T0005 T0006 --retry"],
     run(ctx, { args, opts }) {
+      if (opts.retry === true) return retryWake(ctx, args, opts);
+      if (args.length > 1) throw new UsageError(`one task at a time — several only with --retry (the person's, from What waits)`, { hint: `strom task wake ${args[0]}` });
       const tree = ctx.tree();
       const id = normId(args[0]!, "task");
       const answer = typeof opts.answer === "string" && opts.answer.trim() ? opts.answer.trim() : undefined;

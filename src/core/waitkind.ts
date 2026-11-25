@@ -272,6 +272,20 @@ function hostOf(url: string | undefined): string | undefined {
   return h ? h.replace(/^www\./, "") : undefined;
 }
 
+
+/** An address a person may open: http(s) only. */
+export function webUrl(u: string | undefined): string | undefined {
+  return u && /^https?:\/\//iu.test(u) && URL.canParse(u) ? u : undefined;
+}
+
+/** The site of a task: what it names, the check's, its book's or archive's, the first address in its words. */
+export function taskUrlOf(tree: Tree, t: Task, group: WaitGroup = waitGroupOf(tree, t)): string | undefined {
+  const book = t.awaits?.recordset ?? t.where.find((w) => /^B\d{4,}$/u.test(w));
+  const b = book ? tree.get<RecordSet>(book) : undefined;
+  const repo = group.kind === "archive" ? tree.get<Repository>(group.key.slice("repo:".length)) : undefined;
+  return webUrl(t.awaitsCheck?.url) ?? webUrl(t.wait?.url) ?? (t.awaits ? webUrl(b?.url) : undefined) ?? webUrl(firstUrlIn(`${t.waitingOn ?? ""}\n${t.what}`)) ?? webUrl(b?.url) ?? webUrl(repo?.url);
+}
+
 /** The one place where a waiting task is dealt with (see the top of this file). */
 export function waitGroupOf(tree: Tree, task: Task, lang: string = tree.lang): WaitGroup {
   const kind = waitKindOf(task);

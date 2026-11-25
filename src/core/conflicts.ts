@@ -1,7 +1,8 @@
 // A conflict of the user's edit in the Strom app with what the research holds: its two sides, the user's and the
 // research's — what `strom conflict resolve --take user|research` decides by.
 
-import type { Conflict, Family, Person } from "./model.ts";
+import type { AppClient, Conflict, Family, Person } from "./model.ts";
+import { ui, type UIKey } from "../cli/ui.ts";
 import { UsageError } from "./errors.ts";
 import type { Tree } from "./tree.ts";
 import { claimText } from "./people.ts";
@@ -135,4 +136,17 @@ export function againAllowed(tree: Tree, c: Conflict, how: { reason?: string | u
         params,
       });
   }
+}
+
+/**
+ * A conflict of two sends of the Strom app (spec 094 K2.2) as a person reads it: the device of the earlier send whose
+ * edit the research holds and of the later one that opened it — a device that named none by its place in time. None in
+ * any other conflict (an agent's or a record's value against the user's edit).
+ */
+export function sentDevices(lang: string, c: Conflict): { earlier: string; later: string } | undefined {
+  const research = claimOf(c, "research")?.sent;
+  if (!research) return undefined;
+  const user = claimOf(c, "user")?.sent;
+  const label = (x: AppClient | undefined, none: UIKey) => (x ? (x.name ?? x.id.slice(0, 8)) : ui(lang, none));
+  return { earlier: label(research.client, "ui.conflict.device.earlier"), later: label(user?.client, "ui.conflict.device.later") };
 }

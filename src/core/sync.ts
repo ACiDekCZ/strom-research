@@ -23,13 +23,13 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { CHILD_RELATIONS, EVENT_KINDS as FACT_KINDS, NOTE_MAX, UNIONS, eventKind, noteWhole, treeNoteText, type ChildLink, type UncitedEntry, type EventShare, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Media, type MediaLink, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Sex, type ShorterNote, type Source, type Task, type Union, type ValueOrigin } from "./model.ts";
+import { CHILD_RELATIONS, EVENT_KINDS as FACT_KINDS, NOTE_MAX, UNIONS, eventKind, noteWhole, treeNoteText, type ChildLink, type UncitedEntry, type EventShare, type ChildRelation, type Citation, type Conflict, type Event, type Family, type AppClient, type Input, type Media, type MediaLink, type Name, type Note, type OriginalIds, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Sex, type ShorterNote, type Source, type Task, type Union, type ValueOrigin } from "./model.ts";
 import { composedPage, locatorOverlap, sourceCallNumber, sourceImage } from "./sourcefields.ts";
 import { checkStatus, isCompiled } from "./evidence.ts";
 import { deletedSource, retractSources, restoreSources, RETRACT_MOST } from "./sourceretract.ts";
 import { clearRemoved } from "./citeorder.ts";
 import { phrase } from "./phrases.ts";
-import { addChild, addEvent, addFamily, addName, addNote, editEvent, editPerson, markPrimaryName, retractEvent, retractPerson } from "./actions.ts";
+import { addChild, addEvent, addFamily, addName, addNote, editEvent, editPerson, findEventOwner, markPrimaryName, retractEvent, retractPerson } from "./actions.ts";
 import { exportGedcom, REFN_TYPE } from "../gedcom/export.ts";
 import { children, parseGedcomText, val, type GedNode } from "../gedcom/parse.ts";
 import { APP_COUPLE_EVENTS, APP_EVENTS, appEventMarks, appLooseFamilies, appMarriedName, appNobody, appParticipants, appPersonEvent, appUnionFacts, childRelation, detailLine, factDetails, fromFlexDate, importDate, partnersAges, marnmNames, readGedName, readGedSex, stromAppFile, type StromEvent } from "./import.ts";
@@ -43,15 +43,15 @@ import { hasHouseMark } from "./streets.ts";
 import { eventMarksOf, gedcomRole, participantRole, roleWord } from "./roles.ts";
 import { LABELS, labels, type LabelKey } from "../gedcom/labels.ts";
 import { eventName, humanDate, humanDay } from "../cli/human.ts";
-import { ui } from "../cli/ui.ts";
+import { ui, type UIKey } from "../cli/ui.ts";
 import { kindOfLabel } from "./labelkind.ts";
 import { StromError, UsageError } from "./errors.ts";
 import * as git from "./git.ts";
-import { now, Tree, typeOfId } from "./tree.ts";
+import { now, Tree, typeOfId, type Op } from "./tree.ts";
 import { verifyConfirm } from "./verify.ts";
 import { nameEid, parseNameEid } from "./namestatus.ts";
 import { actsAsArchive } from "./state.ts";
-import { appSides } from "./conflicts.ts";
+import { appSides, claimOf } from "./conflicts.ts";
 import { userReading } from "./readers.ts";
 import { applyProposal, changedPerson, deletedImportSource, FACT_PARTS, factChanges, importSourceFor, importsOfHead, knownImportSource, markUnder, NAME_PARTS, originOfMark, personChangedFact, primaryVerdict, proposedLine, proposeFact, proposeName, proposePrimary, proposeRetract, proposeSex, researchChangedFact, verdictOf, type FactPart, type ImportMark, type ImportOf } from "./origin.ts";
 import { APP_DATA_SEX_UNKNOWN, APP_DATA_SOURCE_FIELDS, appDataDecidesShares, appDataMainCitation, appDataPartNotes, appReadsMainCitation, appReadsNameStatus, appSendsPartNotes, appSendsUncite, appDecidesShares, appKeepsPeriods, appKeepsSourceFields, appKnowsPrimaryName, appReadsLines, appReadsSurnameGroups, appShowsVerify, isAppVersion } from "./stromapp.ts";
@@ -347,6 +347,11 @@ export interface Snapshot {
   sexU?: true;
   /** The tree of the Strom app it is (_STROM_APP_TREE): its own browser, profile or computer. */
   appTree?: string;
+  /**
+   * The device of the Strom app that sent it (spec 094; HEAD `1 _STROM_CLIENT <id>` with `2 NAME <name>`, the JSON's
+   * `research.client`): its own ID and a name to read it by.
+   */
+  client?: AppClient;
   /** The imports of family trees the Strom app's file names (HEAD `1 _STROM_IMPORT Ix`, spec 066): by key. */
   imports?: Map<string, ImportOf>;
   /** The send this copy is a copy of, with the user's edits since (_STROM_SINCE R…): their edits are counted against it. */
@@ -1194,6 +1199,8 @@ export function readGedcom(text: string, lang = "en", opts: ReadOptions = {}): S
   // SEX U where the sex is unknown in the app (its header's mark, an app from 3.10.0-beta.11): no guess of it (U01)
   const sexU = fromApp.sexUnknown;
   const appTree = val(head, "_STROM_APP_TREE")?.trim();
+  const device = head ? children(head, "_STROM_CLIENT")[0] : undefined;
+  const client = device ? appClient(device.value, val(device, "NAME"), (why) => problems.push(why)) : undefined;
   const since = val(head, "_STROM_SINCE")?.trim();
   const again = val(head, "_STROM_AGAIN")?.trim();
   // the sources the person deleted in the app (spec 117 K1.4): an older strom passes the lines by, as any mark it does not know
@@ -1217,6 +1224,7 @@ export function readGedcom(text: string, lang = "en", opts: ReadOptions = {}): S
     ...(sexU ? { sexU: true as const } : {}),
     ...(imports?.size ? { imports } : {}),
     ...(appTree && SEND_MARK.test(appTree) ? { appTree } : {}),
+    ...(client ? { client } : {}),
     ...(since && /^R\d{17}-[0-9a-f]{4}$/.test(since) ? { since } : {}),
     ...(again && /^R\d{17}-[0-9a-f]{4}$/.test(again) ? { again } : {}),
     ...(sourcesDeleted.length ? { sourcesDeleted } : {}),
@@ -1352,7 +1360,7 @@ interface AppPartnership {
 
 /** A tree of the Strom app (its JSON) as a snapshot. */
 export function readStromJson(data: unknown, lang = "en"): Snapshot {
-  const d = data as { version?: unknown; persons?: Record<string, AppPerson>; partnerships?: Record<string, AppPartnership>; places?: Record<string, { lat?: unknown; lon?: unknown }>; sources?: Record<string, AppSource>; research?: { id?: string; head?: string; transcripts?: string; sexU?: unknown } };
+  const d = data as { version?: unknown; persons?: Record<string, AppPerson>; partnerships?: Record<string, AppPartnership>; places?: Record<string, { lat?: unknown; lon?: unknown }>; sources?: Record<string, AppSource>; research?: { id?: string; head?: string; transcripts?: string; sexU?: unknown; client?: { id?: unknown; name?: unknown } } };
   if (!d || typeof d !== "object" || !d.persons || typeof d.persons !== "object") throw new UsageError("not a family tree of the Strom app: no persons in it", { code: "tree.unreadable" });
   // the sex "unknown" is the user's (U01): a sex of its own from the app's data version 12 (its 3.10.0-beta.11), never
   // a guess of it; before it, only where the research's unknown stood beside the app's stand-in (research.sexU)
@@ -1632,7 +1640,8 @@ export function readStromJson(data: unknown, lang = "en"): Snapshot {
   }
   const r = d.research;
   const transcripts = r?.transcripts === "evidence" ? "evidence" : "lead";
-  return { format: "strom-json", ...(r?.id ? { treeId: r.id } : {}), ...(r?.head ? { head: r.head } : {}), persons, families, places, sources, transcripts, ...(sexU ? { sexU: true as const } : {}), ...(fieldsKept ? { fieldsKept: true as const } : {}), ...(typeof d.version === "number" ? { dataVersion: d.version } : {}), problems };
+  const client = r?.client && typeof r.client === "object" ? appClient(r.client.id, r.client.name, (why) => problems.push(why)) : undefined;
+  return { format: "strom-json", ...(r?.id ? { treeId: r.id } : {}), ...(r?.head ? { head: r.head } : {}), ...(client ? { client } : {}), persons, families, places, sources, transcripts, ...(sexU ? { sexU: true as const } : {}), ...(fieldsKept ? { fieldsKept: true as const } : {}), ...(typeof d.version === "number" ? { dataVersion: d.version } : {}), problems };
 }
 
 /**
@@ -1771,6 +1780,8 @@ export interface Received {
   tree?: string;
   /** The app's mark of the state it sent (`_STROM_SENT`). */
   sent?: string;
+  /** The device of the app that sent it (`_STROM_CLIENT`, spec 094). */
+  client?: AppClient;
   /** How the user's transcripts count (`_STROM_TRANSCRIPTS`): lead unless the app says evidence. */
   transcripts: "lead" | "evidence";
   /** Changes it brings against the research at `counted` (its head then). */
@@ -1943,13 +1954,83 @@ export function mediaWritten(changes: readonly Change[], skipped: readonly Pick<
 /** What the app may say of a send in the file's HEAD: only these shapes are taken, anything else is ignored. */
 const SEND_MARK = /^[A-Za-z0-9._:-]{1,64}$/;
 
+/**
+ * A device of the Strom app as a send names it (spec 094): its ID as a send's marks are (1–64 letters, digits, . _ : -),
+ * its name in NFC with no control or direction marks, at most 60 characters as a person reads them. A name of broken
+ * text (U+FFFD, half a surrogate pair) is none: the device goes by its ID (`problem` says why).
+ */
+export function appClient(id: unknown, name: unknown, problem?: (why: string) => void): AppClient | undefined {
+  const key = typeof id === "string" ? id.trim() : "";
+  if (!SEND_MARK.test(key)) return undefined;
+  let said: string | undefined;
+  if (typeof name === "string" && name.trim()) {
+    // with the u flag a surrogate matches only alone (a pair is one character)
+    if (/[\uFFFD\uD800-\uDFFF]/u.test(name)) problem?.(`the name of the device ${key} could not be read: the device goes by its ID`);
+    else {
+      const clean = name.normalize("NFC").replace(/[\p{Cc}\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\u2028\u2029]/gu, " ").replace(/\s+/gu, " ").trim();
+      const parts = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(clean)].map((x) => x.segment);
+      said = (parts.length <= 60 ? clean : parts.slice(0, 60).join("").trim()) || undefined;
+    }
+  }
+  return { id: key, ...(said ? { name: said } : {}) };
+}
+
+/**
+ * A send as the device it came from is known (spec 094 K2.2): the gateway of the devices names a paired device to the
+ * bridge, so the send's own words of its device go — HEAD's `1 _STROM_CLIENT` with what is under it (a GEDCOM), the
+ * JSON's research.client — and the paired device's are written instead: a device never sends as another. Anything not a
+ * GEDCOM or the app's JSON is left as it came; a GEDCOM's line ends (CRLF) and its BOM are kept.
+ */
+export function withSendClient(text: string, client: AppClient): string {
+  const bom = text.startsWith("\uFEFF") ? "\uFEFF" : "";
+  const body = text.slice(bom.length);
+  if (/^\s*0\s+HEAD(?:\s|$)/.test(body)) {
+    const eol = body.includes("\r\n") ? "\r\n" : "\n";
+    const lines = body.split(/\r?\n/);
+    const at = lines.findIndex((l) => /^\s*0\s+HEAD(?:\s|$)/.test(l));
+    const next = lines.findIndex((l, i) => i > at && /^\s*0\s/.test(l));
+    const end = next < 0 ? lines.length : next;
+    const head: string[] = [];
+    for (let i = at + 1; i < end; i++) {
+      if (!/^\s*1\s+_STROM_CLIENT(?:\s|$)/.test(lines[i]!)) {
+        head.push(lines[i]!);
+        continue;
+      }
+      // the line and what is under it (its NAME)
+      while (i + 1 < end && /^\s*(?:[2-9]|\d{2,})\s/.test(lines[i + 1]!)) i++;
+    }
+    const said = [`1 _STROM_CLIENT ${client.id}`, ...(client.name ? [`2 NAME ${client.name}`] : [])];
+    return bom + [...lines.slice(0, at + 1), ...said, ...head, ...lines.slice(end)].join(eol);
+  }
+  let d: unknown;
+  try {
+    d = JSON.parse(body);
+  } catch {
+    return text;
+  }
+  if (!d || typeof d !== "object" || Array.isArray(d)) return text;
+  const doc = d as { research?: unknown };
+  const research = doc.research && typeof doc.research === "object" && !Array.isArray(doc.research) ? (doc.research as Record<string, unknown>) : {};
+  doc.research = { ...research, client: { id: client.id, ...(client.name ? { name: client.name } : {}) } };
+  return JSON.stringify(doc);
+}
+
+/** A device as a person reads it: its name, else the first letters of its ID. */
+export function clientLabel(c: AppClient): string {
+  return c.name ?? c.id.slice(0, 8);
+}
+
 /** The app's words on a send (HEAD of its GEDCOM): its tree, its mark of the state, how its transcripts count. */
-export function sendMarks(text: string): { tree?: string; sent?: string; transcripts: "lead" | "evidence" } {
+export function sendMarks(text: string): { tree?: string; sent?: string; client?: AppClient; transcripts: "lead" | "evidence" } {
   const head = /^﻿?\s*0\s+HEAD[^\n]*\n((?:[1-9][^\n]*\n)*)/.exec(text.replace(/\r\n?/g, "\n"))?.[1] ?? "";
   const tag = (t: string) => new RegExp(`^1 ${t} +(.+?) *$`, "m").exec(head)?.[1];
   const tree = tag("_STROM_APP_TREE");
   const sent = tag("_STROM_SENT");
+  // the device that sent it (spec 094): `1 _STROM_CLIENT <id>`, its name on the line under it (`2 NAME …`)
+  const device = /^1 _STROM_CLIENT +(.+?) *\n(?:2 NAME +(.*?) *(?:\n|$))?/m.exec(head);
+  const client = device ? appClient(device[1], device[2]) : undefined;
   return {
+    ...(client ? { client } : {}),
     ...(tree && SEND_MARK.test(tree) ? { tree } : {}),
     ...(sent && SEND_MARK.test(sent) ? { sent } : {}),
     transcripts: tag("_STROM_TRANSCRIPTS")?.toLowerCase() === "evidence" ? "evidence" : "lead",
@@ -2172,6 +2253,19 @@ export interface SyncConflict {
   take?: true;
   sides?: { user: string; research: string };
   raw?: { user: string; research: string };
+  /**
+   * A conflict of two sends (spec 094 K2.2): the research's value an earlier send of the user wrote — its input and the
+   * device it came from — against this send's device. None where an agent or a record gave the research's value.
+   */
+  sent?: { user: { client?: AppClient }; research: { input?: string; client?: AppClient } };
+}
+
+/** The devices of a conflict of two sends (spec 094 K2.2), as the app is told them. */
+export function sentSides(c: Conflict): { sent?: SyncConflict["sent"] } {
+  const research = claimOf(c, "research")?.sent;
+  if (!research) return {};
+  const user = claimOf(c, "user")?.sent;
+  return { sent: { user: user?.client ? { client: user.client } : {}, research: { ...(research.input ? { input: research.input } : {}), ...(research.client ? { client: research.client } : {}) } } };
 }
 
 /** The conflicts the sync of this input opened that still wait for the user's decision. */
@@ -2186,7 +2280,7 @@ export function syncConflicts(tree: Tree, input: string): SyncConflict[] {
     const person = x.subject.find((s) => s.startsWith("P"));
     const family = x.subject.find((s) => s.startsWith("F"));
     const partner = person ?? (family ? tree.list<Family>("family").find((f) => f.id === family)?.partners[0] : undefined);
-    out.push({ id: x.id, ...(partner ? { person: partner } : {}), ...(family ? { family } : {}), ...(x.fact ? { fact: x.fact } : {}), ...appSides(tree, x) });
+    out.push({ id: x.id, ...(partner ? { person: partner } : {}), ...(family ? { family } : {}), ...(x.fact ? { fact: x.fact } : {}), ...appSides(tree, x), ...sentSides(x) });
   }
   return out;
 }
@@ -2456,6 +2550,7 @@ export function recentSends(root: string, tree?: Tree, days = 7, max = 20): Reco
       ...(r.counting ? {} : { changes: r.changes }),
       ...(r.tree ? { tree: r.tree } : {}),
       ...(r.sent ? { sent: r.sent } : {}),
+      ...(r.client ? { client: r.client } : {}),
       ...(r.input ? { input: r.input } : {}),
       ...(r.again ? { again: r.again } : {}),
       // taken back, then sent again and written: the research's again — nothing to send again
@@ -5890,6 +5985,12 @@ export interface Applied {
    * against the scan before (null none) and the tasks of verification as they were before it (JSON {confirmed, tasks}).
    */
   before?: SFact | string;
+  /**
+   * event.edit: the fact's date, place and value as the sync wrote them; event.detail: the details it wrote (JSON, the
+   * keys of `before`). An undo takes back only what it changed and what nobody changed since (another device's send, the
+   * research) — a sync before spec 094 kept none: the fact as it was before, whole.
+   */
+  after?: SFact | string;
   /** sex.edit: where the sex came from before (spec 066; an undo puts it back — a sync before it kept none: as it is). */
   prior?: { sexOrigin?: Person["sexOrigin"]; sexWas?: Person["sexWas"] };
 }
@@ -5916,7 +6017,8 @@ export interface SyncProposal {
 
 export interface SyncInput extends Input {
   /** `asked`: the conflicts open already that the send asked again (the same question): told the app as its own. */
-  sync?: { head?: string; edits: "conflict" | "user"; applied: Applied[]; undone?: string; asked?: string[] };
+  /** `client`: the device of the Strom app that sent it (spec 094), none of an older app or a file. */
+  sync?: { head?: string; edits: "conflict" | "user"; applied: Applied[]; undone?: string; asked?: string[]; client?: AppClient };
 }
 
 /**
@@ -6132,7 +6234,7 @@ export function applySync(
       return;
     }
     editEvent(tree, mine.id, detailEdit(Object.fromEntries(changed.map((d) => [d.startsWith("ages:") ? `ages:${who(d.slice(5))}` : d, fd[d]!]))), why);
-    applied.push({ do: "event.detail", id: mine.id, before: JSON.stringify(Object.fromEntries(changed.map((d) => [d.startsWith("ages:") ? `ages:${who(d.slice(5))}` : d, md[d] ?? ""]))) });
+    applied.push({ do: "event.detail", id: mine.id, before: JSON.stringify(Object.fromEntries(changed.map((d) => [d.startsWith("ages:") ? `ages:${who(d.slice(5))}` : d, md[d] ?? ""]))), after: detailsNow(tree, mine.id, changed.map((d) => (d.startsWith("ages:") ? `ages:${who(d.slice(5))}` : d))) });
   };
   /** What a change of a fact carries that a proposal of it does not: its details changed, and — the fact replaced — who it names. */
   const beyondProposal = (c: Change, mine: Event): string[] => {
@@ -6424,7 +6526,7 @@ export function applySync(
             const change = { date: c.fact.date ?? mine.date ?? "", place: c.fact.place ?? mine.place ?? "", ...(c.fact.value ? { value: c.fact.value } : {}) };
             if (proposedFact(c, mine, change)) break;
             editEvent(tree, mine.id, { ...change, ...(person ? {} : { mark: (b: Event, n: Event) => researchChangedFact(tree, b, n, undefined) }) }, `added from ${reason}`);
-            applied.push({ do: "event.edit", id: mine.id, before: { kind: mine.kind, ...(mine.date ? { date: mine.date } : {}), ...(mine.place ? { place: mine.place } : {}), ...(mine.value ? { value: mine.value } : {}), prior: { ...(mine.origin ? { origin: mine.origin } : {}), ...(mine.was ? { was: mine.was } : {}) } } });
+            applied.push({ do: "event.edit", id: mine.id, before: { kind: mine.kind, ...(mine.date ? { date: mine.date } : {}), ...(mine.place ? { place: mine.place } : {}), ...(mine.value ? { value: mine.value } : {}), prior: { ...(mine.origin ? { origin: mine.origin } : {}), ...(mine.was ? { was: mine.was } : {}) } }, after: factNow(tree, mine) });
             // its details the file changes with it: written too, after it (an undo puts them back first)
             writeDetails(c, c.fact, mine, `added from ${reason}`);
             // the research's own citations come back with it: only a source the user gave it more speaks for the addition
@@ -6462,7 +6564,7 @@ export function applySync(
             const gr = graded(theirs, c.fact);
             lift(owner, eventById(tree, mine.id) ?? mine, gr);
             toCheck(owner, gr);
-            applied.push({ do: "event.edit", id: mine.id, before: { kind: mine.kind, ...(mine.date ? { date: mine.date } : {}), ...(mine.place ? { place: mine.place } : {}), ...(mine.value ? { value: mine.value } : {}), prior: { ...(mine.origin ? { origin: mine.origin } : {}), ...(mine.was ? { was: mine.was } : {}) } } });
+            applied.push({ do: "event.edit", id: mine.id, before: { kind: mine.kind, ...(mine.date ? { date: mine.date } : {}), ...(mine.place ? { place: mine.place } : {}), ...(mine.value ? { value: mine.value } : {}), prior: { ...(mine.origin ? { origin: mine.origin } : {}), ...(mine.was ? { was: mine.was } : {}) } }, after: factNow(tree, mine) });
             // its cause, age or house the file changes with it: written too, after it — an undo puts them back first
             // (found by the verification of 066 U3: the date written, the cause changed with it lost, at the person's own
             // sync too)
@@ -6519,7 +6621,7 @@ export function applySync(
             op: "event.cite",
             summary: `${mine.id} cites ${source.id}`,
           });
-          applied.push({ do: "event.detail", id: mine.id, before: JSON.stringify(Object.fromEntries(changed.map((d) => [d.startsWith("ages:") ? `ages:${who(d.slice(5))}` : d, md[d] ?? ""]))) });
+          applied.push({ do: "event.detail", id: mine.id, before: JSON.stringify(Object.fromEntries(changed.map((d) => [d.startsWith("ages:") ? `ages:${who(d.slice(5))}` : d, md[d] ?? ""]))), after: detailsNow(tree, mine.id, changed.map((d) => (d.startsWith("ages:") ? `ages:${who(d.slice(5))}` : d))) });
           break;
         }
         case "fact.cite": {
@@ -7754,14 +7856,43 @@ function parentsText(tree: Tree, incoming: Snapshot, keys: string[]): string {
   return keys.map(shown).join(" & ") || "?";
 }
 
+/**
+ * The earlier send of the Strom app whose edit a fact of the research is now (spec 094 K2.2): the newest send not taken
+ * back that wrote it, its value still as that send left it — its input and device. None when someone changed it since
+ * (an agent, the person by hand) or the value is not the user's (an agent's, a record's).
+ */
+export function sentBefore(tree: Tree, event: string): { input: string; client?: AppClient } | undefined {
+  const now = eventById(tree, event);
+  if (!now) return undefined;
+  const sends = tree
+    .list<SyncInput>("input")
+    .filter((i) => i.sync && !i.sync.undone)
+    .sort((a, b) => b.created.localeCompare(a.created) || b.id.localeCompare(a.id));
+  for (const i of sends) {
+    const wrote = i.sync!.applied.filter((a) => a.id === event && (a.do === "event.edit" || a.do === "event.add" || a.do === "event.detail"));
+    if (!wrote.length) continue;
+    const edit = wrote.find((a) => a.do === "event.edit");
+    const after = edit && typeof edit.after === "object" ? edit.after : undefined;
+    // changed since that send (by the research, by hand): the research's value, not the send's; a send that kept no
+    // value it wrote (one that added the fact, one before spec 094): the send's while the value is the user's
+    if (after ? (["date", "place", "value"] as const).some((f) => (now[f] ?? "") !== (after[f] ?? "")) : now.origin?.by !== "user") return undefined;
+    return { input: i.id, ...(i.sync!.client ? { client: i.sync!.client } : {}) };
+  }
+  return undefined;
+}
+
 function conflictOfEdit(tree: Tree, applied: Applied[], owner: string, fact: string, title: string, claims: Conflict["claims"], edit?: Conflict["edit"], parents?: Conflict["parents"], primary?: true): { was?: string; open?: string } {
+  // the research's value an earlier send of the user's wrote (spec 094 K2.2): both sides named by the devices they came from
+  const event = edit?.event ?? /^the research: (E\d+)$/.exec(claims[0]?.note ?? "")?.[1];
+  const before = event && claims[1]?.note === "the user's edit" ? sentBefore(tree, event) : undefined;
+  if (before) claims = [{ ...claims[0]!, sent: before }, { ...claims[1]!, sent: tree.via ? { client: tree.via } : {} }, ...claims.slice(2)];
   const [ours, theirs] = claims;
   const open = tree
     .list<Conflict>("conflict")
     .find((x) => x.state === "open" && x.fact === fact && !!x.primary === !!primary && x.subject[0] === owner && x.claims.length === 2 && x.claims[0]!.note === ours!.note && x.claims[0]!.value === ours!.value && x.claims[1]!.note === theirs!.note);
   if (open) {
     if (open.claims[1]!.value === theirs!.value) return { open: open.id };
-    update<Conflict>(tree, open.id, "conflict", (x) => ({ ...x, title: title.slice(0, 200), claims: [x.claims[0]!, theirs!], ...(edit ? { edit } : {}), ...(parents ? { parents } : {}) }), {
+    update<Conflict>(tree, open.id, "conflict", (x) => ({ ...x, title: title.slice(0, 200), claims: [ours!.sent ? { ...x.claims[0]!, sent: ours!.sent } : x.claims[0]!, theirs!], ...(edit ? { edit } : {}), ...(parents ? { parents } : {}) }), {
       op: "conflict.edit",
       summary: `${open.id} the user's edit now: ${theirs!.value.slice(0, 80)}`,
     });
@@ -7914,7 +8045,173 @@ function citedStill(tree: Tree, id: string): boolean {
   return [...tree.list<Person>("person"), ...tree.list<Family>("family")].some((o) => !o.retracted && (o.events.some((e) => !e.retracted && cites(e)) || (o.type === "person" && o.names.some(cites))));
 }
 
-export function undoSync(tree: Tree, input: SyncInput): number {
+/** A fact's date, place and value as they are now (after a sync wrote them): what its undo compares with. */
+function factNow(tree: Tree, was: Event): SFact {
+  const e = eventById(tree, was.id) ?? was;
+  return { kind: e.kind, ...(e.date ? { date: e.date } : {}), ...(e.place ? { place: e.place } : {}), ...(e.value ? { value: e.value } : {}) };
+}
+
+/** A fact's details (those named) as they are now (after a sync wrote them), JSON: what its undo compares with. */
+function detailsNow(tree: Tree, id: string, keys: string[]): string {
+  const e = eventById(tree, id);
+  const now = e ? detailsOf(e) : {};
+  return JSON.stringify(Object.fromEntries(keys.map((k) => [k, now[k] ?? ""])));
+}
+
+/** What an undo left as it is: a fact's parts changed since the send (by another device's send, by the research). */
+export interface UndoKept {
+  event: string;
+  fields: string[];
+}
+
+/**
+ * What an undo left as it is, in the research's language: "Narození – Jan Lhoták (E0001): místo ponecháno, od poslání se
+ * změnilo (Dolní Lhota)".
+ */
+export function keptLines(tree: Tree, kept: readonly UndoKept[]): string[] {
+  return kept.map((k) => {
+    let what = k.event;
+    let now: string[] = [];
+    try {
+      const { owner, event } = findEventOwner(tree, k.event);
+      what = factLabel(tree, owner, event);
+      const d = detailsOf(event);
+      now = k.fields.map((f) => (f === "date" ? (event.date ? humanDate(event.date, tree.lang) : "") : f === "place" ? (event.place ?? "") : f === "value" ? (event.value ?? "") : (d[f] ?? ""))).filter(Boolean);
+    } catch {
+      // the fact is gone since: its ID alone
+    }
+    const parts = k.fields.map((f) => ui(tree.lang, `ui.sync.undone.part.${f}` as UIKey)).join(", ");
+    return ui(tree.lang, now.length ? "ui.sync.undone.kept" : "ui.sync.undone.kept.bare", { what, parts, now: now.join(", ") });
+  });
+}
+
+/** Whose a person or a couple is, as a person reads it: "Jan Lhoták", "Jan Lhoták & Anna Lhotová". */
+function ownerLabel(tree: Tree, owner: Person | Family): string {
+  const one = (p: Person) => gedcomName(primaryName(p)).replace(/\//g, "").replace(/\s+/g, " ").trim();
+  return owner.type === "person" ? one(owner) : owner.partners.map((x) => { const q = tree.get<Person>(x); return q ? one(q) : x; }).join(" & ");
+}
+
+/** A fact as a person reads it, in the research's language: "Narození – Jan Lhoták (E0001)". */
+function factLabel(tree: Tree, owner: Person | Family, event: Event): string {
+  const kind = eventName(event.kind, tree.lang, event.label);
+  return `${kind.charAt(0).toUpperCase()}${kind.slice(1)} – ${ownerLabel(tree, owner)} (${event.id})`;
+}
+
+/** A part of a fact as a person reads it: its date in words, its place, its value, a detail. */
+function factPart(tree: Tree, e: Event, part: string): string {
+  if (part === "date") return e.date ? humanDate(e.date, tree.lang) : "";
+  if (part === "place") return e.place ?? "";
+  if (part === "value") return e.value ?? "";
+  return detailsOf(e)[part] ?? "";
+}
+
+/** A fact said whole: its date, place and value, else its kind. */
+function factText(tree: Tree, e: Event): string {
+  return ["date", "place", "value"].map((p) => factPart(tree, e, p)).filter(Boolean).join(", ") || eventName(e.kind, tree.lang, e.label);
+}
+
+/**
+ * What an undo changes, part by part (spec 094: its preview — `strom sync undo I… --dry-run`): each fact's date, place,
+ * value or detail from what it is now to what it is put back to, a fact taken off or back, a name taken off or back, a
+ * person taken off or back. `what` in the research's language (the fact, the person); `from`/`to` as a person reads
+ * them ("" — none).
+ */
+export interface UndoField {
+  what: string;
+  /** date, place, value, cause, age, house, a partner's age (ages:<who>); fact, name, person — the whole of it. */
+  field: string;
+  from: string;
+  to: string;
+  event?: string;
+  person?: string;
+  family?: string;
+}
+
+/** The people and couples a sync changed, as they are now (taken before its undo: compared after it, undoFields). */
+export function syncOwners(tree: Tree, input: SyncInput): Map<string, Person | Family> {
+  const out = new Map<string, Person | Family>();
+  for (const a of input.sync?.applied ?? []) {
+    let owner: Person | Family | undefined;
+    if (/^[PF]\d+$/u.test(a.id)) owner = tree.get<Person | Family>(a.id) ?? undefined;
+    else if (/^E\d+$/u.test(a.id)) {
+      try {
+        owner = findEventOwner(tree, a.id).owner;
+      } catch {
+        owner = undefined;
+      }
+    }
+    if (owner && (owner.type === "person" || owner.type === "family") && !out.has(owner.id)) out.set(owner.id, structuredClone(owner));
+  }
+  return out;
+}
+
+/** What changed of the people and couples taken before (syncOwners) — an undo's preview, part by part. */
+export function undoFields(tree: Tree, before: Map<string, Person | Family>): UndoField[] {
+  const out: UndoField[] = [];
+  const live = (e: Event | undefined): e is Event => !!e && !e.retracted;
+  for (const [id, was] of before) {
+    const now = tree.get<Person | Family>(id);
+    if (!now) continue;
+    const at = now.type === "person" ? { person: id } : { family: id };
+    if (now.type === "person" && was.type === "person") {
+      if (!!was.retracted !== !!now.retracted) out.push({ what: ownerLabel(tree, now), field: "person", from: was.retracted ? "" : ownerLabel(tree, was), to: now.retracted ? "" : ownerLabel(tree, now), ...at });
+      const said = (p: Person) => p.names.map((n) => gedcomName(n).replace(/\//g, "").replace(/\s+/g, " ").trim());
+      const a = said(was);
+      const b = said(now);
+      for (const n of a.filter((x) => !b.includes(x))) out.push({ what: ownerLabel(tree, now), field: "name", from: n, to: "", ...at });
+      for (const n of b.filter((x) => !a.includes(x))) out.push({ what: ownerLabel(tree, now), field: "name", from: "", to: n, ...at });
+    }
+    const events = new Map<string, [Event | undefined, Event | undefined]>();
+    for (const e of was.events) events.set(e.id, [e, undefined]);
+    for (const e of now.events) events.set(e.id, [events.get(e.id)?.[0], e]);
+    for (const [eid, [e0, e1]] of events) {
+      const what = factLabel(tree, now, (e1 ?? e0)!);
+      if (live(e0) && !live(e1)) out.push({ what, field: "fact", from: factText(tree, e0), to: "", event: eid, ...at });
+      else if (!live(e0) && live(e1)) out.push({ what, field: "fact", from: "", to: factText(tree, e1), event: eid, ...at });
+      else if (live(e0) && live(e1)) {
+        const parts = [...new Set(["date", "place", "value", ...Object.keys(detailsOf(e0)), ...Object.keys(detailsOf(e1))])];
+        for (const part of parts) {
+          const from = factPart(tree, e0, part);
+          const to = factPart(tree, e1, part);
+          // (compared as stored: a date said the same in words may differ in its form)
+          const same = part === "date" ? (e0.date ?? "") === (e1.date ?? "") : from === to;
+          if (!same) out.push({ what, field: part, from, to, event: eid, ...at });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Who changed a part an undo left as it is (spec 094: its preview): the last operation on that fact — a send of the
+ * app (its device, when it named one), the person at a terminal, else the research (an agent, a session).
+ */
+export function keptBy(tree: Tree, kept: readonly UndoKept[]): { what: string; by: "send" | "user" | "research"; client?: AppClient }[] {
+  if (!kept.length) return [];
+  // (the undo's own operations are no change it left)
+  const own = new Set(tree.written.map((o) => o.sig));
+  const ops = tree.readOps().filter((o) => !own.has(o.sig));
+  const sends = new Set(tree.list<SyncInput>("input").flatMap((i) => (i.sync && i.source ? [i.source] : [])));
+  return kept.map((k) => {
+    let what = k.event;
+    try {
+      const { owner, event } = findEventOwner(tree, k.event);
+      what = factLabel(tree, owner, event);
+    } catch {
+      // the fact is gone since: its ID alone
+    }
+    // (the part's change, not a citation the same send moved after it: a send cites its own source with no reason)
+    const of = (o: Op) => o.targets.includes(k.event) || o.summary.startsWith(`${k.event} `);
+    const last = ops.findLast((o) => of(o) && o.op !== "event.cite") ?? ops.findLast(of);
+    // a send writes with the reason of its source (the day's sync source): a send, whether it named its device or not
+    const ofSend = !!last && (!!last.via || sends.has(/\((S\d+)\)$/u.exec(last.reason ?? "")?.[1] ?? ""));
+    const by = ofSend ? "send" : last?.by === "user" ? "user" : "research";
+    return { what, by, ...(last?.via ? { client: last.via } : {}) };
+  });
+}
+
+export function undoSync(tree: Tree, input: SyncInput, kept?: UndoKept[]): number {
   const done = input.sync?.applied ?? [];
   const reason = `sync ${input.id} undone`;
   let n = 0;
@@ -7929,6 +8226,21 @@ export function undoSync(tree: Tree, input: SyncInput): number {
         const back = b.prior
           ? ({ origin: _o, was: _w, ...e }: Event): Event => ({ ...e, ...(b.prior!.origin ? { origin: b.prior!.origin } : {}), ...(b.prior!.was ? { was: b.prior!.was } : {}) })
           : undefined;
+        const after = a.after && typeof a.after === "object" ? a.after : undefined;
+        const e = after ? eventById(tree, a.id) : undefined;
+        if (after && e) {
+          // spec 094 K2.3: only the parts the send changed, and only those nobody changed since (another device's send,
+          // the research) — a part changed since stays, said; the fact as the send left it: whole, as before
+          const parts = (["date", "place", "value"] as const).filter((f) => (b[f] ?? "") !== (after[f] ?? ""));
+          const since = (["date", "place", "value"] as const).filter((f) => (e[f] ?? "") !== (after[f] ?? ""));
+          const takenBack = parts.filter((f) => !since.includes(f));
+          const left = parts.filter((f) => since.includes(f));
+          if (left.length) kept?.push({ event: a.id, fields: [...left] });
+          if (!takenBack.length) break;
+          const whole = !since.length;
+          editEvent(tree, a.id, { ...Object.fromEntries(takenBack.map((f) => [f, b[f] ?? ""])), ...(whole && back ? { mark: (_before: Event, next: Event) => back(next) } : {}) }, reason);
+          break;
+        }
         editEvent(tree, a.id, { date: b.date ?? "", place: b.place ?? "", ...(b.value !== undefined ? { value: b.value } : {}), ...(back ? { mark: (_before: Event, next: Event) => back(next) } : {}) }, reason);
         break;
       }
@@ -7937,7 +8249,11 @@ export function undoSync(tree: Tree, input: SyncInput): number {
         const e = eventById(tree, a.id);
         const before = JSON.parse(String(a.before ?? "{}")) as Record<string, string>;
         const now = e ? detailsOf(e) : {};
-        const back = Object.fromEntries(Object.entries(before).filter(([d, v]) => v !== (now[d] ?? "")));
+        // spec 094 K2.3: a detail changed since the send (another device's, the research) stays as it is now, said
+        const after = typeof a.after === "string" ? (JSON.parse(a.after) as Record<string, string>) : undefined;
+        const since = after ? Object.keys(before).filter((d) => (now[d] ?? "") !== (after[d] ?? "")) : [];
+        if (since.length) kept?.push({ event: a.id, fields: [...new Set(since.map((d) => (d.startsWith("ages:") ? "age" : d)))] });
+        const back = Object.fromEntries(Object.entries(before).filter(([d, v]) => v !== (now[d] ?? "") && !since.includes(d)));
         if (e && Object.keys(back).length) editEvent(tree, a.id, detailEdit(back), reason);
         break;
       }

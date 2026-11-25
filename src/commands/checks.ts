@@ -387,9 +387,12 @@ register(
       // show a person (the agents' files, the tree made) left out of the lines, never out of --json (found 2026-10-04:
       // "strom sync undo: 5 changes" in a German research)
       const lang = tree.lang;
-      const rows = historyRows(tree, ctx.limit).map((r) => [r.change, r.when, r.text]);
+      const entries = history(tree.root, tree, [`-n${Math.max(1, ctx.limit)}`]);
+      const rows = historyRows(tree, ctx.limit, entries).map((r) => [r.change, r.when, r.text]);
+      // the device of the Strom app a change came from (a send, a decision on a device of the home network; spec 094)
+      const via = new Map(entries.flatMap((e) => (e.via ? [[e.head, e.via] as const] : [])));
       // the way back to one of them, for a person reading it (the command is theirs alone)
-      return { text: rows.length ? lines(table(rows), "", ui(lang, "ui.history.back.hint")) : ui(lang, "ui.history.none"), data: { commits } };
+      return { text: rows.length ? lines(table(rows), "", ui(lang, "ui.history.back.hint")) : ui(lang, "ui.history.none"), data: { commits: commits.map((c) => (via.has(c.hash) ? { ...c, via: via.get(c.hash) } : c)) } };
     },
   },
   {
@@ -442,9 +445,9 @@ register(
  * The changes of the history as a person reads them (the newest first): its short hash, its day and what it was, in the
  * research's language — a change with nothing to show a person (only its English subject) left out.
  */
-export function historyRows(tree: Tree, limit: number): { change: string; now: boolean; at: string; when: string; text: string }[] {
+export function historyRows(tree: Tree, limit: number, entries = history(tree.root, tree, [`-n${Math.max(1, limit)}`])): { change: string; now: boolean; at: string; when: string; text: string }[] {
   const lang = tree.lang;
-  const said = new Map(history(tree.root, tree, [`-n${Math.max(1, limit)}`]).map((e) => [e.head, e.text]));
+  const said = new Map(entries.map((e) => [e.head, e.text]));
   return git.log(tree.root, limit).flatMap((c, i) => {
     const text = (said.get(c.hash) ?? []).filter((t) => t !== c.subject);
     if (!text.length) return [];

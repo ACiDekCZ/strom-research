@@ -22,6 +22,7 @@ import { ui, UI, type UIKey } from "../cli/ui.ts";
 import { assetPath, readAsset } from "./assets.ts";
 import { Settings } from "./config.ts";
 import { phoneSend } from "./phone-send.ts";
+import { deviceGateway } from "./device-gateway.ts";
 import { noteTestProcess } from "./testnote.ts";
 
 /** The port a phone is reached at; taken by another program, the next free one of PORT_TRIES (kept in phone.json). */
@@ -1041,6 +1042,8 @@ export function servePhone(env: Env): Promise<string> {
     };
     // what the phone's page sends and asks (phone-send.ts)
     const send = phoneSend(env, (text) => notePhone(env, text));
+    // the gateway of the devices of the home network (devices.mode on; off: /device/* 404, nothing else of it)
+    const gateway = deviceGateway(env, (text) => notePhone(env, text));
     const handler: http.RequestListener = (req, res) => {
       // a device of no private network, of another one than the address asked, or the computer itself: nothing answered at all
       const local = (req.socket.localAddress ?? "").replace(/^::ffff:/i, "");
@@ -1052,9 +1055,11 @@ export function servePhone(env: Env): Promise<string> {
         seenWritten = Date.now();
         save();
       }
-      // asked by its own address only (a page of another address that names this one is turned away: DNS rebinding)
-      const host = `${local}:${req.socket.localPort}`;
-      if (req.headers.host !== host) {
+      // asked by its own address only (a page of another address that names this one is turned away: DNS rebinding) —
+      // with the gateway of the devices on, also by the computer's own name exactly (<name>.local:<port>)
+      const address = `${local}:${req.socket.localPort}`;
+      const host = req.headers.host === address ? address : gateway.named(req.headers.host, req.socket.localPort ?? port);
+      if (!host) {
         req.resume();
         return answer(res, 421, { code: "phone.host" });
       }
@@ -1068,6 +1073,8 @@ export function servePhone(env: Env): Promise<string> {
       const p = url.pathname;
       const phone = phoneByKey(env, cookieOf(req.headers.cookie, phoneCookie(req.socket.localPort ?? port)));
       const said = (who: PairedPhone) => ({ id: who.id, name: who.name, pairedAt: who.pairedAt, lang: pageLang(env, { phone: who }) });
+      // (only after the checks above: the device of this network, the server named by its own address)
+      if (gateway.handle(req, res, { url, host, port: req.socket.localPort ?? port, phonePaired: !!phone })) return;
       if (req.method === "GET" && (p === "/" || p === "/pair")) {
         req.resume();
         return page(res, pageLang(env, { ...(phone ? { phone } : {}), asked: url.searchParams.get("lang"), acceptLanguage: req.headers["accept-language"] ?? "" }));
@@ -1243,6 +1250,7 @@ export function servePhone(env: Env): Promise<string> {
       ended = true;
       clearInterval(tick);
       clearInterval(rebind);
+      gateway.end();
       closeAll();
       process.off("SIGTERM", onSignal);
       process.off("SIGINT", onSignal);
@@ -1260,8 +1268,9 @@ export function servePhone(env: Env): Promise<string> {
       const r = phoneRun(env);
       if (r && r.pid !== me && !r.ended && alive(r.pid)) return end("another server took over");
       send.tick();
-      // a photo still taken by a strom it started: started again after it
-      if (Date.now() - renewChecked > Number(env.STROM_PHONE_RENEW_MS ?? 60_000) && !send.busy()) {
+      gateway.tick();
+      // a photo still taken by a strom it started (a bridge started for a device): started again after it
+      if (Date.now() - renewChecked > Number(env.STROM_PHONE_RENEW_MS ?? 60_000) && !send.busy() && !gateway.busy()) {
         renewChecked = Date.now();
         const disk = diskVersion(env);
         if (disk && !disk.probe && disk.version !== runs) {

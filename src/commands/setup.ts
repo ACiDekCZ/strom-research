@@ -1377,6 +1377,25 @@ function addonsDecision(ctx: Context, key: string, value: string | number | unde
 }
 
 /**
+ * The gateway of other devices (devices.mode on: the phone's server gives the Strom app to the devices of the home
+ * network): turned on by the person alone, in their own terminal. Anywhere else — an agent, a command with nobody at a
+ * terminal — refused without a window: no dialog says it is there, and nothing is written; off is anyone's.
+ */
+function devicesDecision(ctx: Context, key: string, value: string | number | undefined): void {
+  if (key !== "devices.mode" || value !== "on") return;
+  if (ctx.interactive && !isAgent(ctx.env)) return;
+  if (readStored(ctx.settings.config, key, "") === "on") return;
+  throw new NeedsConsentError([
+    {
+      key,
+      kind: "consent",
+      question: `${key} on is the person's own choice, typed in their own terminal — never an agent's (an agent cannot answer this)`,
+      set: `strom config set ${key} on`,
+    },
+  ]);
+}
+
+/**
  * The history of the regions (experiments.history) and of the places (experiments.placeHistory): turned on by the
  * person alone — a search spends the agent's time and the plan — for every research on this computer (the user's
  * config) or for one (its strom.json, which wins both ways, K8.1); off is anyone's. Compared as each switch holds before
@@ -1849,6 +1868,9 @@ function isFolder(p: string): boolean {
 /** false: the person said no in their terminal to what needs their own yes there (requireHumanYes) — nothing changed. */
 async function setUserSetting(ctx: Context, key: string, value: string | number | undefined): Promise<boolean> {
   const s = ctx.settings;
+  devicesDecision(ctx, key, value);
+  // devices.mode off is the default: stored as nothing (nothing of it said in strom config where while it is off)
+  if (key === "devices.mode" && value === "off") value = undefined;
   syncDecisions(ctx, key, value, "user");
   addonsDecision(ctx, key, value, "user");
   experimentsDecision(ctx, key, value, "user");
@@ -2013,7 +2035,7 @@ register(
     ],
     description: [
       "A setting of choices takes one of its values:",
-      ...SETTINGS.filter((s) => s.kind === "choice" && s.choices?.length).map((s) => `  ${s.key}  ${s.choices!.join(" | ")}`),
+      ...SETTINGS.filter((s) => s.kind === "choice" && s.choices?.length && !s.hidden).map((s) => `  ${s.key}  ${s.choices!.join(" | ")}`),
       "hypotheses.decide: agent (default where nothing is set, a research of 1.28 or older too) — the agent decides once a",
       "cited record points to one variant (strom hypothesis decide), never changing the user's decision; person — the agent",
       "proposes a decision (strom hypothesis propose), the user decides it in What waits. Back to the person at any time:",

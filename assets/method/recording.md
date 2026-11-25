@@ -21,8 +21,8 @@ creates, `@name` uses it later; a found search comes after the source it found
   view of it prints the option to copy (`the source of an entry read here:
   --clip …`); an entry over a page break gets two. It cites the image too, and
   the Strom app shows the entry cut out of the scan next to its words. Every
-  entry read from a scan gets it when it is recorded — you have the entry in
-  front of you; strom reminds you of one without it (source add, task done).
+  entry read from a scan gets it when it is recorded; strom reminds you of one
+  without it (source add, task done).
 - Where the entry stands, field by field, so it is found again when a link
   stops working: `--folio` the page or folio as the book numbers it, with its
   word ("pag. 112", "fol. 12v"); `--locator` the rest (the entry's number, a
@@ -31,8 +31,8 @@ creates, `@name` uses it later; a found search comes after the source it found
   Older sources whose locator names them: `strom source split` previews them
   all; offer it to the user (`--apply` is theirs), never confirm it yourself.
 - `--transcript` is the entry's words as they stand in it — its own language,
-  spelling and abbreviations, line by line, unread letters `[?]`; the Strom app
-  shows them next to the entry's image. Every entry read gets them.
+  spelling and abbreviations, line by line, unread letters `[?]`. Every entry
+  read gets them.
 - `--translation`: a record in another language or script than the
   research's (Latin, Kurrent, Polish, Cyrillic …) gets one in the research
   language; the transcript stays in the record's.
@@ -61,7 +61,8 @@ creates, `@name` uses it later; a found search comes after the source it found
   secondary`: the priest wrote down what he was told.
 - What the entry says about each person it names becomes that person's fact,
   dated by the entry: an occupation `event add P… OCCU --value "cottager"`, where
-  they live `event add P… RESI --place "Týnec" --house 7` — for the
+  they live `event add P… RESI --place "Týnec" --house 7`, a religion only as
+  written of them, a column's mark too (`RELI --value "katolické"`) — for the
   grandparents too ("daughter of Jan Novák, cottager in Týnec No. 7"), cited
   `--information secondary`. The next search identifies them by exactly these.
 - Everyone the entry names in a role goes in `--with`: godparent, witness,

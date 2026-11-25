@@ -34,10 +34,11 @@ import { agentDecided } from "../core/hypolinks.ts";
 import { normId } from "../core/records.ts";
 import { actsAsArchive } from "../core/state.ts";
 import { branchOf } from "../core/offline.ts";
-import { eventName, humanClaim, humanDay, humanTask } from "./human.ts";
+import { eventName, humanClaim, humanDay, humanTask, humanWhen } from "./human.ts";
+import { RETRY_MAX, type RetryView } from "../core/retry.ts";
 import { provenReviewSince, provenToReview } from "../core/provenfix.ts";
 import { conflictTitle, displayName, lifespan } from "../core/people.ts";
-import { claimOf, isEditConflict, sideText } from "../core/conflicts.ts";
+import { claimOf, isEditConflict, sentDevices, sideText } from "../core/conflicts.ts";
 import { openForUser } from "../core/open.ts";
 import { isArchive } from "../core/mode.ts";
 import type { Question } from "../core/tuneask.ts";
@@ -417,6 +418,18 @@ async function place(ctx: Context, run: Run, lang: string, root: string, key: st
       choices.push({ label: t("ui.wait.group.chat") });
       acts.push(() => run(["chat", "--task", tasks[0]!.id]));
     }
+    // all of the place's images the agent could manage now, returned to it at once in What waits' order (spec 089) —
+    // shown only sometimes, so last
+    const back = items.filter((w) => w.task && (w.item.retry as RetryView | undefined)?.can);
+    if (back.length >= 2) {
+      const known = back.map((w) => (w.item.retry as RetryView).images).filter((n): n is number => n !== undefined);
+      choices.push({ label: known.length ? t("ui.wait.group.retry", { tasks: back.length, images: known.reduce((a, b) => a + b, 0) }) : t("ui.wait.group.retry.tasks", { tasks: back.length }) });
+      acts.push(async () => {
+        const ids = back.map((w) => w.task!.id);
+        if ((await run(["task", "wake", ...ids, "--retry"], true)) !== 0) return;
+        out(t("ui.wait.group.retry.done", { ids: ids.join(", ") }));
+      });
+    }
     ctx.io.stdout("\n");
     const i = await ctx.choose(`${name} · ${t(phase === "todo" ? "ui.wait.todo.n" : "ui.wait.sent.n", { n: items.length })}`, choices, choices.length, { back: t("ui.browse.back") });
     if (i === undefined) return;
@@ -467,6 +480,9 @@ async function thing(ctx: Context, run: Run, lang: string, root: string, w: Wait
     lines.push(`    ${t("ui.wait.d.since", { day: humanDay(it.at, lang) })}${sent ? ` · ${sentWords(t, lang, sentAtOf(cur))}` : ""}`);
     if (x.awaits) lines.push(...imagesToSave(ctx, lang, tree, x), "", `    ${t("ui.wait.how1")}`, `    ${t("ui.wait.how2")}`);
     else lines.push(...imagesToSave(ctx, lang, tree, x));
+    // the agent could manage it now (spec 089): why it waits now, and when it may be returned again if not now
+    const retry = it.retry as RetryView | undefined;
+    if (retry) lines.push("", `    ${t("ui.wait.d.retry", { says: retry.says })}`, ...(!retry.can && retry.until ? [`    ${t("ui.wait.retry.until", { max: RETRY_MAX, when: humanWhen(retry.until, lang) })}`] : []));
     out(lines.join("\n"));
 
     // what makes sense for its kind: true leaves (it waits no more here), else it is shown again
@@ -537,6 +553,16 @@ async function thing(ctx: Context, run: Run, lang: string, root: string, w: Wait
       answer();
     }
     if (canChat(ctx, tree)) choices.push({ label: t("ui.wait.a.chat"), act: () => waitingDo(ctx, run, lang, root, x.id, "chat", "", true) });
+    // returned to the agent (spec 089): shown only sometimes, so last
+    if (retry?.can)
+      choices.push({
+        label: retry.images !== undefined ? t("ui.wait.a.retry", { n: retry.images }) : t("ui.wait.a.retry.unknown"),
+        act: async () => {
+          if ((await run(["task", "wake", x.id, "--retry", "--expect", x.updated], true)) !== 0) return false;
+          out(t("ui.wait.retry.done"));
+          return true;
+        },
+      });
     const i = await ctx.choose("", choices, choices.length, { back: t("ui.browse.back") });
     if (i === undefined) return;
     if ((await guarded(ctx, lang, choices[i]!.act)) === true) return;
@@ -595,8 +621,15 @@ async function decideConflictHere(ctx: Context, run: Run, lang: string, root: st
   const value = (x: Conflict["claims"][number]) => sideText(tree, c, x) || t("ui.link.conflict.empty");
   // an archive's value is the archive's, not a research's
   const archive = isArchive(tree);
-  out([...head, `    ${t("ui.wait.conflict.app", { value: value(user) })}`, `    ${t(archive ? "ui.wait.conflict.archive" : "ui.wait.conflict.research", { value: value(research) })}`].join("\n"));
-  const i = await ctx.choose("", [{ label: t("ui.wait.conflict.take.user") }, { label: t(archive ? "ui.wait.conflict.take.archive" : "ui.wait.conflict.take.research") }], 2, { back: t("ui.wait.conflict.open") });
+  // two sends of the Strom app (spec 094 K2.2): each side named by the device it came from
+  const devices = sentDevices(lang, c);
+  if (devices) {
+    out([...head, ` ${t("ui.conflict.sent", devices)}`, `    ${t("ui.wait.conflict.sent", { device: devices.later, value: value(user) })}`, `    ${t("ui.wait.conflict.sent", { device: devices.earlier, value: value(research) })}`].join("\n"));
+  } else out([...head, `    ${t("ui.wait.conflict.app", { value: value(user) })}`, `    ${t(archive ? "ui.wait.conflict.archive" : "ui.wait.conflict.research", { value: value(research) })}`].join("\n"));
+  const options = devices
+    ? [{ label: t("ui.wait.conflict.take.sent", { device: devices.later }) }, { label: t("ui.wait.conflict.take.sent", { device: devices.earlier }) }]
+    : [{ label: t("ui.wait.conflict.take.user") }, { label: t(archive ? "ui.wait.conflict.take.archive" : "ui.wait.conflict.take.research") }];
+  const i = await ctx.choose("", options, 2, { back: t("ui.wait.conflict.open") });
   if (i === undefined) return;
   const why = await askWhy(ctx, lang);
   if (!why) return;

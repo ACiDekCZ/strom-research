@@ -874,6 +874,19 @@ export function appReadsNameStatus(settings: Settings, version?: string, gate: s
   return !!gate && compareVersions(v, gate) >= 0;
 }
 
+/**
+ * The Strom app version that runs on another device of the home network from the gateway of this computer (spec 094,
+ * devices.mode): it pairs by the code after # of the QR code and seals every request to the research (core/devices.ts,
+ * strom-device/1). Pending: the app has not said its version yet — the gateway serves no copy of it until it does.
+ */
+export const APP_DEVICE_MODE: string | undefined = undefined;
+
+/** May the gateway serve the copy of the Strom app of this version (downloaded by core/deviceapp.ts)? A gate pending, a version unknown: no. */
+export function deviceAppServable(version: string | undefined, gate: string | undefined = APP_DEVICE_MODE): boolean {
+  const v = version?.trim();
+  return !!gate && !!v && isAppVersion(v) && compareVersions(v, gate) >= 0;
+}
+
 /** Does a file of the Strom app of this version (its HEAD's 2 VERS) say a citation left out was removed by the user? No version said: no. */
 export function appSendsUncite(version: string | undefined, gate: string | undefined = APP_SENDS_UNCITE): boolean {
   const v = version?.trim();

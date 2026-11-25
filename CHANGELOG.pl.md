@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.37.0
 
-*W przygotowaniu: bety do 1.37.0-beta.3. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.37.0-beta.4. Sekcja będzie kompletna z wydaniem.*
 
 - **Wpis archiwum w badaniu nie utrzymuje już portalu z listy stroma:** księga z adresem na portalu, który zna lista
   stroma (Porta fontium, Acta Publica…), nie czyni już portalu tak surowym jak archiwum, pod którym jest zapisana –
@@ -41,7 +41,11 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   – a aplikacja Strom dostaje je jako trwającą pracę (`working[].saving`: ile z podanych skanów jest zapisanych). Na
   człowieka czeka tylko skan wstrzymany przez przeglądarkę – zezwolić na pobieranie wielu plików z witryny,
   powiedziane od razu na początku – oraz sesja zakończona w połowie: zapisywanie zatrzymane na jej skanie, kontynuuje
-  następna sesja. Wcześniej zapisane oczekiwania pokazują się tak bez ingerencji. Skan zapisany ponownie z `--again`
+  następna sesja. Wcześniej zapisane oczekiwania pokazują się tak bez ingerencji.
+  Gdy przyczyna ustąpi, takie zadanie – i zadanie ze skanami, do których prowadzi tylko przeglądarka, gdy przeglądarka
+  agenta tam sięga, albo tylko do odczytu z ekranu przeglądarki archiwum – wraca z „Co czeka” do agenta, pojedynczo lub
+  całe archiwum naraz (także z aplikacji Strom: `waiting[].retry` mówi, na co czeka teraz i ile skanów): od razu
+  w kolejce, najwyżej trzy razy na dobę, a gdy znów zostanie wstrzymane, czeka ponownie i to mówi. Skan zapisany ponownie z `--again`
   jest od razu przejmowany jako obraz skanu, dotychczasowy wycofany i zachowany – bez `strom media aside --take` przy
   każdym skanie. Kilka skanów naraz kosztuje znacznie mniej: `strom media save --image 40,41,45` (najwyżej dziesięć,
   strona dla każdego lub jeden adres z `{n}`) daje jeden krótszy skrypt dla wszystkich – każdy skan nadal na własnej
@@ -52,7 +56,10 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 - **Wysyłki z aplikacji lżejsze i szybsze:** wysyłka z aplikacji Strom jest planowana raz zamiast dwa razy, a pliki,
   które badanie już ma, idą przez odwołanie (swój skrót) zamiast całych danych; wysyłka wskazująca plik, którego
   badanie nie znajduje, jest odrzucana w całości, zanim cokolwiek zostanie zapisane, a aplikacja wysyła ją ponownie
-  z danymi. „Co czeka” nigdy nie pokazuje wysyłki, która jest jeszcze liczona, jako 0 zmian.
+  z danymi. „Co czeka” nigdy nie pokazuje wysyłki, która jest jeszcze liczona, jako 0 zmian. Kilka urządzeń przy
+  jednym badaniu: wysyłka podaje przeglądarkę lub komputer, z którego przyszła (w `strom input list`, w historii
+  i w commicie); konflikt dwóch wysyłek wymienia oba urządzenia; cofnięcie jednej wysyłki pozostawia część danej,
+  którą od tego czasu zmieniło inne urządzenie lub badanie, i mówi o tym.
 - **E-maile osoby to kontakt, nie miejsce zamieszkania:** e-maile z GEDCOM (miejsce zamieszkania z MyHeritage tylko
   z e-mailem, starsza notatka aplikacji Strom „E-mail: …”) stają się kontaktem osoby, pokazywanym osobno od faktów
   w `strom person show` i na karcie osoby – nigdy zdarzeniem ani miejscem, gdzie osoba mieszkała, nigdy nie trafiają
@@ -64,6 +71,11 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   takich spisów za każdym razem jako przekreślonych; zapis w badaniu zostaje taki, jak go zapisano. `strom check`
   ostrzega przed dwoma spisami jednej osoby z tą samą datą, a zapis cytowany dwa razy ma swoje słowa w notatce faktu
   tylko raz.
+  **Wyznanie jako fakt:** wyznanie, które akt podaje przy osobie – słowem w swojej rubryce lub znakiem w niej –, jest
+  zapisywane jako fakt Wyznanie (RELI) z cytowaniem aktu i jego datą; nigdy nie jest wywodzone z rodziców, parafii,
+  księgi ani obrzędu, ani z niepewnie odczytanego słowa. Kolejny akt tego samego wyznania dodaje do faktu tylko
+  cytowanie; zmienione wyznanie jest osobnym faktem. Gdy transkrypcja własnego aktu osoby podaje wyznanie, którego
+  badanie nie ma jako faktu, brief przypomina o tym agentowi przy pracy nad tą osobą.
 - **Materiał do listy osób:** aplikacja Strom może wysłać skan do całej listy osób (arkusz spisu, strona księgi
   metrykalnej) zamiast do jednej osoby. Materiał zachowuje listę taką, jaką wysłano – nazwę, rodzaj, regułę i ID jej
   osób; do 50 z nich to osoby materiału, dłuższa lista jest podana nazwą i plikiem wszystkich jej osób. Zadanie agenta

@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.37.0
 
-*Připravuje se: bety do 1.37.0-beta.3. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.37.0-beta.4. Oddíl bude úplný s vydáním.*
 
 - **Záznam archivu už nedrží portál ze seznamu stromu:** kniha s adresou na portálu, který seznam stromu zná (Porta
   fontium, Acta Publica…), už nedělá portál tak přísný jako archiv, pod kterým je zapsaná – portál se řídí svými
@@ -37,6 +37,10 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   jako běžící práci (`working[].saving`: kolik z daných snímků je uloženo). Na člověka čeká jen snímek, který
   prohlížeč zadržel – povolit stahování více souborů z webu, řečeno hned na začátku – a sezení, které skončilo
   uprostřed: ukládání zastaveno na jeho snímku, pokračuje příští sezení. Dřív zapsaná čekání se tak ukážou bez zásahu.
+  Když příčina pomine, takový úkol – i úkol se snímky, kam vede jen prohlížeč, jakmile tam prohlížeč agenta dosáhne,
+  nebo jen ke čtení z obrazovky prohlížeče archivu – se z „Co čeká“ vrátí agentovi, jednotlivě i za celý archiv
+  najednou (i z aplikace Strom: `waiting[].retry` říká, proč čeká teď a kolik snímků): na řadě hned, nejvýš třikrát
+  za den, a když se zase zadrží, čeká znovu a řekne to.
   Snímek uložený znovu s `--again` se rovnou převezme jako obraz snímku, dosavadní se stáhne a zůstane zachovaný –
   žádné `strom media aside --take` u každého snímku. Víc snímků najednou stojí mnohem méně: `strom media save --image
   40,41,45` (nejvýš deset, stránka ke každému nebo jedna adresa s `{n}`) dá jeden kratší skript pro všechny – každý
@@ -47,7 +51,9 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 - **Odeslání z aplikace lehčí a rychlejší:** odeslání z aplikace Strom se plánuje jednou místo dvakrát a soubory, které
   výzkum už má, putují odkazem (svým otiskem) místo celých dat; odeslání, které jmenuje soubor, jejž výzkum nenajde, se
   odmítne celé dřív, než se cokoli uloží, a aplikace ho pošle znovu i s daty. „Co čeká“ odeslání, které se ještě
-  počítá, nikdy neukáže jako 0 změn.
+  počítá, nikdy neukáže jako 0 změn. Víc zařízení nad jedním výzkumem: odeslání nese prohlížeč nebo počítač, ze kterého
+  přišlo (v `strom input list`, v historii i v commitu); rozpor dvou odeslání jmenuje obě zařízení; vrácení jednoho
+  odeslání ponechá část údaje, kterou od té doby změnilo jiné zařízení nebo výzkum, a řekne to.
 - **E-maily osoby jsou kontakt, ne bydliště:** e-maily z GEDCOMu (bydliště z MyHeritage jen s e-mailem, starší poznámka
   aplikace Strom „E-mail: …“) se stanou kontaktem osoby, ukázaným zvlášť od údajů ve `strom person show` a na kartě
   osoby – nikdy událostí ani místem, kde osoba žila, a agent je nedostane. Synchronizace s aplikací e-maily přidává
@@ -57,6 +63,11 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   „Volkszählung“…) jde do aplikace Strom jako sčítání, takže načtení verze výzkumu už taková sčítání pokaždé neukazuje
   přeškrtnutá; záznam ve výzkumu zůstává, jak byl zapsán. `strom check` upozorní na dvě sčítání jedné osoby se stejným
   datem a záznam citovaný dvakrát má svá slova v poznámce údaje jen jednou.
+  **Náboženství jako údaj:** náboženství, které zápis u osoby uvádí – slovem ve sloupci nebo značkou v něm –, se
+  zapíše jako údaj Náboženství (RELI) s citací zápisu a jeho datem; nikdy se neodvozuje od rodičů, farnosti, matriky
+  ani obřadu, ani z nejistě přečteného slova. Další zápis se stejným vyznáním jen přidá k údaji citaci; změněné
+  vyznání je samostatný údaj. Když přepis vlastního zápisu osoby náboženství uvádí a výzkum ho jako údaj nemá,
+  připomene to agentovi brief při práci na té osobě.
 - **Materiál k seznamu osob:** aplikace Strom může poslat sken k celému seznamu osob (sčítací arch, stránka matriky)
   místo k jedné osobě. Materiál si seznam pamatuje tak, jak byl poslán – název, druh, pravidlo a ID jeho osob; do 50
   osob jsou osobami materiálu, delší seznam je uveden názvem a souborem všech jeho osob. Úkol pro agenta nese název

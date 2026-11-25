@@ -41,6 +41,10 @@ import { isArchive } from "../core/mode.ts";
 import { decodingSaid, ui } from "../cli/ui.ts";
 import { fileBy, handFiles, taskForFile, taskPeople } from "../core/taskfiles.ts";
 import { isAgent } from "../core/which.ts";
+import { clientLabel, type SyncInput } from "../core/sync.ts";
+
+/** The device of the Strom app a send came from (spec 094): none of any other input. */
+const clientOf = (i: Input) => (i as SyncInput).sync?.client;
 
 /** A family tree file as text: a GEDCOM by its own encoding rule (CHAR, a Windows code page), anything else as saved. */
 function treeText(file: string): string {
@@ -423,7 +427,7 @@ register(
   },
   {
     path: ["input", "list"],
-    summary: "Inputs of this tree and their state",
+    summary: "Inputs of this tree and their state (a send of the Strom app: the device it came from)",
     group: "inputs",
     tree: true,
     options: [{ name: "state", type: "string", value: "<state>", description: "new, processed or skipped" }, { name: "full", type: "boolean", description: "--json: whole records instead of one row each" }],
@@ -433,8 +437,9 @@ register(
       const page = paginate(all, ctx.limit, ctx.page);
       return {
         // a file read already (strom document read) says so: its reading, not read again
-        text: all.length ? lines(table(page.items.map((i) => [i.id, i.kind, i.state, truncate(i.name, 60), i.read?.length ? `read ${i.read[i.read.length - 1]} (strom readings ${i.read[i.read.length - 1]})` : ""])), moreLine(page, "strom input list")) : 'no inputs → strom intake <files or folder>',
-        data: { total: all.length, inputs: opts.full ? page.items : page.items.map((i) => ({ id: i.id, kind: i.kind, state: i.state, name: i.name, ...(i.read?.length ? { read: i.read } : {}) })) },
+        // a send of the Strom app: the device it came from (spec 094), so two devices' sends are told apart
+        text: all.length ? lines(table(page.items.map((i) => [i.id, i.kind, i.state, truncate(i.name, 60), [i.read?.length ? `read ${i.read[i.read.length - 1]} (strom readings ${i.read[i.read.length - 1]})` : "", clientOf(i) ? `from ${clientLabel(clientOf(i)!)}` : ""].filter(Boolean).join(" · ")])), moreLine(page, "strom input list")) : 'no inputs → strom intake <files or folder>',
+        data: { total: all.length, inputs: opts.full ? page.items : page.items.map((i) => ({ id: i.id, kind: i.kind, state: i.state, name: i.name, ...(i.read?.length ? { read: i.read } : {}), ...(clientOf(i) ? { client: clientOf(i) } : {}) })) },
       };
     },
   },
@@ -458,6 +463,7 @@ register(
         deleted ? "file   none: deleted for good by the person (the same content brought again is new material)" : undefined,
         abs ? `file   ${abs}${missing ? ` — missing on this computer: bring back the ${i.file?.startsWith("media:") ? "shared folder from a backup of the whole Strom folder (its subfolder shared)" : "research's folder from a backup"}` : ""}` : undefined,
         i.from ? `from   ${i.from}` : undefined,
+        clientOf(i) ? `device ${clientLabel(clientOf(i)!)} (${clientOf(i)!.id})` : undefined,
         i.batch ? `batch  ${i.batch}${i.path ? ` · ${i.path}` : ""}` : undefined,
         i.persons?.length ? `of     ${i.persons.join(", ")}` : undefined,
         i.list ? `list   "${i.list.name}" · ${i.list.count} ${i.list.count === 1 ? "person" : "people"}${i.list.missing ? ` (${i.list.missing} more not in the research)` : ""}${i.list.rule ? ` · rule: ${i.list.rule}` : ""} · ${path.join(tree.root, ...i.list.file.split("/"))}` : undefined,

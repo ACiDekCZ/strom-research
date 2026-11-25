@@ -40,7 +40,7 @@ import { foldText, unfoldIndex } from "../core/text.ts";
 import { searchText } from "../core/searchtext.ts";
 import { makeNote, makeNotes, splitText } from "../core/actions.ts";
 import { takeSide } from "../core/sync.ts";
-import { againAllowed, claimOf, isEditConflict, weighedSources } from "../core/conflicts.ts";
+import { againAllowed, claimOf, isEditConflict, sentDevices, weighedSources } from "../core/conflicts.ts";
 import { proposalKind, proposalNow, reasonWords, staleProposal, opLine } from "../core/proposals.ts";
 import { SETTLED } from "../core/proposalsettle.ts";
 import { currentSession } from "../core/session.ts";
@@ -147,7 +147,7 @@ function reasonOf(opts: Record<string, unknown>): string | undefined {
 function againNeedsReason(h: Hypothesis, reason: string | undefined, verb: "decide" | "propose"): void {
   const earlier = h.state !== "open" && h.decision ? h.decision : undefined;
   if (earlier && !reason)
-    throw new UsageError(`${h.id} is already ${h.state}: "${truncate(earlier, 80)}"`, { hint: `${verb === "decide" ? "deciding" : "proposing"} again needs --reason (e.g. "the marriage entry of 1839 overturns it")` });
+    throw new UsageError(`${h.id} is already ${h.state}: "${truncate(earlier, 80)}"`, { hint: `${verb === "decide" ? "deciding" : "proposing"} again needs --reason (e.g. "the marriage entry of 1839 overturns it")`, code: "hypothesis.decided", params: { id: h.id, state: h.state } });
 }
 
 /**
@@ -158,11 +158,13 @@ function decidedVariant(h: Hypothesis, variant: unknown, abandon: boolean, verb:
   const labels = h.variants.map((x) => x.label).join("|");
   if (variant !== undefined && abandon) throw new UsageError(`--variant names the variant it is ${verb === "decide" ? "decided" : "proposed"} for: not with --abandon`);
   const chosen = variant === undefined ? undefined : h.variants.find((x) => foldText(x.label) === foldText(String(variant)));
-  if (variant !== undefined && !chosen) throw new UsageError(`no variant ${String(variant)} in ${h.id}`, { hint: h.variants.map((x) => x.label).join(", ") });
+  if (variant !== undefined && !chosen) throw new UsageError(`no variant ${String(variant)} in ${h.id}`, { hint: h.variants.map((x) => x.label).join(", "), code: "hypothesis.no-variant", params: { id: h.id, variants: labels } });
   // variants that say what they would connect: the decision names which one holds (the Strom app shows its links)
   if (!abandon && !chosen && h.variants.some((v) => v.links?.length))
     throw new UsageError(`${h.id}: its variants say what they would connect — name the variant it is ${verb === "decide" ? "decided" : "proposed"} for (--variant ${labels})`, {
       hint: `strom hypothesis ${verb} ${h.id} --variant <${labels}> --decision "…"${h.state !== "open" ? ' --reason "…"' : ""} · none holds: --abandon`,
+      code: "hypothesis.needs-variant",
+      params: { id: h.id, variants: labels },
     });
   return chosen;
 }
@@ -924,6 +926,8 @@ register(
         text: lines(
           `${c.id} ${conflictTitle(tree, c)}  [${pr ? `${state} · ${t("ui.conflict.proposal")}` : state}]`,
           `${t("ui.conflict.about")}  ${c.subject.join(" ")}`,
+          // two sends of the Strom app (spec 094 K2.2): named by their devices
+          sentDevices(tree.lang, c) ? ui(tree.lang, "ui.conflict.sent", sentDevices(tree.lang, c)!) : undefined,
           taskLines(tree, c.id),
           ...claims,
           c.resolution ? `\n${t("ui.conflict.resolution")}  ${c.resolution}\n${t("ui.conflict.reasoning")}  ${reasoningWords(tree.lang, c.reasoning)}` : undefined,
@@ -1179,7 +1183,7 @@ register(
         // an open hypothesis with no proposal: the person leaves it open — What waits no longer shows it until an
         // agent proposes how to decide it
         if (!p) {
-          if (h0.state !== "open") throw new UsageError(`${id} has no proposal to leave (it is ${h0.state})`, { hint: `strom hypothesis show ${id}` });
+          if (h0.state !== "open") throw new UsageError(`${id} has no proposal to leave (it is ${h0.state})`, { hint: `strom hypothesis show ${id}`, code: "hypothesis.decided", params: { id, state: h0.state } });
           const h = update<Hypothesis>(tree, id, "hypothesis", (h) => ({ ...h, leftOpen: now }), { op: "hypothesis.keep", summary: `${id} left open` });
           return { text: written(tree), data: { hypothesis: h } };
         }
@@ -1197,7 +1201,7 @@ register(
         return { text: written(tree), data: { hypothesis: h } };
       }
       if (opts.proposed) {
-        if (!p) throw new UsageError(`${id} has no proposal`, { hint: `strom hypothesis decide ${id} --variant <label> --decision "…"` });
+        if (!p) throw new UsageError(`${id} has no proposal`, { hint: `strom hypothesis decide ${id} --variant <label> --decision "…"`, code: "hypothesis.no-proposal", params: { id } });
         if (opts.variant !== undefined || opts.abandon) throw new UsageError("--proposed takes the proposal as it is — another variant: --variant without --proposed");
       }
       const decision = said || (opts.proposed ? p!.decision : "");
