@@ -226,6 +226,16 @@ export function devicePairNow(env: Env, clock: Clock = Date.now): DevicePair | u
   return { pairId: p.pairId, secret: p.secret, expiresAt: p.expiresAt, mode: p.mode, ...(p.tree ? { tree: p.tree } : {}) };
 }
 
+/**
+ * The code to pair a device for a QR code shown again (strom phone qr, phone on, the bridge's qr.svg): the one that holds
+ * now when it is the app's and of the same tree, else a new one (the code not used yet gone with it).
+ */
+export function devicePairShown(env: Env, opts: { tree?: string } = {}, clock: Clock = Date.now): DevicePair {
+  const now = devicePairNow(env, clock);
+  if (now && now.mode === "app" && now.tree === (opts.tree && opts.tree.length <= 200 ? opts.tree : undefined)) return now;
+  return devicePairCode(env, { mode: "app", ...(opts.tree ? { tree: opts.tree } : {}) }, clock);
+}
+
 /** The code forgotten (the gateway turned off: a QR code shown before pairs nothing). Those used stay remembered. */
 export function forgetDevicePair(env: Env, clock: Clock = Date.now): void {
   withLock(file(env, "device-pair.lock"), { owner: "the code to pair a device" }, () => {

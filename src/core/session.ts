@@ -37,6 +37,7 @@ import { claimSite, heldSiteOfTask, heldSites, holderWords, releaseHolder, restr
 import { forGaps, regionOfTask, takeRegion } from "./pastevents.ts";
 import { placeOfTask, takePlace } from "./placehistory.ts";
 import { PLACES_IDENTIFY_ORIGIN, placesSessionCounts } from "./placeid.ts";
+import { fromDevice } from "./deviceagent.ts";
 
 /** Whose pointers: a worker's, an agent's own conversation's ("@<id>": no letter of a worker's name), or anyone else's (""). */
 function pointerName(env: Env): string {
@@ -210,6 +211,8 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
     const model = opts.model ?? tree.env.STROM_MODEL?.trim();
     // the reasoning effort it ran with: strom's (the person's model.effort), else what Codex's own config says (read only)
     const effort = opts.effort ?? (tree.env.STROM_MODEL_EFFORT?.trim() || (agent === "codex" ? readCodexConfig(tree.env).effort : undefined));
+    // the device of the home network whose terminal started it (spec 094 K3.15: who started it)
+    const device = fromDevice(tree.env);
     const t = now();
     const s: Session = {
       id: tree.allocate("N"),
@@ -226,6 +229,7 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
       ...(agent ? { agent } : {}),
       ...(model ? { model } : {}),
       ...(effort ? { effort } : {}),
+      ...(device ? { device } : {}),
       strom: VERSION,
     };
     tree.put(s, { op: "session.start", targets: [s.id, ...(task ? [task.id] : [])], summary: `${s.id} session started${task ? ` on ${task.id}` : ""}` });

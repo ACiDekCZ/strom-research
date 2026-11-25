@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.37.0
 
-*W przygotowaniu: bety do 1.37.0-beta.7. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.37.0-beta.8. Sekcja będzie kompletna z wydaniem.*
 
 - **Wpis archiwum w badaniu nie utrzymuje już portalu z listy stroma:** księga z adresem na portalu, który zna lista
   stroma (Porta fontium, Acta Publica…), nie czyni już portalu tak surowym jak archiwum, pod którym jest zapisana –
@@ -87,6 +87,12 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   `no`: `strom material sort` sortuje od razu, gdy osoba o to poprosi, i mówi, że nie pytano; nigdy samoczynnie,
   a przebieg, którego nikt nie obserwuje, nadal pyta. `no` ustawia tylko osoba we własnym terminalu lub w aplikacji
   Strom na tym komputerze (mówi o tym jedna linia w logu mostu), nigdy agent; powrót do pytania może każdy.
+  **Materiał z aplikacji przypisany w drzewie:** plik z paczki wysłanej przez aplikację Strom (lub inny materiał z niej
+  wysłany), który badanie przyporządkuje jako zapis, dokument lub zdjęcie osób, trafia teraz do drzewa aplikacji przy
+  nich – dwoje partnerów jednej pary przy ich parze – więc aplikacja pokazuje go przy osobie, nie tylko w oknie
+  Materiały. Osoby żyjące nie są wyjątkiem: to, co o nich wysłano, jest przyporządkowane i zapisane jak u każdego innego
+  (ochrona osób żyjących należy do eksportu). Plik, który ma już miejsce w drzewie lub którego miejsce usunięto
+  w aplikacji, zostaje bez zmian; osoba odebrana z pliku nie dostaje przy nim miejsca.
 - **Badanie dla kopii drzewa:** link aplikacji Strom, który zakłada nowe badanie, może zaproponować jego nazwę (kopia
   drzewa: „… (kopia)”); terminal proponuje ją do zachowania lub nadpisania, a most podaje aplikacji folder, w którym
   powstają nowe badania. Drzewo przekazane z numerami innego badania (kopia drzewa, które miało badanie, ze starszej

@@ -599,8 +599,8 @@ test("a large file of a device in sealed blocks: taken whole, gone on with after
     const body = Buffer.from(JSON.stringify({ name: "Krabice · Лхота · Lhoták".normalize("NFD"), files: 1, person: "P0001", note: "x".repeat(5000) }));
     const gz = await x(me, { m: "POST", p: `batch/${gzBatch}/done`, h: { "Content-Type": "application/json" }, b64: b64url(zlib.gzipSync(body)), z: "gzip" });
     assert.equal(gz.s, 200, JSON.stringify(gz.data));
-    // judged as what it is once unpacked: a sort asked for is still the computer's
-    const sorted = await x(me, { m: "POST", p: `batch/${gzBatch}/done`, h: { "Content-Type": "application/json" }, b64: b64url(zlib.gzipSync(Buffer.from(JSON.stringify({ sort: true })))), z: "gzip" });
+    // judged as what it is once unpacked: a question taken away is still the computer's
+    const sorted = await x(me, { m: "POST", p: "settings/run", h: { "Content-Type": "application/json" }, b64: b64url(zlib.gzipSync(Buffer.from(JSON.stringify({ confirm: "no" })))), z: "gzip" });
     assert.deepEqual([sorted.s, sorted.data.code], [403, "device.computer-only"]);
     const notGzip = await x(me, { m: "POST", p: `batch/${gzBatch}/done`, b64: b64url(Buffer.from("{}")), z: "gzip" });
     assert.deepEqual([notGzip.s, notGzip.data.code], [400, "device.body"]);

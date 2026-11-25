@@ -109,7 +109,8 @@ test("the devices managed: the computer's name, the rows with their icons, renam
     // the copy of the app the devices get: the stand-in's (noted before the phone's server ever asks for it)
     assert.equal((await request("GET", `${bridge.url}/phone`, undefined, APP)).json.devices.name, "lhota-pc.local");
     const features = (await request("GET", `${bridge.url}/status`)).json.features as string[];
-    for (const f of ["device.gateway", "device.phonePage", "device.rename", "device.events"]) assert.ok(features.includes(f), f);
+    for (const f of ["device.gateway", "device.rename", "device.events"]) assert.ok(features.includes(f), f);
+    assert.ok(!features.includes("device.phonePage"), "one way to pair");
     stream = deviceStream(`${bridge.url}/events`);
     assert.equal((await request("POST", `${bridge.url}/phone/on`, "{}", APP)).status, 200);
     let address = "";
@@ -156,7 +157,7 @@ test("the devices managed: the computer's name, the rows with their icons, renam
 
     // /status through the gateway: the device's kind and what it may do (a move: it asks at the address)
     const status = await x(me, "GET", "status");
-    assert.deepEqual(status.data.device, { id: me.id, name: "Telefon Lhotáků", kind: "phone", actions: ["device.rename", "device.unpair", "device.home", "device.move", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put"], others: 0 });
+    assert.deepEqual(status.data.device, { id: me.id, name: "Telefon Lhotáků", kind: "phone", actions: ["device.rename", "device.unpair", "device.home", "device.move", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put", "agent.start", "agent.bridge"], others: 0 });
 
     // renamed by the device itself: the event renamed, the bridge's row
     const renamed = await x(me, "POST", "device/rename", { name: "Лхота телефон" });
@@ -181,7 +182,7 @@ test("the devices managed: the computer's name, the rows with their icons, renam
     assert.deepEqual(phone.list.map((d: any) => [d.id, d.name, d.home, d.connected, d.stale]), [[me.id, "Лхота телефон", true, true, false]]);
     assert.equal(phone.connectedNow, 1);
     assert.ok(!events.some((e) => e.id === icon.id), "an icon is no row");
-    assert.deepEqual((await x(icon, "GET", "status")).data.device.actions, ["device.rename", "device.unpair", "device.move", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put"]);
+    assert.deepEqual((await x(icon, "GET", "status")).data.device.actions, ["device.rename", "device.unpair", "device.move", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put", "agent.start", "agent.bridge"]);
 
     // renamed on the computer: the row (the icon with it); an icon's id, nothing of a name, an id unknown, another page refused
     const put = await request("PUT", `${bridge.url}/phone/devices/${me.id}`, JSON.stringify({ name: "Tablet Lhotáků".normalize("NFD") }), APP);
@@ -213,7 +214,7 @@ test("the devices managed: the computer's name, the rows with their icons, renam
     const there: Dev = { id: me.id, key: moved.key };
     assert.deepEqual([(await x(me, "GET", "status")).code], ["device.unpaired"]);
     const at = await x(there, "GET", "status", undefined, { host: local });
-    assert.deepEqual(at.data.device.actions, ["device.rename", "device.unpair", "device.home", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put"], "no move where it is");
+    assert.deepEqual(at.data.device.actions, ["device.rename", "device.unpair", "device.home", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put", "agent.start", "agent.bridge"], "no move where it is");
     assert.deepEqual([(await x(there, "POST", "device/move", {}, { host: local })).data.code], ["device.named"]);
     phone = (await request("GET", `${bridge.url}/phone`, undefined, APP)).json.devices;
     assert.deepEqual(phone.list.map((d: any) => [d.id, d.stale]), [[me.id, false]], "the name is an address of the gateway");

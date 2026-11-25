@@ -1419,6 +1419,8 @@ export interface Session extends BaseRecord {
   model?: string;
   /** The reasoning effort it ran with, when strom knows it (it started the agent with it, or the agent's own config says it). */
   effort?: string;
+  /** The device of the home network whose terminal started it (spec 094 K3.15: who started it). */
+  device?: AppClient;
   /** The version of strom it ran with: its method and its checks. */
   strom?: string;
   /** Closed by strom, not by its agent: stopped by the user, its run or conversation gone, the agent quit. */

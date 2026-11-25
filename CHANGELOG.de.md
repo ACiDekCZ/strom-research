@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.37.0
 
-*In Vorbereitung: die Betas bis 1.37.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.37.0-beta.8. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein Archiveintrag der Forschung hält kein Portal der Liste von strom mehr:** ein Buch mit einer Adresse auf einem
   Portal, das die Liste von strom kennt (Porta fontium, Acta Publica…), macht das Portal nicht mehr so streng wie das
@@ -95,6 +95,13 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   gefragt wurde; nie von selbst, und ein Lauf, den niemand beobachtet, fragt weiterhin. `no` setzt nur die Person im
   eigenen Terminal oder in der Strom-App auf diesem Computer (eine Zeile im Log der Brücke sagt es), nie ein Agent;
   zurück zur Rückfrage kann jeder.
+  **Material aus der App in den Stammbaum einsortiert:** eine Datei aus einem Stapel, den die Strom-App geschickt hat
+  (oder anderes Material von ihr), die die Forschung als Eintrag, Dokument oder Foto von Personen einsortiert, kommt jetzt
+  bei ihnen in den Stammbaum der App — bei zwei Partnern eines Paares zu ihrem Paar —, sodass die App sie bei der Person
+  zeigt, nicht nur im Fenster Materialien. Lebende sind keine Ausnahme: was von ihnen geschickt wurde, wird wie bei allen
+  anderen einsortiert und erfasst (der Schutz Lebender gehört zum Export). Eine Datei mit einem Platz im Stammbaum oder
+  eine, deren Platz in der App entfernt wurde, bleibt, wie sie ist; eine von einer Datei entfernte Person bekommt dort
+  keinen Platz.
 - **Eine Forschung für die Kopie eines Stammbaums:** der Link der Strom-App, der eine neue Forschung beginnt, kann ihren
   Namen vorschlagen (Kopie eines Baums: „… (Kopie)“); das Terminal bietet ihn zum Behalten oder Überschreiben an, und
   die Brücke nennt der App den Ordner, in dem neue Forschungen entstehen. Ein Baum, der mit den Nummern einer anderen

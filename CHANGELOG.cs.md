@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.37.0
 
-*Připravuje se: bety do 1.37.0-beta.7. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.37.0-beta.8. Oddíl bude úplný s vydáním.*
 
 - **Záznam archivu už nedrží portál ze seznamu stromu:** kniha s adresou na portálu, který seznam stromu zná (Porta
   fontium, Acta Publica…), už nedělá portál tak přísný jako archiv, pod kterým je zapsaná – portál se řídí svými
@@ -79,6 +79,11 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   sort` třídí hned, když o to člověk požádá, a řekne, že se neptalo; nikdy samo od sebe a běh, který nikdo nesleduje,
   se ptá dál. `no` nastaví jen člověk ve vlastním terminálu nebo v aplikaci Strom na tomto
   počítači (řekne to jedna řádka v logu mostu), nikdy agent; zpět na dotaz může kdokoli.
+  **Materiál z aplikace zařazený do stromu:** soubor z dávky poslané aplikací Strom (i jiný materiál poslaný z ní), který
+  výzkum zařadí jako záznam, dokument nebo fotku osob, se nově dostane do stromu aplikace k nim – dva partneři jednoho
+  svazku k jejich svazku – takže ho aplikace ukáže u osoby, ne jen v okně Materiály. Žijící nejsou výjimka: co bylo
+  o nich posláno, se zařadí a zapíše jako u kohokoli jiného (ochrana žijících patří k exportu). Soubor, který ve stromu
+  místo má nebo jehož místo bylo v aplikaci odebráno, zůstane, jak je; osoba odebraná ze souboru u něj místo nedostane.
 - **Výzkum pro kopii rodokmenu:** odkaz aplikace Strom, který zakládá nový výzkum, může navrhnout jeho název (kopie
   stromu: „… (kopie)“); terminál ho nabídne k ponechání nebo přepsání a most aplikaci řekne složku, kde nové výzkumy
   vznikají. Strom předaný s čísly jiného výzkumu (kopie stromu, který výzkum měl, ze starší aplikace) dostane pro své

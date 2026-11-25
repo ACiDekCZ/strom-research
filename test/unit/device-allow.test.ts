@@ -21,6 +21,11 @@ const ALLOWED: Case[] = [
   ["GET", "log"],
   ["GET", "recent"],
   ["GET", "whats-new"],
+  // what the research found since the person last looked (its since and lang in the envelope's query, never the path)
+  ["GET", "finds"],
+  // the screen Research before the tree (spec 094 K3.13) and a person searched for by the name (D1; q in the query)
+  ["GET", "glance"],
+  ["GET", "people"],
   ["GET", `media/${SHA}`],
   ["GET", "excerpt/S12"],
   ["GET", "excerpts"],
@@ -92,6 +97,20 @@ const ALLOWED: Case[] = [
   ["POST", "directions/order", { order: ["G3"] }],
   ["POST", "directions/G3/gather/undo", {}],
   ["POST", "queue/T0007", {}],
+  // what the bridge has its agent do as the app on the computer asks (spec 094 K3.15)
+  ["POST", "verify", { person: "P1", dry: true }],
+  ["POST", "verify/bulk", { scope: "tree" }],
+  ["POST", "material/sort", { files: [SHA] }],
+  ["GET", "material/sort/M3"],
+  ["GET", "material/sort/run-1-x"],
+  ["POST", "material/sort/M3/cancel", {}],
+  ["POST", "batch/B5/done", { sort: true }],
+  ["POST", "read", { files: [SHA] }],
+  ["POST", "read/D4/again", {}],
+  ["POST", "read/D4/cancel", {}],
+  ["POST", "sources/read", {}],
+  ["POST", "sources/S3/read/D4/task", {}],
+  ["POST", "places/identify", { do: "queue" }],
   // runs
   ["POST", "runs/stop", {}],
   ["POST", "verify/stop", {}],
@@ -102,18 +121,16 @@ const ALLOWED: Case[] = [
 ];
 
 const DENIED: [...Case, string][] = [
-  // the agent's work, what spends its sessions
-  ["POST", "verify", {}, "verify"],
-  ["POST", "verify/bulk", {}, "verify.bulk"],
+  // the agent's work in a terminal (device/agent, the gateway's own), and what the bridge never takes so
   ["GET", "material/sort", undefined, "material.sort"],
-  ["POST", "material/sort", {}, "material.sort"],
-  ["POST", "batch/B5/done", { sort: true }, "batch.sort"],
-  ["POST", "read/D4/again", {}, "read"],
-  ["POST", "read/D4/cancel", {}, "read"],
+  ["POST", "material/sort/M3", {}, "material.sort"],
+  ["POST", "material/sort/M3/again", {}, "material.sort"],
+  ["POST", "verify/other", {}, "verify"],
+  ["POST", "read/D4", {}, "read"],
+  ["POST", "read/D4/other", {}, "read"],
   ["GET", "sources/read", undefined, "sources.read"],
-  ["POST", "sources/read", {}, "sources.read"],
-  ["POST", "sources/S3/read/D4/task", {}, "sources.read"],
-  ["POST", "places/identify", {}, "places.identify"],
+  ["POST", "sources/S3/read", {}, "sources.read"],
+  ["POST", "sources/S3/read/D4/other", {}, "sources.read"],
   ["POST", "places/run", {}, "places.run"],
   ["POST", "history/place", {}, "history.place"],
   ["POST", "history/kinds", {}, "history.kinds"],
@@ -158,6 +175,18 @@ const DENIED: [...Case, string][] = [
   ["PATCH", "facts/confirm", {}, "patch.facts"],
   ["GET", "nothing/known", undefined, "nothing"],
   ["POST", "status", {}, "status"],
+  // the research's finds: read alone, as one word
+  ["POST", "finds", {}, "finds"],
+  ["PUT", "finds", {}, "finds"],
+  ["DELETE", "finds", undefined, "delete.finds"],
+  ["GET", "finds/x", undefined, "finds"],
+  // the glance and the search: read alone, as one word
+  ["POST", "glance", {}, "glance"],
+  ["DELETE", "glance", undefined, "delete.glance"],
+  ["GET", "glance/now", undefined, "glance"],
+  ["POST", "people", {}, "people"],
+  ["PUT", "people", {}, "people"],
+  ["GET", "people/P1", undefined, "people"],
 ];
 
 const MALFORMED: Case[] = [

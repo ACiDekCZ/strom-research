@@ -11,6 +11,7 @@ import http from "node:http";
 import net from "node:net";
 import path from "node:path";
 import { World, hasGit, until } from "../helpers.ts";
+import { decodeQr, svgModules } from "../qr-decode.ts";
 import { phonePage } from "../../src/core/phone.ts";
 import { UI } from "../../src/cli/ui.ts";
 import { PHRASES } from "../../src/core/phrases.ts";
@@ -190,6 +191,11 @@ test("devices.mode off: the bridge and the phone's server as before — no devic
     }
     const preflight = await request("OPTIONS", `${bridge.url}/phone/devices/x`, undefined, { Origin: "https://stromapp.info", "Access-Control-Request-Method": "DELETE" });
     assert.equal(preflight.headers["access-control-allow-methods"], "GET, POST, PUT");
+    // the bridge's QR code: the phone's page's code as before (no code of the app, no m=)
+    const qr = await request("GET", `${bridge.url}/phone/qr.svg?lang=en`, undefined, { Origin: "https://stromapp.info" });
+    assert.equal(qr.status, 200);
+    assert.match(decodeQr(svgModules(qr.text)).text, new RegExp(`^${address.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/pair\\?lang=en#[A-Za-z0-9_-]{22}$`));
+    assert.ok(fs.existsSync(path.join(w.env.STROM_CONFIG_DIR!, "phone-pair.json")));
     for (const f of ["device-pair.json", "device-codes.json"]) assert.equal(fs.existsSync(path.join(w.env.STROM_CONFIG_DIR!, f)), false, `no code of a device made: ${f}`);
     // a send naming a device of the gateway (X-Strom-Device): the device the file names, as before
     const given = (await request("GET", `${bridge.url}/tree.ged`, undefined, { Origin: "https://stromapp.info" })).text;

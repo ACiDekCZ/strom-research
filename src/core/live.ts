@@ -163,6 +163,29 @@
 //                          running version's section of the changelog shipped with it; asking keeps no bridge running
 //   GET <token>/recent     what the research added in the last hours (?hours=1…168, 24 when not given): the people and
 //                          sources added, the commits — the same as /status recent (core/recent.ts)
+//   GET <token>/finds      what the research found of the family since a moment (?since=ISO, else the last 24 hours, at
+//                          most 31 days back; ?lang=, else the research language): {since, groups: [{key, kind, title?,
+//                          name?, span?, at, lines: [{kind, text, at, fact?, span?}]}], cut?, earlier?} — the same as the
+//                          phone's page's Finds (core/phone-finds.ts treeFinds), cleaned as for it (no path, no record's
+//                          ID in a text); feature finds. An archive or a research waiting for its agent: none ({since, groups: []},
+//                          the same as the phone's page; nothing found by an agent is said there)
+//                          feature finds.person: each person's group, each child line and each family's group (by its
+//                          first partner) says `person` (P…) for "Show in the tree" (spec 094 D3; the phone's page: never)
+//   GET <token>/glance     the app's screen Research on a device before it has the tree (spec 094 K3.13, core/glance.ts;
+//                          feature glance): {head, headAt?, tree {id, name, lang, state, kind?, persons, families, ged?
+//                          {bytes, head}}, day? {persons, sources, saves, since}, now: [{since, paused?, line?, way, task?
+//                          {id, text}, person?, family?, run?}], runs: [{id, line, way, since, state, paused?, task?}],
+//                          lastWorked?, lines: [{id, n, name, direction, way, state, tasks, waiting, working, since, focus?,
+//                          reason?}], waiting {n, items: [{id, kind, section, phase, what, on?, at, sentAt?, group, person?,
+//                          line?, branch?, retry?, hypothesis?, do: [answer|sent|unsent|retry|line|keep|never|decide]}]},
+//                          people {P…: {name, span?}}} — made of /status for the state now and the app's version (kept
+//                          for both, as /status is), the runs read
+//                          at each ask; texts as the phone's page says them, nothing of an agent, a model, a folder or a
+//                          link. An archive, a research waiting for its agent: tree and day alone; a newer strom's research:
+//                          {tree, locked {code}}
+//   GET <token>/people?q=  a person by the name (spec 094 D1, feature people.search): {people: [{id, name, span?, place?}]},
+//                          at most 8 (core/people.ts peopleFound); the place: its first part with something left as a
+//                          device sees it, else none; fewer than two letters or digits: none
 //   GET <token>/events     server-sent events: hello, change, working, history; end before the bridge ends ({reason: stopped |
 //                          restart | idle | gone | signal, back: another bridge at this address at once — absent: not
 //                          known, at}): strom live stop asks it through .strom/live-stop.json, the same on every system;
@@ -806,17 +829,17 @@ import { gatherPreview, lastGather } from "./gather.ts";
 import { linePeople } from "./frontier.ts";
 import { BRANCH_MODES, branchJson, branchKey, branchModeOf, branchOf, lineOf, OFFLINE_FILE, offLineJson, offLineView, placer, readOffline, type BranchView, type OfflineFile, type OffLineView, type Placed } from "./offline.ts";
 import { directionsOf, directionsRev, placesJson } from "./tablemarks.ts";
-import { ancestorGenerations, displayName, primaryName } from "./people.ts";
+import { ancestorGenerations, displayName, peopleFound, primaryName } from "./people.ts";
 import { parseNameEid } from "./namestatus.ts";
 import { findEventOwner, sameDirection } from "./actions.ts";
 import { foundByLine, type Found } from "./found.ts";
 import { orderMode, orderNumbers, workOrder } from "./order.ts";
 import { phrase } from "./phrases.ts";
 import { excerptLevel, excerptSizes, INPUT_MARK, LEVELS, turned } from "./excerpt.ts";
-import { endWork, excerptAnswer, excerptOnThread, fixesOnThread, gedOnThread, gedVariant, storedGed, storeGed, tidyStoredGeds, widgetOnThread, type GedImages, type GedMade } from "./liveged.ts";
+import { endWork, excerptAnswer, excerptOnThread, fixesOnThread, gedOnThread, gedSizeKnown, gedVariant, storedGed, storeGed, tidyStoredGeds, widgetOnThread, type GedImages, type GedMade } from "./liveged.ts";
 import { IMAGE_MIME, IMAGE_SHA, imageFile, readImage } from "./liveimages.ts";
 import { markServedWithMedia, treeMediaFile } from "./treemedia.ts";
-import { isStatusPart, splitStatus, StatusKeeper, STATUS_PARTS } from "./livestatus.ts";
+import { isStatusPart, splitStatus, StatusKeeper, STATUS_PARTS, type StatusPart } from "./livestatus.ts";
 import { withSendClient, adoptedAt, notWrittenList, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, refuseReceived, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type MediaWritten, type PlanTimes, type ReceiveTimes, type Skipped } from "./sync.ts";
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { actsAsArchive, kindOf, settleWaiting, stateOf } from "./state.ts";
@@ -876,6 +899,10 @@ import { whatsNew } from "./whatsnew.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
 import { RECENT_HOURS, recentChanges, recentNow, type Recent } from "./recent.ts";
+import { findsForApp, treeFinds } from "./phone-finds.ts";
+import { glanceLocked, glanceOf, withAsking, withRuns, type Glance } from "./glance.ts";
+import { askingNow } from "./deviceagent.ts";
+import { forPhone } from "./phone-watch.ts";
 import { APP_READS_NAME_STATUS, APP_READS_NAME_STATUS_BETA, APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appReadsMainCitation, appReadsNameStatus, appSendsUncite, appDecidesHypotheses, appOpensLinks, appShowsOrigin, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
 import { suggestSurnames } from "./surnames.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
@@ -888,7 +915,7 @@ import { handoffsNow } from "./handoffs.ts";
 import { autoTidy } from "./tidy.ts";
 import { askPhoneOn, endPhoneLater, pairCode, pairUrl, phoneConfig, phoneProbe, phoneRunning, phoneState, phoneSummary, phoneTestPortRefused, phoneTestYesHint, removePhone, restorePhone, revivePhone, stopPhone, type PairedPhone } from "./phone.ts";
 import { qrSvg } from "./qr.ts";
-import { clientOfDevice, deviceEvents, deviceName, devicePairCode, devicePairUrl, deviceRows, devicesList, devicesOn, hostOf, removeDevice, renameDevice, restoreDevice, type Device, type DeviceRow } from "./devices.ts";
+import { clientOfDevice, deviceEvents, deviceName, devicePairCode, devicePairShown, devicePairUrl, deviceRows, devicesList, devicesOn, hostOf, removeDevice, renameDevice, restoreDevice, type Device, type DeviceRow } from "./devices.ts";
 import { deviceAppState, ensureDeviceApp, noteDeviceAppSource } from "./deviceapp.ts";
 import { localName } from "./device-gateway.ts";
 import { diskVersion, lastingLauncher, stromLauncher } from "./self.ts";
@@ -1962,22 +1989,32 @@ const MEDIA_REF_UNKNOWN = "sync.media-ref-unknown";
 /** How many hashes POST /media/known takes at once. */
 export const MEDIA_KNOWN_MAX = 5000;
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sync.mediaRef", "person.contact", "media.list", "media.list.source", "waiting.gain", "sort.confirm", "working.saving", "waiting.retry", "sort.confirm.app", "run.confirm"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sync.mediaRef", "person.contact", "media.list", "media.list.source", "waiting.gain", "sort.confirm", "working.saving", "waiting.retry", "sort.confirm.app", "run.confirm", "finds", "finds.person", "glance", "people.search"] as const;
 
-/** What only a research with its agent here does (accepts.read: none in an archive, nor where it waits for its agent). */
-const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sort.confirm", "sort.confirm.app", "run.confirm"]);
+/**
+ * What only a research with its agent here does (accepts.read: none in an archive, nor where it waits for its agent);
+ * finds: what an agent found, which an archive never says (GET finds answers none there).
+ */
+const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sort.confirm", "sort.confirm.app", "run.confirm", "finds", "finds.person"]);
 const withoutAgent = (features: readonly string[]): readonly string[] => features.filter((f) => !AGENT_FEATURES.has(f));
 
 /**
  * The gateway of the devices of the home network (devices.mode on, the person's in their terminal): the dialog to
- * connect a device and the list of them (device.gateway), the quiet choice of the phone's page alone
- * (device.phonePage), a device renamed (device.rename: PUT phone/devices/<id>), the event device of the stream
- * (device.events). Off: nothing said at all.
+ * connect a device and the list of them (device.gateway), a device renamed (device.rename: PUT phone/devices/<id>), the
+ * event device of the stream (device.events). Off: nothing said at all. No device.phonePage (said until 1.37.0-beta.7):
+ * one way to pair — the app's code alone, the phone's page no choice of the app any more (an app that still asks for it
+ * gets the app's code).
  */
-const DEVICE_FEATURES: readonly string[] = ["device.gateway", "device.phonePage", "device.rename", "device.events"];
+const DEVICE_FEATURES: readonly string[] = ["device.gateway", "device.rename", "device.events"];
+/**
+ * A device starts the agent as the app on the computer does (spec 094 K3.15: device/agent of the gateway, the bridge's
+ * own work of the agent through it) — only where the agent researches: never in an archive or a research waiting for
+ * its agent.
+ */
+const DEVICE_AGENT_FEATURES: readonly string[] = ["device.agent"];
 /** The rows of the devices looked at for the event device at most this often. */
 const DEVICE_EVENTS_MS = 5000;
-const withDevices = (features: readonly string[], env: Env): readonly string[] => (devicesOn(env) ? [...features, ...DEVICE_FEATURES] : features);
+const withDevices = (features: readonly string[], env: Env, agent = true): readonly string[] => (devicesOn(env) ? [...features, ...DEVICE_FEATURES, ...(agent ? DEVICE_AGENT_FEATURES : [])] : features);
 
 /**
  * What the bridge says it does to the app of that version: BRIDGE_FEATURES, but origin.ids only where its /tree.ged
@@ -3151,7 +3188,7 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     const config = readJsonIfExists<TreeConfig>(path.join(root, TREE_FILE));
     return {
       strom: VERSION,
-      features: withDevices(withoutAgent(bridgeFeatures(new Settings(env, {}), version)), env),
+      features: withDevices(withoutAgent(bridgeFeatures(new Settings(env, {}), version)), env, false),
       ...channelOf(env),
       tree: { id: config?.id, name: config?.name, lang: config?.lang },
       path: root,
@@ -3190,7 +3227,7 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     strom: VERSION,
     // what this bridge does, for an app to go by rather than the version (a bridge run from the sources says the
     // candidate it is, found on Mac: an app took 1.11.0 for an old research)
-    features: withDevices(archive ? withoutAgent(bridgeFeatures(settings, version)) : bridgeFeatures(settings, version), env),
+    features: withDevices(archive ? withoutAgent(bridgeFeatures(settings, version)) : bridgeFeatures(settings, version), env, !archive),
     ...channelOf(env),
     ...(disk && disk.version !== (env.STROM_LIVE_RENEWED ?? VERSION) ? { installed: disk.version } : {}),
     // what the research is (an archive, a research, one waiting for its agent) — the app says it beside the tree
@@ -3523,6 +3560,9 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   /** The excerpts the tree's file of that head leaves out, though the research has them (the same for every app): /excerpts. */
   let left: GedMade["left"] | undefined;
   let log: { head: string; text: string } | undefined;
+  // the glance of the state /status was last made for, for each version of the app as /status is (GET glance; the runs
+  // added at each ask), the research's names with it
+  const glanceKept = new Map<string, { key: string; glance: Glance }>();
   // /log worked out for one head at a time (the asks for it wait for it together, those for a newer one for the next)
   const logs = new OneAtATime<string>(
     () => head(root),
@@ -4622,6 +4662,52 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
             (r) => (r ? json(200, r) : json(404, { error: "the research has no commit yet" })),
             (e) => failed(req, res, e),
           );
+      } else if (what === "finds" && !sub) {
+        // what the research found since the person last looked (the app's screen Research, feature finds): the phone's
+        // page's Finds, a fact said in the language asked; kept for the head and the window (asked again: nothing read).
+        // An archive, a research waiting for its agent: none, as on the phone's page
+        const q = new URLSearchParams((req.url ?? "").split("?")[1] ?? "");
+        const text = JSON.stringify(findsForApp(treeFinds(root, env, q.get("since") ?? undefined, Date.now(), q.get("lang") ?? undefined)));
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(text);
+      } else if (what === "glance" && !sub) {
+        // the screen Research of the app on a device before it has the tree (spec 094 K3.13, feature glance; core/glance.ts):
+        // made of what /status made for the state now, kept for it; the runs read at each ask, as /status reads them
+        keeper.get(version).then(
+          async (made) => {
+            const lite = JSON.parse(made.lite) as Record<string, unknown>;
+            // what was made for this version of the app (another version's /status may say otherwise: the hypotheses)
+            const kept = glanceKept.get(version ?? "");
+            // the last 24 hours not worked out for /status at this head yet (it says the last it has): now, off this
+            // thread (as GET recent)
+            if (!lite.locked && (lite.recent as { head?: string } | undefined)?.head !== lite.head && kept?.key !== made.key) {
+              const recent = await recentChanges(root, env, RECENT_HOURS);
+              if (recent) lite.recent = recent;
+            }
+            let g: Glance;
+            if (lite.locked) g = glanceLocked(lite);
+            else if (kept?.key === made.key) g = kept.glance;
+            else {
+              const part = (p: StatusPart, field: string): unknown[] => {
+                const v = (JSON.parse(made.parts[p].text || "{}") as Record<string, unknown>)[field];
+                return Array.isArray(v) ? v : [];
+              };
+              g = glanceOf(Tree.open(root, env), { status: lite, researches: part("researches", "researches"), waiting: part("waiting", "waiting") });
+              glanceKept.set(version ?? "", { key: made.key, glance: g });
+            }
+            const runs = made.runs ? runsLive(root, () => new Settings(env, {}).agent(Tree.open(root, env).config).value).runs : [];
+            // the size of the tree's file as last made (made after the glance was: read at each ask, two or three stamps)
+            const ged = lite.locked ? undefined : await gedSizeKnown(root);
+            if (ged) g = { ...g, tree: { ...g.tree, ged } };
+            // what waits for the person at the computer (spec 094 K3.15): read at each ask, as the runs
+            const asking = lite.locked ? [] : askingNow(root, runs.map((r) => r.id));
+            if (!req.destroyed) res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(withAsking(withRuns(g, runs), asking)));
+          },
+        ).catch((e) => failed(req, res, e));
+      } else if (what === "people" && !sub) {
+        // a person searched for by the name (spec 094 D1, feature people.search): at most 8 {id, name, span?, place?}
+        const q = new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("q") ?? "";
+        const people = peopleFound(Tree.open(root, env), q, forPhone).map(({ birth: _b, death: _d, ...p }) => ({ ...p, name: forPhone(p.name) || p.id }));
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ people }));
       } else if (what === "log") {
         // on the thread of /status: git asked of the commits it does not know (a hundred at first: a second), each read
         // as the app reads it (every session, each name and task: a second on a large research, at each change)
@@ -8025,7 +8111,19 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         const address = asked ? s.addresses.find((a) => a.url === asked.replace(/\/+$/, ""))?.url : s.addresses[0]!.url;
         if (!address) return phoneJson(res, 404, refusal(`no address of the phone's server: ${asked} (GET phone says them)`, "phone.address", { addresses: s.addresses.map((a) => a.url).join(" ") }));
         const lang = q.get("lang")?.toLowerCase();
-        const { code, expiresAt } = pairCode(env, { tree: readJsonIfExists<TreeConfig>(path.join(root, TREE_FILE))?.id });
+        const tree = readJsonIfExists<TreeConfig>(path.join(root, TREE_FILE))?.id;
+        // the gateway of the devices on: one way to pair — the code of the app (pairing v2), never a new one of the phone's page
+        let url: string;
+        let expiresAt: string;
+        if (devicesOn(env)) {
+          const pair = devicePairShown(env, tree ? { tree } : {});
+          url = devicePairUrl(address, pair);
+          expiresAt = pair.expiresAt;
+        } else {
+          const pair = pairCode(env, { tree });
+          url = pairUrl(address, pair.code, lang && /^[a-z]{2,3}$/.test(lang) ? lang : undefined);
+          expiresAt = pair.expiresAt;
+        }
         noteLive(root, `the phone connection: a QR code to pair a phone shown (${address}, until ${expiresAt})`);
         phoneSummarySeen = undefined;
         res
@@ -8038,7 +8136,7 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
             "X-Strom-Pair-Url": address,
             "Access-Control-Expose-Headers": PHONE_EXPOSE,
           })
-          .end(qrSvg(pairUrl(address, code, lang && /^[a-z]{2,3}$/.test(lang) ? lang : undefined)));
+          .end(qrSvg(url));
         return;
       }
       return phoneJson(res, 404, refusal("no such address of the phone", "phone.not-found"));
@@ -8099,18 +8197,15 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   };
 
   /**
-   * POST phone/pair {mode: "app" | "page"} (device.gateway): a new code to pair a device and its QR code — app: the Strom
-   * app for the device (the code of the devices, pairing v2), page: the phone's page (its code as qr.svg makes it). The
-   * address carries the secret after #: given to the app alone, never written to a log whole.
+   * POST phone/pair {mode: "app" | "page"} (device.gateway): a new code to pair a device and its QR code — always the
+   * Strom app for the device (the code of the devices, pairing v2): one way to pair. page (an older app that offered the
+   * phone's page alone) is taken, and given the app's code too: the gateway gives the app at / and /pair, or the page
+   * that waits for it. The address carries the secret after #: given to the app alone, never written to a log whole.
    */
   const pairFor = (res: http.ServerResponse, text: string) => {
-    let mode: "app" | "page" = "app";
-    let lang: string | undefined;
     try {
-      const said = JSON.parse(text || "{}") as { mode?: unknown; lang?: unknown };
+      const said = JSON.parse(text || "{}") as { mode?: unknown };
       if (said.mode !== undefined && said.mode !== "app" && said.mode !== "page") return phoneJson(res, 400, refusal(`the body: {"mode": "app" | "page"}`, "phone.pair-body"));
-      if (said.mode === "page") mode = "page";
-      if (typeof said.lang === "string" && /^[a-z]{2,3}$/.test(said.lang)) lang = said.lang;
     } catch {
       return phoneJson(res, 400, refusal(`the body: {"mode": "app" | "page"}`, "phone.pair-body"));
     }
@@ -8119,18 +8214,10 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     if (!s.addresses.length) return phoneJson(res, 503, { ...refusal("the phone's server is starting: asked again in a moment", "phone.starting"), retry: 1 });
     const address = s.addresses[0]!.url;
     const tree = readJsonIfExists<TreeConfig>(path.join(root, TREE_FILE))?.id;
-    let url: string;
-    let expiresAt: string;
-    if (mode === "app") {
-      const code = devicePairCode(env, { mode: "app", ...(tree ? { tree } : {}) });
-      url = devicePairUrl(address, code);
-      expiresAt = code.expiresAt;
-    } else {
-      const code = pairCode(env, { tree });
-      url = `${address}/pair?m=page${lang ? `&lang=${lang}` : ""}#${code.code}`;
-      expiresAt = code.expiresAt;
-    }
-    noteLive(root, `a code to pair a device made (${mode === "app" ? "the app" : "the phone's page"}, ${address}, until ${expiresAt})`);
+    const code = devicePairCode(env, { mode: "app", ...(tree ? { tree } : {}) });
+    const url = devicePairUrl(address, code);
+    const expiresAt = code.expiresAt;
+    noteLive(root, `a code to pair a device made (the app, ${address}, until ${expiresAt})`);
     phoneSummarySeen = undefined;
     return phoneJson(res, 200, { url, qr: qrSvg(url), expiresAt });
   };

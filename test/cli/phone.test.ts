@@ -7,6 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import http from "node:http";
+import net from "node:net";
 import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import { World, hasGit, until } from "../helpers.ts";
@@ -560,6 +561,60 @@ test("strom phone serve, the first run of a newer strom: it is the server itself
     } finally {
       serve.kill("SIGTERM");
     }
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("devices.mode on: one way to pair — strom phone qr and phone on in the user's terminal and the bridge's QR code show the code of the app (/pair?m=app#<pairId>.<secret>, device-pair.json), the same while it holds; never a new code of the phone's page. Off: as before", { skip }, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Lhotákovi");
+    await w.ok(["config", "set", "devices.mode", "on"], { tty: true });
+    // a port of its own (never 47800 of the computer's own strom)
+    const free = await new Promise<number>((resolve) => {
+      const srv = net.createServer().listen(0, "127.0.0.1", () => {
+        const { port } = srv.address() as net.AddressInfo;
+        srv.close(() => resolve(port));
+      });
+    });
+    fs.writeFileSync(path.join(w.env.STROM_CONFIG_DIR!, "phone.json"), JSON.stringify({ on: false, port: free }));
+    // isolated, the app's site a port of the loopback nobody listens on: the gateway downloads nothing
+    const env = { STROM_ISOLATED: "1", STROM_PHONE_TEST_ANSWER: "yes", STROM_PHONE_TEST_ANSWER_MS: "200", STROM_APP_URL: "http://127.0.0.1:9/run/" };
+    const b = (await w.ok(["live", "start", "--json"], { env })).json as Info;
+    await post(b.url, "on", { lang: "cs" });
+    await until("on", async () => (await phone(b.url)).addresses.length === 1, { ms: 20_000 });
+    const address = (await phone(b.url)).addresses[0]!.url;
+    const at = address.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const tree = JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")).id as string;
+    const pairFile = path.join(w.env.STROM_CONFIG_DIR!, "device-pair.json");
+    const oldFile = path.join(w.env.STROM_CONFIG_DIR!, "phone-pair.json");
+    const shown = await w.ok(["phone", "qr"], { tty: true, env });
+    const read = decodeQr(terminalModules(shown.out.split("\n\n")[0]!)).text;
+    const m = new RegExp(`^${at}/pair\\?m=app#([A-Za-z0-9_-]{22})\\.([A-Za-z0-9_-]{43})$`).exec(read);
+    assert.ok(m, read);
+    const kept = JSON.parse(fs.readFileSync(pairFile, "utf8"));
+    assert.deepEqual([m[1], m[2], kept.mode, kept.tree], [kept.pairId, kept.secret, "app", tree]);
+    assert.ok(shown.out.includes(address));
+    assert.ok(!shown.out.includes(m[2]!), "the secret is in the QR code alone");
+    assert.equal(fs.existsSync(oldFile), false, "no code of the phone's page");
+    // strom phone on in the user's terminal: the same code at once; the bridge's QR code (as the app asks it): the same
+    const onHere = await w.ok(["phone", "on"], { tty: true, env });
+    const qrAt = onHere.out.indexOf("\x1b[30;107m");
+    assert.ok(qrAt > 0, onHere.out);
+    assert.equal(decodeQr(terminalModules(onHere.out.slice(qrAt).split("\n\n")[0]!)).text, read);
+    const svg = await fetch(`${b.url}/phone/qr.svg?lang=cs`, { headers: { Origin: "https://stromapp.info" } });
+    assert.equal(svg.status, 200);
+    assert.equal(decodeQr(svgModules(await svg.text())).text, read);
+    assert.equal(fs.existsSync(oldFile), false, "no code of the phone's page");
+    // off: the code of the phone's page as before
+    await w.ok(["config", "set", "devices.mode", "off"], { env });
+    const off = await w.ok(["phone", "qr"], { tty: true, env });
+    assert.match(decodeQr(terminalModules(off.out.split("\n\n")[0]!)).text, new RegExp(`^${at}/pair\\?lang=\\w+#[A-Za-z0-9_-]{22}$`));
+    assert.ok(fs.existsSync(oldFile));
+    assert.match(decodeQr(svgModules(await (await fetch(`${b.url}/phone/qr.svg?lang=cs`)).text())).text, new RegExp(`^${at}/pair\\?lang=cs#[A-Za-z0-9_-]{22}$`));
+    await w.ok(["phone", "off"], { env });
+    await w.ok(["live", "stop"], { env });
   } finally {
     w.cleanup();
   }

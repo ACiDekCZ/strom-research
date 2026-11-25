@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.37.0
 
-*In preparation: the betas up to 1.37.0-beta.7. The section is complete with the release.*
+*In preparation: the betas up to 1.37.0-beta.8. The section is complete with the release.*
 
 - **A research's archive no longer holds a portal of strom's list:** a book whose address is on a portal strom's list
   knows (Porta fontium, Acta Publica…) no longer makes the portal as strict as the archive the book is recorded under —
@@ -82,6 +82,12 @@ The changes of each version in short. The full notes and the install lines are o
   `strom material sort` sorts at once when the person asks for it, saying it was not asked; never by itself, and a run
   nobody watches still asks. Only the person sets `no`, in their own terminal or in the Strom app on this computer (one
   line in the bridge's log says so), never an agent; asking again is anyone's.
+  **Material from the app sorted into the tree:** a file of a batch the Strom app sent (or other material sent from it)
+  that the research sorts as a record, a document or a photo of people now goes into the app's tree at them — two
+  partners of one couple at their couple — so the app shows it at the person, not only in the Materials window. The
+  living are no exception: what was sent of them is sorted and recorded as of anyone else (keeping the living private
+  belongs to the export). A file with a place in the tree, or one whose place was removed in the app, keeps what it has;
+  a person taken off a file gets no place at it.
 - **A research for a copy of a family tree:** the Strom app's link that starts a new research may suggest its name (a
   copy of a tree: "… (copy)"), offered in the terminal to keep or write over; the bridge tells the app the folder new
   researches are made in. A tree handed over with the numbers of another research (a copy of a tree that had one, from

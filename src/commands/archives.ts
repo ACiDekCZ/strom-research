@@ -15,10 +15,11 @@ import { counted, lines, secondsIn, shellArg, table } from "../cli/format.ts";
 import { EXIT, StromError, UsageError } from "../core/errors.ts";
 import { isAgent } from "../core/which.ts";
 import { canShowDialog, systemChoice, WAIT_SECONDS, type ChoiceText } from "../core/dialog.ts";
+import { markAsking } from "../core/deviceagent.ts";
 import { bareHost, listConnectors, routeOf, routesOf, type Connector } from "../core/connector.ts";
 import { hostAllowed, hostPace, hostState, netTrust, paceText, robotsNow, ROBOTS_MS, type NetVerdict, type Pace } from "../core/net.ts";
 import { settingsTrust } from "../core/trust.ts";
-import { Tree } from "../core/tree.ts";
+import { Tree, findTreeUpwards } from "../core/tree.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import { currentSession } from "../core/session.ts";
 import type { Session } from "../core/model.ts";
@@ -440,7 +441,14 @@ async function askPerson(ctx: Context, c: Connector, missing: ArchiveLevel[], wa
       keys: ui(lang, "ui.archive.btn.keys", { allow: allowLabel, manual: ui(lang, "ui.archive.btn.manual"), later: ui(lang, "ui.archive.btn.later") }),
     };
     ctx.io.stderr(`${ui(lang, "ui.dialog.waiting", { minutes: String(WAIT_SECONDS / 60), question: ui(lang, "ui.archive.name", { title: a.title ?? a.host, host: a.host }) })}\n`);
-    const answer = ctx.io.choice ? ctx.io.choice(text) : systemChoice(text, ctx.env);
+    // waiting at the computer while the window is up (a device's glance says so, spec 094 K3.15)
+    const marked = markAsking(ctx.openedRoot() ?? findTreeUpwards(ctx.cwd), "consent", ctx.env);
+    let answer: string | null | undefined;
+    try {
+      answer = ctx.io.choice ? ctx.io.choice(text) : systemChoice(text, ctx.env);
+    } finally {
+      marked();
+    }
     if (answer === main || answer === "manual") {
       grantWay(ctx.env, hosts, answer, { by: "window", connector: c });
       routeFollows(ctx, c, answer);

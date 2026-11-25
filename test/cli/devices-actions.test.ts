@@ -152,7 +152,7 @@ test("a device decides as the person through the gateway: a conflict by side, a 
     const ME = { id: me.id, name: "Telefon Lhotáků" };
 
     // /status: what the device may do there
-    assert.deepEqual((await x(me, { m: "GET", p: "status" })).data.device.actions.slice(-4), ["conflict.decide", "hypothesis.decide", "sync.undo", "media.put"]);
+    assert.deepEqual((await x(me, { m: "GET", p: "status" })).data.device.actions.slice(-6), ["conflict.decide", "hypothesis.decide", "sync.undo", "media.put", "agent.start", "agent.bridge"]);
 
     // a send of the device: whatever device it names in its file or a header, the device it is (its row's name)
     const gedText = await (async () => {

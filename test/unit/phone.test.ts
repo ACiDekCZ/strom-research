@@ -353,7 +353,7 @@ test("the icon on the home screen unpaired scans no QR code: the page says to op
   }
 });
 
-test("a text of the research for the phone: no bare ID nor a list of them, no path of the research or of this computer, a link as its site alone; nothing left over", () => {
+test("a text of the research for the phone: no bare ID nor a list of them, no path of the research or of this computer nor a link of strom's own, a link as its site alone; nothing left over", () => {
   const nfd = (s: string) => s.normalize("NFD");
   const cases: [string, string][] = [
     // bare IDs of each kind, a list of them, a document read's
@@ -377,6 +377,11 @@ test("a text of the research for the phone: no bare ID nor a list of them, no pa
     ["siehe www.familysearch.example/ark:/61903/abc.", "siehe familysearch.example."],
     ["Seite https://user@WWW.Archiv.Example.org:8080/x", "Seite archiv.example.org"],
     ["Архив: https://архив.пример.рф/фонд/12, опись 3", "Архив: архив.пример.рф, опись 3"],
+    // a link of strom's own (a second installation's too, without its slashes): gone whole, as a path
+    [nfd("Odpověď matriky, soubor /Users/x/y/dopis.pdf, strom-research://open?tree=Ř"), nfd("Odpověď matriky, soubor")],
+    ["Výpis otevřít (strom-research-beta://excerpt?tree=a&clip=b) a přečíst.", "Výpis otevřít a přečíst."],
+    ["Ответ STROM-RESEARCH:send?tree=x получен", "Ответ получен"],
+    ["Nástroj strom-research: popis", "Nástroj strom-research: popis"],
     // nothing left: nothing
     ["T0608", ""],
     ["(notes/x.md, H0001)", ""],

@@ -23,7 +23,7 @@ import zlib from "node:zlib";
 import type { Env } from "./paths.ts";
 import { Settings } from "./config.ts";
 import { knownTreesIn, Tree, type KnownTree } from "./tree.ts";
-import { actsAsArchive } from "./state.ts";
+import { actsAsArchive, stateOf } from "./state.ts";
 import { forApp, langOf, refusal, stromBy } from "./receive.ts";
 import { freeBytes, originalMax, ORIGINAL_RESERVE } from "./originals.ts";
 import { SYNC_MAX_BYTES } from "./sync.ts";
@@ -32,9 +32,11 @@ import { headOf } from "./stamp.ts";
 import { isDiskFull } from "./errors.ts";
 import { phrase } from "./phrases.ts";
 import { spawnRun } from "./warmwriter.ts";
+import { fromDeviceEnv } from "./deviceagent.ts";
+import { withoutAgentMarks } from "./which.ts";
 import { deviceAllows } from "./device-allow.ts";
-import { deviceAppFiles, deviceAppSource, ensureDeviceApp } from "./deviceapp.ts";
-import { deviceAppServable, isAppVersion, STROM_APP_URL } from "./stromapp.ts";
+import { appGate, deviceAppFailed, deviceAppSource, ensureDeviceApp, servableDeviceApp, type DeviceAppFiles } from "./deviceapp.ts";
+import { isAppVersion, STROM_APP_URL } from "./stromapp.ts";
 import {
   EVENT_PING_MS,
   EVENT_STREAMS_MAX,
@@ -311,6 +313,99 @@ const HEADERS = {
  */
 export const DEVICE_APP_CSP = "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'";
 
+/**
+ * The page a device is given at / and /pair while the computer has no copy of the app to serve (being downloaded, no
+ * internet, under the gate of its version): the computer prepares the app, the page tries again by itself. Here and not
+ * in the catalogs: they say nothing of the gateway while it is off (test devices-quiet). Impersonal, as every text for a
+ * person. A language not here: English.
+ */
+const PREPARING: Record<string, { title: string; text: string; failed: string; again: string }> = {
+  en: {
+    title: "The computer is preparing the app",
+    text: "The Strom app for this device is being prepared on the computer with the research. The page tries again by itself in a moment.",
+    failed: "The computer cannot download the app right now – is it connected to the internet?",
+    again: "Try again",
+  },
+  cs: {
+    title: "Počítač připravuje aplikaci",
+    text: "Aplikace Strom pro toto zařízení se připravuje na počítači s výzkumem. Stránka to za chvíli zkusí znovu sama.",
+    failed: "Počítač teď aplikaci stáhnout nemůže – je připojený k internetu?",
+    again: "Zkusit znovu",
+  },
+  de: {
+    title: "Der Computer bereitet die App vor",
+    text: "Die Strom-App für dieses Gerät wird auf dem Computer mit der Forschung vorbereitet. Die Seite versucht es gleich von selbst erneut.",
+    failed: "Der Computer kann die App gerade nicht herunterladen – ist er mit dem Internet verbunden?",
+    again: "Erneut versuchen",
+  },
+  pl: {
+    title: "Komputer przygotowuje aplikację",
+    text: "Aplikacja Strom dla tego urządzenia jest przygotowywana na komputerze z badaniem. Strona za chwilę spróbuje ponownie sama.",
+    failed: "Komputer nie może teraz pobrać aplikacji – czy jest połączony z internetem?",
+    again: "Spróbować ponownie",
+  },
+};
+
+/** The page that waits tries again after this long (after a failure: less often — the download waits its own while anyway). */
+const PREPARING_RETRY_MS = 3000;
+const PREPARING_RETRY_FAILED_MS = 15_000;
+
+/** The language of the page that waits: ?lang, else the browser's (Accept-Language, in its order), else English. */
+export function preparingLang(asked: string | null | undefined, acceptLanguage: string | undefined): string {
+  const ok = (l: string | null | undefined) => {
+    const c = l?.trim().toLowerCase().split(/[-_]/)[0];
+    return c && Object.hasOwn(PREPARING, c) ? c : undefined;
+  };
+  if (ok(asked)) return ok(asked)!;
+  for (const part of (acceptLanguage ?? "").split(",")) {
+    const l = ok(part.split(";")[0]);
+    if (l) return l;
+  }
+  return "en";
+}
+
+/**
+ * The page that waits for the app, in a language, its script and style under the nonce alone. It reads nothing of its
+ * address (the code after # stays there for the app, sent nowhere): reloaded as it is, it opens the app once there is one.
+ */
+export function preparingPage(lang: string, nonce: string, opts: { failed?: boolean } = {}): string {
+  const t = (Object.hasOwn(PREPARING, lang) ? PREPARING[lang] : undefined) ?? PREPARING.en!;
+  const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const retry = opts.failed ? PREPARING_RETRY_FAILED_MS : PREPARING_RETRY_MS;
+  return [
+    "<!doctype html>",
+    `<html lang="${esc(lang)}">`,
+    "<head>",
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    '<meta name="color-scheme" content="light dark">',
+    `<title>${esc(t.title)}</title>`,
+    `<style nonce="${nonce}">`,
+    "body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;font:17px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;background:#f7f5f0;color:#1f2a1f}",
+    "@media (prefers-color-scheme:dark){body{background:#161a16;color:#e8ece8}}",
+    "main{max-width:28rem;text-align:center}h1{font-size:1.35rem;margin:0 0 .75rem}p{margin:.5rem 0}.failed{font-weight:600}",
+    "button{font:inherit;margin-top:1.25rem;padding:.65rem 1.5rem;border-radius:.6rem;border:1px solid currentColor;background:transparent;color:inherit}",
+    ".dots::after{content:'';animation:d 1.5s steps(4) infinite}@keyframes d{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}",
+    "</style>",
+    "</head>",
+    "<body>",
+    "<main>",
+    `<h1><span class="dots">${esc(t.title)}</span></h1>`,
+    `<p>${esc(t.text)}</p>`,
+    ...(opts.failed ? [`<p class="failed">${esc(t.failed)}</p>`] : []),
+    `<button id="again" type="button">${esc(t.again)}</button>`,
+    "</main>",
+    `<script nonce="${nonce}">`,
+    `setTimeout(function(){location.reload()},${retry});document.getElementById("again").addEventListener("click",function(){location.reload()});`,
+    "</script>",
+    "</body>",
+    "</html>",
+  ].join("\n");
+}
+
+/** The code the phone's page puts into its icon on the home screen (/?home=…, core/phone.ts homeCode): 128 bits, base64url. */
+const OLD_HOME = /^[A-Za-z0-9_-]{22}$/;
+
 /** What the phone's server knows of a request when it asks the gateway. */
 export interface GatewayAsk {
   url: URL;
@@ -368,25 +463,20 @@ export function localName(env: Env): string | null {
  * What a device may do with itself, as /status through the gateway says it (the app draws these alone): rename its
  * row, unpair itself, an icon on its home screen (not from an icon), a move to the computer's name (where it has one and
  * the device does not ask there already), the decisions of the research it may take, a file sent in blocks
- * (PUT /device/media/<sha256>). `local`: `<name>.local:<port>`, or null.
+ * (PUT /device/media/<sha256>), the agent as the app on the computer starts it (spec 094 K3.15: agent.start — a link's
+ * terminal by device/agent, only where the agent researches; agent.bridge — the bridge's own work of the agent). `local`:
+ * `<name>.local:<port>`, or null; `research`: the agent researches in this tree.
  */
-export function deviceActions(device: Pick<Device, "of">, at: { host?: string; local: string | null }): string[] {
-  return ["device.rename", "device.unpair", ...(device.of ? [] : ["device.home"]), ...(at.local && at.host && at.host !== at.local ? ["device.move"] : []), "conflict.decide", "hypothesis.decide", "sync.undo", "media.put"];
+export function deviceActions(device: Pick<Device, "of">, at: { host?: string; local: string | null; research?: boolean }): string[] {
+  return ["device.rename", "device.unpair", ...(device.of ? [] : ["device.home"]), ...(at.local && at.host && at.host !== at.local ? ["device.move"] : []), "conflict.decide", "hypothesis.decide", "sync.undo", "media.put", ...(at.research ? ["agent.start"] : []), "agent.bridge"];
 }
 
-/** The gate of the app for the devices in a test (STROM_DEVICE_APP_GATE; testHooks): never elsewhere. */
-export function appGate(env: Env): string | undefined {
-  const asked = env.STROM_DEVICE_APP_GATE;
-  if (asked && testHooks(env) && isAppVersion(asked)) return asked;
-  return undefined;
-}
+/** The gate of the app for the devices in a test (STROM_DEVICE_APP_GATE; testHooks): never elsewhere (deviceapp.ts keeps it: its downloads go by it too). */
+export { appGate };
 
-/** The copy of the app the gateway serves now: downloaded and of a version the gate lets in; none — the phone's page. */
-export function servable(env: Env): ReturnType<typeof deviceAppFiles> {
-  const files = deviceAppFiles(env);
-  if (!files) return undefined;
-  // the gate of a test of the loopback, else the app's (undefined: its default); a copy of its beta site by its own gate too
-  return deviceAppServable(files.version, appGate(env), files.from) ? files : undefined;
+/** The copy of the app the gateway serves now: downloaded and of a version the gate lets in; none — the page that waits for it. */
+export function servable(env: Env): DeviceAppFiles | undefined {
+  return servableDeviceApp(env);
 }
 
 /** The origin of the copy of the app the devices are given — what the bridge lets write (its pages alone). */
@@ -431,7 +521,13 @@ export function statusForDevice(status: Record<string, unknown>, device: Pick<De
   const scheme = typeof status.linkScheme === "string" ? status.linkScheme : "strom-research";
   const scrubbed = scrub(rest, prefixes, scheme) as Record<string, unknown>;
   const others = deviceRows(devicesList(opts.env), opts.now ?? Date.now()).filter((r) => r.connected && r.id !== device.id && r.id !== device.of).length;
-  return { ...scrubbed, device: { id: device.id, name: device.name, kind: device.kind, actions: deviceActions(device, { ...(opts.host ? { host: opts.host } : {}), local: opts.local ?? null }), others } };
+  let research = false;
+  try {
+    research = stateOf(Tree.open(opts.root, opts.env)) === "research";
+  } catch {
+    // a research this strom cannot open: nothing of the agent
+  }
+  return { ...scrubbed, device: { id: device.id, name: device.name, kind: device.kind, actions: deviceActions(device, { ...(opts.host ? { host: opts.host } : {}), local: opts.local ?? null, research }), others } };
 }
 
 /** The folders of this computer a value must not name (the research, its trees, the shared folder, home, settings). */
@@ -566,7 +662,7 @@ export function deviceGateway(env: Env, note: (text: string) => void): DeviceGat
     res.end(JSON.stringify(body));
   };
 
-  const appCopy = (files: NonNullable<ReturnType<typeof deviceAppFiles>>): AppCopy | undefined => {
+  const appCopy = (files: DeviceAppFiles): AppCopy | undefined => {
     const index = path.join(files.dir, "index.html");
     let st: fs.Stats;
     try {
@@ -581,7 +677,7 @@ export function deviceGateway(env: Env, note: (text: string) => void): DeviceGat
   };
 
   /** GET / and GET /pair: the app for the devices. */
-  const serveApp = (req: http.IncomingMessage, res: http.ServerResponse, files: NonNullable<ReturnType<typeof deviceAppFiles>>): boolean => {
+  const serveApp = (req: http.IncomingMessage, res: http.ServerResponse, files: DeviceAppFiles): boolean => {
     const c = appCopy(files);
     if (!c) return false;
     req.resume();
@@ -611,6 +707,28 @@ export function deviceGateway(env: Env, note: (text: string) => void): DeviceGat
       (gz) => res.writeHead(200, { ...headers, "Content-Encoding": "gzip", "Content-Length": String(gz.length) }).end(gz),
       () => res.writeHead(200, { ...headers, "Content-Length": String(c.raw.length) }).end(c.raw),
     );
+    return true;
+  };
+
+  /**
+   * The page that waits for the app (no copy to serve): the copy made sure of under its own brakes (nothing asked of the
+   * site more often for it), the last download that failed said. 200 and not 503: it is the page this address gives now,
+   * read by a person, which tries again by itself — a browser does nothing with a 503's Retry-After, and a web app on a
+   * home screen opened from it should show this page, not an error. Never kept (no-store): the app replaces it.
+   */
+  const preparing = (req: http.IncomingMessage, res: http.ServerResponse, ask: GatewayAsk): boolean => {
+    req.resume();
+    void ensureDeviceApp(env);
+    const nonce = crypto.randomBytes(16).toString("base64");
+    const lang = preparingLang(ask.url.searchParams.get("lang"), String(req.headers["accept-language"] ?? ""));
+    res
+      .writeHead(200, {
+        ...HEADERS,
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Language": lang,
+        "Content-Security-Policy": `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+      })
+      .end(preparingPage(lang, nonce, { failed: deviceAppFailed(env) }));
     return true;
   };
 
@@ -827,6 +945,9 @@ export function deviceGateway(env: Env, note: (text: string) => void): DeviceGat
           return 'the body: {"variant"?, "decision"?} | {"proposed": true} | {"abandon": true, "decision"?} | {"keepOpen": true}';
         return ["hypothesis", "decide", id, ...(variant !== undefined ? [`--variant=${variant}`] : []), `--decision=${decision ?? decidedOn()}`, "--from-app"];
       }),
+    // what a link of the app on the computer starts with the agent (spec 094 K3.15): the question before it asked here,
+    // or the terminal opened on the computer — by a strom of its own in the tree's folder, the device from its pairing
+    agent: (a) => agentByLink(a),
     // a send of the app taken back on the device ({dry: true}: what it would change, nothing written)
     sync: (a) =>
       asPerson(a, "I", (id, body) => {
@@ -884,6 +1005,45 @@ export function deviceGateway(env: Env, note: (text: string) => void): DeviceGat
         if (status === 503) return resolve([503, said, { "Retry-After": String(said.retry ?? 5) }]);
         if (status === 200) note(`${argv.slice(0, 3).join(" ")} by the device ${a.device.id}`);
         resolve([status, said]);
+      }),
+    );
+  };
+
+  /**
+   * POST device/agent {link, yes?} (spec 094 K3.15): strom link device in the tree's folder — the device named by its
+   * pairing (clientOfDevice), never by what it says; no mark of an agent, no session, nothing of the app's writes. Its
+   * answer (ask, started, computer, said) or its refusal with a sentence for the person, as it says them.
+   */
+  const agentByLink = (a: ActionAsk): Answer | Promise<Answer> => {
+    const shape = 'the body: {"link": "strom-research://…", "yes"?: "…"}';
+    if (a.bytes > ACTION_BODY_MAX) return [400, refusal(shape, "device.body")];
+    const body = a.body;
+    if (!body || typeof body !== "object" || Array.isArray(body)) return [400, refusal(shape, "device.body")];
+    const { link, yes, ...other } = body as Record<string, unknown>;
+    if (Object.keys(other).length || typeof link !== "string" || (yes !== undefined && typeof yes !== "string")) return [400, refusal(shape, "device.body")];
+    if (!link || link.length > 2048) return [400, refusal("the link: at most 2048 characters", "device.link")];
+    const tree = deviceTrees(env).known.find((t) => t.id === a.tree);
+    if (!tree) return [404, refusal("no such research on this computer", "tree.unknown", { tree: a.tree.slice(0, 80) })];
+    const via = clientOfDevice(env, a.device.id) ?? { id: a.device.id, name: a.device.name };
+    const not = new Set(["STROM_SESSION", "STROM_WORKER", "STROM_VIA_DEVICE", "STROM_VIA_DEVICE_NAME", "STROM_FOR_APP", "STROM_NONINTERACTIVE", "STROM_DEVICE_YES", "STROM_FROM_DEVICE", "STROM_FROM_DEVICE_NAME"]);
+    const own = Object.fromEntries(Object.entries(withoutAgentMarks(env)).filter(([k]) => !not.has(k))) as NodeJS.ProcessEnv;
+    const run = spawnRun(tree.root, { ...own, STROM_TREE: tree.root, STROM_SPAWNED: "1", ...fromDeviceEnv(via) }, () => {});
+    const action = /^[a-z][a-z0-9+.-]*:\/\/([a-z-]{1,20})/iu.exec(link)?.[1]?.toLowerCase() ?? "link";
+    return new Promise<Answer>((resolve) =>
+      run(["link", "device", `--link=${link}`, ...(yes !== undefined ? [`--yes=${yes}`] : []), "--json"], ({ code, stdout, error }) => {
+        let said: { status?: unknown; answer?: unknown; message?: unknown } = {};
+        try {
+          said = JSON.parse(stdout) as typeof said;
+        } catch {
+          // said by the exit code
+        }
+        if (!error && code === 0 && typeof said.status === "number" && said.answer && typeof said.answer === "object") {
+          const answer = said.answer as Record<string, unknown>;
+          if (said.status === 200 && (answer.state === "started" || answer.state === "computer")) note(`agent started by the device ${via.id} (${action})`);
+          return resolve([said.status, answer]);
+        }
+        note(`the device ${via.id} asked the agent (${action}), not taken (exit ${code ?? "none"})`);
+        resolve([500, refusal(typeof said.message === "string" ? said.message : error ? String(error.message) : "the link was not taken", "device.failed")]);
       }),
     );
   };
@@ -1514,10 +1674,14 @@ export function deviceGateway(env: Env, note: (text: string) => void): DeviceGat
       }
       if (!on) return false;
       if (req.method === "GET" && (p === "/" || p === "/pair")) {
-        // a phone of the phone's page, or the page asked for: the page
-        if (ask.phonePaired || ask.url.searchParams.get("m") === "page") return false;
+        // a phone paired with the phone's page (its cookie, or its icon on the home screen opened the first time with the
+        // code the page gave it): the page as before — until it moves to the app (U20). Nobody else is given the page: a
+        // code to pair is the app's alone (m=page too: an older app asks for it). Such a phone scanning a new code
+        // (/pair?m=app) pairs the app: a new pairing is always the app's, whatever its cookie says
+        const newPairing = p === "/pair" && ask.url.searchParams.get("m") === "app";
+        if (!newPairing && (ask.phonePaired || (p === "/" && OLD_HOME.test(ask.url.searchParams.get("home") ?? "")))) return false;
         const files = servable(env);
-        return files ? serveApp(req, res, files) : false;
+        return files ? serveApp(req, res, files) : preparing(req, res, ask);
       }
       if (req.method === "GET" && p === "/manifest.json") return serveManifest(req, res);
       if (req.method === "GET" && p.startsWith("/icons/")) return serveIcon(req, res, p);

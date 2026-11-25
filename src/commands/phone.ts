@@ -7,6 +7,7 @@ import { lines, table } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
 import { StromError } from "../core/errors.ts";
 import { configDir } from "../core/paths.ts";
+import { devicePairShown, devicePairUrl, devicesOn } from "../core/devices.ts";
 import { pairCode, pairedPhones, pairUrl, phoneConfig, phoneLogFile, phoneProbeNow, phoneState, phoneTest, phoneTestOnCommand, phoneTestPortRefused, phoneWindowText, removePhone, servePhone, stopPhone, turnPhoneOn, type PhoneState } from "../core/phone.ts";
 import { qrTerminal } from "../core/qr.ts";
 
@@ -61,10 +62,21 @@ function qrLines(ctx: Context, s: PhoneState, address?: string): string {
   } catch {
     // a tree this strom cannot open: the page opens the one it chose
   }
-  const { code, expiresAt } = pairCode(ctx.env, tree ? { tree } : {});
+  // the gateway of the devices on: one way to pair — the code of the app (pairing v2), never a new one of the phone's page
+  let shown: string;
+  let expiresAt: string;
+  if (devicesOn(ctx.env)) {
+    const pair = devicePairShown(ctx.env, tree ? { tree } : {});
+    shown = devicePairUrl(url, pair);
+    expiresAt = pair.expiresAt;
+  } else {
+    const pair = pairCode(ctx.env, tree ? { tree } : {});
+    shown = pairUrl(url, pair.code, lang);
+    expiresAt = pair.expiresAt;
+  }
   const time = new Date(expiresAt).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
   return lines(
-    qrTerminal(pairUrl(url, code, lang)),
+    qrTerminal(shown),
     "",
     ui(lang, "ui.phone.qr", { time }),
     ui(lang, "ui.phone.qr.url", { url }),

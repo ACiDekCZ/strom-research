@@ -21,6 +21,7 @@ import {
   deviceName,
   devicePairCode,
   devicePairNow,
+  devicePairShown,
   devicePairUrl,
   devicesList,
   devicesOn,
@@ -394,6 +395,35 @@ test("the device a request of the gateway names (X-Strom-Device): its row — an
     renameDevice(s.env, parent.device.id, "Телефон");
     assert.deepEqual(clientOfDevice(s.env, icon.device.id), { id: parent.device.id, name: "Телефон" });
     for (const other of ["dv_bbbbbbbbbbbbbbbb", "", undefined, ["x"], 42]) assert.equal(clientOfDevice(s.env, other), undefined, String(other));
+  } finally {
+    s.done();
+  }
+});
+
+test("a QR code shown again (strom phone qr, phone on, the bridge's qr.svg): the code of the app that holds for the same tree; used, expired, of another tree or the phone's page's — a new one of the app", () => {
+  const s = scratch();
+  try {
+    const first = devicePairShown(s.env, { tree: "t1" }, () => T0);
+    assert.equal(first.mode, "app");
+    assert.equal(first.tree, "t1");
+    assert.deepEqual(devicePairShown(s.env, { tree: "t1" }, () => T0 + 1000), first, "the same while it holds");
+    const other = devicePairShown(s.env, { tree: "t2" }, () => T0 + 2000);
+    assert.notEqual(other.pairId, first.pairId);
+    assert.equal(other.tree, "t2");
+    const none = devicePairShown(s.env, {}, () => T0 + 3000);
+    assert.notEqual(none.pairId, other.pairId);
+    assert.equal(none.tree, undefined);
+    assert.deepEqual(devicePairShown(s.env, {}, () => T0 + 4000), none);
+    // a code of the phone's page (an older strom's window): never shown again, one of the app instead
+    devicePairCode(s.env, { mode: "page" }, () => T0 + 5000);
+    const app = devicePairShown(s.env, {}, () => T0 + 6000);
+    assert.equal(app.mode, "app");
+    // used: a new one
+    assert.ok(pairDevice(s.env, { pairId: app.pairId, proof: proofOf(app), address: "192.168.1.40" }, () => T0 + 7000).ok);
+    const after = devicePairShown(s.env, {}, () => T0 + 8000);
+    assert.notEqual(after.pairId, app.pairId);
+    // expired: a new one
+    assert.notEqual(devicePairShown(s.env, {}, () => T0 + 8000 + PAIR_MS).pairId, after.pairId);
   } finally {
     s.done();
   }

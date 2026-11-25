@@ -1,9 +1,13 @@
 /**
  * What a device of the home network may ask a tree's bridge through the gateway (POST /device/x): denied unless named
- * here. Reads, and what the person writes in the app on the computer (sends, materials, sources, what waits, facts,
- * history and places, lines and the queue, stopping runs) pass; what starts an agent, spends its sessions, changes the
- * research's settings or what only the computer decides is answered 403 device.computer-only {action} — and so is any
- * path this table does not know. The bridge checks every write again as it does for the app on the computer.
+ * here. Reads (the research's finds among them: GET finds, its since and lang in the envelope's query), and what the
+ * person writes in the app on the computer (sends, materials, sources, what waits, facts, history and places, lines and
+ * the queue, stopping runs) pass; so does what the bridge has its agent do in the background as the app on the computer
+ * asks it (spec 094 K3.15: sorting the material, verifying, reading a record or a source, identifying places — the
+ * question before it the app's dialog, as on the computer). What opens the agent's terminal goes by the gateway's own
+ * device/agent; what changes the research's settings or what only the computer decides is answered 403
+ * device.computer-only {action} — and so is any path this table does not know. The bridge checks every write again as
+ * it does for the app on the computer.
  *
  * A path is the bridge's own without its secret (`status`, `waiting/T0001`): nothing that climbs (`..`, `%2e`), no
  * doubled or leading slash, no address of its own (`http://…`), no backslash, query or fragment in it, no control
@@ -52,12 +56,12 @@ const asBody = (b: unknown): Body => (b && typeof b === "object" && !Array.isArr
 export function deviceAllows(m: string, p: string, b?: unknown, secret?: string): Allowed {
   const ws = words(p, secret);
   if (!ws) return deny("path");
-  const [what, sub, act, rest] = ws as [string, string | undefined, string | undefined, string | undefined];
+  const [what, sub, act, rest, fifth] = ws as [string, string | undefined, string | undefined, string | undefined, string | undefined];
   const n = ws.length;
   const ok: Allowed = { ok: true, path: ws.join("/") };
   const body = asBody(b);
   if (m === "GET") return readAllowed(what, sub, act, rest, n) ? ok : deny(computerOnlyRead(what, sub) ?? what);
-  if (m === "POST") return writeAllowed(what, sub, act, rest, n, body) ?? ok;
+  if (m === "POST") return writeAllowed(what, sub, act, rest, fifth, n, body) ?? ok;
   if (m === "PUT") {
     // a list of the person's (Add materials: its order); files come by PUT /device/media of their own
     if (what === "lists" && sub && n === 2) return ok;
@@ -76,6 +80,9 @@ function readAllowed(what: string, sub: string | undefined, act: string | undefi
     case "log":
     case "recent":
     case "whats-new":
+    case "finds":
+    case "glance":
+    case "people":
     case "excerpts":
     case "reads":
     case "fixes":
@@ -90,8 +97,8 @@ function readAllowed(what: string, sub: string | undefined, act: string | undefi
     case "media":
       return n === 2 && SHA.test(sub ?? "");
     case "material":
-      // its list, what a material is used for; never the sorting (an agent's)
-      return n === 1 || (n === 3 && sub !== "sort" && act === "uses");
+      // its list, what a material is used for, a sort asked (K3.15) — never the list of the sorts
+      return n === 1 || (n === 3 && sub !== "sort" && act === "uses") || (n === 3 && sub === "sort");
     case "directions":
       return n === 2 && sub === "people";
     case "history":
@@ -123,7 +130,7 @@ const WAIT_DO = new Set(["sent", "unsent", "answer", "retry"]);
 const BRANCH_DO = new Set(["line", "keep", "never"]);
 
 /** A POST a device may send: undefined when it passes, else the refusal. */
-function writeAllowed(what: string, sub: string | undefined, act: string | undefined, rest: string | undefined, n: number, body: Body): Allowed | undefined {
+function writeAllowed(what: string, sub: string | undefined, act: string | undefined, rest: string | undefined, fifth: string | undefined, n: number, body: Body): Allowed | undefined {
   const only = (cond: boolean, action: string): Allowed | undefined => (cond ? undefined : deny(action));
   switch (what) {
     // what only reads, though asked by POST
@@ -140,15 +147,21 @@ function writeAllowed(what: string, sub: string | undefined, act: string | undef
     case "cancel":
       return only(n === 1, "cancel");
     case "batch":
-      if (n !== 3 || act !== "done") return deny("batch");
-      // closed to be sorted by the agent: the computer's
-      return only(body?.sort !== true, "batch.sort");
+      // closed, and sorted by the agent at once when asked (K3.15: sort.confirm the app's dialog, as on the computer)
+      return only(n === 3 && act === "done", "batch");
     case "material":
-      if (sub === "sort") return deny("material.sort");
+      // a sort asked, one cancelled (K3.15)
+      if (sub === "sort") return only(n === 2 || (n === 4 && rest === "cancel"), "material.sort");
       return only(n === 2 && (sub === "assign" || sub === "hide" || sub === "edit" || sub === "delete"), "material");
+    case "read":
+      // a record read at once, read again, a reading cancelled (K3.15)
+      return only(n === 1 || (n === 3 && (act === "again" || act === "cancel")), "read");
     case "source":
       return only(n === 2 && (sub === "retract" || sub === "restore"), "source");
     case "sources":
+      // a source read (K3.15): the whole of it, a document of it made a task
+      if (n === 2 && sub === "read") return undefined;
+      if (n === 5 && act === "read" && fifth === "task") return undefined;
       if (sub === "read" || act === "read") return deny("sources.read");
       if (n === 2 && (sub === "confirm" || sub === "proposal" || sub === "split")) return undefined;
       return only(n === 3 && sub === "split" && act === "undo", "sources");
@@ -171,8 +184,9 @@ function writeAllowed(what: string, sub: string | undefined, act: string | undef
     case "quality":
       return only(n === 2 && sub === "dismiss", "quality");
     case "places":
-      if (n === 2 && (sub === "answer" || sub === "undo")) return undefined;
-      return deny(sub === "identify" || sub === "run" ? `places.${sub}` : "places");
+      // identified (K3.15: queued, free); looked up by the agent goes by device/agent (its link)
+      if (n === 2 && (sub === "answer" || sub === "undo" || sub === "identify")) return undefined;
+      return deny(sub === "run" ? `places.${sub}` : "places");
     case "directions":
       // a new line, its preview: the computer's
       if (n === 1) return deny("directions.new");
@@ -188,7 +202,8 @@ function writeAllowed(what: string, sub: string | undefined, act: string | undef
     case "runs":
       return only(n === 2 && sub === "stop", "runs");
     case "verify":
-      return only(n === 2 && sub === "stop", sub === "bulk" ? "verify.bulk" : "verify");
+      // asked (its estimate with dry), asked for many, stopped (K3.15)
+      return only(n === 1 || (n === 2 && (sub === "stop" || sub === "bulk")), "verify");
     case "settings":
       // only fewer runs at once: the bridge itself refuses more from any app (403 runs.raise, the person's terminal)
       if (n === 2 && sub === "runs") return undefined;
@@ -196,8 +211,8 @@ function writeAllowed(what: string, sub: string | undefined, act: string | undef
       if (n === 2 && (sub === "sort" || sub === "run")) return only(body?.confirm === "ask" && Object.keys(body).length === 1, `settings.${sub}`);
       return deny(sub === "sort" ? "settings.sort" : "settings");
     default:
-      // read (again, cancel), hypotheses, stories, experiments, intake, sourceTask, live, offline, books, census,
-      // adopt, transfer, phone, and anything not known
-      return deny(what === "books" && sub === "aside" ? "books.aside" : what === "read" ? "read" : what);
+      // hypotheses, stories, experiments, intake, sourceTask, live, offline, books, census, adopt, transfer, phone,
+      // and anything not known
+      return deny(what === "books" && sub === "aside" ? "books.aside" : what);
   }
 }

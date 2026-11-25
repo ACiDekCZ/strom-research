@@ -19,7 +19,8 @@ import { DEFAULT_RUN_MINUTES, DEFAULT_RUN_PARALLEL, readStored } from "../core/c
 import { lineRunFilter, runRefusal } from "../core/linerun.ts";
 import { runsAtWork } from "../core/workers.ts";
 import { choosePace } from "../commands/setup.ts";
-import type { Conflict, Family, Hypothesis, HypothesisVariant, HypothesisWrote, Person, Research, Session, Source, Task, VariantLink } from "../core/model.ts";
+import type { AppClient, Conflict, Family, Hypothesis, HypothesisVariant, HypothesisWrote, Person, Research, Session, Source, Task, VariantLink } from "../core/model.ts";
+import { DevicePreview } from "../core/deviceagent.ts";
 import { costPartial, monthSpend, sessionCost } from "../core/session.ts";
 import { adoptAskedSince, adoptFailedSince, adoptedAt, adoptionNeverCame, awaitAdoption, nothingSince, removedByItsDecision, SYNC_INBOX, keptLines, clientLabel, undoSync, withoutImages, type SyncInput, type UndoKept } from "../core/sync.ts";
 import { moveToTrash } from "../core/trash.ts";
@@ -75,8 +76,13 @@ import { placeView, queueView } from "../core/placesview.ts";
 import { kindsAdded, kindsOf, kindsSetting } from "../core/eventkinds.ts";
 import { alignEmpty, kindNames, planAlign } from "../core/historyalign.ts";
 
+/** A note under a question as its lines (what a device's dialog shows). */
+const noteLines = (note: string | undefined): string[] => (note ?? "").split("\n").filter((l) => l.trim());
+
 /** What the Strom app asks, said before anything is done; true when the person goes on. */
 export async function asks(ctx: Context, lang: string, root: string, what: string, note?: string, suggested = true): Promise<boolean> {
+  // a device's preview of the link (spec 094 K3.15): this is the question the device asks instead
+  if (ctx.devicePreview) throw new DevicePreview({ kind: "ask", what, note: noteLines(note) });
   const name = Tree.open(root, ctx.env).config.name;
   ctx.io.stdout(lines(translator(lang)("ui.link.asks", { what, name }), note, "") + "\n");
   return ctx.confirm(translator(lang)("ui.link.go"), suggested);
@@ -89,18 +95,30 @@ export async function asks(ctx: Context, lang: string, root: string, what: strin
  * own command (only the person in their terminal), and all the rest (consents, deletions, the gate of strom run).
  */
 export async function asksToStart(ctx: Context, lang: string, root: string, what: string, note?: string, suggested = true, priced = false): Promise<boolean> {
+  // a device's preview (spec 094 K3.15): a price in money stays the terminal's, run.confirm no starts at once, else the
+  // device asks this question itself
+  if (ctx.devicePreview) throw new DevicePreview(priced ? { kind: "computer", why: "price" } : startsUnasked(ctx) ? { kind: "started" } : { kind: "ask", what, note: noteLines(note) });
   if (!startsUnasked(ctx, priced)) return asks(ctx, lang, root, what, note, suggested);
   const name = Tree.open(root, ctx.env).config.name;
-  ctx.io.stdout(translator(lang)("ui.link.noconfirm", { what: what.trim().replace(/[.:]$/u, ""), name }) + "\n");
+  const said = what.trim().replace(/[.:]$/u, "");
+  ctx.io.stdout((ctx.deviceYes ? deviceYesLine(ctx.deviceYes, lang, said, name) : translator(lang)("ui.link.noconfirm", { what: said, name })) + "\n");
   return true;
 }
 
+/** The line a terminal says for the device's yes it took instead of its question (spec 094 K3.15). */
+function deviceYesLine(device: AppClient, lang: string, what: string, name: string): string {
+  return translator(lang)("ui.link.device.yes", { device: device.name ?? device.id, what, name });
+}
+
 /**
- * Whether asksToStart starts without its question (run.confirm no, a person in their terminal, no price in money): what
- * the link starts right after it is then not asked yes or no again — the line said it starts.
+ * Whether asksToStart starts without its question (run.confirm no, a person in their terminal, no price in money — or
+ * the yes of a device that opened this terminal, spec 094 K3.15): what the link starts right after it is then not
+ * asked yes or no again — the line said it starts.
  */
 export function startsUnasked(ctx: Context, priced = false): boolean {
-  return !priced && ctx.settings.runConfirm() === "no" && ctx.interactive && !isAgent(ctx.env);
+  if (priced) return false;
+  if (ctx.deviceYes) return true;
+  return ctx.settings.runConfirm() === "no" && ctx.interactive && !isAgent(ctx.env);
 }
 
 const out = (ctx: Context, line: string) => ctx.io.stdout(line + "\n");
@@ -436,11 +454,18 @@ export async function placeSearch(ctx: Context, run: Run, lang: string, root: st
   const place = placeLabel(p, lang);
   // its session is strom run's: the agent's CLI not here said before the estimate and the question
   if (!(await agentCliHere(ctx, run, lang, tree))) return false;
-  if (!(await asks(ctx, lang, root, t("ui.link.what.history.place", { place }), placeCost(t, lang, tree), false))) return false;
+  // a price in money stays the terminal's question; the yes of a device that opened it (no price): queued and started
+  // now, both questions answered (spec 094 K3.15)
+  const priced = !!placeEstimate(tree).usd;
+  if (ctx.devicePreview && priced) throw new DevicePreview({ kind: "computer", why: "price" });
+  const yes = !!ctx.deviceYes && !priced;
+  const what = t("ui.link.what.history.place", { place });
+  if (yes) out(ctx, deviceYesLine(ctx.deviceYes!, lang, what.trim().replace(/[.:]$/u, ""), tree.config.name));
+  else if (!(await asks(ctx, lang, root, what, placeCost(t, lang, tree), false))) return false;
   if ((await run(["history", "place", p.id], true)) !== 0) return false;
   const task = placeTask(Tree.open(root, ctx.env), p.id);
   out(ctx, t("ui.link.history.place.done", { place }));
-  if (!task || !(await ctx.confirm(t("ui.link.history.place.now"), false))) return true;
+  if (!task || (!yes && !(await ctx.confirm(t("ui.link.history.place.now"), false)))) return true;
   return (await run(["run", "--task", task.id])) === 0;
 }
 

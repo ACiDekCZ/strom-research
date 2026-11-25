@@ -494,6 +494,41 @@ export function findPersons(tree: Tree, query: string): Person[] {
     });
 }
 
+/** So many people a search of a phone's or a device's gives (spec 094 D1). */
+export const PEOPLE_FOUND = 8;
+
+/** A person found for a phone or a device: the name, the years, the place of the birth (else the death), its first part. */
+export interface PersonFound {
+  id: string;
+  name: string;
+  birth?: string;
+  death?: string;
+  span?: string;
+  place?: string;
+}
+
+/**
+ * The people a search of the phone's page or of a device finds (GET /phone/people, GET <token>/people): the first
+ * PEOPLE_FOUND by their names (findPersons), none merged into another; fewer than two letters or digits: none. With
+ * `shown` (a device's: the text as it may see it), the place is the first part of it with something left once shown
+ * ("/Users/…/x, Praha" → "Praha"), none when no part has; without it, the first part as written.
+ */
+export function peopleFound(tree: Tree, query: string, shown?: (text: string) => string): PersonFound[] {
+  const q = query.slice(0, 100);
+  if (foldText(q).replace(/[^\p{L}\p{M}\p{N}]/gu, "").length < 2) return [];
+  return findPersons(tree, q)
+    .filter((p) => !p.mergedInto)
+    .slice(0, PEOPLE_FOUND)
+    .map((p) => {
+      const b = birthEvent(p)?.date;
+      const d = deathEvent(p)?.date;
+      const parts = (birthEvent(p)?.place ?? deathEvent(p)?.place)?.split(",") ?? [];
+      const at = shown ? parts.map((x) => shown(x.trim())).find((x) => x) : parts[0]?.trim();
+      const span = lifespan(p);
+      return { id: p.id, name: displayName(p), ...(b ? { birth: yearLabel(b) } : {}), ...(d ? { death: yearLabel(d) } : {}), ...(span ? { span } : {}), ...(at ? { place: at } : {}) };
+    });
+}
+
 export function resolvePerson(tree: Tree, ref: string): Person {
   const id = ref.trim().toUpperCase();
   if (/^P\d+$/.test(id)) {

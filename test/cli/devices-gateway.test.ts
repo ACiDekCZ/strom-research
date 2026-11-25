@@ -19,7 +19,7 @@ import { World, hasGit, until } from "../helpers.ts";
 import { decodeQr, svgModules } from "../qr-decode.ts";
 import { deviceKey, fromB64url, GZIP_FROM, openPair, openResponse, pairProof, responseBody, sealRequest, type DeviceRequest, type RequestEnvelope } from "../../src/core/devices.ts";
 import { liveLogFile } from "../../src/core/live.ts";
-import { phoneLogFile, phonePage } from "../../src/core/phone.ts";
+import { pairCode, phoneLogFile, phonePage } from "../../src/core/phone.ts";
 
 const skip = !hasGit || process.platform === "win32";
 const VERSION = "3.99.0";
@@ -115,7 +115,8 @@ test("the gateway of the devices: paired through the bridge's code, the sealed t
 
     // the bridge: the features of the gateway; GET phone notes the app's copy, which the computer downloads
     const direct = await request("GET", `${bridge.url}/status`);
-    for (const f of ["device.gateway", "device.phonePage"]) assert.ok(direct.json.features.includes(f), f);
+    assert.ok(direct.json.features.includes("device.gateway"));
+    assert.ok(!direct.json.features.includes("device.phonePage"), "one way to pair: no choice of the phone's page");
     let devices: Record<string, any> = {};
     await until("the app for the devices downloaded", async () => {
       devices = (await request("GET", `${bridge.url}/phone`, undefined, APP)).json.devices;
@@ -174,8 +175,9 @@ test("the gateway of the devices: paired through the bridge's code, the sealed t
     const status = await x(me, { m: "GET", p: "status" });
     assert.equal(status.status, 200, status.text);
     assert.equal(status.s, 200);
-    for (const f of ["device.gateway", "device.phonePage"]) assert.ok(status.data.features.includes(f), f);
-    assert.deepEqual(status.data.device, { id: me.id, name: "Telefon Lhotáků", kind: "phone", actions: ["device.rename", "device.unpair", "device.home", "device.move", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put"], others: 0 });
+    assert.ok(status.data.features.includes("device.gateway"));
+    assert.ok(!status.data.features.includes("device.phonePage"));
+    assert.deepEqual(status.data.device, { id: me.id, name: "Telefon Lhotáků", kind: "phone", actions: ["device.rename", "device.unpair", "device.home", "device.move", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put", "agent.start", "agent.bridge"], others: 0 });
     for (const k of ["work", "agents", "path", "treesRoot"]) assert.ok(!(k in status.data), k);
     assert.ok(!status.body!.toString("utf8").includes(w.home), "no folder of the computer");
     assert.doesNotMatch(status.body!.toString("utf8"), /strom-research(-[\p{L}\p{N}]+)?:/u);
@@ -200,6 +202,32 @@ test("the gateway of the devices: paired through the bridge's code, the sealed t
     assert.equal(dismiss.data.ok, true);
     const quality = await x(me, { m: "GET", p: "quality" });
     assert.deepEqual(quality.data.dismissed.map((d: any) => [d.kind, d.persons, d.by]), [["possibleDuplicate", [a, b], "app"]]);
+
+    // what the research found (the screen Research of a phone): its since and lang in the query, nothing of the computer
+    const since = new Date(Date.now() - 60_000).toISOString();
+    await w.ok(["person", "add", "Zdeňka /Lhotáková/", "--sex", "F"], { env: { AI_AGENT: "1" } });
+    const finds = await x(me, { m: "GET", p: "finds", q: { since, lang: "en" } });
+    assert.equal(finds.s, 200, finds.body?.toString("utf8"));
+    assert.equal(finds.data.since, since);
+    assert.deepEqual(finds.data.groups.map((g: any) => [g.kind, g.title]), [["person", "Zdeňka Lhotáková"]]);
+    assert.ok(!finds.body!.toString("utf8").includes(w.home), "no folder of the computer");
+    assert.deepEqual([(await x(me, { m: "POST", p: "finds", b: {} })).data.code], ["device.computer-only"]);
+    // whom each find is about, for "Show in the tree" (spec 094 D3)
+    const zdenka = finds.data.groups[0].person as string;
+    assert.match(zdenka, /^P\d+$/u);
+
+    // the screen Research before the tree (spec 094 K3.13): the tree's counts, the people it names; nothing of the computer
+    const glance = await x(me, { m: "GET", p: "glance" });
+    assert.equal(glance.s, 200, glance.body?.toString("utf8"));
+    assert.deepEqual([glance.data.tree.name, glance.data.tree.persons, glance.data.day.persons], ["Lhotákovi", 3, 3]);
+    assert.deepEqual([glance.data.now, glance.data.runs, glance.data.lines], [[], [], []]);
+    assert.ok(!glance.body!.toString("utf8").includes(w.home), "no folder of the computer");
+    assert.deepEqual([(await x(me, { m: "POST", p: "glance", b: {} })).data.code], ["device.computer-only"]);
+    // a person searched for by the name (D1): the query in the envelope's q
+    const people = await x(me, { m: "GET", p: "people", q: { q: "lhot" } });
+    assert.equal(people.s, 200, people.body?.toString("utf8"));
+    assert.deepEqual(people.data.people.map((p: any) => [p.id, p.name, p.span ?? ""]).sort(), [[a, "Jan Lhoták", "*1850"], [b, "Jan Lhoták", "*1851"], [zdenka, "Zdeňka Lhotáková", ""]].sort());
+    assert.deepEqual([(await x(me, { m: "PUT", p: "people", b: {} })).data.code], ["device.computer-only"]);
 
     // refused inside: what only the computer does, a tree not known
     const agent = await x(me, { m: "POST", p: "hypotheses", b: { decide: "agent" } });
@@ -238,7 +266,7 @@ test("the gateway of the devices: paired through the bridge's code, the sealed t
     assert.deepEqual([late.status, late.json.code, late.json.replay], [409, "device.clock", false]);
     assert.ok(Math.abs(late.json.now - Date.now()) < 60_000, "the gateway's time");
 
-    // / : the app (its gate by the test's switch), cached by its ETag, gzipped when asked; ?m=page the phone's page
+    // / : the app (its gate by the test's switch), cached by its ETag, gzipped when asked; ?m=page the app too
     const page = await request("GET", `${address}/`);
     assert.equal(page.status, 200);
     assert.match(page.text, new RegExp(`<span id="about-version">${VERSION.replace(/\./g, "\\.")}</span>`));
@@ -254,7 +282,7 @@ test("the gateway of the devices: paired through the bridge's code, the sealed t
     const packed = await request("GET", `${address}/`, undefined, { "Accept-Encoding": "gzip, br" });
     assert.equal(packed.headers["content-encoding"], "gzip");
     assert.equal(zlib.gunzipSync(packed.bytes).toString("utf8"), page.text);
-    assert.ok(isPhonePage((await request("GET", `${address}/?m=page&lang=en`)).text, "en"));
+    for (const p of ["/?m=page&lang=en", "/pair?m=page&lang=en", "/pair"]) assert.equal((await request("GET", `${address}${p}`)).text, page.text, p);
     const manifest = await request("GET", `${address}/manifest.json`);
     assert.deepEqual([manifest.json.start_url, manifest.json.scope, manifest.json.icons.map((i: any) => i.src)], ["/", "/", ["/icons/icons/icon-192.png"]]);
     // (an icon under /icons/ by its path in the app's folder)
@@ -264,10 +292,23 @@ test("the gateway of the devices: paired through the bridge's code, the sealed t
     for (const p of ["/icons/..%2F..%2Fdevices.json", "/icons/../devices.json", "/icons/index.html", "/icons/icon-192.png"]) assert.equal((await request("GET", `${address}${p}`)).status, 404, p);
     const hello = await request("GET", `${address}/device/hello`);
     assert.deepEqual([hello.json.v, hello.json.gateway, hello.json.port, hello.json.app], [1, true, Number(port), VERSION]);
-    // a phone paired with the phone's page gets its page
+    // one way to pair: the code of the app alone — asked for the phone's page (an older app), from the bridge's QR code, no
+    // new code of the phone's page made
+    const pairFile = path.join(w.env.STROM_CONFIG_DIR!, "device-pair.json");
+    const oldFile = path.join(w.env.STROM_CONFIG_DIR!, "phone-pair.json");
     const pageCode = await request("POST", `${bridge.url}/phone/pair`, JSON.stringify({ mode: "page", lang: "en" }), APP);
-    assert.match(pageCode.json.url, /\/pair\?m=page&lang=en#[A-Za-z0-9_-]{22}$/);
-    const phonePaired = await request("POST", `${address}/pair`, JSON.stringify({ code: pageCode.json.url.split("#")[1] }), { Origin: address, "Content-Type": "text/plain;charset=UTF-8" });
+    assert.equal(pageCode.status, 200, pageCode.text);
+    const asApp = new RegExp(`^${address.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/pair\\?m=app#([A-Za-z0-9_-]{22})\\.[A-Za-z0-9_-]{43}$`);
+    assert.equal(asApp.exec(pageCode.json.url)?.[1], JSON.parse(fs.readFileSync(pairFile, "utf8")).pairId, pageCode.json.url);
+    const svg = await request("GET", `${bridge.url}/phone/qr.svg?lang=en`, undefined, { Origin: app.origin });
+    assert.equal(svg.status, 200, svg.text);
+    const shown = decodeQr(svgModules(svg.text)).text;
+    assert.equal(shown, pageCode.json.url, "the code that holds, shown again");
+    assert.equal(svg.headers["x-strom-pair-url"], address);
+    assert.equal(fs.existsSync(oldFile), false, "no code of the phone's page");
+    // a phone paired with the phone's page before (its code made as an older strom did) gets its page
+    const old = pairCode(w.env, {});
+    const phonePaired = await request("POST", `${address}/pair`, JSON.stringify({ code: old.code }), { Origin: address, "Content-Type": "text/plain;charset=UTF-8" });
     assert.equal(phonePaired.status, 200, phonePaired.text);
     const cookie = String(phonePaired.headers["set-cookie"]).split(";")[0]!;
     assert.ok(isPhonePage((await request("GET", `${address}/?lang=en`, undefined, { Cookie: cookie })).text, "en"), "the phone's page for a phone of it");

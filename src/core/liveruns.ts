@@ -6,7 +6,7 @@
 // Read only.
 
 import { PROFILES } from "../agents/profiles.ts";
-import type { Research, Task } from "./model.ts";
+import type { AppClient, Research, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import type { Env } from "./paths.ts";
 import { DEFAULT_RUN_PARALLEL, RUN_PARALLEL_MAX, type Settings } from "./config.ts";
@@ -30,6 +30,8 @@ export interface RunView {
   task?: string;
   lastStep?: string;
   sessions: number;
+  /** The device of the home network whose terminal started it (spec 094 K3.15). */
+  device?: AppClient;
 }
 
 /** Why a run of a line cannot start now (researches[].why). */
@@ -72,6 +74,7 @@ export function runsLive(root: string, fallbackAgent: () => string): { runs: Run
         ...(state?.session ? { session: state.session, ...(state.task ? { task: state.task } : {}) } : {}),
         ...(state?.step ? { lastStep: state.step } : {}),
         sessions: state?.sessions ?? 0,
+        ...(state?.device ? { device: state.device } : {}),
       };
     });
   return { runs, runsEnded: endedRuns(root) };

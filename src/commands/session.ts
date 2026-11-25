@@ -84,6 +84,7 @@ import { usageOpt, webOpt } from "../core/metrics.ts";
 import { calibrationKey, viewModel } from "../core/viewsizes.ts";
 import { claudeLoggedIn, claudeLoginCommand } from "../core/claudedir.ts";
 import { closeCoverage, coverageLine } from "../core/coverage.ts";
+import { fromDevice } from "../core/deviceagent.ts";
 
 function written(tree: Tree): string {
   return lines(...tree.written.map((o) => o.summary));
@@ -1113,7 +1114,7 @@ register(
     const leave = enterRun(root, { worker, label: `${PROFILES[runnerId]?.name ?? runnerId} on its own`, version: VERSION, agent: runnerId, ...(line ? { research: line.id } : {}), max: ctx.settings.number("run.parallel", undefined, DEFAULT_RUN_PARALLEL) });
     const runSince = new Date().toISOString();
     // what the Strom app sees of the run (core/runstate.ts): its last step, its sessions, a stop asked of it
-    const runState = runStateWriter(root, worker, models.lead);
+    const runState = runStateWriter(root, worker, models.lead, fromDevice(ctx.env));
     // the sign of life of the run's session while its agent works (its task stays held: core/holds.ts)
     const beating = setInterval(() => beatHolds(root, { STROM_WORKER: worker }, { force: true }), BEAT_MS);
     beating.unref();

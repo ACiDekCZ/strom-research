@@ -15,7 +15,7 @@ import type { Context } from "../cli/context.ts";
 import { counted, lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
 import { readingsLine, readingsOf } from "../core/readsync.ts";
 import { notFound, UsageError } from "../core/errors.ts";
-import type { Input, Name, Person, Research, Task } from "../core/model.ts";
+import type { Family, Input, MediaLink, Name, Person, Research, Task } from "../core/model.ts";
 import { collectFiles, fileSha256, inputPath, MAX_IN_TREE, mimeOf, storeShared } from "../core/media.ts";
 import { create, normId, requireRecord, update } from "../core/records.ts";
 import { phrase } from "../core/phrases.ts";
@@ -25,7 +25,7 @@ import { displayName, gedcomName, likelyDuplicates } from "../core/people.ts";
 import { decodeText, safeFolderName } from "../core/text.ts";
 import { decodeGedcom, decodingNote, type DecodingNote } from "../gedcom/encoding.ts";
 import type { Tree } from "../core/tree.ts";
-import { amendInput, checkOriginalMeta } from "../core/originals.ts";
+import { amendInput, checkOriginalMeta, sentByApp } from "../core/originals.ts";
 import { batchStatus, closeBatch, listBatches, readBatch } from "../core/batches.ts";
 import { HIDE_REASONS, MATERIAL_KINDS, SORT_KINDS, type Source } from "../core/model.ts";
 import { assignMaterial, declinedOf, editMaterial, hideMaterial, MATERIAL_MOST_EDIT, MATERIAL_TITLE_MAX, materialPersons, unhideMaterial } from "../core/material.ts";
@@ -893,7 +893,9 @@ register(
     description:
       "Sorting a batch: each file's kind and the person it is of. source: a record (give --source S… once it is recorded);\n" +
       "document, photo: the family's own; unrelated: nothing of the family (--reason; it is skipped, nothing of it is written).\n" +
-      "What a file says is recorded as from any material; sorting only says what it is.",
+      "What a file says is recorded as from any material; sorting only says what it is.\n" +
+      "A file the Strom app sent with no place in its tree, sorted of people, goes there at them (two partners: at their\n" +
+      "couple; --json placed); a place taken off stays off.",
     args: [{ name: "inputs", description: "input IDs (I0001 …)", variadic: true }],
     options: [
       { name: "as", type: "string", value: "<kind>", description: `${SORT_KINDS.join(", ")}` },
@@ -921,14 +923,42 @@ register(
       const at = new Date().toISOString();
       // a person the person took off a file is never put back on it by sorting (Input.declined)
       const ofFile = (i: Input) => persons.filter((p) => !declinedOf(tree, i).has(p));
+      let order: Map<string, number> | undefined;
+      /** The next place of a person's or a couple's files in the app's tree (after the last one they have). */
+      const nextOrder = (ref: string): number => {
+        if (!order) {
+          order = new Map();
+          for (const x of tree.list<Input>("input"))
+            for (const l of x.retracted ? [] : (x.links ?? [])) if (!l.retracted && l.type !== "event" && l.type !== "source") order.set(l.ref, Math.max(order.get(l.ref) ?? -1, l.order));
+        }
+        const n = (order.get(ref) ?? -1) + 1;
+        order.set(ref, n);
+        return n;
+      };
+      /**
+       * A file the Strom app sent (a batch, material of a person) with no place in the app's tree yet, sorted as the
+       * family's (a record, a document, a photo) of people: put in the tree at them, as the app's Attach to would — a
+       * couple's at their family, else at each of them; the living as anyone. A file with any place, one taken off too,
+       * is left as it is: what the person removed in the app stays removed.
+       */
+      const placesOf = (i: Input): MediaLink[] => {
+        const of = ofFile(i);
+        if (as === "unrelated" || !of.length || i.retracted || i.hidden || i.links?.length || !(i.batch || sentByApp(i))) return [];
+        const couple = of.length === 2 ? tree.list<Family>("family").find((f) => !f.retracted && !f.mergedInto && of.every((p) => f.partners.includes(p))) : undefined;
+        return couple ? [{ type: "family", ref: couple.id, order: nextOrder(couple.id), at }] : of.map((p) => ({ type: "person" as const, ref: p, order: nextOrder(p), at }));
+      };
+      const placed: { id: string; at: string[] }[] = [];
       tree.withTreeLock(() => {
-        for (const id of ids)
+        for (const id of ids) {
+          const links = placesOf(tree.get<Input>(id)!);
+          if (links.length) placed.push({ id, at: links.map((l) => l.ref) });
           update<Input>(
             tree,
             id,
             "input",
             (i) => ({
               ...i,
+              ...(links.length ? { links } : {}),
               ...(ofFile(i).length ? { persons: [...new Set([...(i.persons ?? []), ...ofFile(i)])] } : {}),
               ...(source ? { source } : {}),
               ...(title ? { title } : {}),
@@ -937,13 +967,14 @@ register(
               ...(as === "unrelated" && i.state !== "skipped" ? { state: "skipped" as const, hidden: { at, by: tree.actor, reason: "unrelated" as const, was: i.state === "processed" ? ("processed" as const) : ("new" as const) } } : {}),
               sorted: { as: as as (typeof SORT_KINDS)[number], ...(ofFile(i).length ? { persons: ofFile(i) } : {}), ...(source ? { source } : {}), ...(reason ? { reason } : {}), at, by: tree.actor },
             }),
-            { op: "input.sort", summary: `${id} ${as}${ofFile(tree.get<Input>(id)!).length ? ` of ${ofFile(tree.get<Input>(id)!).join(", ")}` : ""}${source ? ` → ${source}` : ""}`, ...(reason ? { reason } : {}), targets: persons },
+            { op: "input.sort", summary: `${id} ${as}${ofFile(tree.get<Input>(id)!).length ? ` of ${ofFile(tree.get<Input>(id)!).join(", ")}` : ""}${source ? ` → ${source}` : ""}${links.length ? `, in the app's tree at ${links.map((l) => l.ref).join(", ")}` : ""}`, ...(reason ? { reason } : {}), targets: persons },
           );
+        }
       });
       const kept = ids.flatMap((id) => persons.filter((p) => declinedOf(tree, tree.get<Input>(id)!).has(p)).map((person) => ({ id, person })));
       return {
         text: lines(...tree.written.map((o) => o.summary), ...kept.map((k) => `${k.person} not put on ${k.id}: the person took them off it (strom input assign ${k.id} --add ${k.person} is the person's)`)),
-        data: { inputs: ids, as, ...(kept.length ? { declined: kept } : {}) },
+        data: { inputs: ids, as, ...(placed.length ? { placed } : {}), ...(kept.length ? { declined: kept } : {}) },
       };
     },
   },

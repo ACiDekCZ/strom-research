@@ -327,7 +327,7 @@ test("the stream of events of a device: sealed in its order, nothing of the comp
     conn.res.write(`event: quality\ndata: {"rev":"r1"}\n\n`);
     await until("the events of the stand-in", () => fakeMe.events.length >= 3, { ms: 20_000, state: () => fakeMe.events });
     assert.deepEqual(fakeMe.events.map((e) => e.event), ["hello", "change", "quality"]);
-    assert.deepEqual(fakeMe.events[0]!.data, { name: "Lhotovi", features: ["device.events"], people: 3, device: { id: me.id, name: "Лхота телефон", kind: "phone", actions: ["device.rename", "device.unpair", "device.home", "device.move", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put"], others: 0 } });
+    assert.deepEqual(fakeMe.events[0]!.data, { name: "Lhotovi", features: ["device.events"], people: 3, device: { id: me.id, name: "Лхота телефон", kind: "phone", actions: ["device.rename", "device.unpair", "device.home", "device.move", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put", "agent.start", "agent.bridge"], others: 0 } });
     assert.deepEqual(fakeMe.events[1]!.data, { head: "abc", what: ["person P0001: Jan Lhoták"], entries: [{ subject: "Jan Lhoták" }] });
     assert.ok(!fakeMe.blocks.includes(": still here"), "the bridge's comment is not told");
     // the device closes: the gateway's stream of the bridge closed with it

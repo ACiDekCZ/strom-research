@@ -11,7 +11,8 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
-import { appGate, computerName, deviceActions, deviceGateway, localName, statusForDevice, TUNNEL_BODY_MAX } from "../../src/core/device-gateway.ts";
+import { appGate, computerName, deviceActions, deviceGateway, localName, preparingLang, preparingPage, statusForDevice, TUNNEL_BODY_MAX } from "../../src/core/device-gateway.ts";
+import { deviceAppRoot } from "../../src/core/deviceapp.ts";
 import { remoteAllowed } from "../../src/core/phone.ts";
 import { DEVICE_CONNECTED_MS, deviceById, deviceCode, deviceKey, devicePairCode, devicesList, fromB64url, openPair, openResponse, pairDevice, pairProof, responseBody, sealRequest, type RequestEnvelope } from "../../src/core/devices.ts";
 
@@ -20,7 +21,8 @@ function scratch(on: boolean): { env: Record<string, string>; dir: string; done:
   const config = path.join(dir, "config");
   fs.mkdirSync(config);
   if (on) fs.writeFileSync(path.join(config, "config.json"), JSON.stringify({ devicesMode: "on" }));
-  return { env: { HOME: dir, STROM_CONFIG_DIR: config, STROM_SHARED: path.join(dir, "shared") }, dir, done: () => fs.rmSync(dir, { recursive: true, force: true }) };
+  // the app's site a port of the loopback nobody listens on: the gateway downloads nothing (never the internet)
+  return { env: { HOME: dir, STROM_CONFIG_DIR: config, STROM_SHARED: path.join(dir, "shared"), STROM_APP_URL: "http://127.0.0.1:9/run/" }, dir, done: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
 /**
@@ -37,7 +39,8 @@ async function serve(env: Record<string, string>): Promise<{ url: string; port: 
       req.resume();
       return void res.writeHead(421, { "Content-Type": "application/json" }).end(JSON.stringify({ code: "phone.host" }));
     }
-    if (gateway.handle(req, res, { url: new URL(req.url ?? "/", `http://${host}`), host, port, phonePaired: false })) return;
+    // (X-Test-Phone-Paired: the request of a phone paired with the phone's page — its cookie, as the phone's server finds it)
+    if (gateway.handle(req, res, { url: new URL(req.url ?? "/", `http://${host}`), host, port, phonePaired: req.headers["x-test-phone-paired"] === "1" })) return;
     req.resume();
     res.writeHead(200, { "Content-Type": "text/plain" }).end("page");
   });
@@ -116,8 +119,8 @@ test("on: hello; another page's Origin 403, too big 413, no envelope 400, a devi
     const pair = await ask(`${server.url}/device/pair`, "POST", JSON.stringify({ pairId: "A".repeat(22), proof: "A".repeat(43) }));
     assert.deepEqual([pair.status, pair.json.code], [410, "pair.expired"]);
     assert.deepEqual([(await ask(`${server.url}/device/pair`, "POST", "[]")).json.code], ["device.bad"]);
-    // no app downloaded yet: the phone's page; nothing else of the gateway's
-    for (const p of ["/", "/pair?m=app", "/?m=page"]) assert.equal((await ask(`${server.url}${p}`, "GET")).text, "page", p);
+    // no app downloaded yet: the page that waits for it, never the phone's page; nothing else of the gateway's
+    for (const p of ["/", "/pair?m=app", "/?m=page"]) assert.match((await ask(`${server.url}${p}`, "GET")).text, /location\.reload\(\)/, p);
     assert.equal((await ask(`${server.url}/manifest.json`, "GET")).json.code, "phone.not-found");
     assert.equal((await ask(`${server.url}/icons/..%2Fconfig.json`, "GET")).status, 404);
     assert.equal((await ask(`${server.url}/device/unknown`, "GET")).json.code, "phone.not-found");
@@ -155,7 +158,7 @@ test("/status as a device is told it: no folder of the computer, no agent's work
     for (const k of ["path", "treesRoot", "work", "agents", "links", "linkScheme", "browser"]) assert.ok(!(k in out), k);
     assert.ok(!text.includes(home), text);
     assert.doesNotMatch(text, /strom-research(-beta)?:/);
-    assert.deepEqual(out.device, { id: "dv_aaaaaaaaaaaaaaaa", name: "Telefon Lhotáků", kind: "phone", actions: ["device.rename", "device.unpair", "device.home", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put"], others: 0 });
+    assert.deepEqual(out.device, { id: "dv_aaaaaaaaaaaaaaaa", name: "Telefon Lhotáků", kind: "phone", actions: ["device.rename", "device.unpair", "device.home", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put", "agent.bridge"], others: 0 });
     assert.deepEqual(out.books, { list: [{ title: "Matrika Lhota" }] });
     assert.deepEqual(out.said, ["čisté"]);
     assert.deepEqual((out.waiting as any[]).map((w) => [w.id, w.text, w.note]), [["T0001", "Napsat archivu v Lhotě", undefined], ["T0002", undefined, "Лхота — обычный текст"]]);
@@ -229,9 +232,11 @@ test("the computer's name on the network: the first part of its hostname as DNS 
   for (const [said, want] of [["lhota-pc", "lhota-pc.local"], ["Lhota-PC.local", "lhota-pc.local"], ["Počítač", null], ["Lhotův Mac", null], ["Лхота", null], ["", null], ["-lhota", null], ["lhota-", null], ["a".repeat(63), `${"a".repeat(63)}.local`], ["a".repeat(64), null]] as const)
     assert.equal(localName({ ...test, STROM_DEVICE_LOCAL_NAME: said }), want, said);
   // what a device may do with itself
-  assert.deepEqual(deviceActions({}, { host: "192.168.1.23:47811", local: "lhota-pc.local:47811" }), ["device.rename", "device.unpair", "device.home", "device.move", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put"]);
-  assert.deepEqual(deviceActions({}, { host: "lhota-pc.local:47811", local: "lhota-pc.local:47811" }), ["device.rename", "device.unpair", "device.home", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put"]);
-  assert.deepEqual(deviceActions({ of: "dv_aaaaaaaaaaaaaaaa" }, { host: "192.168.1.23:47811", local: null }), ["device.rename", "device.unpair", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put"]);
+  assert.deepEqual(deviceActions({}, { host: "192.168.1.23:47811", local: "lhota-pc.local:47811" }), ["device.rename", "device.unpair", "device.home", "device.move", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put", "agent.bridge"]);
+  assert.deepEqual(deviceActions({}, { host: "lhota-pc.local:47811", local: "lhota-pc.local:47811" }), ["device.rename", "device.unpair", "device.home", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put", "agent.bridge"]);
+  assert.deepEqual(deviceActions({ of: "dv_aaaaaaaaaaaaaaaa" }, { host: "192.168.1.23:47811", local: null }), ["device.rename", "device.unpair", "conflict.decide", "hypothesis.decide", "sync.undo", "media.put", "agent.bridge"]);
+  // the agent started as the app on the computer starts it (spec 094 K3.15): only where the agent researches
+  assert.deepEqual(deviceActions({}, { local: null, research: true }).slice(-3), ["media.put", "agent.start", "agent.bridge"]);
 });
 
 test("on: the computer's name <name>.local:<port> exactly (any case) — another .local, another port, or off: 421; hello says it", async () => {
@@ -401,4 +406,119 @@ test("STROM_PHONE_TEST=lan of an isolated strom: the test's hooks hold (the gate
   assert.equal(localName({ ...lan, STROM_DEVICE_LOCAL_NAME: "" }), null);
   // not isolated: no test at all, the computer's own as for every strom
   assert.equal(localName({ STROM_PHONE_TEST: "lan", STROM_DEVICE_LOCAL_NAME: "lhota-test" }), localName({}));
+});
+
+/** A text for a person that addresses them (any of the four languages of the page that waits). */
+const ADDRESSES = /(?<![\p{L}\p{M}\p{N}])(you|your|yours|vy|váš|vaše|vás|vám|ty|tvůj|tvoje|tobě|Sie|Ihr|Ihnen|du|dich|dir|dein|deine|ciebie|tobie|twój|pan|pani)(?![\p{L}\p{M}\p{N}])/iu;
+
+/** The page that waits, its texts alone (what a person reads: the title, the paragraphs, the button). */
+const textsOf = (html: string) => [...html.matchAll(/<(title|h1|p|button)[^>]*>(.*?)<\/\1>/gs)].map((m) => m[2]!.replace(/<[^>]+>/g, ""));
+
+test("the page that waits for the app: four languages (?lang, else the browser's, else English), none addressing the person, NFC; the failure said in a sentence; it reloads itself and reads nothing of its address", () => {
+  const titles: Record<string, RegExp> = { en: /^The computer is preparing the app$/, cs: /^Počítač připravuje aplikaci$/u, de: /^Der Computer bereitet die App vor$/, pl: /^Komputer przygotowuje aplikację$/u };
+  for (const [lang, title] of Object.entries(titles)) {
+    for (const failed of [false, true]) {
+      const page = preparingPage(lang, "NONCE", { failed });
+      assert.match(page, new RegExp(`<html lang="${lang}">`));
+      const texts = textsOf(page);
+      assert.match(texts[0]!, title, lang);
+      assert.equal(texts.length, failed ? 5 : 4, `${lang}: ${texts.join(" | ")}`);
+      for (const t of texts) {
+        assert.doesNotMatch(t, ADDRESSES, `${lang}: ${t}`);
+        assert.equal(t, t.normalize("NFC"), `${lang}: NFC`);
+      }
+      // its script and style under the nonce alone; it reads nothing of its address (the code after # stays for the app)
+      assert.equal(page.match(/<script/g)!.length, 1);
+      assert.match(page, /<script nonce="NONCE">/);
+      assert.match(page, /<style nonce="NONCE">/);
+      assert.doesNotMatch(page, /location\.(hash|href|search)|fetch\(|XMLHttpRequest|sendBeacon/);
+      assert.match(page, /location\.reload\(\)/);
+    }
+  }
+  assert.match(preparingPage("cs", "n", { failed: true }), /Počítač teď aplikaci stáhnout nemůže – je připojený k internetu\?/u);
+  assert.doesNotMatch(preparingPage("cs", "n"), /internet/);
+  // the language: ?lang first, the browser's in its order, then English; nothing of the object's own names
+  assert.equal(preparingLang("de", "cs-CZ,cs;q=0.9"), "de");
+  assert.equal(preparingLang(null, "cs-CZ,cs;q=0.9,en;q=0.8"), "cs");
+  assert.equal(preparingLang("xx", "fr-FR, pl;q=0.7"), "pl");
+  assert.equal(preparingLang(null, "fr-FR,uk;q=0.5"), "en");
+  assert.equal(preparingLang("constructor", "__proto__, toString"), "en");
+  assert.equal(preparingLang(undefined, undefined), "en");
+  assert.equal(textsOf(preparingPage("toString", "n"))[0], "The computer is preparing the app");
+});
+
+test("on: / and /pair give the app alone — the page that waits while there is no copy to serve (none, under the gate), m=page no way back to the phone's page; the copy there: the app at the same address (a code made before it); a phone paired with the phone's page (its cookie, its icon's first opening) the page as before", async () => {
+  const s = scratch(true);
+  const env: Record<string, string> = { ...s.env, STROM_PHONE_TEST: "loopback", STROM_ISOLATED: "1", STROM_DEVICE_APP_GATE: "3.40.0-zkouska.2" };
+  const server = await serve(env);
+  const note = path.join(env.STROM_CONFIG_DIR!, "device-app.json");
+  const copy = (version: string, extra: Record<string, unknown> = {}) => {
+    const dir = path.join(deviceAppRoot(env), version);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "index.html"), `<!doctype html><title>Strom</title><span id="about-version">${version}</span>`);
+    fs.writeFileSync(note, JSON.stringify({ version, from: "http://127.0.0.1:9", checkedAt: new Date().toISOString(), ...extra }));
+  };
+  const get = (p: string, headers: Record<string, string> = {}) =>
+    new Promise<{ status: number; text: string; headers: http.IncomingHttpHeaders }>((resolve, reject) => {
+      http.get(`${server.url}${p}`, { agent: false, headers }, (res) => {
+        let text = "";
+        res.setEncoding("utf8");
+        res.on("data", (d: string) => (text += d));
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, text, headers: res.headers }));
+      }).on("error", reject);
+    });
+  const OLD_ICON = "/?home=AAAAAAAAAAAAAAAAAAAAAA";
+  try {
+    // a code of the app made before the computer has its copy (N2): the page that waits, in the browser's language
+    const code = devicePairCode(env, { mode: "app" });
+    assert.equal(code.mode, "app");
+    for (const p of ["/", "/pair?m=app", "/pair?m=page", "/?m=page", "/pair", "/pair?m=page&lang=en"]) {
+      const r = await get(p, { "Accept-Language": "cs-CZ,cs;q=0.9" });
+      assert.equal(r.status, 200, p);
+      assert.notEqual(r.text, "page", p);
+      assert.match(String(r.headers["content-type"]), /^text\/html; charset=utf-8/);
+      assert.equal(r.headers["cache-control"], "no-store");
+      assert.equal(r.headers["x-content-type-options"], "nosniff");
+      assert.equal(r.headers["referrer-policy"], "no-referrer");
+      const csp = String(r.headers["content-security-policy"]);
+      const nonce = /script-src 'nonce-([^']+)'/.exec(csp)?.[1];
+      assert.ok(nonce && r.text.includes(`<script nonce="${nonce}">`), csp);
+      assert.match(csp, /default-src 'none'/);
+      assert.match(csp, /frame-ancestors 'none'/);
+      assert.doesNotMatch(csp, /unsafe-inline/);
+      // (the copy asked for by the first request: the site of the test refuses — said from then on)
+      const lang = p.includes("lang=en") ? "en" : "cs";
+      assert.ok([preparingPage(lang, "N"), preparingPage(lang, "N", { failed: true })].includes(r.text.replaceAll(nonce, "N")), p);
+    }
+    // the page asked the computer for its copy (under its brakes: one try, the failure noted, not again within its hour)
+    const tried = () => fs.existsSync(note) && !!JSON.parse(fs.readFileSync(note, "utf8")).failedAt;
+    for (let i = 0; i < 100 && !tried(); i++) await new Promise((r) => setTimeout(r, 50));
+    assert.ok(tried(), "tried, failed");
+    assert.match((await get("/")).text, /<p class="failed">/);
+    // the last download failed: said in a sentence, tried again all the same
+    copy("3.40.0-zkouska.1", { failedAt: new Date().toISOString(), error: "fetch failed" });
+    const failed = await get("/pair?m=app", { "Accept-Language": "de-DE,de;q=0.9" });
+    assert.match(failed.text, /Der Computer kann die App gerade nicht herunterladen/);
+    // a copy under the gate of its version: the page that waits too
+    copy("3.40.0-zkouska.1");
+    for (const p of ["/", "/pair?m=app"]) assert.equal(textsOf((await get(p, { "Accept-Language": "pl" })).text)[0], "Komputer przygotowuje aplikację", p);
+    // a phone paired with the phone's page: its page as before (its cookie; its icon opened the first time)
+    for (const [p, h] of [["/", { "X-Test-Phone-Paired": "1" }], ["/pair?lang=en", { "X-Test-Phone-Paired": "1" }], [OLD_ICON, {}]] as const) assert.equal((await get(p, h)).text, "page", p);
+    // such a phone scanning a new code: the app's (here the page that waits), never the old page
+    assert.equal(textsOf((await get("/pair?m=app", { "X-Test-Phone-Paired": "1", "Accept-Language": "pl" })).text)[0], "Komputer przygotowuje aplikację");
+    // the copy there: the app at the very address the code gave (its # untouched), at / and /pair, m=page too
+    copy("3.40.0-zkouska.2");
+    for (const p of ["/", "/pair?m=app", "/pair?m=page", "/?m=page&lang=en", "/pair?home=AAAAAAAAAAAAAAAAAAAAAA"]) {
+      const r = await get(p);
+      assert.equal(r.status, 200, p);
+      assert.match(r.text, /<span id="about-version">3\.40\.0-zkouska\.2<\/span>/, p);
+    }
+    for (const [p, h] of [["/", { "X-Test-Phone-Paired": "1" }], [OLD_ICON, {}]] as const) assert.equal((await get(p, h)).text, "page", p);
+    assert.match((await get("/pair?m=app", { "X-Test-Phone-Paired": "1" })).text, /about-version/, "a new code of a phone of the old page: the app");
+    // not the old icon's code: the app
+    for (const p of ["/?home=short", "/?home=AAAAAAAAAAAAAAAAAAAAAA%21"]) assert.match((await get(p)).text, /about-version/, p);
+  } finally {
+    await server.close();
+    s.done();
+  }
 });
