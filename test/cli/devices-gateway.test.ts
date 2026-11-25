@@ -306,8 +306,12 @@ test("the gateway of the devices: paired through the bridge's code, the sealed t
     assert.equal(shown, pageCode.json.url, "the code that holds, shown again");
     assert.equal(svg.headers["x-strom-pair-url"], address);
     assert.equal(fs.existsSync(oldFile), false, "no code of the phone's page");
+    // GET phone says how long the device's code holds (the one shown), never the phone page's code of before
+    const devicePairExpires = JSON.parse(fs.readFileSync(pairFile, "utf8")).expiresAt;
+    assert.deepEqual((await request("GET", `${bridge.url}/phone`, undefined, APP)).json.pair, { expiresAt: devicePairExpires });
     // a phone paired with the phone's page before (its code made as an older strom did) gets its page
     const old = pairCode(w.env, {});
+    assert.deepEqual((await request("GET", `${bridge.url}/phone`, undefined, APP)).json.pair, { expiresAt: devicePairExpires }, "the phone page's code made: still the device's");
     const phonePaired = await request("POST", `${address}/pair`, JSON.stringify({ code: old.code }), { Origin: address, "Content-Type": "text/plain;charset=UTF-8" });
     assert.equal(phonePaired.status, 200, phonePaired.text);
     const cookie = String(phonePaired.headers["set-cookie"]).split(";")[0]!;

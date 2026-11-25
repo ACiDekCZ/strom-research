@@ -527,6 +527,8 @@ test("a copy under the gate of the app's version (the gateway cannot serve it): 
     app(s, "3.40.0-zkouska.1", { etag: '"z1"' });
     assert.deepEqual(await ensureDeviceApp(env, { now: () => T0 }), { result: "fetched", version: "3.40.0-zkouska.1" });
     assert.equal(servable(env), undefined, "under the gate");
+    // /phone as the devices get it: none to serve (they get the page that the computer prepares the app), never ready
+    assert.deepEqual(deviceAppState(env), { app: "none" });
     assert.deepEqual(note().sought, { version: "3.40.0-zkouska.2", at: new Date(T0).toISOString() });
     // the brake: not one request before DEVICE_APP_BEHIND_MS
     let asked = s.requests.length;
@@ -549,6 +551,7 @@ test("a copy under the gate of the app's version (the gateway cannot serve it): 
     const t2 = t1 + BEHIND;
     assert.deepEqual(await ensureDeviceApp(env, { now: () => t2 }), { result: "fetched", version: "3.40.0-zkouska.2" });
     assert.equal(servable(env)?.version, "3.40.0-zkouska.2");
+    assert.deepEqual(deviceAppState(env), { app: "ready", appVersion: "3.40.0-zkouska.2" });
     assert.equal(note().sought, undefined);
     asked = s.requests.length;
     for (const t of [t2 + BEHIND, t2 + 10 * BEHIND, t2 + DAY - 1]) assert.deepEqual(await ensureDeviceApp(env, { now: () => t }), { result: "fresh", version: "3.40.0-zkouska.2" });

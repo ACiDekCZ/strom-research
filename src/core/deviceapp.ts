@@ -199,9 +199,12 @@ export interface DeviceAppState {
   appVersion?: string;
 }
 
-/** For /phone: a copy ready (its version), one being downloaded, or none. */
+/**
+ * For /phone: a copy ready (its version), one being downloaded, or none. Ready only as the gateway serves it: a copy
+ * under the gate of the app's version is none — the devices get the page that the computer prepares the app.
+ */
 export function deviceAppState(env: Env): DeviceAppState {
-  const ready = deviceAppFiles(env);
+  const ready = servableDeviceApp(env);
   if (liveHolder(file(env, "device-app.fetch.lock"), 30 * 60_000)) return ready ? { app: "fetching", appVersion: ready.version } : { app: "fetching" };
   return ready ? { app: "ready", appVersion: ready.version } : { app: "none" };
 }
