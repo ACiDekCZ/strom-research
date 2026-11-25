@@ -886,7 +886,7 @@ import { gateLabel } from "./gate.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, linkText, type HandlerState } from "./links.ts";
 import { handoffsNow } from "./handoffs.ts";
 import { autoTidy } from "./tidy.ts";
-import { askPhoneOn, endPhoneLater, pairCode, pairUrl, phoneConfig, phoneProbe, phoneRunning, phoneState, phoneSummary, removePhone, restorePhone, revivePhone, stopPhone, type PairedPhone } from "./phone.ts";
+import { askPhoneOn, endPhoneLater, pairCode, pairUrl, phoneConfig, phoneProbe, phoneRunning, phoneState, phoneSummary, phoneTestPortRefused, phoneTestYesHint, removePhone, restorePhone, revivePhone, stopPhone, type PairedPhone } from "./phone.ts";
 import { qrSvg } from "./qr.ts";
 import { clientOfDevice, deviceEvents, deviceName, devicePairCode, devicePairUrl, deviceRows, devicesList, devicesOn, hostOf, removeDevice, renameDevice, restoreDevice, type Device, type DeviceRow } from "./devices.ts";
 import { deviceAppState, ensureDeviceApp, noteDeviceAppSource } from "./deviceapp.ts";
@@ -8063,7 +8063,8 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         }
         const how = askPhoneOn(env, lang ?? Tree.open(root, env).lang);
         noteLive(root, `the phone connection: asked to turn it on — ${how === "confirm" ? "a window asks the person" : how === "on" ? "on already" : "no window can be shown here"}`);
-        if (how === "no-dialog") return phoneJson(res, 200, { ...phoneState(env), state: "off", error: { code: "no-dialog", detail: "no window of the system can be shown on this computer: strom phone on in a terminal" } });
+        // a test of the network (lan): its port refused, or what the person runs to say yes (no answer of a test there)
+        if (how === "no-dialog") return phoneJson(res, 200, { ...phoneState(env), state: "off", error: { code: "no-dialog", detail: phoneTestPortRefused(env) ?? phoneTestYesHint(env) ?? "no window of the system can be shown on this computer: strom phone on in a terminal" } });
         return phoneJson(res, 200, phoneState(env));
       }
       if (sub === "off" && !act) {

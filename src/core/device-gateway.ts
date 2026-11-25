@@ -281,10 +281,18 @@ function bridgeHeaders(got: http.IncomingHttpHeaders): Record<string, string> {
   return headers;
 }
 
-/** How often the gateway looks for uploads of devices unpaired (STROM_DEVICE_SWEEP_MS in a test of the loopback alone). */
+/**
+ * A test's hooks of the gateway (STROM_DEVICE_*): an isolated strom's test of the loopback, or of the network with a real
+ * phone (STROM_PHONE_TEST=lan) — never elsewhere.
+ */
+function testHooks(env: Env): boolean {
+  return (env.STROM_PHONE_TEST === "loopback" || env.STROM_PHONE_TEST === "lan") && env.STROM_ISOLATED === "1";
+}
+
+/** How often the gateway looks for uploads of devices unpaired (STROM_DEVICE_SWEEP_MS in a test: testHooks). */
 function sweepMs(env: Env): number {
   const asked = Number(env.STROM_DEVICE_SWEEP_MS);
-  return env.STROM_PHONE_TEST === "loopback" && env.STROM_ISOLATED === "1" && Number.isInteger(asked) && asked >= 50 ? asked : 10_000;
+  return testHooks(env) && Number.isInteger(asked) && asked >= 50 ? asked : 10_000;
 }
 
 const HEADERS = {
@@ -343,11 +351,15 @@ const DNS_LABEL = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
 /**
  * The computer's own name on the home network, `<name>.local` (lower case): the first part of its hostname, when it
  * is a name DNS can say (none — a name with diacritics, spaces, nothing: null, the devices stay at an IP address). A
- * test of the loopback alone may say it (STROM_DEVICE_LOCAL_NAME; "" for none) — never elsewhere.
+ * test (testHooks) may say it (STROM_DEVICE_LOCAL_NAME; "" for none) — never elsewhere; a test of the network with a real
+ * phone (lan) never the computer's own (a device of it is not mixed with the phone connection of a strom that is no
+ * test's): none unless said.
  */
 export function localName(env: Env): string | null {
   const asked = env.STROM_DEVICE_LOCAL_NAME;
-  const test = asked !== undefined && env.STROM_PHONE_TEST === "loopback" && env.STROM_ISOLATED === "1";
+  const lan = env.STROM_PHONE_TEST === "lan" && env.STROM_ISOLATED === "1";
+  const test = asked !== undefined && testHooks(env);
+  if (lan && !test) return null;
   const raw = test ? asked.replace(/\.local$/i, "") : (os.hostname().split(".")[0] ?? "");
   return DNS_LABEL.test(raw) ? `${raw.toLowerCase()}.local` : null;
 }
@@ -362,10 +374,10 @@ export function deviceActions(device: Pick<Device, "of">, at: { host?: string; l
   return ["device.rename", "device.unpair", ...(device.of ? [] : ["device.home"]), ...(at.local && at.host && at.host !== at.local ? ["device.move"] : []), "conflict.decide", "hypothesis.decide", "sync.undo", "media.put"];
 }
 
-/** The gate of the app for the devices in a test of the loopback alone (STROM_DEVICE_APP_GATE): never elsewhere. */
-function appGate(env: Env): string | undefined {
+/** The gate of the app for the devices in a test (STROM_DEVICE_APP_GATE; testHooks): never elsewhere. */
+export function appGate(env: Env): string | undefined {
   const asked = env.STROM_DEVICE_APP_GATE;
-  if (asked && env.STROM_PHONE_TEST === "loopback" && env.STROM_ISOLATED === "1" && isAppVersion(asked)) return asked;
+  if (asked && testHooks(env) && isAppVersion(asked)) return asked;
   return undefined;
 }
 
@@ -509,10 +521,10 @@ const DEVICE_EVENTS: ReadonlySet<string> = new Set(["hello", "change", "read", "
 /** An event of the bridge longer than this ends the stream (the bridge's own on the loopback: never one of a device). */
 const EVENT_BLOCK_MAX = 64 * 1024 * 1024;
 
-/** How often a stream of events says `: ping` (STROM_DEVICE_PING_MS in a test of the loopback alone — never elsewhere). */
+/** How often a stream of events says `: ping` (STROM_DEVICE_PING_MS in a test: testHooks — never elsewhere). */
 function pingMs(env: Env): number {
   const asked = Number(env.STROM_DEVICE_PING_MS);
-  return env.STROM_PHONE_TEST === "loopback" && env.STROM_ISOLATED === "1" && Number.isInteger(asked) && asked >= 50 ? asked : EVENT_PING_MS;
+  return testHooks(env) && Number.isInteger(asked) && asked >= 50 ? asked : EVENT_PING_MS;
 }
 
 /** A stream of events open for a device (or being opened: counted from its first moment). */
@@ -693,10 +705,14 @@ export function deviceGateway(env: Env, note: (text: string) => void): DeviceGat
       nonces.forget(paired.device.id);
       note(`the device ${paired.device.id} paired (${paired.code ?? paired.mode})`);
       const { said } = deviceTrees(env);
+      // the tree whose window made the code (as trees[].id) — the app opens that one; a code of no tree (home, move), or
+      // of a tree no longer said here: no field
+      const tree = paired.tree && said.some((t) => t.id === paired.tree) ? { tree: paired.tree } : {};
       const sealed = sealPair(paired.key, String(s.pairId), {
         device: { id: paired.device.id, name: paired.device.name, kind: paired.device.kind },
         computer: { name: localName(env) ?? computerName(), label: computerName() },
         trees: said,
+        ...tree,
       });
       answer(res, 200, sealed as unknown as Record<string, unknown>);
     });

@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.37.0
 
-*Připravuje se: bety do 1.37.0-beta.6. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.37.0-beta.7. Oddíl bude úplný s vydáním.*
 
 - **Záznam archivu už nedrží portál ze seznamu stromu:** kniha s adresou na portálu, který seznam stromu zná (Porta
   fontium, Acta Publica…), už nedělá portál tak přísný jako archiv, pod kterým je zapsaná – portál se řídí svými

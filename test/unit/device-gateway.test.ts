@@ -11,7 +11,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
-import { computerName, deviceActions, deviceGateway, localName, statusForDevice, TUNNEL_BODY_MAX } from "../../src/core/device-gateway.ts";
+import { appGate, computerName, deviceActions, deviceGateway, localName, statusForDevice, TUNNEL_BODY_MAX } from "../../src/core/device-gateway.ts";
 import { remoteAllowed } from "../../src/core/phone.ts";
 import { DEVICE_CONNECTED_MS, deviceById, deviceCode, deviceKey, devicePairCode, devicesList, fromB64url, openPair, openResponse, pairDevice, pairProof, responseBody, sealRequest, type RequestEnvelope } from "../../src/core/devices.ts";
 
@@ -349,4 +349,56 @@ test("the actions of a device in the tunnel: renamed, an icon of the home screen
     await unnamed.close();
     s.done();
   }
+});
+
+test("the answer to a pairing says the tree whose window made the code (tree, as trees[].id): two trees, the code of B → B; a code of no tree, or of a tree not said here → no field", async () => {
+  const s = scratch(false);
+  const trees = path.join(s.dir, "trees");
+  for (const [folder, id, name] of [["a", "tr_lhota_a", "Lhotákovi"], ["b", "tr_lhota_b", "Лхотаки"]] as const) {
+    fs.mkdirSync(path.join(trees, folder), { recursive: true });
+    fs.writeFileSync(path.join(trees, folder, "strom.json"), JSON.stringify({ id, name, lang: "cs", schema: 1 }));
+  }
+  fs.writeFileSync(path.join(s.env.STROM_CONFIG_DIR!, "config.json"), JSON.stringify({ devicesMode: "on", trees }));
+  const env = { ...s.env, STROM_PHONE_TEST: "loopback", STROM_ISOLATED: "1", STROM_DEVICE_LOCAL_NAME: "lhota-pc" };
+  const server = await serve(env);
+  try {
+    const host = `127.0.0.1:${server.port}`;
+    const pair = async (code: { pairId: string; secret: string }) => {
+      const key = deviceKey(fromB64url(code.secret, 32)!, code.pairId);
+      const r = await ask(`${server.url}/device/pair`, "POST", JSON.stringify({ pairId: code.pairId, proof: pairProof(key, code.pairId), name: "Telefon", kind: "phone" }), { Host: host, Origin: `http://${host}` });
+      assert.equal(r.status, 200, r.text);
+      return openPair(key, code.pairId, r.json) as Record<string, any>;
+    };
+    const ofB = await pair(devicePairCode(env, { mode: "app", tree: "tr_lhota_b" }));
+    assert.deepEqual(ofB.trees.map((t: { id: string }) => t.id).sort(), ["tr_lhota_a", "tr_lhota_b"]);
+    assert.equal(ofB.tree, "tr_lhota_b");
+    const ofA = await pair(devicePairCode(env, { mode: "app", tree: "tr_lhota_a" }));
+    assert.equal(ofA.tree, "tr_lhota_a");
+    for (const tree of [undefined, "tr_nikde"]) {
+      const said = await pair(devicePairCode(env, { mode: "app", ...(tree ? { tree } : {}) }));
+      assert.equal(said.trees.length, 2);
+      assert.ok(!("tree" in said), JSON.stringify(said));
+    }
+    // a code a paired device was given (an icon of its home screen): no tree
+    const icon = deviceCode(env, { id: ofB.device.id }, "home");
+    const ofIcon = await pair({ pairId: icon.id, secret: icon.secret });
+    assert.ok(!("tree" in ofIcon), JSON.stringify(ofIcon));
+  } finally {
+    await server.close();
+    s.done();
+  }
+});
+
+test("STROM_PHONE_TEST=lan of an isolated strom: the test's hooks hold (the gate of the app for the devices), no name of the computer on the network unless the test says one", () => {
+  const lan = { STROM_PHONE_TEST: "lan", STROM_ISOLATED: "1" };
+  assert.equal(appGate({ ...lan, STROM_DEVICE_APP_GATE: "3.40.0" }), "3.40.0");
+  assert.equal(appGate({ STROM_PHONE_TEST: "loopback", STROM_ISOLATED: "1", STROM_DEVICE_APP_GATE: "3.40.0" }), "3.40.0");
+  for (const env of [{ STROM_PHONE_TEST: "lan" }, { STROM_PHONE_TEST: "none", STROM_ISOLATED: "1" }, {}]) assert.equal(appGate({ ...env, STROM_DEVICE_APP_GATE: "3.40.0" }), undefined, JSON.stringify(env));
+  assert.equal(appGate({ ...lan, STROM_DEVICE_APP_GATE: "nonsense" }), undefined);
+  // never the computer's own name (a device of the test is not mixed with the phone connection of the person's strom)
+  assert.equal(localName(lan), null);
+  assert.equal(localName({ ...lan, STROM_DEVICE_LOCAL_NAME: "lhota-test" }), "lhota-test.local");
+  assert.equal(localName({ ...lan, STROM_DEVICE_LOCAL_NAME: "" }), null);
+  // not isolated: no test at all, the computer's own as for every strom
+  assert.equal(localName({ STROM_PHONE_TEST: "lan", STROM_DEVICE_LOCAL_NAME: "lhota-test" }), localName({}));
 });

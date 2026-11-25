@@ -112,6 +112,41 @@ test("strom phone on: the person alone — an agent without a terminal or a wind
   }
 });
 
+test("STROM_PHONE_TEST=lan: phone on and phone serve refuse a port of a strom that is no test's (none said, 47800 and its range) before anything; no answer of a test — needs-input names the person's command; said as test lan", { skip }, async () => {
+  const w = new World();
+  try {
+    await w.ok(["setup", "--yes"]);
+    const lan = { STROM_PHONE_TEST: "lan", STROM_ISOLATED: "1", STROM_NONINTERACTIVE: "1", STROM_LANG: "en" };
+    const config = path.join(w.env.STROM_CONFIG_DIR!, "phone.json");
+    for (const port of [undefined, 47800, 47819]) {
+      fs.writeFileSync(config, JSON.stringify({ on: false, ...(port ? { port } : {}) }));
+      const on = await w.run(["phone", "on", "--json"], { env: lan, dialog: true });
+      assert.equal(on.code, 1, on.out + on.err);
+      assert.equal(on.json.code, "phone.test-port", String(port));
+      assert.equal(JSON.parse(fs.readFileSync(config, "utf8")).on, false, "not turned on, though a window would say yes");
+      // turned on before by hand (on: true): the server refuses it as well, nothing started
+      fs.writeFileSync(config, JSON.stringify({ on: true, test: true, ...(port ? { port } : {}) }));
+      const serve = await w.run(["phone", "serve"], { env: lan });
+      assert.equal(serve.code, 1);
+      assert.match(serve.err, /test lan: /);
+      assert.equal(fs.existsSync(path.join(w.env.STROM_CONFIG_DIR!, "phone-run.json")), false, "no server");
+    }
+    // the test's own port: the person's yes alone, in their terminal (no answer of a test, no window here)
+    fs.writeFileSync(config, JSON.stringify({ on: false, port: 47900 }));
+    const asked = await w.run(["phone", "on", "--json"], { env: { ...lan, STROM_PHONE_TEST_ANSWER: "yes" } });
+    assert.equal(asked.code, 4, asked.out + asked.err);
+    assert.equal(asked.json.status, "needs-consent");
+    assert.match(asked.json.needs[0].set, /^STROM_NONINTERACTIVE= STROM_ISOLATED=1 STROM_PHONE_TEST=lan STROM_CONFIG_DIR=\S+ .* phone on$/);
+    assert.equal(JSON.parse(fs.readFileSync(config, "utf8")).on, false);
+    // what it says: test lan first
+    const status = await w.ok(["phone"], { env: lan });
+    assert.match(status.out, /^test lan \(STROM_PHONE_TEST=lan\)/);
+    assert.doesNotMatch((await w.ok(["phone"])).out, /test lan/);
+  } finally {
+    w.cleanup();
+  }
+});
+
 test("strom phone on in a terminal: the person's own yes, Enter says no (a terminal an agent opened turns nothing on, --yes neither); its errors in the person's language", { skip }, async () => {
   const w = new World();
   try {

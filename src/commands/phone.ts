@@ -6,7 +6,8 @@ import type { Context } from "../cli/context.ts";
 import { lines, table } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
 import { StromError } from "../core/errors.ts";
-import { pairCode, pairedPhones, pairUrl, phoneConfig, phoneLogFile, phoneProbeNow, phoneState, phoneWindowText, removePhone, servePhone, stopPhone, turnPhoneOn, type PhoneState } from "../core/phone.ts";
+import { configDir } from "../core/paths.ts";
+import { pairCode, pairedPhones, pairUrl, phoneConfig, phoneLogFile, phoneProbeNow, phoneState, phoneTest, phoneTestOnCommand, phoneTestPortRefused, phoneWindowText, removePhone, servePhone, stopPhone, turnPhoneOn, type PhoneState } from "../core/phone.ts";
 import { qrTerminal } from "../core/qr.ts";
 
 /** What the state says to a person, in their language. */
@@ -71,13 +72,24 @@ function qrLines(ctx: Context, s: PhoneState, address?: string): string {
   );
 }
 
+/** A test of the network (STROM_PHONE_TEST=lan, isolated): said first, never mistaken for the phone connection of this computer. */
+function testLines(ctx: Context): string[] {
+  return phoneTest(ctx.env) === "lan" ? [`test lan (STROM_PHONE_TEST=lan): the computer's network, the settings of ${configDir(ctx.env)}`] : [];
+}
+
+/** A test of the network on a port of a strom that is no test's (or none said): refused before anything. */
+function refuseTestPort(ctx: Context): void {
+  const refused = phoneTestPortRefused(ctx.env);
+  if (refused) throw new StromError(refused, { hint: "the test's own port in its phone.json, then again", code: "phone.test-port" });
+}
+
 /** The person's own terminal: a QR code may be shown. */
 const showsQr = (ctx: Context) => ctx.io.tty && !ctx.json;
 
 async function status(ctx: Context) {
   const s = phoneState(ctx.env);
   const probe = await phoneProbeNow(ctx.env);
-  return { text: stateLines(ctx.uiLang(), s), data: { ...s, ...probe } };
+  return { text: lines(...testLines(ctx), stateLines(ctx.uiLang(), s)), data: { ...s, ...probe } };
 }
 
 register(
@@ -108,13 +120,15 @@ register(
     description: "An agent cannot answer for the user: without a terminal of theirs or a window of the system it ends with needs-input (exit 4).",
     async run(ctx) {
       const lang = ctx.uiLang();
+      refuseTestPort(ctx);
       if (!phoneConfig(ctx.env).on) {
         // in a terminal too, the person's own yes (it opens the computer to its network; Enter says no): a terminal an agent
         // opened round its markers turns nothing on by itself
         const w = phoneWindowText(ctx.env, lang);
         const how = await ctx.requireHumanYes(
           "Turn on the connection with a phone on the local network (a phone paired by its QR code sees an overview of the research and sends photos into it)?",
-          "strom phone on",
+          // a test of the network: no answer of a test — the person's own terminal, in the test's environment
+          phoneTestOnCommand(ctx.env) ?? "strom phone on",
           "phone",
           windowSays(ctx, lang),
           { terminal: w.question, ask: w.title },
@@ -125,7 +139,7 @@ register(
       // the QR code to pair a phone right away, in the person's terminal; to an agent only where it is
       const s = showsQr(ctx) ? await withAddresses(ctx) : phoneState(ctx.env);
       const qr = s.state !== "on" ? "" : showsQr(ctx) && s.addresses.length ? qrLines(ctx, s) : ui(lang, "ui.phone.qr.app");
-      return { text: lines(stateLines(lang, s), ...(qr ? ["", qr] : [])), data: phoneState(ctx.env) };
+      return { text: lines(...testLines(ctx), stateLines(lang, s), ...(qr ? ["", qr] : [])), data: phoneState(ctx.env) };
     },
   },
   {
@@ -188,7 +202,9 @@ register(
     summary: "Run the phone's server here, in the foreground (strom phone on runs it in the background; only while on)",
     group: "setup",
     async run(ctx) {
-      if (!phoneConfig(ctx.env).on) throw new StromError("the phone connection is off", { hint: "the user turns it on: strom phone on", code: "phone.off" });
+      refuseTestPort(ctx);
+      if (!phoneConfig(ctx.env).on) throw new StromError("the phone connection is off", { hint: `the user turns it on: ${phoneTestOnCommand(ctx.env) ?? "strom phone on"}`, code: "phone.off" });
+      for (const l of testLines(ctx)) ctx.io.stderr(`${l}\n`);
       const why = await servePhone(ctx.env);
       // a server that ended is gone as a process, whatever still holds it
       setTimeout(() => process.exit(), 3000).unref();

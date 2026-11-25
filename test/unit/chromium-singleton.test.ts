@@ -34,7 +34,9 @@ function setup(): { home: string; marker: string; socket: string; out: string; e
   const exeDir = path.join(apps, "Google Chrome.app", "Contents", "MacOS");
   fs.mkdirSync(exeDir, { recursive: true });
   const marker = path.join(home, "started");
-  fs.writeFileSync(path.join(exeDir, "Google Chrome"), `#!/bin/sh\necho "$@" > "${marker}"\n`, { mode: 0o755 });
+  // the marker appears whole (written beside, then renamed): `>` alone makes the file empty before echo writes it, and a
+  // test that saw it there read nothing (npm-beta CI of 1.37.0-beta.6)
+  fs.writeFileSync(path.join(exeDir, "Google Chrome"), `#!/bin/sh\necho "$@" > "${marker}.part" && mv "${marker}.part" "${marker}"\n`, { mode: 0o755 });
   const ud = path.join(home, "Library", "Application Support", "Google", "Chrome");
   fs.mkdirSync(ud, { recursive: true });
   const socket = path.join(home, "s");

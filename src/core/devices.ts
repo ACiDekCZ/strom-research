@@ -786,6 +786,8 @@ export interface PairAnswer {
   /** name: <name>.local where the computer has one (the address a device may move to), else its name; label: its name to show. */
   computer: { name: string; label?: string };
   trees: unknown[];
+  /** The tree the code was made for (one of trees[].id): the app opens it. None for a code of no tree (home, move). */
+  tree?: string;
 }
 
 /** The answer to a pairing sealed with the new K. */

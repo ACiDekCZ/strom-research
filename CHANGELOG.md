@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.37.0
 
-*In preparation: the betas up to 1.37.0-beta.6. The section is complete with the release.*
+*In preparation: the betas up to 1.37.0-beta.7. The section is complete with the release.*
 
 - **A research's archive no longer holds a portal of strom's list:** a book whose address is on a portal strom's list
   knows (Porta fontium, Acta Publica…) no longer makes the portal as strict as the archive the book is recorded under —

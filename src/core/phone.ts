@@ -288,21 +288,61 @@ export interface LanAddress {
   mask: string;
 }
 
-/** STROM_PHONE_TEST: "loopback" — a test's server on 127.0.0.1 alone; any other value — no network at all. */
-function phoneTest(env: Env): "loopback" | "none" | undefined {
-  return env.STROM_PHONE_TEST === "loopback" ? "loopback" : env.STROM_PHONE_TEST ? "none" : undefined;
+/**
+ * STROM_PHONE_TEST: "loopback" — a test's server on 127.0.0.1 alone; "lan" with STROM_ISOLATED=1 — a test with a real
+ * phone on the Wi-Fi: the computer's network as for every strom (its addresses, a device of that network alone, never
+ * the computer itself), on the port of the isolated phone.json alone (never PHONE_PORT's range: phoneTestPortRefused),
+ * no answer of a test for the person (STROM_PHONE_TEST_ANSWER ignored), no name of the computer on the network; any
+ * other value — "lan" not isolated too — no network at all.
+ */
+export function phoneTest(env: Env): "loopback" | "lan" | "none" | undefined {
+  if (env.STROM_PHONE_TEST === "loopback") return "loopback";
+  if (env.STROM_PHONE_TEST === "lan" && env.STROM_ISOLATED === "1") return "lan";
+  return env.STROM_PHONE_TEST ? "none" : undefined;
+}
+
+/**
+ * In a test of the network (lan): why its port is refused — none in phone.json (it would be PHONE_PORT's), or one of
+ * PHONE_PORT's range (the port of a strom that is no test's, on this computer); undefined — the port is the test's.
+ */
+export function phoneTestPortRefused(env: Env): string | undefined {
+  if (phoneTest(env) !== "lan") return undefined;
+  const port = phoneConfig(env).port;
+  const where = file(env, "phone.json");
+  if (port === undefined) return `test lan: no port of the test in ${where} — write one there outside ${PHONE_PORT}–${PHONE_PORT + PORT_TRIES - 1}, e.g. {"on": false, "port": 47900}`;
+  if (port >= PHONE_PORT && port < PHONE_PORT + PORT_TRIES) return `test lan: the port ${port} in ${where} is of the phone connection of a strom that is no test's (${PHONE_PORT}–${PHONE_PORT + PORT_TRIES - 1}) — write another there, e.g. {"port": 47900}`;
+  return undefined;
+}
+
+/**
+ * In a test of the network (lan): what the person runs to say yes, where no window can be shown (STROM_NO_DIALOG) or no
+ * terminal of theirs asks (STROM_NONINTERACTIVE) — the same environment, in their own terminal.
+ */
+export function phoneTestYesHint(env: Env): string | undefined {
+  const command = phoneTestOnCommand(env);
+  return command && `test lan: no answer of a test here — the person says yes in their own terminal, in the test's environment: ${command}`;
+}
+
+/**
+ * In a test of the network (lan): the command of the person's yes in their terminal (no STROM_NONINTERACTIVE there), its
+ * settings folder and isolation named (a terminal that lost them never turns on the phone connection of their own strom).
+ */
+export function phoneTestOnCommand(env: Env): string | undefined {
+  if (phoneTest(env) !== "lan") return undefined;
+  const q = (s: string) => (/^[\p{L}\p{M}\p{N}/._+:=-]+$/u.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`);
+  return `STROM_NONINTERACTIVE= STROM_ISOLATED=1 STROM_PHONE_TEST=lan STROM_CONFIG_DIR=${q(configDir(env))} ${q(process.execPath)} ${q(process.argv[1] ?? "strom")} phone on`;
 }
 
 /**
  * The computer's addresses a phone may reach it at: private IPv4 of a Wi-Fi or a cable that is up (never loopback, never
  * a VPN's — neither its tunnel nor its shared range 100.64/10 —, never a virtual machine's network, never IPv6), Wi-Fi
- * and a cable first. STROM_PHONE_TEST (tests never bind the computer's network): "loopback" — 127.0.0.1 alone; any
- * other value — no network.
+ * and a cable first. STROM_PHONE_TEST (tests never bind the computer's network): "loopback" — 127.0.0.1 alone; "lan"
+ * of an isolated strom — these, as for every strom (phoneTest); any other value — no network.
  */
 export function lanAddresses(env: Env, ifaces: NodeJS.Dict<os.NetworkInterfaceInfo[]> = os.networkInterfaces(), platform: NodeJS.Platform = process.platform): LanAddress[] {
   const test = phoneTest(env);
   if (test === "loopback") return [{ ip: "127.0.0.1", iface: "lo", kind: null, mask: "255.0.0.0" }];
-  if (test) return [];
+  if (test === "none") return [];
   const out: LanAddress[] = [];
   for (const [name, list] of Object.entries(ifaces)) {
     for (const a of list ?? []) {
@@ -512,10 +552,11 @@ export function phoneWindowText(env: Env, lang: string): DialogText {
 /**
  * The window that asks the person: a window of the system, or — STROM_PHONE_TEST loopback|none with STROM_ISOLATED=1 and
  * STROM_PHONE_TEST_ANSWER yes|no|wait (tests: a stand-in that answers, never a window; what it turns on is a test's, on
- * the loopback alone, off for any strom that is no test's) — a process standing for one. None where no window can be
- * shown.
+ * the loopback alone, off for any strom that is no test's) — a process standing for one; never in a test of the network
+ * (lan: the person's window, or their terminal). None where no window can be shown.
  */
 function phoneDialog(env: Env, lang: string): { cmd: string; args: string[]; answer: (status: number | null, stdout: string) => boolean | undefined } | undefined {
+  // never in a test of the network (lan): the person answers it (a real phone, the computer's network)
   const test = (env.STROM_PHONE_TEST === "loopback" || env.STROM_PHONE_TEST === "none") && env.STROM_ISOLATED === "1" && env.STROM_PHONE_TEST_ANSWER;
   if (test === "yes" || test === "no" || test === "wait") {
     const ms = test === "wait" ? WAIT_SECONDS * 1000 : Number(env.STROM_PHONE_TEST_ANSWER_MS ?? 300);
@@ -534,6 +575,12 @@ function phoneDialog(env: Env, lang: string): { cmd: string; args: string[]; ans
 export function askPhoneOn(env: Env, lang: string, done?: (yes: boolean) => void): "confirm" | "on" | "no-dialog" {
   if (phoneConfig(env).on) return "on";
   if (asking(readAsk(env))) return "confirm";
+  // a test of the network on a port of a strom that is no test's: never asked (phoneTestPortRefused says why)
+  const refused = phoneTestPortRefused(env);
+  if (refused) {
+    notePhone(env, refused);
+    return "no-dialog";
+  }
   const command = phoneDialog(env, lang);
   if (!command) return "no-dialog";
   const child = spawn(command.cmd, command.args, { env: env as NodeJS.ProcessEnv, stdio: ["ignore", "pipe", "ignore"], windowsHide: false });
@@ -949,7 +996,7 @@ function output(cmd: string, args: string[]): Promise<string | undefined> {
 
 async function lookUp(env: Env, platform: NodeJS.Platform): Promise<Probe> {
   const checkedAt = new Date().toISOString();
-  if (env.STROM_PHONE_TEST) return { network: null, firewall: null };
+  if (env.STROM_PHONE_TEST && phoneTest(env) !== "lan") return { network: null, firewall: null };
   if (platform === "darwin") {
     const out = await output("/usr/libexec/ApplicationFirewall/socketfilterfw", ["--getglobalstate"]);
     return { network: null, firewall: out === undefined ? null : { on: /enabled|State = [12]/i.test(out) ? true : /disabled|State = 0/i.test(out) ? false : null, checkedAt } };
@@ -1045,6 +1092,9 @@ export function servePhone(env: Env): Promise<string> {
     // each address bound and the mask of its network
     const nets = new Map<string, string>();
     let port = phoneConfig(env).port ?? PHONE_PORT;
+    // a test of the network: on its own port alone (never PHONE_PORT's range, never another tried)
+    const lan = phoneTest(env) === "lan";
+    const refused = phoneTestPortRefused(env);
     let current: PhoneRun = { pid: me, version: runs, started: new Date().toISOString(), port, state: "error", error: { code: "no-lan", detail: "" }, addresses: [], ...(before?.addressChangedAt ? { addressChangedAt: before.addressChangedAt } : {}), ...(before?.lanSeenAt ? { lanSeenAt: before.lanSeenAt } : {}) };
     let urls = before?.addresses.map((a) => a.url).sort();
     let ended = false;
@@ -1238,7 +1288,7 @@ export function servePhone(env: Env): Promise<string> {
           if (r.server) servers.set(a.ip, r.server);
           else failure = r.code === "EADDRINUSE" ? { code: "port-busy", detail: r.detail ?? "" } : (failure ?? { code: "bind-failed", detail: r.detail ?? "" });
         }
-        if (failure?.code !== "port-busy") break;
+        if (failure?.code !== "port-busy" || lan) break;
         closeAll();
         notePhone(env, `the port ${port} is taken by another program`);
         port = port + 1 >= PHONE_PORT + PORT_TRIES ? PHONE_PORT : port + 1;
@@ -1309,7 +1359,8 @@ export function servePhone(env: Env): Promise<string> {
     const rebind = setInterval(() => void bindAll().catch((e) => notePhone(env, `the addresses not looked at: ${String(e)}`)), Number(env.STROM_PHONE_REBIND_MS ?? 30_000));
 
     if (!phoneConfig(env).on) return end("turned off");
-    notePhone(env, `the server started (strom ${runs})`);
+    if (refused) return end(refused);
+    notePhone(env, `the server started (strom ${runs}${lan ? `, test lan: the computer's network, the port ${port} of ${file(env, "phone.json")}` : ""})`);
     void bindAll().catch((e) => notePhone(env, `the addresses not looked at: ${String(e)}`));
   });
 }
