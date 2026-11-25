@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.37.0
 
-*In Vorbereitung: die Betas bis 1.37.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.37.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein Archiveintrag der Forschung hält kein Portal der Liste von strom mehr:** ein Buch mit einer Adresse auf einem
   Portal, das die Liste von strom kennt (Porta fontium, Acta Publica…), macht das Portal nicht mehr so streng wie das

@@ -12,7 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { acquireLock } from "../../src/core/lock.ts";
-import { deviceAppFiles, deviceAppRoot, deviceAppSource, deviceAppState, DEVICE_APP_EVERY_MS, ensureDeviceApp, ICON_MAX, INDEX_MAX, noteDeviceAppSource } from "../../src/core/deviceapp.ts";
+import { deviceAppFiles, deviceAppRoot, deviceAppSource, deviceAppState, DEVICE_APP_BEHIND_MS, DEVICE_APP_EVERY_MS, ensureDeviceApp, ICON_MAX, INDEX_MAX, noteDeviceAppSource } from "../../src/core/deviceapp.ts";
 import { APP_DEVICE_MODE, APP_DEVICE_MODE_BETA, deviceAppServable, STROM_APP_BETA_URL, STROM_APP_URL } from "../../src/core/stromapp.ts";
 import { servable } from "../../src/core/device-gateway.ts";
 
@@ -424,6 +424,87 @@ test("a copy of another site than the one asked now, or one an older strom did n
     // the next day, 304: the site noted again
     assert.deepEqual(await ensureDeviceApp(w.env, { now: () => T0 + DAY + 2000 }), { result: "unchanged", version: "3.40.0" });
     assert.equal(deviceAppFiles(w.env)?.from, s.origin);
+  } finally {
+    w.done();
+    await s.close();
+  }
+});
+
+test("the computer's app says a newer version than the copy: the site asked at once, not after a day; while it still gives the older one, again at most once in DEVICE_APP_BEHIND_MS — the copy never removed", async () => {
+  const s = await site();
+  const w = world(s.origin);
+  const BEHIND = DEVICE_APP_BEHIND_MS;
+  const note = () => JSON.parse(fs.readFileSync(path.join(w.env.STROM_CONFIG_DIR!, "device-app.json"), "utf8"));
+  const index = () => s.requests.filter((r) => r.path === "/run/index.html");
+  try {
+    assert.ok(BEHIND >= 5 * 60_000 && BEHIND <= 10 * 60_000, "a few minutes");
+    app(s, "3.32.0-beta.4", { etag: '"b4"' });
+    noteDeviceAppSource(w.env, s.origin, "3.32.0-beta.4", () => T0);
+    assert.deepEqual(await ensureDeviceApp(w.env, { now: () => T0 }), { result: "fetched", version: "3.32.0-beta.4" });
+    // the computer's app is at beta.5 a minute later; the same version or an older one said changes nothing
+    noteDeviceAppSource(w.env, s.origin, "3.32.0-beta.3", () => T0 + 30_000);
+    assert.deepEqual(await ensureDeviceApp(w.env, { now: () => T0 + 30_000 }), { result: "fresh", version: "3.32.0-beta.4" }, "an older version said: as before");
+    noteDeviceAppSource(w.env, s.origin, "3.32.0-beta.5", () => T0 + 60_000);
+    const t1 = T0 + 60_000;
+    let asked = index().length;
+    // asked at once, its ETag sent: the site still gives beta.4 (304) — the copy kept, the version sought noted
+    assert.deepEqual(await ensureDeviceApp(w.env, { now: () => t1 }), { result: "unchanged", version: "3.32.0-beta.4" });
+    assert.equal(index().length, asked + 1);
+    assert.equal(index().at(-1)!.headers["if-none-match"], '"b4"');
+    assert.deepEqual(note().sought, { version: "3.32.0-beta.5", at: new Date(t1).toISOString() });
+    assert.equal(note().failedAt, undefined, "not a failure");
+    assert.equal(deviceAppFiles(w.env)?.version, "3.32.0-beta.4");
+    // the brake: not one request before DEVICE_APP_BEHIND_MS
+    asked = s.requests.length;
+    for (const t of [t1 + 1000, t1 + BEHIND / 2, t1 + BEHIND - 1]) assert.deepEqual(await ensureDeviceApp(w.env, { now: () => t }), { result: "fresh", version: "3.32.0-beta.4" });
+    assert.equal(s.requests.length, asked);
+    // then asked again: a CDN gives beta.4 whole, another ETag — kept, sought again, still braked
+    app(s, "3.32.0-beta.4", { etag: '"b4-cdn"' });
+    const t2 = t1 + BEHIND;
+    assert.deepEqual(await ensureDeviceApp(w.env, { now: () => t2 }), { result: "fetched", version: "3.32.0-beta.4" });
+    assert.deepEqual(note().sought, { version: "3.32.0-beta.5", at: new Date(t2).toISOString() });
+    asked = s.requests.length;
+    assert.deepEqual(await ensureDeviceApp(w.env, { now: () => t2 + BEHIND - 1 }), { result: "fresh", version: "3.32.0-beta.4" });
+    assert.equal(s.requests.length, asked);
+    // a real failure: failedAt, tried again after DEVICE_APP_RETRY_MS (not the brake) — the copy kept, served
+    s.routes.set("/run/index.html", { status: 503, type: "text/plain", body: "busy" });
+    const t3 = t2 + BEHIND;
+    assert.equal((await ensureDeviceApp(w.env, { now: () => t3 })).result, "failed");
+    assert.equal(note().failedAt, new Date(t3).toISOString());
+    asked = s.requests.length;
+    assert.equal((await ensureDeviceApp(w.env, { now: () => t3 + BEHIND })).result, "failed");
+    assert.equal(s.requests.length, asked, "a failure waits its hour");
+    assert.equal(deviceAppFiles(w.env)?.version, "3.32.0-beta.4");
+    assert.ok(fs.existsSync(path.join(deviceAppFiles(w.env)!.dir, "index.html")));
+    // the site has beta.5 now: downloaded, the sought version forgotten, fresh for a day again; beta.4 kept beside it
+    app(s, "3.32.0-beta.5", { etag: '"b5"' });
+    const t4 = t3 + 3600_000;
+    assert.deepEqual(await ensureDeviceApp(w.env, { now: () => t4 }), { result: "fetched", version: "3.32.0-beta.5" });
+    assert.equal(note().sought, undefined);
+    assert.deepEqual(fs.readdirSync(deviceAppRoot(w.env)).sort(), ["3.32.0-beta.4", "3.32.0-beta.5"]);
+    asked = s.requests.length;
+    assert.deepEqual(await ensureDeviceApp(w.env, { now: () => t4 + BEHIND }), { result: "fresh", version: "3.32.0-beta.5" });
+    assert.deepEqual(await ensureDeviceApp(w.env, { now: () => t4 + DAY - 1 }), { result: "fresh", version: "3.32.0-beta.5" });
+    assert.equal(s.requests.length, asked);
+  } finally {
+    w.done();
+    await s.close();
+  }
+});
+
+test("as on the computer that had it: a copy downloaded a minute before the app's new version, written by a strom before this one (no sought), the computer's app at the new one — asked at once after the gateway restarts", async () => {
+  const s = await site();
+  const w = world(s.origin);
+  try {
+    app(s, "3.32.0-beta.4", { etag: '"b4"' });
+    assert.deepEqual(await ensureDeviceApp(w.env, { now: () => T0 }), { result: "fetched", version: "3.32.0-beta.4" });
+    noteDeviceAppSource(w.env, s.origin, "3.32.0-beta.5", () => T0 + 1000);
+    const f = path.join(w.env.STROM_CONFIG_DIR!, "device-app.json");
+    const { sought: _s, ...older } = JSON.parse(fs.readFileSync(f, "utf8"));
+    fs.writeFileSync(f, JSON.stringify(older));
+    app(s, "3.32.0-beta.5", { etag: '"b5"' });
+    assert.deepEqual(await ensureDeviceApp(w.env, { now: () => T0 + 60_000 }), { result: "fetched", version: "3.32.0-beta.5" });
+    assert.equal(deviceAppFiles(w.env)?.version, "3.32.0-beta.5");
   } finally {
     w.done();
     await s.close();

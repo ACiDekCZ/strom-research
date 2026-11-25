@@ -25,6 +25,11 @@ import { notePhone } from "./phone.ts";
 export const DEVICE_APP_EVERY_MS = 24 * 3600_000;
 /** A download that failed is tried again after this long. */
 export const DEVICE_APP_RETRY_MS = 3600_000;
+/**
+ * The computer's app says a newer version than the copy: the site asked at once, not after a day — and while it still
+ * gives the older one (its release going on, a CDN), asked again at most once in this long; the copy kept meanwhile.
+ */
+export const DEVICE_APP_BEHIND_MS = 5 * 60_000;
 export const INDEX_MAX = 40 * 1024 * 1024;
 export const MANIFEST_MAX = 64 * 1024;
 export const ICON_MAX = 1024 * 1024;
@@ -53,6 +58,8 @@ interface DeviceAppNote {
   /** The last download that failed: when, why (tried again after DEVICE_APP_RETRY_MS). */
   failedAt?: string;
   error?: string;
+  /** The newer version the computer's app said, asked the site for when (the site gave an older one): not asked again before DEVICE_APP_BEHIND_MS. */
+  sought?: { version: string; at: string };
 }
 
 function readNote(env: Env): DeviceAppNote {
@@ -247,8 +254,24 @@ function parseShasums(text: string): Map<string, string> {
 const sha256 = (b: Buffer) => crypto.createHash("sha256").update(b).digest("hex");
 
 /**
+ * The newer version the computer's app said than the copy kept (source.appVersion): the version, or undefined (none
+ * said, not a version, the same or older).
+ */
+function behind(n: DeviceAppNote, version: string | undefined): string | undefined {
+  const said = n.source?.appVersion;
+  return version && said && isAppVersion(said) && compareVersions(said, version) > 0 ? said : undefined;
+}
+
+const within = (t: number, at: string | undefined, ms: number) => {
+  const a = at ? Date.parse(at) : NaN;
+  return Number.isFinite(a) && t >= a && t - a < ms;
+};
+
+/**
  * The copy of the app for the devices made sure of: only while devices.mode is on (off — not one request), the site
- * asked at most once a day (its ETag: 304 — kept as it is), one download at a time (another running — busy). The
+ * asked at most once a day (its ETag: 304 — kept as it is) — at once where the computer's app says a newer version than
+ * the copy, then at most once in DEVICE_APP_BEHIND_MS while the site still gives the older one (the copy never removed
+ * for it) —, one download at a time (another running — busy). The
  * index (≤ 40 MB, text/html, its version in it), the manifest (optional, ≤ 64 KB) and up to 8 icons it names (PNG, SVG,
  * WebP, ≤ 1 MB each, only under the app's own path — any other skipped); SHASUMS256.txt beside them checked where the
  * site has one (404: TLS alone; a sum that does not hold — nothing kept). Written whole (a temporary folder renamed),
@@ -266,9 +289,11 @@ export async function ensureDeviceApp(env: Env, opts: { now?: Clock } = {}): Pro
     // say the site of: downloaded again, at once
     const source = deviceAppSource(env);
     const sameSite = !source || !kept || kept.from === new URL(source).origin;
-    if (kept && sameSite && n.checkedAt && t - Date.parse(n.checkedAt) < DEVICE_APP_EVERY_MS && t >= Date.parse(n.checkedAt)) return { result: "fresh", version: kept.version };
-    if (n.failedAt && t - Date.parse(n.failedAt) < DEVICE_APP_RETRY_MS && t >= Date.parse(n.failedAt))
-      return { result: "failed", error: n.error ?? "failed lately" };
+    // the computer's app says a newer version than the copy: asked at once — unless asked for that version lately
+    const newer = sameSite ? behind(n, kept?.version) : undefined;
+    const fresh = newer ? n.sought?.version === newer && within(t, n.sought.at, DEVICE_APP_BEHIND_MS) : within(t, n.checkedAt, DEVICE_APP_EVERY_MS);
+    if (kept && sameSite && fresh) return { result: "fresh", version: kept.version };
+    if (within(t, n.failedAt, DEVICE_APP_RETRY_MS)) return { result: "failed", error: n.error ?? "failed lately" };
     try {
       release = acquireLock(file(env, "device-app.fetch.lock"), { owner: "the app for the devices downloaded", waitMs: 0, staleMs: 30 * 60_000 });
     } catch (err) {
@@ -276,6 +301,14 @@ export async function ensureDeviceApp(env: Env, opts: { now?: Clock } = {}): Pro
       throw err;
     }
     const result = await download(env, kept, now, sameSite);
+    if (result.result === "unchanged" || result.result === "fetched") {
+      // the site still gives an older version than the computer's app says: asked again after DEVICE_APP_BEHIND_MS
+      const still = behind(readNote(env), result.version);
+      writeNote(env, (x) => {
+        if (!still && !x.sought) return undefined;
+        return { ...x, sought: still ? { version: still, at: new Date(now()).toISOString() } : undefined };
+      });
+    }
     if (result.result === "failed") {
       writeNote(env, (x) => ({ ...x, failedAt: new Date(now()).toISOString(), error: result.error }));
       notePhone(env, `the app for the devices not downloaded: ${result.error}`);

@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.37.0
 
-*W przygotowaniu: bety do 1.37.0-beta.5. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.37.0-beta.6. Sekcja będzie kompletna z wydaniem.*
 
 - **Wpis archiwum w badaniu nie utrzymuje już portalu z listy stroma:** księga z adresem na portalu, który zna lista
   stroma (Porta fontium, Acta Publica…), nie czyni już portalu tak surowym jak archiwum, pod którym jest zapisana –
