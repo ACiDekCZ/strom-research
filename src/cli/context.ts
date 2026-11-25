@@ -15,11 +15,13 @@ import { Cancelled, InputEnded, NeedsConsentError, NeedsInputError, StromError, 
 import { migrate } from "../core/migrate.ts";
 import { Tree, VERSION, findTreeUpwards, isTreeDir, knownTreesIn } from "../core/tree.ts";
 import { otherVersionsAtWork } from "../core/workers.ts";
-import { SCHEMA_VERSION, type TreeConfig } from "../core/model.ts";
+import { SCHEMA_VERSION, type AppClient, type TreeConfig } from "../core/model.ts";
 import { canonicalize, readJsonIfExists } from "../core/json.ts";
 import { foldText } from "../core/text.ts";
 import { currentSession } from "../core/session.ts";
 import { isAgent } from "../core/which.ts";
+import { viaDevice, viaTaken } from "../core/devicevia.ts";
+import { DevicePreview, fromDevice, markAsking } from "../core/deviceagent.ts";
 import { updateChannel } from "../core/update.ts";
 import { stateOf, treeAgentHere } from "../core/state.ts";
 import { canShowDialog, systemDialog, WAIT_SECONDS, type ChoiceText, type DialogText } from "../core/dialog.ts";
@@ -78,6 +80,13 @@ export class Context {
   readOnly = false;
   /** The language texts are said in, whatever the settings say (strom error's report: English). */
   langShown: string | undefined;
+  /**
+   * A link's way gone through for a device without doing anything (spec 094 K3.15, core/deviceagent.ts): the first
+   * question it comes to says what the terminal would do (DevicePreview) — never asked, never waited for.
+   */
+  devicePreview = false;
+  /** The device whose yes this terminal took instead of its question before the agent starts (spec 094 K3.15). */
+  deviceYes: AppClient | undefined;
 
   constructor(opts: {
     env: Env;
@@ -140,6 +149,22 @@ export class Context {
   }
 
   async ask(question: string, suggested?: string): Promise<string> {
+    if (this.devicePreview) throw new DevicePreview({ kind: "computer", why: "question" });
+    // a terminal a device opened (spec 094 K3.15): its question marked as waiting at the computer while it waits
+    const marked = fromDevice(this.env) && this.interactive && !isAgent(this.env) ? markAsking(this.askingRoot(), "question", this.env) : undefined;
+    try {
+      return await this.asked(question, suggested);
+    } finally {
+      marked?.();
+    }
+  }
+
+  /** The research a question or a window waits in: the one opened, else the one this runs in. */
+  private askingRoot(): string | undefined {
+    return this.opened?.root ?? findTreeUpwards(this.cwd);
+  }
+
+  private async asked(question: string, suggested?: string): Promise<string> {
     const prompt = suggested ? `${question} [${suggested}] ` : `${question} `;
     let answer: string;
     if (this.io.answers) {
@@ -171,6 +196,7 @@ export class Context {
 
   /** A question whose answer is not shown as it is typed (a password): kept as typed, spaces too. */
   async askSecret(question: string): Promise<string> {
+    if (this.devicePreview) throw new DevicePreview({ kind: "computer", why: "question" });
     if (this.io.answers) {
       this.io.stdout(`${question} \n`);
       return this.io.answers.shift() ?? "";
@@ -266,6 +292,8 @@ export class Context {
    * What opens the computer outward, costs or runs another's code asks their yes in the terminal too: requireHumanYes.
    */
   requireHuman(question: string, set: string, key: string, says?: string, opts: { window?: boolean } = {}): "terminal" | "window" {
+    // a consent stays the person's at the computer: a device's preview of a link ends here (spec 094 K3.15)
+    if (this.devicePreview) throw new DevicePreview({ kind: "computer", why: "question" });
     const agent = isAgent(this.env);
     if (this.interactive && !agent) return "terminal";
     // a window only where one can be shown (the test's own answer stands for one): else nothing said to wait in it
@@ -274,7 +302,14 @@ export class Context {
       const text: DialogText = { title: ui(lang, "ui.dialog.title"), question: says ?? question, yes: ui(lang, "ui.dialog.yes"), no: ui(lang, "ui.dialog.no") };
       // said first where it runs: a window can be behind others, and the command waits for it without a word
       this.io.stderr(`${ui(lang, "ui.dialog.waiting", { minutes: String(WAIT_SECONDS / 60), question: text.question })}\n`);
-      const answer = this.io.dialog ? this.io.dialog(text) : systemDialog(text, this.env);
+      // waiting at the computer while the window is up (a device's glance says so, spec 094 K3.15)
+      const marked = markAsking(this.askingRoot(), "consent", this.env);
+      let answer: boolean | undefined;
+      try {
+        answer = this.io.dialog ? this.io.dialog(text) : systemDialog(text, this.env);
+      } finally {
+        marked();
+      }
       if (answer === true) return "window";
       // said no: an agent reads the English and what not to do; a person (the app, a script) their language — nothing
       // changed and how to ask again (printError: ui.error.consent.refused), never the agent's English under it
@@ -350,6 +385,7 @@ export class Context {
    * a test ran out of answers.
    */
   async choose(question: string, choices: { key?: string; label: string }[], suggested: number, opts: { back?: string } = {}): Promise<number | undefined> {
+    if (this.devicePreview) throw new DevicePreview({ kind: "computer", why: "question" });
     const options = opts.back ? [...choices, { key: "0", label: opts.back }] : choices;
     const keys = options.map((o, i) => o.key ?? String(i + 1));
     const lang = this.uiLang();
@@ -595,6 +631,10 @@ export class Context {
     const session = this.env.STROM_FOR_APP === "1" ? undefined : currentSession(this.opened, this.env, this.refs);
     if (session) this.opened.actor = session.id;
     else if (isAgent(this.env) && this.env.STROM_FOR_APP !== "1") this.opened.actor = "agent";
+    // the person's write a device of the home network asked the gateway for (spec 094): the device named on each
+    // operation (via), as a send of the app names its own — never an agent's
+    const device = viaTaken(this.env) ? viaDevice(this.env) : undefined;
+    if (device) this.opened.via = device;
     // every command in a session is its sign of life: its task stays held (core/holds.ts; at most once a minute)
     if (session && !this.dryRun) beatSession(root, session, this.env, { create: true });
     // the person writes: their own terminal, or the Strom app's bridge — only then is what is theirs changed (a
@@ -622,3 +662,6 @@ export class Context {
     }
   }
 }
+
+/** (moved to core/devicevia.ts: the bridge names the device too) */
+export { viaDevice } from "../core/devicevia.ts";

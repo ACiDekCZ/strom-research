@@ -640,3 +640,33 @@ genealogicznego, które dostaje aplikacja, a `strom source restore` przywraca je
 - **Obowiązuje od:** badanie 1.36.0
 
 <!-- zdroj: research:e6bbfb40 src/core/sourceretract.ts (hlavička; DELETED, RETRACT_MOST 50, RETRACT_CONFIRM_MS 15 min, REVIEW_RETRACTED, ACTIVE open/doing/parked/waiting) · src/commands/sourceretract.ts source retract (description, agentMay --dry-run, source.agent, source.retract-changed, requireHumanYes), source restore (description, source.notRetracted, source.notRestorable), ui.source.restore.skipped · src/commands/analysis.ts conflict keep (conflict.notMarked, agent jen říká) · src/commands/sources.ts source list --retracted, source show RETRACTED … the person puts it back · src/core/sync.ts withholdDeleted (spec 117 J6) · assets/lang/cs.json ui.consent.retract, ui.source.retract.would · CHANGELOG.cs.md 1.36.0 · spec 117 K1.1–K1.7, J3 (záloha = historie + citace v prameni) -->
+
+<a id="R3.11"></a>
+## R3.11 Wyznanie jako fakt
+
+Wyznanie, które akt podaje przy osobie (słowem w kolumnie albo znakiem w niej), agent zapisuje jako daną **Wyznanie**
+(`RELI`) z cytatem aktu i jego datą. Nigdy go nie wywodzi.
+
+- **Pilnuje kod:**
+  - `strom event add P… RELI` bez `--cite` agent nie zapisze („a religion is written only with the record that says it
+    of the person”); słowo człowieka zostaje jego;
+  - jedna wiara to jedna dana: kolejny akt z tą samą wiarą (także inaczej zapisaną, „katol.” i „římskokatolické”)
+    tylko dodaje cytat do danej, którą osoba już ma; bez cytatu nic się nie zapisze. Zmienione wyznanie albo pierwsze
+    znowu po innym to osobna dana (katolik, który przeszedł na inną wiarę i wrócił, ma trzy dane);
+  - wiarę strom rozpoznaje tylko w jasnych formach (po czesku, po niemiecku, po łacinie, po polsku, kilka cyrylicą),
+    słowo po słowie: nigdy słowo, które tylko tak się zaczyna („Evangelista”, „Israel” bez kropki), ani wiarę parafii,
+    kościoła, obrządku, księgi metrykalnej, szkoły czy ulicy („římskokatolická farnost”, „katolický křest”, „Židovská
+    ulice”). Forma, która jest też imieniem lub nazwiskiem („Žid”, „Mos.”, „Kath.”), obowiązuje tylko pod oznaczeniem
+    wyznania albo w jego kolumnie; niepewny odczyt („katol. (?)”, „snad”) nie jest żadnym;
+  - czyja to wiara, mówi akt: wiara ojca, matki czy chrzestnego nie jest wiarą osoby; przy ślubie wiara pana młodego
+    jest wiarą męża, a panny młodej wiarą żony;
+  - brief przy pracy nad osobą przypomina wyznanie, które podaje transkrypcja jej własnego aktu (urodzenie, chrzest,
+    zgon, pochówek, ślub; informacja pierwotna, data do roku od daty aktu), gdy osoba nie ma żadnej danej `RELI`.
+    Nigdy z aktu rodzica czy dziecka, z parafii, z księgi ani z nieodczytanej kolumny.
+- **Tylko metodyka:** wyznania nie wywodzi się od rodziców, parafii, księgi metrykalnej ani obrządku, ani z niepewnie
+  odczytanego słowa; zapisuje się je tak, jak zapisuje je akt.
+- **Obsługa:** terminal: `strom event add P… RELI --value "<jak zapisuje akt>" --date <data aktu> --cite S…`.
+  Aplikacja: wydarzenie **Wyznanie** (kolumna tabeli [A6.7.2](A6-views.md#A6.7.2)).
+- **Obowiązuje od:** badanie 1.37.0
+
+<!-- zdroj: research:89417a7c, 908c7212 (merge a2b9b42c) src/core/religion.ts (ReligionKey, tvary cs/de/la/pl, religionFactFor, sameReligion, religionNamed) · src/commands/people.ts:907-916 event.religion-uncited, religionAgain · src/brief/brief.ts religionLine · assets/method/recording.md:64-66 · CHANGELOG.cs.md 1.37.0 „Náboženství jako údaj“ -->

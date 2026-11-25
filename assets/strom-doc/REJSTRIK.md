@@ -240,6 +240,19 @@ konci. Všechny mají definice ve všech čtyřech jazycích.
 
 - **Čísla:** [R3.5.1](cs/R3-verification-and-citation.md#R3.5.1), R3.5.2, A3.1.3, R3.8
 
+<a id="religion"></a>
+### Náboženství
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Náboženství (`RELI`) · v aplikaci Vyznání | Údaj osoby: víra tak, jak ji zápis u osoby píše (slovem nebo značkou ve sloupci), s citací zápisu a jeho datem. Nikdy se neodvozuje; jedna víra je jeden údaj, změněné vyznání je další. |
+| en | Religion (`RELI`) | A person's fact: the faith as the record writes it of them (a word or a mark in its column), with the record cited and its date. Never inferred; one faith is one fact, a changed faith another. |
+| de | Religion (`RELI`) · in der App Konfession | Eine Angabe der Person: die Konfession, wie der Eintrag sie bei ihr schreibt (als Wort oder Zeichen in der Spalte), mit dem Eintrag als Quelle und seinem Datum. Nie erschlossen; eine Konfession ist eine Angabe, eine gewechselte eine weitere. |
+| pl | Wyznanie (`RELI`) | Fakt osoby: wiara tak, jak zapisuje ją akt przy osobie (słowem lub znakiem w kolumnie), z cytowaniem aktu i jego datą. Nigdy nie wywodzone; jedna wiara to jeden fakt, zmienione wyznanie kolejny. |
+
+- **Genealogicky:** vyznání v matrice (sloupec náboženství).
+- **Čísla:** [R3.11](cs/R3-verification-and-citation.md#R3.11), A6.7.2
+
 <a id="report-a-problem"></a>
 ### Nahlásit problém
 
@@ -756,6 +769,30 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [S7.2](cs/S7-reliability-and-verification.md#S7.2), S6.2
 
+<a id="filled-in-details"></a>
+### Doplněné údaje · Spojené prameny
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Doplněné údaje · Spojené prameny | Skupiny výčtu sloučení: prázdné údaje spojených osob, které zápis doplní, a prameny importu spojené se stejným pramenem cílového stromu místo přidání nového. |
+| en | Filled-in details · Joined sources | Groups of the merge summary: empty details of joined people that the write fills in, and sources of the import joined with the same source of the target tree instead of being added as new. |
+| de | Ergänzte Angaben · Verbundene Quellen | Gruppen der Übersicht einer Zusammenführung: leere Angaben verbundener Personen, die das Schreiben ergänzt, und Quellen des Imports, die mit derselben Quelle des Ziel-Stammbaums verbunden statt neu hinzugefügt werden. |
+| pl | Uzupełnione dane · Połączone źródła | Grupy zestawienia scalenia: puste dane połączonych osób, które zapis uzupełni, oraz źródła importu połączone z tym samym źródłem drzewa docelowego zamiast dodania nowego. |
+
+- **Čísla:** [A8.10](cs/A8-merging-trees.md#A8.10), A8.11
+
+<a id="person-email"></a>
+### E-mail osoby
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | E-mail (kontakt osoby) | Adresy e-mailu osoby jako její kontakt, ne událost ani bydliště. V aplikaci pole v úpravě osoby, v GEDCOM `1 RESI` / `2 EMAIL` nebo `1 EMAIL`; žijící osoba ho do exportu nedá a agent výzkumu ho nedostane. |
+| en | E-mail (a person's contact) | A person's e-mail addresses as their contact, not an event or a residence. In the app a field when editing a person, in GEDCOM `1 RESI` / `2 EMAIL` or `1 EMAIL`; a living person's stays out of an export and the research's agent never gets it. |
+| de | E-Mail (Kontakt der Person) | Die E-Mail-Adressen einer Person als ihr Kontakt, kein Ereignis und kein Wohnort. In der App ein Feld beim Bearbeiten der Person, in GEDCOM `1 RESI` / `2 EMAIL` oder `1 EMAIL`; die einer lebenden Person bleibt aus dem Export heraus, und der Agent der Forschung bekommt sie nie. |
+| pl | E-mail (kontakt osoby) | Adresy e-mail osoby jako jej kontakt, nie wydarzenie ani miejsce zamieszkania. W aplikacji pole przy edycji osoby, w GEDCOM `1 RESI` / `2 EMAIL` lub `1 EMAIL`; adres osoby żyjącej nie trafia do eksportu, a agent badania nigdy go nie dostaje. |
+
+- **Čísla:** [S6.9](cs/S6-tree-from-another-program.md#S6.9)
+
 <a id="couple-photo"></a>
 ### Fotka svazku
 
@@ -815,6 +852,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Jak działa Strom (app) · `strom doc` (terminal) | Ta dokumentacja, dołączona do aplikacji i do badania: zasady według numeru, słowniczek pojęć i wyszukiwanie, także bez internetu. |
 
 - **Čísla:** [A1.7](cs/A1-the-app-in-brief.md#A1.7), R1.8
+
+<a id="only-compare"></a>
+### Jen porovnat
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Jen porovnat (app) | Režim průvodce sloučením, který jen ukáže, co by sloučení udělalo. Nezapíše nic do stromu, záloh ani souborů; výčet jde uložit (**Uložit výčet…**). |
+| en | Only compare (app) | A mode of the merge guide that only shows what a merge would do. It writes nothing into the tree, its backups or files; the list can be saved (**Save the list…**). |
+| de | Nur vergleichen (app) | Ein Modus des Assistenten zum Zusammenführen, der nur zeigt, was das Zusammenführen täte. Er schreibt nichts in den Stammbaum, die Sicherungen oder Dateien; die Liste lässt sich speichern (**Liste speichern…**). |
+| pl | Tylko porównaj (app) | Tryb kreatora scalania, który tylko pokazuje, co zrobiłoby scalenie. Nie zapisuje nic do drzewa, kopii zapasowych ani plików; zestawienie można zapisać (**Zapisz zestawienie…**). |
+
+- **Čísla:** [A8.6](cs/A8-merging-trees.md#A8.6), A8.10
 
 <a id="to-check"></a>
 ### K ověření
@@ -948,6 +997,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [A2.1.1](cs/A2-loading-a-family-tree.md#A2.1.1)
 
+<a id="copy-without-research"></a>
+### Kopie bez výzkumu · Výzkum pro kopii stromu
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Kopie bez výzkumu · Výzkum pro kopii stromu | Strom, který vznikl z jiného stromu (kopie, starší strom po Otevřít jako kopii, další načtení) a do výzkumu původního stromu nic nezapisuje. Vlastní výzkum dostane jen dialogem Výzkum pro kopii stromu: založit nový, nebo výzkum převzít. |
+| en | Copy without research · Research for a copy of a tree | A tree made from another tree (a copy, the older tree after Open as copy, another load) that writes nothing to the research of the original tree. It gets a research of its own only through the dialog Research for a copy of a tree: start a new one, or take the research over. |
+| de | Kopie ohne Forschung · Forschung für eine Kopie | Ein Stammbaum, der aus einem anderen Stammbaum entstanden ist (Kopie, der ältere Stammbaum nach Als Kopie öffnen, ein weiteres Laden) und nichts in die Forschung des ursprünglichen Stammbaums schreibt. Eine eigene Forschung bekommt er nur über den Dialog Forschung für eine Kopie: eine neue anlegen oder die Forschung übernehmen. |
+| pl | Kopia bez badania · Badanie dla kopii drzewa | Drzewo powstałe z innego drzewa (kopia, starsze drzewo po Otwórz jako kopię, kolejne wczytanie), które nic nie zapisuje do badania drzewa pierwotnego. Własne badanie dostaje tylko przez okno Badanie dla kopii drzewa: założyć nowe albo przejąć badanie. |
+
+- **Čísla:** [S1.10](cs/S1-connecting-app-and-research.md#S1.10), S1.10.1, S1.10.2, A14.3
+
 <a id="research-edge"></a>
 ### Kraj výzkumu
 
@@ -971,6 +1032,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Materiały (app) · Wyślij materiał… | Każdy plik drzewa (załącznik, całe zdjęcie portretu, zdjęcie pary, dowód źródła) i plik badania. Ten sam plik jest w drzewie raz i niesie swoje miejsca. Plik można wysłać do badania także bez dodania do drzewa. |
 
 - **Čísla:** [A3.5](cs/A3-evidence-in-the-app.md#A3.5), A3.5.1–A3.5.16, R11, R11.4, R11.5, R11.5.6
+
+<a id="material-for-a-list"></a>
+### Materiál k seznamu osob
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Materiál k seznamu osob | Soubor poslaný výzkumu k celému seznamu osob stromu (pole Týká se › Seznam osob), ne k jedné osobě. Výzkum dostane seznam, jak byl v okamžiku poslání. |
+| en | Material for a list of people | A file sent to the research for a whole list of people of the tree (the field Concerns › List of people), not for one person. The research gets the list as it was at the moment of sending. |
+| de | Material zu einer Personenliste | Eine Datei, die der Forschung zu einer ganzen Personenliste des Stammbaums geschickt wird (Feld Betrifft › Personenliste), nicht zu einer Person. Die Forschung bekommt die Liste so, wie sie beim Senden war. |
+| pl | Materiał do listy osób | Plik wysłany do badania dla całej listy osób drzewa (pole Dotyczy › Lista osób), a nie dla jednej osoby. Badanie dostaje listę taką, jaka była w chwili wysłania. |
+
+- **Čísla:** [A3.5.18](cs/A3-evidence-in-the-app.md#A3.5.18), R11.7
 
 <a id="research-bridge"></a>
 ### Most výzkumu
@@ -1043,6 +1116,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Pozostawić bez zmian | Słowo człowieka, że czekanie zadania jest właściwe tak, jak jest. Ustalenie nie jest potem proponowane, dopóki czekanie się nie zmieni. Może je dać tylko człowiek, nie agent. |
 
 - **Čísla:** [R6.9.1](cs/R6-awaiting-action.md#R6.9.1), [S4.4.8](cs/S4-research-from-the-app.md#S4.4.8)
+
+<a id="most-helpful"></a>
+### Nejvíc pomůže
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Nejvíc pomůže (app) · `strom task list --state waiting --order gain` | Pořadí položek, které čekají na vyřízení, podle toho, o kolik jejich vyřízení rozšíří rodokmen: nová generace, přímá linie, uvolněné úkoly. Důvod stojí pod řádkem. |
+| en | Most helpful (app) · `strom task list --state waiting --order gain` | An order of the things awaiting action by how much dealing with them grows the family tree: a new generation, the direct line, the tasks freed. The reason stands under the row. |
+| de | Am hilfreichsten (app) · `strom task list --state waiting --order gain` | Eine Reihenfolge der wartenden Dinge danach, wie sehr ihre Erledigung den Stammbaum erweitert: eine neue Generation, die direkte Linie, freigegebene Aufgaben. Der Grund steht unter der Zeile. |
+| pl | Najbardziej pomocne (app) · `strom task list --state waiting --order gain` | Kolejność spraw czekających na załatwienie według tego, jak bardzo ich załatwienie rozszerzy drzewo: nowe pokolenie, linia prosta, uwolnione zadania. Powód stoi pod wierszem. |
+
+- **Čísla:** [R6.4.1](cs/R6-awaiting-action.md#R6.4.1), S4.4.3
 
 <a id="not-an-error"></a>
 ### Není chyba
@@ -1140,6 +1225,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [A9.7.1](cs/A9-using-the-app.md#A9.7.1), A9.7
 
+<a id="memory-limit"></a>
+### Paměť nemusí stačit
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Paměť nemusí stačit | Oznámení a otázka, když se otevřený strom nebo výstup s obrázky blíží mezi paměti, kterou prohlížeč aplikaci dává. Obrázky v paměti stromu nejsou: načtou se, až jsou vidět, a jsou uložené jednou, sdílené kopiemi stromu a zálohami. |
+| en | Memory may not be enough | A notice and a question when the open tree or an output with images comes close to the memory the browser gives the app. Images are not in the tree's memory: they load when shown, and are stored once, shared by copies of the tree and by backups. |
+| de | Der Speicher reicht womöglich nicht | Hinweis und Rückfrage, wenn sich der offene Stammbaum oder eine Ausgabe mit Bildern dem Speicher nähert, den der Browser der App gibt. Bilder sind nicht im Speicher des Stammbaums: Sie werden geladen, wenn sie zu sehen sind, und einmal gespeichert, gemeinsam für Kopien des Stammbaums und Sicherungen. |
+| pl | Pamięci może nie wystarczyć | Powiadomienie i pytanie, gdy otwarte drzewo albo wynik z obrazami zbliża się do granicy pamięci, którą przeglądarka daje aplikacji. Obrazów nie ma w pamięci drzewa: wczytują się, gdy są widoczne, i są zapisane raz, wspólne dla kopii drzewa i kopii zapasowych. |
+
+- **Čísla:** [S8.7](cs/S8-where-the-data-are.md#S8.7)
+
 <a id="portrait"></a>
 ### Portrét · výřez portrétu
 
@@ -1169,12 +1266,12 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 | Jazyk | Termín | Definice |
 |---|---|---|
-| cs | Spouštění agenta z aplikace Strom: s potvrzením · bez potvrzení (`run.confirm` ask · no) | Nastavení tohoto počítače, pro všechny jeho výzkumy. **S potvrzením** (výchozí) se terminál před prací agenta, o kterou požádala aplikace, zeptá **Pokračovat?**; **bez potvrzení** ji spustí hned a řekne to jednou řádkou. Dotaz s cenou v penězích, souhlasy, mazání, odeslání žádosti a podmínka samostatné práce se ptají dál. Zapíná jen člověk. |
-| en | Starting the agent from the Strom app: asked first · without the question (`run.confirm` ask · no) | A setting of this computer, for all its researches. **Asked first** (the default): before agent's work that the app asked for, the terminal asks **Go on?**; **without the question** it starts the work at once and says so in one line. A question with a price in money, consents, deletions, a request sent and the condition of working alone still ask. Only a person turns it on. |
-| de | Agent aus der Strom-App starten: mit Rückfrage · ohne Rückfrage (`run.confirm` ask · no) | Eine Einstellung dieses Computers, für alle seine Forschungen. **Mit Rückfrage** (Standard) fragt das Terminal vor Arbeit des Agenten, um die die App gebeten hat, **Fortfahren?**; **ohne Rückfrage** startet es sie sofort und sagt es in einer Zeile. Eine Frage mit einem Preis in Geld, Zustimmungen, Löschen, das Absenden einer Anfrage und die Bedingung der Alleinarbeit fragen weiter. Einschalten kann es nur der Mensch. |
-| pl | Uruchamianie agenta z aplikacji Strom: z potwierdzeniem · bez potwierdzenia (`run.confirm` ask · no) | Ustawienie tego komputera, dla wszystkich jego badań. **Z potwierdzeniem** (domyślnie) terminal przed pracą agenta, o którą poprosiła aplikacja, pyta **Kontynuować?**; **bez potwierdzenia** uruchamia ją od razu i mówi o tym jedną linią. Pytanie z ceną w pieniądzach, zgody, usuwanie, wysłanie prośby i warunek samodzielnej pracy pytają dalej. Włącza je tylko człowiek. |
+| cs | Spouštění agenta z aplikace Strom: s potvrzením · bez potvrzení (`run.confirm` ask · no) · Spouštět agenta bez potvrzení (aplikace) | Nastavení tohoto počítače, pro všechny jeho výzkumy. **S potvrzením** (výchozí) se terminál před prací agenta, o kterou požádala aplikace, zeptá **Pokračovat?**; **bez potvrzení** ji spustí hned a řekne to jednou řádkou. Dotaz s cenou v penězích, souhlasy, mazání, odeslání žádosti a podmínka samostatné práce se ptají dál. Zapíná jen člověk: v terminálu, nebo po potvrzení v aplikaci na počítači s výzkumem. |
+| en | Starting the agent from the Strom app: asked first · without the question (`run.confirm` ask · no) · Start the agent without confirming (app) | A setting of this computer, for all its researches. **Asked first** (the default): before agent's work that the app asked for, the terminal asks **Go on?**; **without the question** it starts the work at once and says so in one line. A question with a price in money, consents, deletions, a request sent and the condition of working alone still ask. Only a person turns it on: in the terminal, or after a confirmation in the app on the computer with the research. |
+| de | Agent aus der Strom-App starten: mit Rückfrage · ohne Rückfrage (`run.confirm` ask · no) · Agenten ohne Bestätigung starten (app) | Eine Einstellung dieses Computers, für alle seine Forschungen. **Mit Rückfrage** (Standard) fragt das Terminal vor Arbeit des Agenten, um die die App gebeten hat, **Fortfahren?**; **ohne Rückfrage** startet es sie sofort und sagt es in einer Zeile. Eine Frage mit einem Preis in Geld, Zustimmungen, Löschen, das Absenden einer Anfrage und die Bedingung der Alleinarbeit fragen weiter. Einschalten kann es nur der Mensch: im Terminal oder nach einer Bestätigung in der App auf dem Computer mit der Forschung. |
+| pl | Uruchamianie agenta z aplikacji Strom: z potwierdzeniem · bez potwierdzenia (`run.confirm` ask · no) · Start agenta bez potwierdzenia (aplikacja) | Ustawienie tego komputera, dla wszystkich jego badań. **Z potwierdzeniem** (domyślnie) terminal przed pracą agenta, o którą poprosiła aplikacja, pyta **Kontynuować?**; **bez potwierdzenia** uruchamia ją od razu i mówi o tym jedną linią. Pytanie z ceną w pieniądzach, zgody, usuwanie, wysłanie prośby i warunek samodzielnej pracy pytają dalej. Włącza je tylko człowiek: w terminalu albo po potwierdzeniu w aplikacji na komputerze z badaniem. |
 
-- **Čísla:** [S4.5.5](cs/S4-research-from-the-app.md#S4.5.5), S4.5, R7.1.2, R5.6
+- **Čísla:** [S4.5.5](cs/S4-research-from-the-app.md#S4.5.5), S4.4.15, S4.5, R7.1.2, R5.6
 
 <a id="send-mode"></a>
 ### Posílat úpravy
@@ -1259,6 +1356,30 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Połączenie z telefonem | Usługa badania na komputerze, przez którą sparowane telefony w tej samej sieci lokalnej widzą badanie i wysyłają do niego zdjęcia. Jest jedna dla całego komputera; włącza ją tylko człowiek. |
 
 - **Čísla:** [S5.1](cs/S5-phone.md#S5.1), S5.5, S5.6
+
+<a id="before-merge"></a>
+### Před sloučením (záloha)
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Před sloučením | Záloha stromu, kterou aplikace udělá před každým zápisem sloučení, i s vypnutými automatickými zálohami. Zůstane, dokud jde sloučení odvolat; rotace záloh ji nesmaže. Bez ní se nic nezapíše. |
+| en | Before merge | The backup of the tree the app makes before every write of a merge, even with automatic backups switched off. It stays while the merge can be undone; the rotation of backups does not delete it. Without it nothing is written. |
+| de | Vor dem Zusammenführen | Die Sicherung des Stammbaums, die die App vor jedem Schreiben einer Zusammenführung anlegt, auch bei ausgeschalteten automatischen Sicherungen. Sie bleibt, solange sich die Zusammenführung zurücknehmen lässt; die Rotation der Sicherungen löscht sie nicht. Ohne sie wird nichts geschrieben. |
+| pl | Przed scaleniem | Kopia drzewa, którą aplikacja robi przed każdym zapisem scalenia, także przy wyłączonych automatycznych kopiach. Zostaje, dopóki scalenie można cofnąć; rotacja kopii jej nie usuwa. Bez niej nic się nie zapisze. |
+
+- **Čísla:** [A8.10](cs/A8-merging-trees.md#A8.10), A8.12, S6.5
+
+<a id="before-undoing-a-merge"></a>
+### Před odvoláním sloučení (záloha)
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Před odvoláním sloučení | Záloha stromu, kterou aplikace udělá před každým odvoláním sloučení, i s vypnutými automatickými zálohami. Rotace záloh ji nesmaže, dokud jde sloučení vrátit. |
+| en | Before undoing a merge | The backup of the tree the app makes before every undo of a merge, even with automatic backups switched off. The rotation of backups does not delete it while the merge can be restored. |
+| de | Vor dem Rückgängigmachen der Zusammenführung | Die Sicherung des Stammbaums, die die App vor jedem Rückgängigmachen einer Zusammenführung anlegt, auch bei ausgeschalteten automatischen Sicherungen. Die Rotation der Sicherungen löscht sie nicht, solange sich die Zusammenführung wiederherstellen lässt. |
+| pl | Przed cofnięciem scalenia | Kopia drzewa, którą aplikacja robi przed każdym cofnięciem scalenia, także przy wyłączonych automatycznych kopiach. Rotacja kopii jej nie usuwa, dopóki scalenie można przywrócić. |
+
+- **Čísla:** [A8.12](cs/A8-merging-trees.md#A8.12), S6.5
 
 <a id="hand-over-to-research"></a>
 ### Předat výzkumu
@@ -1356,6 +1477,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [A4.1](cs/A4-surnames-and-families.md#A4.1), A4.1.1, A4.2, A4.4, A6.4.1, A6.4.2
 
+<a id="search-scope"></a>
+### Rozsah hledání
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Rozsah hledání: Celý strom · Přímá linie · V pohledu | Kde hledání osob hledá: v celém stromu, jen v přímé linii osoby (předci a potomci), nebo jen mezi osobami, které ukazuje pohled. |
+| en | Search scope: Whole tree · Direct line · In view | Where the search for people looks: in the whole tree, only in a person's direct line (ancestors and descendants), or only among the people the view shows. |
+| de | Suchbereich: Ganzer Stammbaum · Direkte Linie · In der Ansicht | Wo die Personensuche sucht: im ganzen Stammbaum, nur in der direkten Linie einer Person (Vorfahren und Nachkommen) oder nur unter den Personen, die die Ansicht zeigt. |
+| pl | Zakres wyszukiwania: Całe drzewo · Linia prosta · W widoku | Gdzie szuka wyszukiwanie osób: w całym drzewie, tylko w linii prostej osoby (przodkowie i potomkowie) albo tylko wśród osób, które pokazuje widok. |
+
+- **Čísla:** [A4.8.2](cs/A4-surnames-and-families.md#A4.8.2)
+
 <a id="sort-with-agent"></a>
 ### Roztřídit agentem
 
@@ -1366,7 +1499,7 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | de | Mit dem Agenten sortieren… (app) · `strom material sort` | Der Agent der Forschung schlägt zu Dateien Titel, Datum, Art und Verknüpfungen mit Begründung vor. Nichts wird geschrieben, bevor ein Mensch den Vorschlag annimmt; Titel und Verknüpfungen von Menschen ändert der Agent nicht. |
 | pl | Uporządkuj agentem… (app) · `strom material sort` | Agent badania proponuje dla plików tytuł, datę, rodzaj i połączenia z uzasadnieniem. Nic się nie zapisze, dopóki człowiek nie przyjmie propozycji; tytułów i połączeń nadanych przez człowieka agent nie zmienia. |
 
-- **Čísla:** [A3.5.8](cs/A3-evidence-in-the-app.md#A3.5.8), A3.5.10–A3.5.13, R11.5.3, R11.5.5
+- **Čísla:** [A3.5.8](cs/A3-evidence-in-the-app.md#A3.5.8), A3.5.10–A3.5.13, R11.5.3, R11.5.5, S4.4.13
 
 <a id="census-records"></a>
 ### Sčítání lidu
@@ -1378,7 +1511,7 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | de | Volkszählungen | Eine Quelle, die einen Haushalt in einem Jahr festhält: wer im Haus wohnte, das Verhältnis zum Haushaltsvorstand, Alter, oft Geburtsort und Beruf. Die Forschung nutzt sie nur, wenn ein Mensch sie einschaltet; ausgeschaltet werden Volkszählungsaufgaben zurückgestellt. Ein Haushalt ist ein gemeinsames Ereignis. |
 | pl | Spisy ludności | Źródło zapisujące jedno gospodarstwo domowe w jednym roku: kto mieszkał w domu, pokrewieństwo z głową gospodarstwa, wiek, często miejsce urodzenia i zawód. Badanie używa go tylko wtedy, gdy człowiek je włączy; po wyłączeniu zadania spisu są odłożone. Gospodarstwo domowe to jedno wspólne wydarzenie. |
 
-- **Čísla:** [R9.12](cs/R9-archives.md#R9.12), R9.12.1, R9.12.2, R9.12.3, R9.12.4, S4.2.4, S4.4.10
+- **Čísla:** [R9.12](cs/R9-archives.md#R9.12), R9.12.1, R9.12.2, R9.12.3, R9.12.4, S4.2.4, S4.4.10, A10.7, S2.7.1
 
 <a id="task-hold"></a>
 ### Úkol drží sezení · omezený archiv
@@ -1452,17 +1585,41 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [S1.2](cs/S1-connecting-app-and-research.md#S1.2), S1.4, S4.1, S4.5.1, S4.5.2
 
+<a id="merge-wizard"></a>
+### Sloučení stromů (průvodce)
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Sloučení stromů · Import rodokmenu · Přijaté změny | Průvodce v šesti krocích, kterým od aplikace 3.32.0 jde každé sloučení: soubor GEDCOM, jiný strom, pohled nebo přijaté změny do vybraného stromu, nebo do nového. Nic nezapíše bez zálohy **Před sloučením** a bez kontroly součtů; každá osoba importu skončí právě jednou. |
+| en | Merge trees · Import a family tree · Received changes | The six-step guide every merge goes through from app 3.32.0: a GEDCOM file, another tree, a view or received changes into a chosen tree, or into a new one. It writes nothing without the backup **Before merge** and a check of the totals; each person of the import ends up exactly once. |
+| de | Stammbäume zusammenführen · Stammbaum importieren · Empfangene Änderungen | Der Assistent in sechs Schritten, durch den ab App 3.32.0 jedes Zusammenführen geht: eine GEDCOM-Datei, ein anderer Stammbaum, eine Ansicht oder empfangene Änderungen in einen gewählten Stammbaum oder in einen neuen. Er schreibt nichts ohne die Sicherung **Vor dem Zusammenführen** und ohne Prüfung der Summen; jede Person des Imports landet genau einmal. |
+| pl | Scalanie drzew · Import drzewa · Otrzymane zmiany | Kreator w sześciu krokach, przez który od aplikacji 3.32.0 przechodzi każde scalenie: plik GEDCOM, inne drzewo, widok lub otrzymane zmiany do wybranego drzewa albo do nowego. Nie zapisze nic bez kopii **Przed scaleniem** i bez sprawdzenia sum; każda osoba importu trafia dokładnie raz. |
+
+- **Čísla:** [A8.5](cs/A8-merging-trees.md#A8.5), A8.5.1, A8.6, A8.6.1, A8.7, A8.8, A8.9, A8.10, A8.11, A14.5, S6.7
+
 <a id="merge-with-existing"></a>
 ### Sloučit s existujícím
 
 | Jazyk | Termín | Definice |
 |---|---|---|
-| cs | Sloučit s existujícím | Import, který osoby ze souboru spáruje s osobami aktuálního stromu a výsledek uloží jako nový strom; aktuální strom i soubor zůstanou beze změny. |
-| en | Merge with existing | An import that matches people from the file with people of the current tree and saves the result as a new tree; the current tree and the file stay unchanged. |
-| de | Mit Vorhandenem zusammenführen | Ein Import, der Personen aus der Datei mit Personen des aktuellen Stammbaums abgleicht und das Ergebnis als neuen Stammbaum speichert; der aktuelle Stammbaum und die Datei bleiben unverändert. |
-| pl | Scal z istniejącym | Import, który paruje osoby z pliku z osobami bieżącego drzewa i zapisuje wynik jako nowe drzewo; bieżące drzewo i plik pozostają bez zmian. |
+| cs | Sloučit s existujícím | Import, který osoby ze souboru spáruje s osobami aktuálního stromu a výsledek uloží jako nový strom; aktuální strom i soubor zůstanou beze změny. Od aplikace 3.32.0 ho nahrazuje průvodce **Sloučení stromů** (A8.5). |
+| en | Merge with existing | An import that matches people from the file with people of the current tree and saves the result as a new tree; the current tree and the file stay unchanged. From app 3.32.0 the guide **Merge trees** replaces it (A8.5). |
+| de | Mit Vorhandenem zusammenführen | Ein Import, der Personen aus der Datei mit Personen des aktuellen Stammbaums abgleicht und das Ergebnis als neuen Stammbaum speichert; der aktuelle Stammbaum und die Datei bleiben unverändert. Ab App 3.32.0 ersetzt ihn der Assistent **Stammbäume zusammenführen** (A8.5). |
+| pl | Scal z istniejącym | Import, który paruje osoby z pliku z osobami bieżącego drzewa i zapisuje wynik jako nowe drzewo; bieżące drzewo i plik pozostają bez zmian. Od aplikacji 3.32.0 zastępuje go kreator **Scalanie drzew** (A8.5). |
 
-- **Čísla:** [A8.1](cs/A8-merging-trees.md#A8.1), A2.1.1, A2.8, A8.2, A8.3, S6.7
+- **Čísla:** [A8.1](cs/A8-merging-trees.md#A8.1), A2.1.1, A2.8, A8.2, A8.3, A8.5, S6.7
+
+<a id="merge-history"></a>
+### Historie sloučení · Odvolat sloučení
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Historie sloučení… · Odvolat sloučení… | Seznam sloučení do stromu s jejich zdrojem a datem. Sloučení z něj jde odvolat celé nebo po částech; práce udělaná po sloučení zůstane. Sloučení už odeslané do výzkumu výzkum sám nesmaže (S2.6). |
+| en | Merge history… · Undo the merge… | The list of merges into a tree with their source and date. A merge can be undone from it, whole or in parts; work done after the merge stays. A merge already sent to the research is not deleted by the research itself (S2.6). |
+| de | Verlauf der Zusammenführungen… · Zusammenführung zurücknehmen… | Die Liste der Zusammenführungen in einen Stammbaum mit ihrer Quelle und ihrem Datum. Eine Zusammenführung lässt sich von dort ganz oder in Teilen zurücknehmen; Arbeit nach der Zusammenführung bleibt. Eine bereits an die Forschung gesendete Zusammenführung löscht die Forschung nicht von selbst (S2.6). |
+| pl | Historia scaleń… · Cofnij scalenie… | Lista scaleń do drzewa z ich źródłem i datą. Scalenie można z niej cofnąć w całości lub częściami; praca wykonana po scaleniu zostaje. Scalenia już wysłanego do badania badanie samo nie usuwa (S2.6). |
+
+- **Čísla:** [A8.11](cs/A8-merging-trees.md#A8.11), A8.12, A8.13, S2.6
 
 <a id="delete-permanently"></a>
 ### Smazat natrvalo
@@ -1536,6 +1693,30 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [A10.1](cs/A10-shared-events.md#A10.1), A10.1.1, A10.2, A10.6, A10.7, A2.1, A2.7, A6.7.10, A8.4, R11.3, R9.12.3, S2.3
 
+<a id="manage-trees"></a>
+### Správa stromů · Změnit strukturu…
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Správa stromů · Změnit strukturu… | Okno se všemi stromy prohlížeče (počty, původ, rozpracovaná sloučení, export) a okno akcí, které ze stromu dělají jiné stromy: nový strom z výběru, kopie celého stromu, rozdělení, spojení do jiného stromu, přidání ze souboru. |
+| en | Manage trees · Change structure… | The window with all trees of the browser (counts, origin, pending merges, export) and the window of actions that make other trees out of a tree: a new tree from a selection, a copy of the whole tree, splitting, joining into another tree, adding from a file. |
+| de | Stammbäume verwalten · Struktur ändern… | Das Fenster mit allen Stammbäumen des Browsers (Anzahlen, Herkunft, ausstehende Zusammenführungen, Export) und das Fenster der Aktionen, die aus einem Stammbaum andere Stammbäume machen: neuer Stammbaum aus einer Auswahl, Kopie des ganzen Stammbaums, Aufteilen, Zusammenführen in einen anderen Stammbaum, Hinzufügen aus einer Datei. |
+| pl | Zarządzanie drzewami · Zmień strukturę… | Okno ze wszystkimi drzewami przeglądarki (liczby, pochodzenie, rozpoczęte scalenia, eksport) i okno działań, które z drzewa robią inne drzewa: nowe drzewo z wyboru, kopia całego drzewa, podział, połączenie z innym drzewem, dodanie z pliku. |
+
+- **Čísla:** [A14.1](cs/A14-trees-and-structure.md#A14.1), A14.2, A14.3, A14.4, A14.5
+
+<a id="statistics"></a>
+### Statistiky
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Statistiky | Okno s podrobnými počty stromu po tématech (jména, místa, věk, děti, povolání…) v rozsahu a období narození; z hodnoty vede do Tabulky a jde uložit jako CSV. |
+| en | Statistics | The window with detailed counts of the tree by topic (names, places, age, children, occupations…) within a scope and a period of birth; a value leads to the Table and it can be saved as CSV. |
+| de | Statistik | Das Fenster mit ausführlichen Zahlen des Stammbaums nach Themen (Namen, Orte, Alter, Kinder, Berufe…) in einem Umfang und Geburtszeitraum; ein Wert führt zur Tabelle, und es lässt sich als CSV speichern. |
+| pl | Statystyki | Okno ze szczegółowymi liczbami drzewa według tematów (imiona, miejsca, wiek, dzieci, zawody…) w zakresie i okresie urodzenia; wartość prowadzi do Tabeli, a całość można zapisać jako CSV. |
+
+- **Čísla:** [A13.1](cs/A13-tree-statistics.md#A13.1), A13.2, A13.3, A13.4, A13.5
+
 <a id="same-id-in-the-file"></a>
 ### Stejné ID v souboru
 
@@ -1596,6 +1777,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [A6.1.2](cs/A6-views.md#A6.1.2)
 
+<a id="list-template"></a>
+### Šablona seznamu
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Šablona · Začít ze šablony · Uložit jako šablonu | Připravené vlastní pravidlo seznamu osob bez osob, míst a seznamů, ty se doplní při použití. Vestavěné šablony jsou po skupinách, vlastní se ukládají v zařízení, ne ve stromu. Nabízí se jen při zakládání nového seznamu. |
+| en | Template · Start from a template · Save as template | A ready custom rule of a list of people without people, places and lists, which are filled in when it is used. The built-in templates are in groups, own templates are saved on the device, not in the tree. Offered only when a new list is made. |
+| de | Vorlage · Mit Vorlage beginnen · Als Vorlage speichern | Eine vorbereitete eigene Regel einer Personenliste ohne Personen, Orte und Listen, die bei der Verwendung ergänzt werden. Die eingebauten Vorlagen sind nach Gruppen geordnet, eigene werden auf dem Gerät gespeichert, nicht im Stammbaum. Nur beim Anlegen einer neuen Liste angeboten. |
+| pl | Szablon · Zacznij od szablonu · Zapisz jako szablon | Gotowa własna reguła listy osób bez osób, miejsc i list, które uzupełnia się przy użyciu. Szablony wbudowane są według grup, własne zapisują się na urządzeniu, nie w drzewie. Oferowany tylko przy zakładaniu nowej listy. |
+
+- **Čísla:** [A11.2.10](cs/A11-lists-of-people.md#A11.2.10), A11.3
+
 <a id="table-view"></a>
 ### Tabulka
 
@@ -1607,6 +1800,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Tabela (widok) · Osoby · Związki · Wydarzenia · Źródła (wiersze) | Widok aplikacji na całe drzewo w wierszach osób, związków, wydarzeń lub źródeł: dane, wartości obliczone, kompletność, cytowania i wyniki kontroli w kolumnach, z filtrem, sortowaniem, zapisanymi widokami i eksportem CSV i XLSX. |
 
 - **Čísla:** [A6.7](cs/A6-views.md#A6.7), A6.7.1, A6.7.2, A6.7.3, A6.7.4, A6.7.5, A6.7.6, A6.7.7, A6.7.8, A6.7.9, A6.7.10, A6.7.11, A6.7.12, A6.7.13, A6.7.14, A6.7.15, A6.7.16, A6.7.17, A6.7.18, A6.7.19, A6.7.20
+
+<a id="sort-without-asking"></a>
+### Třídit agentem bez ptaní
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Třídit agentem bez ptaní (app) · `sort.confirm no` | Nastavení výzkumu, se kterým třídění materiálu agentem neříká cenu před každým tříděním; spustí se dál jen na požádání. Zapnout ho jde v terminálu výzkumu, nebo po potvrzení v aplikaci na počítači s výzkumem; vypnout i v aplikaci. |
+| en | Sort with the agent without asking (app) · `sort.confirm no` | A setting of the research with which sorting material with the agent does not say the cost before each sorting; it still starts only when asked. It can be switched on in the research terminal, or after a confirmation in the app on the computer with the research; switched off in the app too. |
+| de | Mit dem Agenten sortieren ohne Nachfrage (app) · `sort.confirm no` | Eine Einstellung der Forschung, mit der das Sortieren von Material mit dem Agenten die Kosten nicht vor jedem Sortieren nennt; es startet weiterhin nur auf Anforderung. Einschalten lässt es sich im Terminal der Forschung oder nach einer Bestätigung in der App auf dem Computer mit der Forschung; ausschalten auch in der App. |
+| pl | Porządkowanie agentem bez pytania (app) · `sort.confirm no` | Ustawienie badania, z którym porządkowanie materiałów agentem nie podaje kosztu przed każdym porządkowaniem; nadal startuje tylko na żądanie. Włączyć je można w terminalu badania albo po potwierdzeniu w aplikacji na komputerze z badaniem; wyłączyć także w aplikacji. |
+
+- **Čísla:** [S4.4.13](cs/S4-research-from-the-app.md#S4.4.13), R11.5.3, A3.5.8
 
 <a id="surname-spellings"></a>
 ### Tvary příjmení
@@ -1644,6 +1849,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 
 - **Čísla:** [A6.1](cs/A6-views.md#A6.1), A1.3, A6.1.1, A6.1.6, A6.6
 
+<a id="saved-import-rules"></a>
+### Uložená pravidla importu
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Uložená pravidla importu (app) | Volby kroku 1 průvodce sloučením zapamatované pro soubory GEDCOM jednoho programu (rozsah a co platí). Další soubor z téhož programu začne s nimi; jsou v nastavení zařízení. |
+| en | Saved import rules (app) | The choices of step 1 of the merge guide remembered for the GEDCOM files of one program (the scope and what counts). The next file from that program starts with them; they are in the device settings. |
+| de | Gespeicherte Importregeln (app) | Die Wahl aus Schritt 1 des Assistenten zum Zusammenführen, gemerkt für GEDCOM-Dateien eines Programms (Umfang und was gilt). Die nächste Datei aus diesem Programm beginnt damit; sie stehen in den Einstellungen des Geräts. |
+| pl | Zapisane reguły importu (app) | Wybory z kroku 1 kreatora scalania zapamiętane dla plików GEDCOM jednego programu (zakres i co obowiązuje). Następny plik z tego programu zaczyna z nimi; są w ustawieniach urządzenia. |
+
+- **Čísla:** [A8.6.1](cs/A8-merging-trees.md#A8.6.1)
+
 <a id="duplicate-verdict"></a>
 ### Verdikt výzkumu u duplicity
 
@@ -1655,6 +1872,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Prawdopodobnie ta sama osoba · Dwie osoby · Niepewne · Scalono w badaniu (app) · `strom person compare` (terminal) | Jak badanie oceniło parę możliwego duplikatu według swoich danych: rodziców, lat, płci i zapisów w źródłach. |
 
 - **Čísla:** [A5.6.1](cs/A5-tree-check.md#A5.6.1)
+
+<a id="custom-list-rule"></a>
+### Vlastní pravidlo
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Vlastní pravidlo · Platí všechny · Platí kterákoli · kromě | Pravidlo seznamu osob složené z podmínek (rodina osoby, období, místo a okolí, údaje, jiný seznam…) ve skupinách nejvýš tří úrovní. Skupina spojí podmínky slovy „a zároveň“ nebo „nebo“, „kromě“ osoby ubere. Seznam s ním může být pevný i automatický. |
+| en | Custom rule · All apply · Any applies · except | A rule of a list of people put together from conditions (family of a person, periods, place and surroundings, facts, another list…) in groups of at most three levels. A group joins its conditions with “and” or “or”, “except” takes people away. A list with it can be fixed or automatic. |
+| de | Eigene Regel · Alle gelten · Mindestens eine gilt · außer | Eine aus Bedingungen (Familie einer Person, Zeiträume, Ort und Umgebung, Angaben, andere Liste…) zusammengesetzte Regel einer Personenliste in Gruppen von höchstens drei Ebenen. Eine Gruppe verbindet ihre Bedingungen mit „und“ oder „oder“, „außer“ nimmt Personen weg. Eine Liste damit kann fest oder automatisch sein. |
+| pl | Własna reguła · Wszystkie · Którykolwiek · oprócz | Reguła listy osób złożona z warunków (rodzina osoby, okresy, miejsce i okolica, dane, inna lista…) w grupach najwyżej trzech poziomów. Grupa łączy warunki słowami „i” lub „lub”, „oprócz” odejmuje osoby. Lista z nią może być stała lub automatyczna. |
+
+- **Čísla:** [A11.2.4](cs/A11-lists-of-people.md#A11.2.4), A11.2.5, A11.2.6, A11.2.7, A11.2.8, A11.2.9, A11.2.11, A11.2, A11.3
 
 <a id="undo-send"></a>
 ### Vrátit poslední poslání
@@ -1787,6 +2016,18 @@ Pojmy aplikace a jejího spojení s výzkumem, v abecedním pořadí.
 | pl | Plik źródła (app) · `uses.of` (most) | Plik, z którego badanie zrobiło źródło. Jest uporządkowany przez źródło: porządkowanie go nie wyśle, a **Gdzie użyto** pokazuje źródła jako pierwsze. |
 
 - **Čísla:** [A3.5.14](cs/A3-evidence-in-the-app.md#A3.5.14), A3.5.3, A3.5.11, A3.5.17, R11.5.4
+
+<a id="retry-with-the-agent"></a>
+### Zkusit znovu přes agenta
+
+| Jazyk | Termín | Definice |
+|---|---|---|
+| cs | Zkusit znovu přes agenta (app) · Vrátit agentovi (terminal) · `strom task wake --retry` | Vrácení úkolu, který čeká na snímky archivu jen přes prohlížeč, zpět agentovi, když překážka prohlížeče pominula. Nic se nezapíše jako odpověď člověka, úkol jde hned na řadu; vrací jen člověk, jeden úkol nejvýš 3× za 24 hodin. |
+| en | Retry with the agent (app) · Return to the agent (terminal) · `strom task wake --retry` | Returning a task that waits for images of an archive reached only through a browser back to the agent once the obstacle of the browser is gone. Nothing is written as the person's answer, the task goes first in the queue; only a person returns it, one task at most 3 times in 24 hours. |
+| de | Erneut über den Agenten versuchen (app) · An den Agenten zurückgeben (terminal) · `strom task wake --retry` | Die Rückgabe einer Aufgabe, die auf Bilder eines Archivs nur über den Browser wartet, an den Agenten, sobald das Hindernis des Browsers weg ist. Nichts wird als Antwort des Menschen geschrieben, die Aufgabe kommt sofort an die Reihe; zurückgeben kann nur der Mensch, eine Aufgabe höchstens 3× in 24 Stunden. |
+| pl | Spróbuj ponownie przez agenta (app) · Zwrócić agentowi (terminal) · `strom task wake --retry` | Zwrot agentowi zadania, które czeka na skany archiwum dostępnego tylko przez przeglądarkę, gdy przeszkoda przeglądarki minęła. Nic nie zapisuje się jako odpowiedź człowieka, zadanie trafia od razu na początek kolejki; zwraca tylko człowiek, jedno zadanie najwyżej 3× w ciągu 24 godzin. |
+
+- **Čísla:** [S4.4.14](cs/S4-research-from-the-app.md#S4.4.14), R6.7.3, R6.6, R2.2, R9.8.1
 
 <a id="lineage-markers"></a>
 ### Značení linií

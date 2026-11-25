@@ -74,8 +74,14 @@ zeigen, sendet die Forschung über die Brücke.
   … (höchstens bis 14:40)“. Mit einer älteren Forschung ist alles wie bisher.
 - **Ab App 3.31.0 mit Forschung 1.36.0:** bei mehreren Läufen hat **Jetzt** einen Block für jeden Lauf; jeder wird
   einzeln verfolgt und angehalten ([S4.1.8](#S4.1.8)).
+- **Ab App 3.32.0 mit Forschung 1.37.0:** wenn der Agent die Bilder eines Buches über seinen Browser speichert
+  ([R9.5](R9-archives.md#R9.5)), steht bei der Aufgabe seiner Zeile „Agent speichert Aufnahmen (k von n)“: im
+  Live-Panel, in **Jetzt** mit einem Lauf, in der Zeile der Richtung, im Block des Laufs und bei den Richtungen. Ohne
+  Fortschrittsbalken; die Zahl wächst mit den Bildern. Eine solche Aufgabe steht nicht in **Wartet auf Bearbeitung**
+  und nicht in den Zahlen ([R6.2.1](R6-awaiting-action.md#R6.2.1)). Mit einer älteren Forschung sind die Zeilen wie
+  bisher.
 
-<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:223 PANEL_CHANGES, (3.28.0: app 8da3f11e MINI_OPEN_KEY strom-research-mini-open, miniPanelFolded, rememberMiniPanelFolded, ne na telefonu; otevřený Přehled panel nerozbalí), :227 AUTO_FOLD, :3326 appendQueueSection(…, 3), renderLivePanel, renderIdleResearchPanel · src/ui/research-overview-ui.ts:5 (≥1280), :51 FOLDED_BY_DEFAULT, :53 GROUP_MS, :59 MAX_STEPS, :74, :309-311 · strings.ts live.overviewTitle, research.panelLabel, research.stop, research.atWork, research.queue · 3.27.0 Teď: app 4e4f6d8c src/research-link.ts WORKING_HELPS_FEATURE (working.helps), sanitizeWorking (helps jen s linií, branch) · src/ui/research-offline-ui.ts workingWhyText (helps → qWhyHelps + qWhyHow / qWhyHowBranch; větev mimo linie → qWhyOutBranch, ve skupině qWhyHowBranch) · src/ui/research-overview-ui.ts (Teď: důvod místo názvu linie) · strings.ts live.qWhyHelps, qWhyHow.*, qWhyHowBranch, qWhyOutBranch · spec 036 K1.8 · malý panel: app 2c018779 src/ui/research-ui.ts, research-directions-ui.ts (pod nadpisem linie jen jak) · 3.27.0 spec 057: app f05fff8e src/ui/research-actions-ui.ts overviewRows (research-item-overview první; stop při sledování, jinak followLive, ne bez agenta), src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (live.researchLink v záhlaví focus) · 28bbebeb src/ui/live-section-prefs.ts TOP_DEFAULTS (month.price false), research-overview-ui.ts appendOverviewSummary, strings.ts live.spendSessions, spendAmount · 87a6ea88 live.dirWorkedOn · strings.ts live.openOverview · 3.31.0: app 7be40d24 src/ui/landscape-panel-fold.ts (MQ_PHONE_LANDSCAPE, jen rozbalený panel, images nebo toast message, nerozbalí se sám, nepamatuje se) · SPEC.md 1120-app-108-diry · spec 116 · 3.31.0 spec 127: app:f89b5166, 040e42e6 src/research-holds.ts workingHoldText, waitsText, src/ui/research-ui.ts pausedText (statePaused · waitsArchive), workingHoldEl, src/ui/research-overview-ui.ts:921, src/research-link.ts features task.holds, archive.holds · strings.ts live.holdLast, holdFreeBy, waitsArchive · research cs.json who.agent -->
+<!-- zdroj: app:v3.21.2 src/ui/research-ui.ts:223 PANEL_CHANGES, (3.28.0: app 8da3f11e MINI_OPEN_KEY strom-research-mini-open, miniPanelFolded, rememberMiniPanelFolded, ne na telefonu; otevřený Přehled panel nerozbalí), :227 AUTO_FOLD, :3326 appendQueueSection(…, 3), renderLivePanel, renderIdleResearchPanel · src/ui/research-overview-ui.ts:5 (≥1280), :51 FOLDED_BY_DEFAULT, :53 GROUP_MS, :59 MAX_STEPS, :74, :309-311 · strings.ts live.overviewTitle, research.panelLabel, research.stop, research.atWork, research.queue · 3.27.0 Teď: app 4e4f6d8c src/research-link.ts WORKING_HELPS_FEATURE (working.helps), sanitizeWorking (helps jen s linií, branch) · src/ui/research-offline-ui.ts workingWhyText (helps → qWhyHelps + qWhyHow / qWhyHowBranch; větev mimo linie → qWhyOutBranch, ve skupině qWhyHowBranch) · src/ui/research-overview-ui.ts (Teď: důvod místo názvu linie) · strings.ts live.qWhyHelps, qWhyHow.*, qWhyHowBranch, qWhyOutBranch · spec 036 K1.8 · malý panel: app 2c018779 src/ui/research-ui.ts, research-directions-ui.ts (pod nadpisem linie jen jak) · 3.27.0 spec 057: app f05fff8e src/ui/research-actions-ui.ts overviewRows (research-item-overview první; stop při sledování, jinak followLive, ne bez agenta), src/ui/tree-actions.ts researchOverview · 8d564b35 src/ui/tree-overview.ts treeOverviewResearchLinkHtml (live.researchLink v záhlaví focus) · 28bbebeb src/ui/live-section-prefs.ts TOP_DEFAULTS (month.price false), research-overview-ui.ts appendOverviewSummary, strings.ts live.spendSessions, spendAmount · 87a6ea88 live.dirWorkedOn · strings.ts live.openOverview · 3.31.0: app 7be40d24 src/ui/landscape-panel-fold.ts (MQ_PHONE_LANDSCAPE, jen rozbalený panel, images nebo toast message, nerozbalí se sám, nepamatuje se) · SPEC.md 1120-app-108-diry · spec 116 · 3.31.0 spec 127: app:f89b5166, 040e42e6 src/research-holds.ts workingHoldText, waitsText, src/ui/research-ui.ts pausedText (statePaused · waitsArchive), workingHoldEl, src/ui/research-overview-ui.ts:921, src/research-link.ts features task.holds, archive.holds · strings.ts live.holdLast, holdFreeBy, waitsArchive · research cs.json who.agent · 3.32.0: app:7a10c93f (working[].saving jen s working.saving: kniha, dvě celá čísla, saved ≤ of) strings.ts live.workingSaving · research:81de7cdb src/core/live.ts working[].saving, feature working.saving -->
 
 <a id="S4.1.1"></a>
 ### S4.1.1 Agenten im Stammbaum folgen
@@ -222,9 +228,12 @@ die bleiben, behalten ihren Platz; was hinzukam, wegfiel oder sich änderte, zei
     sofort, nur hervorgehoben („Im System ist reduzierte Bewegung aktiv, Änderungen erscheinen daher ohne
     Bewegung.“).
 - **Bedienung:** App: **Einstellungen → Forschung verfolgen → Bewegung beim Laden von Änderungen** (standardmäßig an).
+- **Ab App 3.32.0:** eine Platzhalterperson „?“, die beim Laden eine neue ID bekam, ist weder neu noch entfernt:
+  weder die Marke am Rand noch ein Bildschirmleser kündigt sie an; angekündigt werden nur echte Personen. Das gilt
+  auch nach dem Senden an die Forschung und nach dem Rückgängigmachen einer Zusammenführung.
 - **Gilt seit:** App 3.24.0
 
-<!-- zdroj: app:src/live-transition.ts LIVE (move 320 ms, maxAnimatedNew=12, maxChangedForScene=60, ×0.875 touch), src/live-diff.ts (merge guess: surname, birth ±1, parent/partner) · strings.ts settings.liveMotion, liveMotionHelp, liveMotionReduced, edgeAdded · CHANGELOG.cs.md 3.24.0 · spec 055 -->
+<!-- zdroj: app:src/live-transition.ts LIVE (move 320 ms, maxAnimatedNew=12, maxChangedForScene=60, ×0.875 touch), src/live-diff.ts (merge guess: surname, birth ±1, parent/partner) · strings.ts settings.liveMotion, liveMotionHelp, liveMotionReduced, edgeAdded · CHANGELOG.cs.md 3.24.0 · spec 055 · 3.32.0: app:6c90cc34 (134 V-N6: realPeople, zástupná „?“ s novým ID se nehlásí) -->
 
 <a id="S4.1.5"></a>
 ### S4.1.5 Forschungsübersicht ohne Folgen
@@ -461,7 +470,8 @@ jeder Richtung einzeln. Jeder Lauf lässt sich einzeln verfolgen und anhalten.
 - **Reihenfolge der Blöcke:** zuerst der Lauf der ganzen Warteschlange, dann die Läufe der Richtungen in der
   Reihenfolge der Richtungen ([R2.1.4](R2-lines-and-queue.md#R2.1.4)). Die Überschrift des Bereichs ist „Jetzt · 3
   Agenten“; die Zusammenfassung **Status** bei zwei und mehr Läufen „3 Agenten arbeiten“ und gegebenenfalls „1 wartet
-  auf das Limit bis 14:00“.
+  auf das Limit bis 14:00“. Ab App 3.32.0 zählt auch ein Lauf, der auf ein Archiv, den Archiv-Browser oder einen
+  Download wartet: dann nur „1 wartet“ (ohne Uhrzeit).
 - **Aktionen des Blocks:**
   - **Im Stammbaum zeigen**: die Personen der Richtung, beim Lauf der ganzen Warteschlange die Person, an der der
     Agent arbeitet;
@@ -494,7 +504,7 @@ jeder Richtung einzeln. Jeder Lauf lässt sich einzeln verfolgen und anhalten.
   `strom run stop <run-…> [--finish]`.
 - **Gilt seit:** App 3.31.0 (Forschung 1.36.0)
 
-<!-- zdroj: app:4de0835a src/research-runs.ts (run.lines, RUN_ENDED_MS 60 s, orderRuns obecný první a linie v pořadí, runCount, noteEndedRuns jen v paměti) · src/ui/research-overview-ui.ts vykreslení bloku (runStateWorking/Starting/Limit/Archive/Waiting/WaitingUntil/Browser/Download/Finishing/Ended, runBrowserNote, runSkips, runFinishesThen, runEndedText jen limit|error, runAfterStop), overviewRunActions (Ukázat ve stromu; Sledovat tento běh jen ≥ 2 běhy a sledování, ne telefon; Zastavit s run.stop u working|waiting, ne telefon; Dokončit a skončit finish?run= u working a čekání na prohlížeč nebo stahování) · src/ui/live-follow-ui.ts pilulka followRunPill, followRunMenu, followOff · strings.ts live.nowAgents, stateAgents, stateAgentsWaiting, runWhole, run*, followRun* · app:docs/ZADANI_DEV_beh-po-liniich.md §3, §4, §7, Kolo 2 C2 · dirigent:spec/126 K2.1, K2.2, K2.5, prace/1121-app-126-linie, 1122-app-126-kolo2 · research: /status runs[], runsEnded[] (POST runs/stop) -->
+<!-- zdroj: 3.32.0: app:f09e9722 src/research-runs-text.ts runsWaitingText (stateAgentsWaitingAny, když některý běh nečeká na limit) · app:4de0835a src/research-runs.ts (run.lines, RUN_ENDED_MS 60 s, orderRuns obecný první a linie v pořadí, runCount, noteEndedRuns jen v paměti) · src/ui/research-overview-ui.ts vykreslení bloku (runStateWorking/Starting/Limit/Archive/Waiting/WaitingUntil/Browser/Download/Finishing/Ended, runBrowserNote, runSkips, runFinishesThen, runEndedText jen limit|error, runAfterStop), overviewRunActions (Ukázat ve stromu; Sledovat tento běh jen ≥ 2 běhy a sledování, ne telefon; Zastavit s run.stop u working|waiting, ne telefon; Dokončit a skončit finish?run= u working a čekání na prohlížeč nebo stahování) · src/ui/live-follow-ui.ts pilulka followRunPill, followRunMenu, followOff · strings.ts live.nowAgents, stateAgents, stateAgentsWaiting, runWhole, run*, followRun* · app:docs/ZADANI_DEV_beh-po-liniich.md §3, §4, §7, Kolo 2 C2 · dirigent:spec/126 K2.1, K2.2, K2.5, prace/1121-app-126-linie, 1122-app-126-kolo2 · research: /status runs[], runsEnded[] (POST runs/stop) -->
 
 <a id="S4.2"></a>
 ## S4.2 Warteschlange in der App
@@ -953,6 +963,9 @@ erledigen lässt und was nur in der Forschung, sagt [R6.5](R6-awaiting-action.md
 - **Ab App 3.30.0 mit Forschung 1.35.0:** eine Aufgabe, deren Warten auf Bilder nicht so erfasst ist, wie strom es
   braucht, hat eine Marke und im geöffneten Eintrag eine Korrektur in einem Schritt ([S4.4.8](#S4.4.8),
   [S4.4.9](#S4.4.9)).
+- **Ab App 3.32.0 mit Forschung 1.37.0:** ein Eintrag, der an den Agenten zurückgehen kann, hat die Zeile **Jetzt**
+  und die Schaltfläche **Erneut über den Agenten versuchen**, die Leiste eines Archivs **Alle erneut über den Agenten
+  versuchen** ([S4.4.14](#S4.4.14)).
 
 <!-- zdroj: app:7d7c0783 src/ui/research-overview-ui.ts overviewWaitingGroupHead, overviewWaitingBookHead (pás .research-overview__waiting-grouphead, akce skupiny v pásu, ul.is-grouped; bez skupin a Bez knihy bez linky), src/ui/waiting-order-ui.ts groupTitleMoreEl (strop GROUP_TITLE_LINES 3, telefon, panel a úzký sloupec 4; víc/méně stav title:<skupina>, stopPropagation), src/ui/research-ui.ts (panel: pás, víc, is-grouped), appendWaitingWebHost, strings.ts live.titleMore, titleLess, waitingWebHostAria · app:1176f465 overviewWaitingRow (text celý v řádku, detail ho neopakuje), overviewWaitingOnBox (waitsOnUser → bez bloku; appendLinkedText; waitingOnMoreEl 10 / na šířku 3 řádky; waitingToLabel Adresát), strings.ts live.waitingOnLabel, waitingToLabel · app:96b35bbd src/research-link.ts sanitizeWaiting MAX_WAITING_ON 1500, panel .live-waiting-on 2 řádky + title · CHANGELOG.cs.md 3.30.0 · dirigent:prace/1117-app-knihy-zahlavi, 1117-app-cekana-cely-text · app:docs/ZADANI_DEV_knihy-zahlavi.md §1–§3 -->
 
@@ -1090,12 +1103,25 @@ Eintrag wartet. Ein neu hinzugekommener Eintrag steht dann oben und geht zwische
     Das kleine Panel bleibt unverändert (außer bei einer Forschung mit Büchern, [S4.4.4](#S4.4.4)).
 - **Mit einer Forschung, die Bücher kennt** (Forschung 1.35.0): der Schalter **Gruppen** ist eine Wahl **Archiv** |
   **Buch** | **Keine Gruppen**, und die Reihenfolge hat eine vierte Möglichkeit **Meiste Aufgaben** ([S4.4.4](#S4.4.4)).
+- **Ab App 3.32.0 mit Forschung 1.37.0:** die Reihenfolge **Am hilfreichsten**: danach, wie viel die Erledigung
+  eines Eintrags der Forschung bringt. Zu jedem Eintrag, hinter dem Aufgaben stehen, schickt die Forschung eine
+  Punktzahl und einen Grund ([R6.4.1](R6-awaiting-action.md#R6.4.1)):
+  - die höchste Punktzahl oben; gleiche Punktzahl behält die Reihenfolge der Forschung, Einträge ohne Punktzahl
+    (Erzählungen, Widersprüche, Orte…) stehen am Ende;
+  - Gruppen wie bei einer Reihenfolge nach Zeit: jeder Ort steht dort, wo sein Eintrag steht, der am meisten hilft;
+    ausgeschaltete Gruppen ergeben eine einzige Liste;
+  - der Grund der Forschung steht leise unter der Zeile, nur in dieser Reihenfolge („eine neue Generation: die
+    Eltern von Jan Horák · die direkte Linie · gibt 3 Aufgaben frei“); in der Übersicht, im Fenster der Übersicht,
+    auf dem Telefon und im kleinen Panel mit Büchern. Ein langes Wort ohne Leerzeichen wird in der Zeile umbrochen;
+  - die Wahl wird wie die anderen Reihenfolgen gespeichert. Eine ältere Forschung schickt keine Punktzahl und hat
+    die Wahl nicht; ein gespeichertes **Am hilfreichsten** zeigt sich dort als **Empfohlen**, und die Wahl bleibt
+    gespeichert.
 - **Bedienung:** App: **Forschungsübersicht → Wartet auf Bearbeitung**, die Schaltfläche „⇅ Empfohlen ▾“ hinter den
   Chips der Arten (im Fenster der Übersicht im haftenden Kopf des Abschnitts) mit dem Menü **Empfohlen** · **Neueste
   zuerst** · **Älteste zuerst**, auf dem Telefon das Blatt **Reihenfolge**; Schalter **Gruppen**.
 - **Gilt seit:** App 3.30.0
 
-<!-- zdroj: app:f3bb5631 src/research-waiting.ts WaitingOrder, WAITING_ORDERS, waitingSince (at), sortWaitingByTime (stejný čas v pořadí výzkumu, bez času na konci), phaseRows (recommended = groupWaiting; skupiny podle první položky, Ostatní a Místa také; bez skupin FLAT_GROUP), waitingPhases (todo i sent) · src/live-time.ts formatWaitingSince (do hodiny relativně, dnes čas, včera, den, den s rokem) · src/ui/waiting-order-ui.ts WAITING_ORDER_KEY strom-live-overview-waiting-order, WAITING_GROUPS_KEY, storedWaitingOrder, watchWaitingOrderStorage (storage event), noteWaitingNew (todoWaiting, waitingSeen; strom bez záznamu nic nového), waitingSideEl, waitingGroupTagEl, ORDER_ICON · src/ui/research-overview-ui.ts overviewWaitingOrderEl (total >= 2; přepínač role switch jen v časovém pořadí a se skupinami; list na telefonu isPhoneBar / sheet) · src/ui/overview-columns-ui.ts (lepkavá hlava v okně) · src/ui/hypothesis-waiting-ui.ts (hlava a pata za fázi) · src/ui/live-section-prefs.ts waitingSeen, noteWaitingSeen · strings.ts live.waitingOrder, waitingOrderRec, waitingOrderNew, waitingOrderOld, waitingGroups, waitingNewTag, waitingNewCount, waitingSinceYesterday, waitingOtherGroup, places.waiting.group · e2e/overview-waiting-order.spec.ts · CHANGELOG.cs.md 3.30.0 „Pořadí v Čeká na vyřízení“ · spec 083 K5.1–K5.4, rozhodnutí H1–H5 · dirigent:test/vysledek-1116-app-103-odkazy-083-razeni.md -->
+<!-- zdroj: app:f3bb5631 src/research-waiting.ts WaitingOrder, WAITING_ORDERS, waitingSince (at), sortWaitingByTime (stejný čas v pořadí výzkumu, bez času na konci), phaseRows (recommended = groupWaiting; skupiny podle první položky, Ostatní a Místa také; bez skupin FLAT_GROUP), waitingPhases (todo i sent) · src/live-time.ts formatWaitingSince (do hodiny relativně, dnes čas, včera, den, den s rokem) · src/ui/waiting-order-ui.ts WAITING_ORDER_KEY strom-live-overview-waiting-order, WAITING_GROUPS_KEY, storedWaitingOrder, watchWaitingOrderStorage (storage event), noteWaitingNew (todoWaiting, waitingSeen; strom bez záznamu nic nového), waitingSideEl, waitingGroupTagEl, ORDER_ICON · src/ui/research-overview-ui.ts overviewWaitingOrderEl (total >= 2; přepínač role switch jen v časovém pořadí a se skupinami; list na telefonu isPhoneBar / sheet) · src/ui/overview-columns-ui.ts (lepkavá hlava v okně) · src/ui/hypothesis-waiting-ui.ts (hlava a pata za fázi) · src/ui/live-section-prefs.ts waitingSeen, noteWaitingSeen · strings.ts live.waitingOrder, waitingOrderRec, waitingOrderNew, waitingOrderOld, waitingGroups, waitingNewTag, waitingNewCount, waitingSinceYesterday, waitingOtherGroup, places.waiting.group · e2e/overview-waiting-order.spec.ts · CHANGELOG.cs.md 3.30.0 „Pořadí v Čeká na vyřízení“ · spec 083 K5.1–K5.4, rozhodnutí H1–H5 · dirigent:test/vysledek-1116-app-103-odkazy-083-razeni.md · 3.32.0: app:5979d5c4 src/research-waiting.ts (gain: nejvyšší skóre, stejné v pořadí výzkumu, bez gain na konci; skupiny jako časové pořadí), src/research-link.ts (waiting[].gain jen s waiting.gain), src/ui/waiting-order-ui.ts, src/ui/research-overview-ui.ts (důvod pod řádkem jen v pořadí gain), f4050b1c (zalomení dlouhého slova) · strings.ts live.waitingOrderGain · research:44d3f750 src/core/waitgain.ts · dirigent:spec/105 K4.1 -->
 
 <a id="S4.4.4"></a>
 ### S4.4.4 Wartet auf Bearbeitung nach Buch
@@ -1263,6 +1289,9 @@ in der Reihenfolge, in der sie gemacht werden. Das Ergebnis sind Dateien in eine
 - **Bedienung:** App: **Forschungsübersicht → Wartet auf Bearbeitung**, Klick auf einen Eintrag mit Bildern; im
   kleinen Panel **Bilder hinzufügen**.
 - **Gilt seit:** App 3.30.0
+- **Ab App 3.32.0 mit Forschung 1.37.0:** bei einer Aufgabe, die an den Agenten zurückgehen kann, stehen unter dem
+  Block die Zeile **Jetzt** und **Erneut über den Agenten versuchen**; als Hauptaktion macht sie den Schritt **Bilder
+  hinzufügen** umrandet ([S4.4.14](#S4.4.14)).
 
 <!-- zdroj: app:449e6962, 429839f0 src/ui/waiting-task-ui.ts waitingTakesImages (waitingActions images přes most), waitingAnswerTexts (answerImagesLabel, answerImagesHint), waitingDeliverEl (věta deliverSentence, phone → deliverPhone bez kroků, kroky deliverSteps web → folder → images, krok ② books.folderBook přes odkaz book jen s book.folder, jinak openFolder task?do=folder se značkou, ③ haveImages waiting-action--primary → openWaitingImages, deliver-pair šipka s krokem, is-column), panel dialog (column, upload: true, title haveImages) · src/research-waiting.ts waitingForImages (images, web s inbox), waitingDeliver (chybějící čísla jen u detail full; kniha jen ze seznamu se složkou), deliverSentence, deliverWebUrl (w.url, jinak bookWebUrl), deliverSteps · src/ui/research-overview-ui.ts appendWaitingTaskActions deliver (answer → link-button cannotGet, ostatní pod ⋯, na telefonu nic pod ⋯) · strings.ts live.waitingTask.deliverLabel, deliverBook, deliverTask, deliverBookAny, deliverTaskAny, deliverPhone, stepAria, cannotGet, answerImagesLabel, answerImagesHint · e2e/waiting-images.spec.ts, overview-waiting-books.spec.ts · ZADANI_DEV_knihy-zahlavi.md §5 · dirigent:prace/1117-app-knihy-zahlavi (D12, D13) -->
 
@@ -1429,6 +1458,136 @@ Läufe der Richtungen zusammen ([R7.10.1](R7-when-the-agent-works.md#R7.10.1)).
 - **Gilt seit:** App 3.31.0 (Forschung 1.36.0)
 
 <!-- zdroj: app:4de0835a src/ui/research-tree-settings-ui.ts renderResearchRunsRow (pod dl.research-tree-agent; bez run.limit, v archivu a bez agenta se nekreslí; RUN_LIMIT_MIN 1, cap z výzkumu), setResearchRunsMax (POST settings/runs, 403 runs.raise → runsMaxRaise + příkaz) · src/research-runs.ts atRunLimit · strings.ts research.runsMax, runsMaxHint, runsMaxRaise, live.runsLimitReached, runsSettingsLink · research:src/core/live.ts runsLimitWrite, src/core/liveruns.ts runLimits (cap 10) · app:docs/ZADANI_DEV_beh-po-liniich.md §5 · dirigent:spec/126 K2.3 -->
+
+<a id="S4.4.13"></a>
+### S4.4.13 Forschung für diesen Stammbaum › Materialien: mit dem Agenten sortieren ohne Nachfrage
+
+In der Gruppe **Materialien** des Fensters **Forschung für diesen Stammbaum…** steht der Schalter **Mit dem Agenten
+sortieren ohne Nachfrage** ([R11.5.3](R11-material-from-the-user.md#R11.5.3)). Ausschalten lässt er sich in der
+App sofort, einschalten in der App nach einer Bestätigung oder im Terminal der Forschung.
+
+- **Schalter:** „Mit dem Agenten sortieren… nennt die Kosten nicht vor jedem Sortieren; es startet weiterhin nur per
+  Klick. Jedes Sortieren nutzt das Abo oder Guthaben. Gilt für diesen Stammbaum.“ Standardmäßig ist er
+  ausgeschaltet; er zeigt, was die Forschung sagt.
+- **Grenzen:**
+  - das Ausschalten schreibt die App sofort über die Brücke, ohne Rückfrage;
+  - das Einschalten fragt zuerst: **Mit dem Agenten sortieren ohne Nachfrage?** „Das Sortieren fragt dann nicht mehr
+    jedes Mal nach der Bestätigung der Kosten und nutzt das Abo oder Guthaben des KI-Agenten ohne weitere
+    Nachfrage. Gilt für diesen Stammbaum.“ mit **Einschalten**. **Abbrechen** schreibt nichts, und der Schalter
+    bleibt ausgeschaltet. Nach **Einschalten** schreibt die Forschung `sort.confirm no` für diese Forschung und eine
+    Zeile ins Protokoll der Brücke, dass die Strom-App auf diesem Computer die Rückfrage ausgeschaltet hat;
+  - einschalten aus der App lässt es sich nur in der App auf dem Computer mit der Forschung und mit einer Forschung,
+    die das anbietet. Sonst lehnt die Forschung das Einschalten ab: der Schalter bleibt ausgeschaltet, und darunter
+    steht „Nicht eingeschaltet. Befehl für das Terminal der Forschung:“ mit dem Befehl
+    `strom config set sort.confirm no --for-tree` zum Kopieren. Der Satz verschwindet, sobald die Forschung sagt,
+    dass er eingeschaltet ist. Eine Forschung, die das Einschalten aus der App nicht anbietet, hat in der
+    Beschreibung des Schalters auch den Satz „Einschalten lässt es sich nur im Terminal der Forschung.“, und die App
+    fragt dann nicht vorher;
+  - eingeschaltet: der Dialog **Mit dem Agenten sortieren…** nennt die Kosten nicht; das Sortieren startet weiterhin
+    nur mit seiner Schaltfläche, und das Etikett KI und die Zahl der Dateien bleiben
+    ([A3.5.8](A3-evidence-in-the-app.md#A3.5.8));
+  - nur mit einer Forschung, die die Einstellung anbietet; nicht im Strom-Archiv und nicht bei einer Forschung, die
+    auf einen Agenten wartet. Ohne Brücke ist der Schalter inaktiv wie bei **An die Forschung gesendete Dateien geht
+    der Agent selbst durch** ([S4.4.11](#S4.4.11)).
+- **Bedienung:** App: **Forschung → Weitere Aktionen → Forschung für diesen Stammbaum… → Materialien → Mit dem
+  Agenten sortieren ohne Nachfrage**. Terminal: `strom config set sort.confirm no|ask --for-tree`.
+- **Gilt seit:** App 3.32.0 (Forschung 1.37.0)
+
+<!-- zdroj: app:7674ee44 src/ui/research-tree-settings-ui.ts sortConfirm, showSort (SORT_CONFIRM_FEATURE, /status.sort, ne bez agenta), setResearchSortConfirm (POST /settings/sort ask hned; 403 sort.raise → příkaz, přepínač vypnutý, dokud status neřekne no; bez mostu storiesBridgeDown) · src/research-link.ts postBridgeSortConfirm · src/ui/material-sort-ui.ts (no: bez ceny, jen tlačítkem, štítek AI a počet) · strings.ts history.sortConfirmTitle, sortConfirmDesc, sortConfirmRaise · research:5520e0ac src/core/live.ts POST /settings/sort (403 sort.raise {command}, 409 sort.archive), /status sort · dirigent:spec/102 U8 · zapnutí z aplikace: app:e02c706d switchResearchConfirm (s SORT_CONFIRM_APP_FEATURE showConfirm sortConfirmAskText/Title, confirmSwitchOn; Zrušit nic), raiseNote (403 sort.raise → sortConfirmRaise + příkaz), bez sort.confirm.app sortConfirmTerminalOnly a bez dialogu · strings.ts history.sortConfirmAskTitle, sortConfirmAskText, confirmSwitchOn · research:ce89202a src/core/live.ts sortConfirmWrite (lowersFrom: jen fetch prohlížeče na tomto počítači, jinak 403 sort.raise {command}), noteLive ui.live.unasked.sort · BRIDGE_FEATURES sort.confirm.app · dirigent:spec/123 P2 K2.1–K2.6 -->
+
+<a id="S4.4.14"></a>
+### S4.4.14 Erneut über den Agenten versuchen
+
+Ein Eintrag, den die Forschung an den Agenten zurückgeben lässt ([R6.7.3](R6-awaiting-action.md#R6.7.3)), sagt, warum
+er jetzt wartet, und hat die Schaltfläche **Erneut über den Agenten versuchen**. Die Gruppe eines Archivs mit mehreren
+solchen Einträgen gibt sie auf einmal zurück.
+
+- **Zeile Jetzt** (geöffneter Eintrag, statt des Hinweises zum Browser): **Jetzt:** und der Grund nach der Forschung:
+  - „Der Browser des Agenten hat Downloads von … zurückgehalten. Sobald automatische Downloads im Browserprofil des
+    Agenten erlaubt sind, speichert der Agent sie selbst.“ (ohne bekannte Website „… von der Website des Archivs …“);
+  - „Das Speichern der Bilder wurde unterbrochen; die Sitzung des Agenten endete mittendrin.“;
+  - „Der Browser des Agenten ist jetzt bereit; der Agent speichert die Bilder selbst.“;
+  - „Die Seite liegt in einem Archiv-Viewer, aus dem sich keine Bilder speichern lassen: Der Agent liest sie nur am
+    Bildschirm, kein Bild wird gespeichert.“;
+  - Erweiterung nicht verbunden: „Mit der Erweiterung Claude in Chrome würde der Agent die Bilder selbst speichern.
+    Sobald die Erweiterung verbunden ist, kann die Aufgabe an den Agenten zurückgehen.“ und am Computer ein Link zur
+    Erweiterung; der Agent ohne Browser: „Mit Claude Code und der Erweiterung Claude in Chrome würde der Agent die
+    Bilder selbst speichern.“;
+  - ein schon zurückgegebener Eintrag, der wieder wartet, endet mit „– erneut versucht 18:40, wieder
+    zurückgehalten“ (oder „wartet wieder“); die Zeit heute, „gestern 18:40“, sonst mit Tag und Monat.
+- **Schaltfläche des Eintrags:** **Erneut über den Agenten versuchen** mit der Zahl der Bilder, die der Aufgabe noch
+  fehlen („· 2 Bilder“), bei einer Seite nur zum Lesen am Bildschirm „· nur lesen“; ohne bekannte Zahl ohne Zahl.
+  - Sie ist die Hauptaktion, wenn der Agent sofort weitermachen kann (zurückgehaltene Downloads, unterbrochenes
+    Speichern, bereiter Browser, Lesen am Bildschirm); der Schritt **Bilder hinzufügen** des Blocks **Liefern**
+    ([S4.4.7](#S4.4.7)) ist dann nur umrandet. Mit nicht verbundener Erweiterung oder einem Agenten ohne Browser ist
+    sie umrandet neben der Hauptaktion.
+  - Beim Block **Liefern** steht sie unter der Zeile **Jetzt**, sonst zwischen den Aktionen des Eintrags.
+  - Ein Klick gibt die Aufgabe sofort zurück, ohne Bestätigung: der Eintrag verschwindet und eine Meldung sagt „An den
+    Agenten zurückgegeben – er nimmt sie als Nächstes.“ (die Forschung arbeitet gerade), sonst „An den Agenten
+    zurückgegeben – als Erstes in der Warteschlange; der Agent nimmt sie beim nächsten Start.“
+  - Eine Ablehnung steht in der Zeile des Eintrags: „Die Aufgabe wartet inzwischen auf etwas anderes; nicht
+    zurückgegeben.“, „Die Aufgabe kann nicht mehr zurückgehen.“, „Die Recherche antwortet gerade nicht; nichts wurde
+    zurückgegeben.“
+- **Limit:** ein Eintrag, der 3× in 24 Stunden zurückgegeben wurde, hat statt der Schaltfläche „Kann ab morgen 9:12
+  wieder an den Agenten zurückgehen – 3 Versuche in 24 Stunden.“
+- **Gruppe eines Archivs:** in der Leiste eines Archivs ([S4.4](#S4.4)) mit mindestens zwei Einträgen, die jetzt
+  zurückgehen können, steht **Alle erneut über den Agenten versuchen (N Aufgaben, M Bilder)**, auch bei einer
+  eingeklappten Gruppe:
+  - die Zahlen gelten für die ganze Gruppe, nicht nur für die Einträge, die eine Suche zeigt. Sagt ein Eintrag seine
+    Zahl der Bilder nicht, steht „mindestens M Bilder“; sind alle nur zum Lesen am Bildschirm, „nur lesen“; ohne
+    bekannte Bilder nur „(N Aufgaben)“. Die Einträge am Limit stehen hinter der Schaltfläche: „· 1 erst ab morgen
+    9:12“;
+  - ein Klick öffnet an Ort und Stelle die Frage „2 Aufgaben (5 Bilder) an den Agenten zurückgeben? Sie kommen sofort
+    an die Reihe.“ mit **Zurückgeben** und **Abbrechen** (auch Esc). **Zurückgeben** gibt alle Einträge der Gruppe,
+    die zurückgehen können, auf einmal zurück, oder keinen; die Meldung „An den Agenten zurückgegeben: 2 Aufgaben,
+    sofort an der Reihe.“, bei einer Ablehnung „Nichts wurde zurückgegeben: …“, und die Schaltfläche bleibt;
+  - warten zwei oder mehr Einträge der Gruppe aus demselben Grund, steht die Zeile **Jetzt** einmal in der Leiste und
+    die Einträge haben sie nicht.
+  - In Gruppen nach Buch und bei Fragen zu Orten gibt es die Schaltfläche der Gruppe nicht.
+- **Telefon:** nur die Zeile **Jetzt** und der Satz „Zurückgeben an den Agenten geht in der App am Computer.“ (am
+  Limit der Satz des Limits), ohne Schaltflächen; jeder Eintrag hat seine eigene Zeile **Jetzt**.
+- **Grenzen:** nur in der **Forschungsübersicht** und ihrem eigenen Fenster ([S4.1.6](#S4.1.6)), nicht im kleinen
+  Panel; nur mit einer Forschung, die das Zurückgeben kann. Mit einer älteren Forschung hat der Eintrag weder die
+  Zeile **Jetzt** noch die Schaltfläche. Ein Agent startet die Schaltfläche nicht: zurückgeben darf nur der Mensch
+  ([R6.6](R6-awaiting-action.md#R6.6)).
+- **Bedienung:** App: **Forschungsübersicht → Wartet auf Bearbeitung**, geöffneter Eintrag, **Erneut über den
+  Agenten versuchen**; in der Leiste eines Archivs **Alle erneut über den Agenten versuchen** · Terminal: **Was
+  wartet** → **An den Agenten zurückgeben** ([R6.7.3](R6-awaiting-action.md#R6.7.3)).
+- **Gilt seit:** App 3.32.0 (Forschung 1.37.0)
+
+<!-- zdroj: app:c574752a, 3c6a554d, 75b71f5a src/research-waiting.ts waitingRetryReason (held/heldNoHost, stopped, ready, screen, no-extension waitNoExt + afterExt + extLink, agent-without-browser waitAgent, again → againHeld/againWaits), retryWhenText (dnes, včera, zítra, den a měsíc), waitingRetryCount, waitingRetryLimitText, waitingRetryMain (ne no-extension/agent-without-browser), waitingActions ctx.retry (jen přehled, ne telefon, w.retry.can), waitingGroupRetry (n, atLeast, readOnly, later), groupRetry*Text, waitingGroupRetryReason (≥ 2, stejné why+host) · src/ui/research-overview-ui.ts waitingRetryEl (Teď, limit, telefon R.phone, tlačítko primary/secondary), waitingRetryOffered (ne sheet, can, writes.retry), waitingGroupRetryOffer (ne sheet, ne kniha, ne místa, offer.n < 2 → nic, celá skupina s.waiting), waitingGroupRetryNow (ne telefon), browserNote jen bez w.retry · src/ui/waiting-task-ui.ts waitingDeliverEl retryMain (③ obrysová) · src/ui/research-waiting-write-ui.ts retryWaitingItem (doneRunning/doneIdle podle běhu, limit → can false, waitingRetryRefusedText) · src/ui/overview-window-ui.ts waiting-agent-retry, waiting-group-agent-retry · src/research-link.ts WAITING_RETRY_FEATURE · strings.ts live.waitingRetry, research.browser.waitNoExt, waitAgent · e2e/waiting-retry.spec.ts, waiting-retry-group.spec.ts · dirigent:prace/1124-app-089-zkusit-znovu (Výsledek, odchylky sub1–sub3), spec/089 K1.1–K3.1 -->
+
+<a id="S4.4.15"></a>
+### S4.4.15 Forschung für diesen Stammbaum › Start des Agenten: Agenten ohne Bestätigung starten
+
+In der Gruppe **Start des Agenten** des Fensters **Forschung für diesen Stammbaum…** steht der Schalter **Agenten
+ohne Bestätigung starten**: die Einstellung dieses Computers `run.confirm` ([S4.5.5](#S4.5.5)) aus der App.
+Ausschalten lässt er sich sofort, einschalten nach einer Bestätigung.
+
+- **Schalter:** „Aktionen der App, die den Agenten starten, laufen im Terminal der Forschung ohne Bestätigung an.
+  Jeder Lauf nutzt das Abo oder Guthaben. Gilt für alle Forschungen auf diesem Computer.“ Standardmäßig ist er
+  ausgeschaltet; er zeigt, was die Forschung sagt.
+- **Grenzen:**
+  - er gilt für alle Forschungen auf diesem Computer, nicht nur für diesen Stammbaum;
+  - das Ausschalten schreibt die App sofort über die Brücke, ohne Rückfrage (`strom config unset run.confirm`);
+  - das Einschalten fragt zuerst: **Agenten ohne Bestätigung starten?** „Aktionen der App, die den KI-Agenten
+    starten, laufen dann im Terminal der Forschung ohne Nachfrage an und nutzen das Abo oder Guthaben der KI. Gilt
+    für alle Forschungen auf diesem Computer.“ mit **Einschalten**. **Abbrechen** schreibt nichts, und der Schalter
+    bleibt ausgeschaltet. Nach **Einschalten** schreibt die Forschung `run.confirm no` und eine Zeile ins Protokoll
+    der Brücke, dass die Strom-App auf diesem Computer die Rückfrage ausgeschaltet hat;
+  - einschalten lässt er sich nur in der App auf dem Computer mit der Forschung. Sonst lehnt die Forschung das
+    Einschalten ab: der Schalter bleibt ausgeschaltet, und darunter steht „Nicht eingeschaltet. Befehl für das
+    Terminal der Forschung:“ mit dem Befehl `strom config set run.confirm no` zum Kopieren;
+  - was dann ohne Rückfrage startet und was weiter fragt, bestimmt die Forschung ([S4.5.5](#S4.5.5)); eine Frage mit
+    einem Preis in Geld bleibt;
+  - nur mit einer Forschung, die die Einstellung anbietet; nicht im Strom-Archiv und nicht bei einer Forschung, die
+    auf einen Agenten wartet. Ohne Brücke ist der Schalter inaktiv wie bei **An die Forschung gesendete Dateien geht
+    der Agent selbst durch** ([S4.4.11](#S4.4.11)).
+- **Bedienung:** App: **Forschung → Weitere Aktionen → Forschung für diesen Stammbaum… → Start des Agenten → Agenten
+  ohne Bestätigung starten**. Terminal: [S4.5.5](#S4.5.5).
+- **Gilt seit:** App 3.32.0 (Forschung 1.37.0)
+
+<!-- zdroj: app:e02c706d src/ui/research-tree-settings-ui.ts runConfirm (RUN_CONFIRM_FEATURE, /status.work.confirm, ne bez agenta), renderResearchIntakeRow (fieldset runConfirmSection), switchResearchConfirm (vypnout hned; zapnout showConfirm runConfirmAskText/Title, confirmSwitchOn; Zrušit nic), setResearchRunConfirm (raise → raiseNote sortConfirmRaise + příkaz; archive → řádek pryč; bez mostu storiesBridgeDown) · src/history-bridge.ts postBridgeRunConfirm · strings.ts history.runConfirmSection, runConfirmTitle, runConfirmDesc, runConfirmAskTitle, runConfirmAskText, confirmSwitchOn, sortConfirmRaise · research:ce89202a src/core/live.ts POST /settings/run (ask: config unset run.confirm; no: jen fetch prohlížeče na tomto počítači, jinak 403 run.raise {command: strom config set run.confirm no}; 409 run.archive), noteLive ui.live.unasked.run · BRIDGE_FEATURES run.confirm · dirigent:spec/123 P2 K2.1–K2.6 -->
 
 <a id="S4.5"></a>
 ## S4.5 Aktionen, die die Forschung öffnen
@@ -1613,13 +1772,16 @@ Rückfrage** startet die Arbeit des Agenten sofort, und das Terminal sagt es in 
   - **ohne Rückfrage** schaltet nur der Mensch ein: Das Terminal sagt, was weiter gefragt wird, und will ein zweites
     Ja (Enter = nein). Stellt es ein Agent oder ein Befehl ohne Terminal ein, fragt ein Systemfenster den Menschen;
     ohne Fenster lehnt strom die Einstellung ab. Zurück zu **mit Rückfrage** darf jeder, ohne Frage;
-  - die Strom-App hat diese Einstellung nicht und ändert sie nicht. Den Wert zeigen `strom config` und der Bericht
+  - die Strom-App zeigt und ändert sie im Fenster **Forschung für diesen Stammbaum…** mit dem Schalter **Agenten
+    ohne Bestätigung starten** ([S4.4.15](#S4.4.15)); das Einschalten verlangt dort eine Bestätigung im Dialog der
+    App und geht nur auf dem Computer mit der Forschung. Den Wert zeigen `strom config` und der Bericht
     `strom error` ([R13](R13-reporting-a-problem.md#R13)).
 - **Bedienung:** Terminal: Menü **Einstellungen** → **Sprache, Agent, Modell, was der Agent allein darf, Geschichten…
   (die Einrichtung)** → **Agent aus der Strom-App starten: …** → **Vor dem Start fragen (Standard)** oder **Ohne
   Rückfrage starten**; `strom config set run.confirm no`, zurück `strom config unset run.confirm`. Den geltenden Wert
-  zeigt `strom config where`.
-- **Gilt seit:** Forschung 1.36.0
+  zeigt `strom config where`. App: [S4.4.15](#S4.4.15).
+- **Gilt seit:** Forschung 1.36.0; 1.37.0 (App 3.32.0): ein- und ausschalten lässt es sich auch aus der Strom-App
+  auf diesem Computer
 
 <!-- zdroj: research:8aa0f374 src/core/config.ts run.confirm (ask|no, tree: false, env žádná), Settings.runConfirm · src/cli/menu-links.ts asksToStart (priced || runConfirm !== no || !ctx.interactive || isAgent → asks; jinak ui.link.noconfirm) u openTask (priced = taskEstimate), waitingDo chat, placesRun (priced = est.session.usd || fronta), workRun, workOn · src/commands/links.ts conflict do=agent, chat (direction/person) · placeSearch dál asks (placeCost), review/research ui.link.tasks dál asks · src/commands/setup.ts setUserSetting run.confirm no → requireHumanYes (ui.consent.run.confirm), FALLBACKS run.confirm ask · src/cli/context.ts requireHuman (terminál → humanYes, jinak okno systému, jinak odmítnutí) · src/cli/menu-settings.ts runConfirmStep (ui.runconfirm.*, ui.runconfirm.about; jen !archive), unset pro ask · src/core/report.ts CONFIG_PLAIN runConfirm · cs.json ui.settings.runconfirm, ui.runconfirm.*, ui.link.noconfirm · strom help link · CHANGELOG.cs.md 1.36.0 „Agent z aplikace Strom bez potvrzení“ · test/cli/run-confirm.test.ts, test/cli/gates.test.ts · spec 123 K1.1–K1.5 (K1.4 bez zápisu do logu výzkumu: rozhodnutí dirigenta 20. 11.) -->
 
@@ -1635,7 +1797,8 @@ immer im Terminal der Forschung bestätigt, auch wenn es mit einem Klick in der 
     Warteschlange und die Einträge **Nur hier im Terminal** ([R6.1.1](R6-awaiting-action.md#R6.1.1)).
   - Im Terminal bestätigt werden: alles mit der Marke Terminal oder KI ([S4.5.1](#S4.5.1)), in 3.21.2 auch Aktionen
     der Linien und der Warteschlange. Ab Forschung 1.36.0 kann die Arbeit des Agenten ohne Preis in Geld ohne
-    Bestätigung starten ([S4.5.5](#S4.5.5)); das schaltet nur der Mensch ein, im Terminal.
+    Bestätigung starten ([S4.5.5](#S4.5.5)); das schaltet nur der Mensch ein: im Terminal, oder ab App 3.32.0 mit
+    Forschung 1.37.0 nach einer Bestätigung in der App auf dem Computer mit der Forschung ([S4.4.15](#S4.4.15)).
   - Auf dem Telefon gibt es keine Links; geantwortet wird in der Forschung am Computer ([S5](S5-phone.md)).
 - **Gilt seit:** App 3.4.0 (Forschung 1.6.0)
 - **Ab App 3.22.0:** mit der Forschung 1.26.0 gehen ohne Terminal die Linien ([S4.3.1](#S4.3.1)), die Arbeit

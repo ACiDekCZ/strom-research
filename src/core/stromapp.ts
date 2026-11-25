@@ -11,7 +11,7 @@ import type { Env } from "./paths.ts";
 import { desktopDir, userHome } from "./paths.ts";
 import { appUrlInvalid, checkValue, settingDef, Settings } from "./config.ts";
 import { UsageError } from "./errors.ts";
-import { foldText } from "./text.ts";
+import { foldText, oneLineName } from "./text.ts";
 import { compareVersions, updateChannel } from "./update.ts";
 
 export const STROM_APP_URL = "https://stromapp.info/run/";
@@ -133,8 +133,7 @@ export function appCopyOfInstall(env: { STROM_FROM_APP?: string | undefined; STR
  */
 export function appTreeNameFromInstall(env: { STROM_FROM_APP?: string | undefined; STROM_FROM_APP_NAME?: string | undefined }): string | undefined {
   if (!env.STROM_FROM_APP?.trim()) return undefined;
-  const name = (env.STROM_FROM_APP_NAME ?? "").normalize("NFC").replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/gu, " ").trim().slice(0, 80).trim();
-  return name || undefined;
+  return oneLineName(env.STROM_FROM_APP_NAME, 80) || undefined;
 }
 
 /** strom.app.url as it is said here (appUrlSetting): `invalid` when it says no address of the Strom app. */
@@ -872,6 +871,32 @@ export function appReadsNameStatus(settings: Settings, version?: string, gate: s
   const v = version?.trim();
   if (!v || !isAppVersion(v)) return false;
   if (anotherCopy(settings) && beta) return compareVersions(v, beta) >= 0;
+  return !!gate && compareVersions(v, gate) >= 0;
+}
+
+/**
+ * The Strom app version that runs on another device of the home network from the gateway of this computer (spec 094,
+ * devices.mode): it pairs by the code after # of the QR code and seals every request to the research (core/devices.ts,
+ * strom-device/1). The app's answer: 3.32.0 (released 2026-11-25) — a copy of this version or newer from the app's site
+ * is served; the devices stay off until the person turns devices.mode on.
+ */
+export const APP_DEVICE_MODE: string | undefined = "3.32.0";
+/**
+ * The beta of the Strom app that runs on the devices first (its answer: 3.32.0-beta.4): a copy downloaded from the
+ * app's beta site (https://beta.stromapp.info) of this version or newer is served before APP_DEVICE_MODE is set — never
+ * a copy of the app's site or a development copy.
+ */
+export const APP_DEVICE_MODE_BETA: string | undefined = "3.32.0-beta.4";
+
+/**
+ * May the gateway serve the copy of the Strom app of this version (downloaded by core/deviceapp.ts from `from`, the
+ * origin of its site)? From the app's beta site: from APP_DEVICE_MODE_BETA; else from APP_DEVICE_MODE. A gate pending,
+ * a version unknown: no.
+ */
+export function deviceAppServable(version: string | undefined, gate: string | undefined = APP_DEVICE_MODE, from?: string, beta: string | undefined = APP_DEVICE_MODE_BETA): boolean {
+  const v = version?.trim();
+  if (!v || !isAppVersion(v)) return false;
+  if (beta && from === new URL(STROM_APP_BETA_URL).origin && compareVersions(v, beta) >= 0) return true;
   return !!gate && compareVersions(v, gate) >= 0;
 }
 

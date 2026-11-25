@@ -255,5 +255,9 @@ quality ([A10.4](#A10.4)).
 - **Controls:** none, it happens by itself. The backup is in the tree menu → **Backups** → **Backup history**
   ([S6.5](S6-tree-from-another-program.md#S6.5)).
 - **Since:** app 3.28.0
+- **From app 3.32.0:** the same holds already when reading the research's version: a custom event with a census
+  name (`1 EVEN` / `2 TYPE Sčítání lidu`) is a census. **Load the research version?** therefore does not show it
+  struck through, and the pairing of events takes it as a census ([S2.7.1](S2-edits-from-the-app.md#S2.7.1)).
+  A name with something more (“Census 1890”) stays a custom event.
 
-<!-- zdroj: app:80c2ffb9 src/tree-manager.ts (verze dat 20, migrace), src/snapshots.ts 'pre-migration' · src/shared-events.ts (zahození neplatných shareId) · strings.ts snapshots.pre-migration „Před úpravou dat pro novou verzi“ · test gedcom-census-legacy.test.ts · dirigent:prace/1113-app-085-nalezy Výsledek (Census → census, záloha, NFC, trim, bez roleAt) -->
+<!-- zdroj: app:1319a508 src/ged-parser.ts, src/research-changes.ts (3.32.0, K052) · app:80c2ffb9 src/tree-manager.ts (verze dat 20, migrace), src/snapshots.ts 'pre-migration' · src/shared-events.ts (zahození neplatných shareId) · strings.ts snapshots.pre-migration „Před úpravou dat pro novou verzi“ · test gedcom-census-legacy.test.ts · dirigent:prace/1113-app-085-nalezy Výsledek (Census → census, záloha, NFC, trim, bez roleAt) -->

@@ -192,6 +192,8 @@ test("the Strom app: /status waiting kind permission with its terms, tasks and c
         group: { key: "host:archive.example.org", name: "Testovací archiv", kind: "web" },
         phase: "todo",
         actions: [],
+        // what helps most (feature waiting.gain): its two tasks freed, nobody of them at the tree's edge
+        gain: { score: 20, says: "odblokuje 2 úkoly", parts: [{ kind: "unblocks", n: 2 }] },
         order: 0,
       });
       // the tasks that wait for its images saved by hand: in its tasks, and each an item of its own once (saved by hand

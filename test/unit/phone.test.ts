@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
 import { forPhone } from "../../src/core/phone-watch.ts";
-import { claimHome, homeCode, interfaceKind, lanAddresses, pageLang, pairCode, pairedPhones, pairExpires, pairPhone, pairUrl, phoneByKey, phoneConfig, phoneName, phonePage, privateIPv4, remoteAllowed, revivePhone, stopPhone, virtualInterface } from "../../src/core/phone.ts";
+import { askPhoneOn, claimHome, homeCode, interfaceKind, lanAddresses, pageLang, pairCode, pairedPhones, pairExpires, pairPhone, pairUrl, phoneByKey, phoneConfig, phoneName, phonePage, phoneTest, phoneTestOnCommand, phoneTestPortRefused, privateIPv4, remoteAllowed, revivePhone, servePhone, stopPhone, virtualInterface } from "../../src/core/phone.ts";
 
 const MAC = "3c:22:fb:12:34:56";
 const nic = (address: string, family: "IPv4" | "IPv6" = "IPv4", internal = false, mac = MAC, netmask = "255.255.255.0") => ({ address, family, internal, netmask, mac, cidr: null }) as never;
@@ -220,6 +220,13 @@ test("the phone's name of its browser; the page's language: the phone's, the QR 
     assert.doesNotMatch(page, /\{\{/);
   }
   assert.match(JSON.stringify(phonePage("cs", "n")), /Spárováno/);
+  // the gateway of the devices on: the app pairs by Connect device (3.32), never Connect phone
+  assert.match(phonePage("cs", "n"), /Výzkum → Další → Připojit telefon/u);
+  for (const [lang, said] of [["cs", "Připojit zařízení"], ["en", "Connect device"], ["de", "Gerät verbinden"], ["pl", "Połącz urządzenie"], ["fi", "Connect device"]] as const) {
+    const page = phonePage(lang, "n", { devices: true });
+    assert.ok(page.includes(said), lang);
+    assert.ok(!/Připojit telefon|Connect phone|Telefon verbinden|Połącz telefon/u.test(page), lang);
+  }
 });
 
 test("who may ask the phone's server: a device of the network it is asked at; the loopback only in a test", () => {
@@ -346,7 +353,7 @@ test("the icon on the home screen unpaired scans no QR code: the page says to op
   }
 });
 
-test("a text of the research for the phone: no bare ID nor a list of them, no path of the research or of this computer, a link as its site alone; nothing left over", () => {
+test("a text of the research for the phone: no bare ID nor a list of them, no path of the research or of this computer nor a link of strom's own, a link as its site alone; nothing left over", () => {
   const nfd = (s: string) => s.normalize("NFD");
   const cases: [string, string][] = [
     // bare IDs of each kind, a list of them, a document read's
@@ -370,6 +377,11 @@ test("a text of the research for the phone: no bare ID nor a list of them, no pa
     ["siehe www.familysearch.example/ark:/61903/abc.", "siehe familysearch.example."],
     ["Seite https://user@WWW.Archiv.Example.org:8080/x", "Seite archiv.example.org"],
     ["Архив: https://архив.пример.рф/фонд/12, опись 3", "Архив: архив.пример.рф, опись 3"],
+    // a link of strom's own (a second installation's too, without its slashes): gone whole, as a path
+    [nfd("Odpověď matriky, soubor /Users/x/y/dopis.pdf, strom-research://open?tree=Ř"), nfd("Odpověď matriky, soubor")],
+    ["Výpis otevřít (strom-research-beta://excerpt?tree=a&clip=b) a přečíst.", "Výpis otevřít a přečíst."],
+    ["Ответ STROM-RESEARCH:send?tree=x получен", "Ответ получен"],
+    ["Nástroj strom-research: popis", "Nástroj strom-research: popis"],
     // nothing left: nothing
     ["T0608", ""],
     ["(notes/x.md, H0001)", ""],
@@ -915,4 +927,82 @@ test("the phone's page with the keyboard open: the sheet where what is seen of t
   assert.match(src, /\$\("commitBtn"\)\.hidden = !items\.length \|\| !!S\.typing;/u);
   assert.match(src, /\$\("commitLater"\)\.hidden = [^;]*!!S\.typing;/u);
   assert.match(src, /\$\("captureNote"\)\.hidden = !!S\.typing \|\|/u);
+});
+
+test("STROM_PHONE_TEST=lan: an isolated strom's test with a real phone — the computer's network as for every strom; not isolated: no network at all", () => {
+  const ifaces = { lo0: [nic("127.0.0.1", "IPv4", true)], en0: [nic("192.168.1.23")], utun3: [nic("100.88.1.2")] };
+  const lan = { STROM_PHONE_TEST: "lan", STROM_ISOLATED: "1" };
+  assert.equal(phoneTest(lan), "lan");
+  assert.deepEqual(lanAddresses(lan, ifaces, "darwin"), lanAddresses({}, ifaces, "darwin"));
+  assert.deepEqual(lanAddresses(lan, ifaces, "darwin"), [{ ip: "192.168.1.23", iface: "en0", kind: null, mask: "255.255.255.0" }]);
+  // not isolated (a strom of the person's with the variable set): no network, as any other value
+  for (const env of [{ STROM_PHONE_TEST: "lan" }, { STROM_PHONE_TEST: "lan", STROM_ISOLATED: "0" }, { STROM_PHONE_TEST: "LAN", STROM_ISOLATED: "1" }]) {
+    assert.equal(phoneTest(env), "none", JSON.stringify(env));
+    assert.deepEqual(lanAddresses(env, ifaces, "darwin"), [], JSON.stringify(env));
+  }
+  // who may ask: a device of the same network alone — never the loopback, never the computer itself
+  const home = { ip: "192.168.1.23", mask: "255.255.255.0" };
+  assert.equal(remoteAllowed("127.0.0.1", lan, home), false);
+  assert.equal(remoteAllowed("::ffff:127.0.0.1", lan, { ip: "127.0.0.1", mask: "255.0.0.0" }), false);
+  assert.equal(remoteAllowed("192.168.1.23", lan, home), false);
+  assert.equal(remoteAllowed("192.168.1.40", lan, home, ["192.168.1.40"]), false);
+  assert.equal(remoteAllowed("192.168.1.41", lan, home), true);
+  assert.equal(remoteAllowed("192.168.2.41", lan, home), false);
+});
+
+test("STROM_PHONE_TEST=lan: the port of the isolated phone.json alone — none, or 47800 and its range, refused; its server ends before it listens", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom-phone-lan-"));
+  try {
+    const lan = { STROM_CONFIG_DIR: dir, STROM_PHONE_TEST: "lan", STROM_ISOLATED: "1" };
+    const port = (n?: number) => fs.writeFileSync(path.join(dir, "phone.json"), JSON.stringify({ on: true, test: true, ...(n ? { port: n } : {}) }));
+    port();
+    assert.match(phoneTestPortRefused(lan) ?? "", /^test lan: no port of the test in .*phone\.json/);
+    for (const n of [47800, 47801, 47819]) {
+      port(n);
+      assert.match(phoneTestPortRefused(lan) ?? "", new RegExp(`^test lan: the port ${n} in `), String(n));
+    }
+    for (const n of [47820, 47900, 48123]) {
+      port(n);
+      assert.equal(phoneTestPortRefused(lan), undefined, String(n));
+    }
+    // no test of the network: nothing refused here (the phone connection's own port, the next free one)
+    port(47800);
+    assert.equal(phoneTestPortRefused({ STROM_CONFIG_DIR: dir }), undefined);
+    assert.equal(phoneTestPortRefused({ STROM_CONFIG_DIR: dir, STROM_PHONE_TEST: "loopback" }), undefined);
+    assert.equal(phoneTestPortRefused({ STROM_CONFIG_DIR: dir, STROM_PHONE_TEST: "lan" }), undefined, "not isolated: no network to refuse");
+    // the server on 47800: ended before anything listened, said why
+    const why = await servePhone(lan);
+    assert.match(why, /^test lan: the port 47800 /);
+    const run = JSON.parse(fs.readFileSync(path.join(dir, "phone-run.json"), "utf8")) as { addresses: unknown[]; ended?: { reason: string } };
+    assert.deepEqual(run.addresses, []);
+    assert.match(run.ended?.reason ?? "", /^test lan: the port 47800 /);
+    assert.match(fs.readFileSync(path.join(dir, "phone.log"), "utf8"), /test lan: the port 47800 /);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("STROM_PHONE_TEST=lan: no answer of a test for the person (STROM_PHONE_TEST_ANSWER ignored) — no window here: no-dialog, and the command of their yes in their terminal", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom-phone-lan-"));
+  try {
+    fs.writeFileSync(path.join(dir, "phone.json"), JSON.stringify({ on: false, port: 47900 }));
+    // a no of a test (never a yes here: a yes would turn on a server on the computer's network)
+    const answer = { STROM_CONFIG_DIR: dir, STROM_ISOLATED: "1", STROM_NO_DIALOG: "1", STROM_PHONE_TEST_ANSWER: "no", STROM_PHONE_TEST_ANSWER_MS: "50" };
+    assert.equal(askPhoneOn({ ...answer, STROM_PHONE_TEST: "lan" }, "cs"), "no-dialog");
+    assert.equal(fs.existsSync(path.join(dir, "phone-ask.json")), false, "nothing asked");
+    assert.equal(phoneConfig({ ...answer, STROM_PHONE_TEST: "lan" }).on, false);
+    assert.match(phoneTestOnCommand({ STROM_PHONE_TEST: "lan", STROM_ISOLATED: "1" }) ?? "", /^STROM_NONINTERACTIVE= STROM_ISOLATED=1 STROM_PHONE_TEST=lan STROM_CONFIG_DIR=\S+ .* phone on$/);
+    assert.equal(phoneTestOnCommand({ STROM_PHONE_TEST: "loopback", STROM_ISOLATED: "1" }), undefined);
+    // the port of a strom that is no test's: never asked, said in phone.log
+    fs.writeFileSync(path.join(dir, "phone.json"), JSON.stringify({ on: false, port: 47800 }));
+    assert.equal(askPhoneOn({ ...answer, STROM_PHONE_TEST: "lan", STROM_NO_DIALOG: "0" }, "cs"), "no-dialog");
+    assert.equal(fs.existsSync(path.join(dir, "phone-ask.json")), false, "no window over 47800");
+    assert.match(fs.readFileSync(path.join(dir, "phone.log"), "utf8"), /test lan: the port 47800 /);
+    // the loopback's test: its answer stands for the window, as before
+    fs.writeFileSync(path.join(dir, "phone.json"), JSON.stringify({ on: false, port: 47900 }));
+    assert.equal(askPhoneOn({ ...answer, STROM_PHONE_TEST: "loopback" }, "cs"), "confirm");
+    stopPhone({ ...answer, STROM_PHONE_TEST: "loopback" }, "the test ends", { waitMs: 0 });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

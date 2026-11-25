@@ -283,6 +283,34 @@ export async function keptImages(root: string): Promise<Set<string>> {
   return keep;
 }
 
+/**
+ * How big the tree's file for the app was when last made (the newest variant this strom keeps on disk), and at which
+ * head — a device says it before it downloads the tree (spec 094 K3.13); none: never made here yet.
+ */
+export async function gedSizeKnown(root: string): Promise<{ bytes: number; head: string } | undefined> {
+  const dir = gedStoreDir(root);
+  let files: string[];
+  try {
+    files = await fs.promises.readdir(dir);
+  } catch {
+    return undefined;
+  }
+  let best: { at: number; bytes: number; head: string } | undefined;
+  for (const f of files) {
+    if (!/^[0-9a-f]{16}\.json$/.test(f)) continue;
+    try {
+      const file = path.join(dir, f);
+      const stamp = JSON.parse(await fs.promises.readFile(file, "utf8")) as GedStamp;
+      if ((JSON.parse(stamp.variant) as { strom?: string }).strom !== VERSION || typeof stamp.bytes !== "number") continue;
+      const at = (await fs.promises.stat(file)).mtimeMs;
+      if (!best || at > best.at) best = { at, bytes: stamp.bytes, head: stamp.head };
+    } catch {
+      // not whole: another one says it
+    }
+  }
+  return best ? { bytes: best.bytes, head: best.head } : undefined;
+}
+
 /** The files kept on disk by another strom (its bridge gone, never given again): removed — and the images none names. */
 export async function tidyStoredGeds(root: string): Promise<void> {
   const dir = gedStoreDir(root);

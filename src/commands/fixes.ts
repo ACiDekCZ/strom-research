@@ -62,6 +62,7 @@ import { answerProven, applyProven, provenDone, provenToReview, undoProven, type
 import { applyOrigins, originsDone, undoOrigins, type OriginMark } from "../core/originfix.ts";
 import { applyVerify, undoVerify, verifyDone, type VerifyItem } from "../core/verify.ts";
 import { applyNameStatus, nameStatusDone, undoNameStatus, type NameStatusFix } from "../core/namestatusfix.ts";
+import { applyContactResidences, contactResidencesDone, undoContactResidences, type ContactFix, type ContactLeft } from "../core/contactfix.ts";
 import { townAnswers } from "../core/streets.ts";
 import { eventKey } from "../cli/human.ts";
 import type { TreeConfig } from "../core/model.ts";
@@ -397,6 +398,28 @@ const REWRITERS: Record<string, Rewriter> = {
     askUndo: "Take the status the fix gave the names off again?",
     fixed: (key, n, records) => `Fix ${key}: ${n} names a record of the research's names made probable, in ${records} records`,
     undone: (key, n, left) => `Fix ${key}: undone, the status taken off ${n} names${left ? `, ${left} changed since left` : ""}`,
+  },
+  "contact-residences": {
+    // one residence of a contact: whose, which, what becomes of it (its e-mails to the contact, or its label off the house)
+    example: (t, item) => {
+      const r = item as ContactFix;
+      const result =
+        r.how === "retract"
+          ? t("ui.fixes.contact-residences.example.retract", { emails: r.emails.join(", ") })
+          : t("ui.fixes.contact-residences.example.house", { house: r.house ?? "" });
+      return t("ui.fixes.contact-residences.example", { owner: r.owner, event: r.event, result });
+    },
+    left: (t, item) => {
+      const r = item as ContactLeft;
+      return t("ui.fixes.contact-residences.kept", { owner: r.owner, event: r.event, why: t(`ui.fixes.contact-residences.kept.${r.why}` as UIKey) });
+    },
+    apply: (tree, items, config) => applyContactResidences(tree, items as ContactFix[], VERSION, config),
+    done: (tree) => contactResidencesDone(tree).length,
+    undo: (tree, config) => undoContactResidences(tree, config),
+    ask: "Move the e-mails out of the residences that are contacts into the persons' contacts (the residences withdrawn)?",
+    askUndo: "Put the residences of contacts back as they were and take off the e-mails the fix added?",
+    fixed: (key, n, records) => `Fix ${key}: ${n} residences of contacts set right, their e-mails in the persons' contacts, in ${records} records`,
+    undone: (key, n, left) => `Fix ${key}: undone, ${n} residences of contacts put back as they were${left ? `, ${left} changed since left` : ""}`,
   },
 };
 
@@ -896,7 +919,7 @@ register(
       "beside the earlier one, a difference becomes a task. The person decides: set it right (strom fixes run), leave it as\n" +
       "it is (strom fixes decline) or later (nothing kept). The decision is kept with the research (strom.json \"fixes\")\n" +
       "and holds on every computer. strom doctor and the menu say when one waits. In an archive only participant-names,\n" +
-      "app-shapes and street-places.\n" +
+      "app-shapes, street-places and contact-residences.\n" +
       "The checks: blind-reduced — a reading of a part of an image (strom read --crop) read from the whole image, reduced,\n" +
       "where a sharper copy of the part was at hand (strom before 1.19.0); where this computer has no record of the\n" +
       "reading's views, the place is estimated from the sources' entries on the image, and said so.\n" +
@@ -973,8 +996,17 @@ register(
       "confirmed against the scan or wrote, never on a citation an import brought (the family tree's source, the import\n" +
       "that gave the name, a source of the Strom app the research never read). Set right in an archive too, never shown there.\n" +
       "One operation, one commit; strom fixes undo name-status takes the status off each name still as the fix left it.\n" +
+      "contact-residences — an e-mail of a family tree taken in that became a residence before strom 1.37.0 (since then\n" +
+      "the person's contact, strom person show): a residence of nothing but a note of e-mail lines (\"E-mail: x\", the\n" +
+      "Strom app's older form), an empty one an import of another program's GEDCOM made of 1 RESI / 2 EMAIL (the e-mail\n" +
+      "read again from the file kept in inputs/, the person by the xref the import left; none found there: left as it is,\n" +
+      "not offered), one whose house is the label of an address (\"Email\": taken off always). Set right by rules on the\n" +
+      "person's word alone (free, also in an archive): the e-mails join the person's contact (each once), the residence\n" +
+      "withdrawn with the reason — never deleted; one citing a record, with people at it or a note of its own beside the\n" +
+      "e-mail is left and listed with why (--json: left). One operation, one commit; strom fixes undo contact-residences\n" +
+      "puts the residences back and takes off only the e-mails the fix added.\n" +
       SET_RIGHT_HELP,
-    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes show app-shapes", "strom fixes show street-places", "strom fixes show edit-decisions", "strom fixes show woken-waits", "strom fixes show readers", "strom fixes show proven-originals", "strom fixes show origins", "strom fixes show verify-originals", "strom fixes show name-status", "strom fixes --json"],
+    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes show app-shapes", "strom fixes show street-places", "strom fixes show edit-decisions", "strom fixes show woken-waits", "strom fixes show readers", "strom fixes show proven-originals", "strom fixes show origins", "strom fixes show verify-originals", "strom fixes show name-status", "strom fixes show contact-residences", "strom fixes --json"],
     run: (ctx: Context) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);
@@ -1028,7 +1060,7 @@ register(
       "Who reads: --agent and --model; else, where more agents can read here, the person chooses — each said with whether\n" +
       "it read these before, another one recommended where the one now did. After the first few, the rest is estimated\n" +
       "again by the real time they took.\n" +
-      "participant-names, app-shapes and street-places read nothing: set right as shown (strom fixes show <check>), all or none, in one\n" +
+      "participant-names, app-shapes, street-places and contact-residences read nothing: set right as shown (strom fixes show <check>), all or none, in one\n" +
       "operation and one commit, free, also in an archive; strom fixes undo <check> puts it back. So do edit-decisions and\n" +
       "woken-waits and readers, never in an archive (an agent's work); readers, proven-originals, origins, verify-originals and name-status are set right by themselves once,\n" +
       "run again only after strom fixes undo or reopen.\n" +
@@ -1134,7 +1166,7 @@ register(
   },
   {
     path: ["fixes", "undo"],
-    summary: "Put back what a check that rewrites set right (participant-names, app-shapes, street-places, edit-decisions, woken-waits, readers, proven-originals, origins, verify-originals, name-status): as it was before the fix (the person's own)",
+    summary: "Put back what a check that rewrites set right (participant-names, app-shapes, street-places, edit-decisions, woken-waits, readers, proven-originals, origins, verify-originals, name-status, contact-residences): as it was before the fix (the person's own)",
     group: "history",
     tree: true,
     person: "Putting a fix back is the person's own decision, at their own terminal: never done by an agent",
@@ -1144,11 +1176,12 @@ register(
       "(street-places); each disagreement closed again as the agent decided it (edit-decisions); each task back in the\n" +
       "queue as the images woke it (woken-waits); each source read by the user again (readers); each fact proven again\n" +
       "(proven-originals); each mark of where a value came from taken off (origins); each task of verification nobody started\n" +
-      "dropped (verify-originals); each name's status taken off (name-status) — where it is still as the fix left it; one\n" +
+      "dropped (verify-originals); each name's status taken off (name-status); each residence of a contact back and the\n" +
+      "e-mails the fix added taken off the contact (contact-residences) — where it is still as the fix left it; one\n" +
       "changed since is left as it is and counted. One step of the history (one operation, one commit); the fix is then left as it is\n" +
       "(strom fixes reopen asks again). Also in an archive (edit-decisions, woken-waits, readers, origins, verify-originals and name-status not).",
     args: [{ name: "check", description: "the check, e.g. participant-names", required: true }],
-    examples: ["strom fixes undo participant-names", "strom fixes undo app-shapes", "strom fixes undo street-places", "strom fixes undo edit-decisions", "strom fixes undo readers", "strom fixes undo proven-originals", "strom fixes undo origins", "strom fixes undo verify-originals", "strom fixes undo name-status"],
+    examples: ["strom fixes undo participant-names", "strom fixes undo app-shapes", "strom fixes undo street-places", "strom fixes undo edit-decisions", "strom fixes undo readers", "strom fixes undo proven-originals", "strom fixes undo origins", "strom fixes undo verify-originals", "strom fixes undo name-status", "strom fixes undo contact-residences"],
     run: (ctx: Context, { args }) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);

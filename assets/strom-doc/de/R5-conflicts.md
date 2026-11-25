@@ -249,5 +249,11 @@ eine Person der Forschung betrifft.
     **Entfernt lassen** oder **Aus dem Stammbaum entfernen** / **Im Stammbaum lassen**. Die Option öffnet auch die
     Forschung im Terminal.
 - **Gilt seit:** App 3.11.0 mit Forschung 1.14.0
+- **Ab App 3.32.0 (Forschung 1.37.0):** ein Konflikt zweier Sendungen aus verschiedenen Browsern zeigt die Seiten als
+  **Änderung von diesem Browser** und **Änderung von Chrome · Mac** (der Name des Browsers, der gesendet hat,
+  [S2.2.1](S2-edits-from-the-app.md#S2.2.1)) mit der Wahl **Änderung von … behalten** bei jeder; das Menü Forschung
+  und die Sätze unter den Wahlen sprechen von beiden Änderungen. Eine Sendung, die keinen Browser nannte, ist „einer
+  früheren Sendung“ / „der späteren Sendung“.
 
+<!-- zdroj: 3.32.0: app:src/conflict-devices.ts conflictDeviceWords, deviceWords, conflictKeepWords · src/ui/conflict-decide-ui.ts:137-147, 224-303 researchConflictDevices · src/ui/conflict-panel-ui.ts:265 · strings.ts conflict.device, conflict.sideFrom, conflict.keepFrom, conflict.keepNoteFrom, conflict.takeNoteFrom · CHANGELOG.cs.md 3.32.0 Práce s výzkumem -->
 <!-- zdroj: research:src/core/conflicts.ts:48-62 BY_SIDE, sidesOf · app:v3.21.2 research-decide.ts:28-66 DECIDE_FACTS, canDecideInApp · ui/research-removed-ui.ts:97-125 · strings.ts conflict.person.* -->

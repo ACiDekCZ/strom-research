@@ -871,6 +871,19 @@ export interface SaveRecord {
    */
   again?: boolean;
   /**
+   * The SHA-256 of the file strom moved from the downloads folder into the task's folder for it (strom media add --inbox
+   * --waiting): a save once more whose file is exactly that one is taken as the image at once, never set aside (1124).
+   */
+  got?: string;
+  /**
+   * Given with other images in one script (strom media save --image 40,41,…, 1124): its page is opened later, by the
+   * agent's navigate — waited for (and said held back by the browser) only once a tab of the agent's shows that page, or
+   * an image after it in the list (order) came.
+   */
+  paged?: boolean;
+  /** Its place in the list it was given with (paged). */
+  order?: number;
+  /**
    * When its image was found registered (ms): kept a while after, so a copy the browser saves late (a script run
    * again, "… (1).jpg") is known as strom's own and tidied from the downloads folder (strom media add --inbox --waiting).
    */
@@ -984,11 +997,66 @@ export function waitFileBase(treeId: string, task: string, n: number): string {
  * said for the person, in the research language). It returns "strom-result 40:200:412918", or why not.
  */
 export function saveScript(o: { url: string; file: string; n: number; until: number; other?: string; task?: string }, c: CaptureOptions = {}): string {
-  const slow = c.tileWaitMs !== undefined;
   const u = new URL(o.url);
   const data = { origin: u.origin, path: u.pathname, search: u.search, hash: u.hash, url: o.url, until: o.until, n: o.n, file: o.file, ...(o.other ? { other: o.other } : {}), ...(o.task ? { task: o.task } : {}) };
+  return compactJs(oneSaveScript(`const plan = ${JSON.stringify(data)};`, c));
+}
+
+/**
+ * The most images one call of strom media save --image 40,41,… gives one script for (1124): each still on a page of its
+ * own, opened by the agent one at a time. Few enough that a helper's context stays small (agents/imagesaver.ts).
+ */
+export const SAVE_PAGES_MAX = 10;
+
+/** One page of several a script saves (savePagesScript): image n, its page's address, the name it is saved under. */
+export interface SavePage {
+  n: number;
+  url: string;
+  file: string;
+}
+
+/**
+ * One script for several images, each on a page of its own (strom media save --image 40,41,… — 1124): run in the tab
+ * after each navigate to one of the pages, it knows by the tab's address which image the page is of and saves that one,
+ * as saveScript does — the same text every time, so it is given once. A page not one of them: nothing saved. The
+ * script asks nothing of the archive: each page is opened by the agent's navigate (the tree's hook paces it, one page at
+ * a time), never paged through or fetched by the script — no range.
+ */
+export function savePagesScript(o: { pages: SavePage[]; until: number; task?: string }, c: CaptureOptions = {}): string {
+  if (o.pages.length === 1) return saveScript({ ...o.pages[0]!, until: o.until, ...(o.task ? { task: o.task } : {}) }, c);
+  const pages = o.pages.map((p) => {
+    const u = new URL(p.url);
+    return { n: p.n, file: p.file, url: p.url, origin: u.origin, path: u.pathname, search: u.search, hash: u.hash };
+  });
+  const all = { until: o.until, ...(o.task ? { task: o.task } : {}), pages };
+  const numbers = o.pages.map((p) => p.n).join(", ");
+  const head = `const all = ${JSON.stringify(all)};
+  const keys = (q) => [...new URLSearchParams(q)].map((kv) => kv.join("=")).sort().join("&");
+  const bare = (h) => (h === "#" ? "" : h);
+  const at = all.pages.find((p) => location.origin === p.origin && location.pathname === p.path && keys(location.search || "") === keys(p.search) && bare(location.hash || "") === bare(p.hash));
+  if (!at) return "strom: this tab shows " + location.href + " — the page of none of images ${numbers} given to save; nothing saved. Open the page of the next one (navigate to its address as given), then this same script again";
+  const plan = { until: all.until, n: at.n, file: at.file, url: at.url, origin: at.origin, path: at.path, search: at.search, hash: at.hash, task: all.task };`;
+  return compactJs(oneSaveScript(head, c));
+}
+
+/**
+ * A script of strom's as the agent's browser tool takes it, shorter: its whole-line comments and its indentation left
+ * out (each call of the tool carries the script, and the agent's context keeps it — 1124). Safe for strom's scripts:
+ * none has a string over more lines (no template literal), so no line starts inside one.
+ */
+export function compactJs(js: string): string {
+  return js
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("//"))
+    .join("\n");
+}
+
+/** saveScript's body after `head`, which defines `plan` (its one image). */
+function oneSaveScript(head: string, c: CaptureOptions): string {
+  const slow = c.tileWaitMs !== undefined;
   return `await (async () => {
-  const plan = ${JSON.stringify(data)};${slow ? RESUME_HEAD : ""}
+  ${head}${slow ? RESUME_HEAD : ""}
   if (location.origin !== plan.origin || location.pathname !== plan.path) return "strom: this tab is not on " + plan.url + " — that page was allowed, no other";
   // the page of image n, as the viewer keeps it in the address: the same parameters and anchor, or another image shown
   const params = (q) => [...new URLSearchParams(q)].map((kv) => kv.join("=")).sort().join("&");

@@ -7,6 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import http from "node:http";
+import net from "node:net";
 import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import { World, hasGit, until } from "../helpers.ts";
@@ -107,6 +108,41 @@ test("strom phone on: the person alone — an agent without a terminal or a wind
     // its port free again (another test's phone server, run beside this one, may take it at once: what ended is its
     // process and its record above, not every answer of the port)
     await ask(url, "/whoami").then((r) => assert.notEqual(r.status, 200), () => undefined);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("STROM_PHONE_TEST=lan: phone on and phone serve refuse a port of a strom that is no test's (none said, 47800 and its range) before anything; no answer of a test — needs-input names the person's command; said as test lan", { skip }, async () => {
+  const w = new World();
+  try {
+    await w.ok(["setup", "--yes"]);
+    const lan = { STROM_PHONE_TEST: "lan", STROM_ISOLATED: "1", STROM_NONINTERACTIVE: "1", STROM_LANG: "en" };
+    const config = path.join(w.env.STROM_CONFIG_DIR!, "phone.json");
+    for (const port of [undefined, 47800, 47819]) {
+      fs.writeFileSync(config, JSON.stringify({ on: false, ...(port ? { port } : {}) }));
+      const on = await w.run(["phone", "on", "--json"], { env: lan, dialog: true });
+      assert.equal(on.code, 1, on.out + on.err);
+      assert.equal(on.json.code, "phone.test-port", String(port));
+      assert.equal(JSON.parse(fs.readFileSync(config, "utf8")).on, false, "not turned on, though a window would say yes");
+      // turned on before by hand (on: true): the server refuses it as well, nothing started
+      fs.writeFileSync(config, JSON.stringify({ on: true, test: true, ...(port ? { port } : {}) }));
+      const serve = await w.run(["phone", "serve"], { env: lan });
+      assert.equal(serve.code, 1);
+      assert.match(serve.err, /test lan: /);
+      assert.equal(fs.existsSync(path.join(w.env.STROM_CONFIG_DIR!, "phone-run.json")), false, "no server");
+    }
+    // the test's own port: the person's yes alone, in their terminal (no answer of a test, no window here)
+    fs.writeFileSync(config, JSON.stringify({ on: false, port: 47900 }));
+    const asked = await w.run(["phone", "on", "--json"], { env: { ...lan, STROM_PHONE_TEST_ANSWER: "yes" } });
+    assert.equal(asked.code, 4, asked.out + asked.err);
+    assert.equal(asked.json.status, "needs-consent");
+    assert.match(asked.json.needs[0].set, /^STROM_NONINTERACTIVE= STROM_ISOLATED=1 STROM_PHONE_TEST=lan STROM_CONFIG_DIR=\S+ .* phone on$/);
+    assert.equal(JSON.parse(fs.readFileSync(config, "utf8")).on, false);
+    // what it says: test lan first
+    const status = await w.ok(["phone"], { env: lan });
+    assert.match(status.out, /^test lan \(STROM_PHONE_TEST=lan\)/);
+    assert.doesNotMatch((await w.ok(["phone"])).out, /test lan/);
   } finally {
     w.cleanup();
   }
@@ -525,6 +561,60 @@ test("strom phone serve, the first run of a newer strom: it is the server itself
     } finally {
       serve.kill("SIGTERM");
     }
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("devices.mode on: one way to pair — strom phone qr and phone on in the user's terminal and the bridge's QR code show the code of the app (/pair?m=app#<pairId>.<secret>, device-pair.json), the same while it holds; never a new code of the phone's page. Off: as before", { skip }, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Lhotákovi");
+    await w.ok(["config", "set", "devices.mode", "on"], { tty: true });
+    // a port of its own (never 47800 of the computer's own strom)
+    const free = await new Promise<number>((resolve) => {
+      const srv = net.createServer().listen(0, "127.0.0.1", () => {
+        const { port } = srv.address() as net.AddressInfo;
+        srv.close(() => resolve(port));
+      });
+    });
+    fs.writeFileSync(path.join(w.env.STROM_CONFIG_DIR!, "phone.json"), JSON.stringify({ on: false, port: free }));
+    // isolated, the app's site a port of the loopback nobody listens on: the gateway downloads nothing
+    const env = { STROM_ISOLATED: "1", STROM_PHONE_TEST_ANSWER: "yes", STROM_PHONE_TEST_ANSWER_MS: "200", STROM_APP_URL: "http://127.0.0.1:9/run/" };
+    const b = (await w.ok(["live", "start", "--json"], { env })).json as Info;
+    await post(b.url, "on", { lang: "cs" });
+    await until("on", async () => (await phone(b.url)).addresses.length === 1, { ms: 20_000 });
+    const address = (await phone(b.url)).addresses[0]!.url;
+    const at = address.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const tree = JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")).id as string;
+    const pairFile = path.join(w.env.STROM_CONFIG_DIR!, "device-pair.json");
+    const oldFile = path.join(w.env.STROM_CONFIG_DIR!, "phone-pair.json");
+    const shown = await w.ok(["phone", "qr"], { tty: true, env });
+    const read = decodeQr(terminalModules(shown.out.split("\n\n")[0]!)).text;
+    const m = new RegExp(`^${at}/pair\\?m=app#([A-Za-z0-9_-]{22})\\.([A-Za-z0-9_-]{43})$`).exec(read);
+    assert.ok(m, read);
+    const kept = JSON.parse(fs.readFileSync(pairFile, "utf8"));
+    assert.deepEqual([m[1], m[2], kept.mode, kept.tree], [kept.pairId, kept.secret, "app", tree]);
+    assert.ok(shown.out.includes(address));
+    assert.ok(!shown.out.includes(m[2]!), "the secret is in the QR code alone");
+    assert.equal(fs.existsSync(oldFile), false, "no code of the phone's page");
+    // strom phone on in the user's terminal: the same code at once; the bridge's QR code (as the app asks it): the same
+    const onHere = await w.ok(["phone", "on"], { tty: true, env });
+    const qrAt = onHere.out.indexOf("\x1b[30;107m");
+    assert.ok(qrAt > 0, onHere.out);
+    assert.equal(decodeQr(terminalModules(onHere.out.slice(qrAt).split("\n\n")[0]!)).text, read);
+    const svg = await fetch(`${b.url}/phone/qr.svg?lang=cs`, { headers: { Origin: "https://stromapp.info" } });
+    assert.equal(svg.status, 200);
+    assert.equal(decodeQr(svgModules(await svg.text())).text, read);
+    assert.equal(fs.existsSync(oldFile), false, "no code of the phone's page");
+    // off: the code of the phone's page as before
+    await w.ok(["config", "set", "devices.mode", "off"], { env });
+    const off = await w.ok(["phone", "qr"], { tty: true, env });
+    assert.match(decodeQr(terminalModules(off.out.split("\n\n")[0]!)).text, new RegExp(`^${at}/pair\\?lang=\\w+#[A-Za-z0-9_-]{22}$`));
+    assert.ok(fs.existsSync(oldFile));
+    assert.match(decodeQr(svgModules(await (await fetch(`${b.url}/phone/qr.svg?lang=cs`)).text())).text, new RegExp(`^${at}/pair\\?lang=cs#[A-Za-z0-9_-]{22}$`));
+    await w.ok(["phone", "off"], { env });
+    await w.ok(["live", "stop"], { env });
   } finally {
     w.cleanup();
   }

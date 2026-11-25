@@ -12,6 +12,7 @@ import { writeFileAtomic } from "../core/json.ts";
 import type { Tree } from "../core/tree.ts";
 import { DEFAULT_READING_NUMBERS, type ReadingNumbers } from "./profiles.ts";
 import { readingFor } from "../core/tune.ts";
+import { claudeImageSaverJson, IMAGE_SAVER } from "./imagesaver.ts";
 
 export const SCAN_READER = "strom-scan-reader";
 
@@ -94,6 +95,7 @@ export function claudeAgentsJson(tree: Tree, since?: string): Record<string, unk
       tools: scanReaderTools(),
       model: scanReaderModel(tree, "claude") ?? "inherit",
     },
+    [IMAGE_SAVER]: claudeImageSaverJson(tree),
   };
 }
 

@@ -15,7 +15,7 @@ import { normId, requireRecord, update } from "../core/records.ts";
 import { makeView } from "../core/views.ts";
 import { shownToFile } from "../image/image.ts";
 import { exifOrientation } from "../image/index.ts";
-import { clipText, MAX_CLIPS, regionText } from "../core/media.ts";
+import { clipText, MAX_CLIPS, mediaMime, regionText } from "../core/media.ts";
 import { withMargin } from "../core/excerpt.ts";
 import { mergeOverlappingClips } from "../core/clipmerge.ts";
 import { batches, READER_MINUTES_HELP } from "../core/reader.ts";
@@ -81,7 +81,7 @@ register({
     const book = typeof opts.recordset === "string" ? normId(opts.recordset) : undefined;
     const imageOf = (id: string) => {
       const m = all.get(id);
-      return m && /^image\/(jpeg|png)$/.test(m.mime) && fs.existsSync(path.join(shared, m.file)) ? m : undefined;
+      return m && /^image\/(jpeg|png)$/.test(mediaMime(m, shared)) && fs.existsSync(path.join(shared, m.file)) ? m : undefined;
     };
     let todo = tree
       .list<Source>("source")

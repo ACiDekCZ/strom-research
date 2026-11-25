@@ -355,3 +355,40 @@ imieniem i nazwiskiem wygląda jak dotąd.
 - **Obowiązuje od:** aplikacja 3.28.0
 
 <!-- zdroj: app:f5d56ed3 src/picker-distinguish.ts rowKey (shownNameParts + birthNoteText, rok narození jen se showBirthYear, normalizeSearchText), distinguishFeatures (roky * – †, bez roku v řádku a bez části, kterou říká nález; partner první, kterého jiné řádky nemají; rodiče otec, matka, ostatní, bez zástupných; rodiště, jinak poslední bydliště s místem), distinguishLine (nejkratší předpona údajů, kterou nemá nikdo jiný; jinak první známý; jinak distNone), PickerDistinguisher (celý výsledek, i za 50) · src/person-picker.ts renderItem (person-picker-dist, nález na jednom řádku za „ · “, role option, aria-label a title „jméno, rozlišení“) · index.html .person-picker-dist (výpustka, min-width 330 px, telefon 100vw) · všechny new PersonPicker (search.ts, relation-modal.ts, kinship-ui.ts, read-document-ui.ts, tree-management.ts …); PathPersonPicker samostatný · strings.ts personPicker.distNone, distChild, distAnd, distBorn, distLived · app ac34f598 · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §1 · app:1c4b7d19 distinguishLine (údaj shodný u všech ostatních řádků skupiny se vynechá; jinak první známý nesdílený; bez rozlišení vše) · dirigent:spec/085 A4.8.1 -->
+
+<a id="A4.8.2"></a>
+### A4.8.2 Zakres wyszukiwania: Całe drzewo, Linia prosta, W widoku
+
+Wyniki wyszukiwania osoby można zawęzić do linii prostej jednej osoby albo do osób, które widok właśnie pokazuje.
+Przełącznik **Zakres wyszukiwania** jest w nagłówku rozwiniętych wyników: **Całe drzewo**, **Linia prosta**, **W
+widoku**.
+
+- **Linia prosta** to sama osoba, wszyscy jej przodkowie i wszyscy jej potomkowie, bez partnerów, rodzeństwa i osób
+  zastępczych. Wiersz pod przełącznikiem mówi czyja: „Linia prosta: Jan Horák · z przodkami i potomkami”.
+- **W widoku** są osoby, które widok właśnie pokazuje: narysowane drzewo lub wachlarz, wybór na mapie, wiersze tabeli
+  po filtrze („W widoku: Tabela po filtrze · 24 osoby”).
+- **Czyja linia:**
+  - na pasku narzędzi osoba w środku widoku; na mapie i w tabeli główna osoba drzewa („Linia prosta: Jan Horák,
+    główna osoba drzewa · z przodkami i potomkami”): osoba z **Domyślna osoba i widok**
+    ([A6.1.1](A6-views.md#A6.1.1)), bez niej pierwsza osoba drzewa;
+  - w wyborze osoby w oknie dialogowym osoba, z której okno otwarto; w Materiałach osoba materiału, bez niej główna
+    osoba drzewa.
+- **Granice:**
+  - zawężenie nie jest filtrem: liczba aktywnych filtrów się nie zmienia i samo nic nie wyróżnia. Z zapytaniem lub
+    filtrem zawęża wyniki, wyróżnienie w drzewie i liczby; stopka panelu filtrów dopisuje „tylko linia prosta” lub
+    „tylko w widoku”, na telefonie arkusz filtrów mówi „Wyszukiwanie tylko w linii prostej: Jan Horák.”;
+  - zakres, którego wybór nie może zaoferować, się nie pokazuje i szuka się w całym drzewie: **Linia prosta** bez
+    osoby, **W widoku** bez widoku za oknem dialogowym (zasłania go inne okno, strona osoby, okno Listy osób lub
+    Materiały) i przy widoku, który pokazuje całe drzewo (oś czasu z całym drzewem);
+  - gdy w zawężonym zakresie nikogo nie ma, wynik mówi „W linii prostej nikogo. W całym drzewie 3 wyniki.” (lub „W
+    widoku nikogo. …”) z odnośnikiem **Szukaj w całym drzewie**; Enter szuka tam;
+  - wybór jest jeden dla paska i wszystkich wyborów osoby i obowiązuje do zamknięcia aplikacji. Nie zapisuje się: po
+    uruchomieniu jest zawsze **Całe drzewo**.
+- **Gdzie:** wyszukiwanie na pasku narzędzi; wybór osoby w oknach dodawania relacji, rodziców dziecka, wspólnego
+  wydarzenia, **Ustal pokrewieństwo…**, scalania dwóch osób; przypisanie osoby w Materiałach i w oknie materiału.
+- **Obsługa:** kliknięcie zakresu; Alt+←/→ między zakresami (dymek pokazuje „(Alt+←/→)”). Dymek zakresu mówi, co
+  zawężenie obejmuje („Tylko Jan Horák wraz z przodkami i potomkami”, „Tylko osoby widoczne teraz w widoku (24)”). Na
+  telefonie liczba wyników jest na końcu wiersza pod przełącznikiem.
+- **Obowiązuje od:** aplikacja 3.32.0
+
+<!-- zdroj: app:82cfdbd3 src/search-scope.ts SearchScope, SEARCH_SCOPES, getSearchScope/setSearchScope (jen v paměti, po startu 'tree'), directLineIds (selection ancestors + descendants, bez zástupných), effectiveScope, offeredScopes, narrowIds, stepScope · app:7a72bd1e src/person-picker.ts PickerScopeSource, renderScopeHead (skryté nenabízené rozsahy, titulky, altKeys, lineRef/lineRefMain/viewRef, telefon počet na konci řádku), prázdné zúžení emptyLine/emptyView + searchWhole, Enter · src/ui/search-scope-ui.ts toolbarRefPerson (střed, mapa a tabulka hlavní osoba), mainPerson (defaultPersonId, startupPerson), toolbarViewIds (mapScopePersons, timelineScope 'tree' = null, tableShownPersonIds, getVisiblePersonIds), toolbarScopeSource, viewBehindDialog (stránka osoby, Seznamy osob, Materiály, víc dialogů), dialogScopeSource, materialScopeSource, toolbarScopeNote (footLine/footView, sheetLine/sheetView) · src/ui/search.ts applySearchFilter (zúžení není filtr, zvýraznění a počty) · scope: v relation-modal.ts, relationships-panel.ts, person-events.ts, kinship-ui.ts, merge-ui.ts, materials-window.ts, material-attach-ui.ts, search.ts · strings.ts searchScope.* · app:d5b87792 · dirigent:spec/137 K1, prace/1123-app-137-linie-material (Výsledek, dotazy A1–A2: osa s celým stromem bez V pohledu; bez hlavní osoby první osoba stromu) · ZADANI_UIX_hledani-linie-material-seznam „Rozhodnuto 23. 11.“ bod 4 (bez partnerů) -->

@@ -597,3 +597,33 @@ aplikace, a `strom source restore` ho vrátí i s citacemi.
 - **Platí od:** výzkum 1.36.0
 
 <!-- zdroj: research:e6bbfb40 src/core/sourceretract.ts (hlavička; DELETED, RETRACT_MOST 50, RETRACT_CONFIRM_MS 15 min, REVIEW_RETRACTED, ACTIVE open/doing/parked/waiting) · src/commands/sourceretract.ts source retract (description, agentMay --dry-run, source.agent, source.retract-changed, requireHumanYes), source restore (description, source.notRetracted, source.notRestorable), ui.source.restore.skipped · src/commands/analysis.ts conflict keep (conflict.notMarked, agent jen říká) · src/commands/sources.ts source list --retracted, source show RETRACTED … the person puts it back · src/core/sync.ts withholdDeleted (spec 117 J6) · assets/lang/cs.json ui.consent.retract, ui.source.retract.would · CHANGELOG.cs.md 1.36.0 · spec 117 K1.1–K1.7, J3 (záloha = historie + citace v prameni) -->
+
+<a id="R3.11"></a>
+## R3.11 Náboženství jako údaj
+
+Náboženství, které zápis u osoby uvádí (slovem ve sloupci nebo značkou v něm), agent zapíše jako údaj **Náboženství**
+(`RELI`) s citací zápisu a jeho datem. Nikdy ho neodvozuje.
+
+- **Hlídá kód:**
+  - `strom event add P… RELI` bez `--cite` agent nezapíše („a religion is written only with the record that says it
+    of the person“); slovo člověka zůstává jeho;
+  - jedna víra je jeden údaj: další zápis se stejnou vírou (i jinak napsanou, „katol.“ i „římskokatolické“) jen přidá
+    citaci k údaji, který už osoba má; bez citace se nezapíše nic. Změněné vyznání, nebo první znovu po jiném, je
+    samostatný údaj (katolík, který přestoupil a vrátil se, má tři údaje);
+  - víru strom pozná jen v jasných tvarech (česky, německy, latinsky, polsky, několik v cyrilici), slovo po slově:
+    nikdy slovo, které tak jen začíná („Evangelista“, „Israel“ bez tečky), ani víra farnosti, kostela, obřadu, matriky,
+    školy nebo ulice („římskokatolická farnost“, „katolický křest“, „Židovská ulice“). Tvar, který je i jménem („Žid“,
+    „Mos.“, „Kath.“), platí jen pod označením náboženství nebo v jeho sloupci; nejisté čtení („katol. (?)“, „snad“)
+    není žádné;
+  - čí víra to je, říká zápis: víra otce, matky nebo kmotra není víra osoby; u sňatku je víra ženicha mužova
+    a nevěsty ženina;
+  - brief při práci na osobě připomene náboženství, které uvádí přepis jejího vlastního zápisu (narození, křest,
+    úmrtí, pohřeb, sňatek; původní informace, datum do roka od data zápisu), když osoba žádný údaj `RELI` nemá.
+    Nikdy ze zápisu rodiče nebo dítěte, z farnosti, z knihy ani z nepřečteného sloupce.
+- **Jen metodika:** náboženství se neodvozuje od rodičů, farnosti, matriky ani obřadu, ani z nejistě přečteného
+  slova; zapisuje se tak, jak ho zápis píše.
+- **Ovládání:** terminál: `strom event add P… RELI --value "<jak píše zápis>" --date <datum zápisu> --cite S…`.
+  Aplikace: událost **Vyznání** (sloupec tabulky [A6.7.2](A6-views.md#A6.7.2)).
+- **Platí od:** výzkum 1.37.0
+
+<!-- zdroj: research:89417a7c, 908c7212 (merge a2b9b42c) src/core/religion.ts (ReligionKey, tvary cs/de/la/pl, religionFactFor, sameReligion, religionNamed) · src/commands/people.ts:907-916 event.religion-uncited, religionAgain · src/brief/brief.ts religionLine · assets/method/recording.md:64-66 · CHANGELOG.cs.md 1.37.0 „Náboženství jako údaj“ -->

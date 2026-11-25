@@ -207,43 +207,34 @@ function namesParents(tree: Tree, h: Hypothesis, person: string): boolean {
   );
 }
 
-/**
- * Every edge of the tree with something the research knows of it, and the families nothing links to the tree.
- * `named`: an edge whose parents a variant names (the end named) — off for a Strom app that does not know it yet.
- */
-export function treeEdges(tree: Tree, opts: { named?: boolean } = {}): { edges: Map<string, Edge>; islands: Map<string, Island> } {
-  const named = opts.named ?? true;
-  const lang = tree.lang;
-  const today = now().slice(0, 10);
-  const kin = kinship(tree);
-  const all = scopes(tree).filter((s) => !s.research.retracted);
-  const tasks = tree.list<Task>("task").filter((t) => !t.retracted);
-  const hypotheses = tree.list<Hypothesis>("hypothesis").filter((h) => !h.retracted && h.state === "open");
-  const conflicts = tree.list<Conflict>("conflict").filter((c) => !c.retracted && c.state === "open");
-  const searches = tree.list<Search>("search").filter((q) => !q.retracted);
-  const sessions = tree.list<Session>("session");
-  const researches = new Map(tree.list<Research>("research").map((r) => [r.id, r]));
-  const ranked = runOrder(tree, tasks).map((r) => r.task.id);
-  const position = new Map(ranked.map((id, i) => [id, i + 1]));
-  const off = offTree(tree);
-  const isles = islands(tree, kin, tasks, hypotheses);
-  const frontiers = new Map<string, Map<string, FrontierItem>>();
-  const frontierOf = (r: Research) => {
-    if (!frontiers.has(r.id)) frontiers.set(r.id, new Map(frontier(tree, r).map((i) => [i.person.id, i])));
-    return frontiers.get(r.id)!;
-  };
-  const hypAbout = hypotheses.map((h) => ({ h, about: hypothesisPeople(tree, h) }));
+/** What is missing above a person and whether the research reaches them: the first part of their edge (treeEdges). */
+export interface EdgeReach {
+  missing: Edge["missing"];
+  scope: Edge["scope"];
+  /** The direction that reaches them (the narrowest): their generation in it is `through.people.get(person)`. */
+  through?: Scope;
+  /** Their birth record proves their parents. */
+  proven: boolean;
+  est: ReturnType<typeof birthEstimate>;
+  window: ReturnType<typeof birthWindow>;
+}
 
-  const edges = new Map<string, Edge>();
-  for (const p of tree.list<Person>("person")) {
-    if (p.retracted) continue;
+/**
+ * What is missing above a person (both parents, one of them, a record that proves them) and whether the research
+ * reaches them — none when nothing is missing. The first part of every edge, cheap: a caller that needs only this of a
+ * few people (the gain of what waits, core/waitgain.ts) asks it of them alone, never the whole edge of the tree.
+ * `all`: the directions not taken back (scopes), `kin`: kinship — each worked out once by the caller.
+ */
+export function edgeReach(tree: Tree, all: Scope[], kin: Map<string, unknown>): (p: Person) => EdgeReach | undefined {
+  const lang = tree.lang;
+  return (p) => {
     const parents = parentsOf(tree, p.id);
     const proven = birthRecordProven(p);
     let missing: Edge["missing"];
     if (parents.length === 0) missing = "parents";
     else if (parents.length === 1) missing = parents[0]!.sex === "F" ? "father" : parents[0]!.sex === "M" ? "mother" : "parents";
     else if (!proven) missing = "proof";
-    else continue;
+    else return undefined;
 
     // ── whether the research reaches them ──
     const est = birthEstimate(tree, p, lang);
@@ -266,6 +257,43 @@ export function treeEdges(tree: Tree, opts: { named?: boolean } = {}): { edges: 
             : kin.size && !kin.has(p.id)
               ? "off-tree"
               : "outside";
+    return { missing, scope, ...(through ? { through } : {}), proven, est, window };
+  };
+}
+
+/**
+ * Every edge of the tree with something the research knows of it, and the families nothing links to the tree.
+ * `named`: an edge whose parents a variant names (the end named) — off for a Strom app that does not know it yet.
+ */
+export function treeEdges(tree: Tree, opts: { named?: boolean } = {}): { edges: Map<string, Edge>; islands: Map<string, Island> } {
+  const named = opts.named ?? true;
+  const today = now().slice(0, 10);
+  const kin = kinship(tree);
+  const all = scopes(tree).filter((s) => !s.research.retracted);
+  const tasks = tree.list<Task>("task").filter((t) => !t.retracted);
+  const hypotheses = tree.list<Hypothesis>("hypothesis").filter((h) => !h.retracted && h.state === "open");
+  const conflicts = tree.list<Conflict>("conflict").filter((c) => !c.retracted && c.state === "open");
+  const searches = tree.list<Search>("search").filter((q) => !q.retracted);
+  const sessions = tree.list<Session>("session");
+  const researches = new Map(tree.list<Research>("research").map((r) => [r.id, r]));
+  const ranked = runOrder(tree, tasks).map((r) => r.task.id);
+  const position = new Map(ranked.map((id, i) => [id, i + 1]));
+  const off = offTree(tree);
+  const isles = islands(tree, kin, tasks, hypotheses);
+  const frontiers = new Map<string, Map<string, FrontierItem>>();
+  const frontierOf = (r: Research) => {
+    if (!frontiers.has(r.id)) frontiers.set(r.id, new Map(frontier(tree, r).map((i) => [i.person.id, i])));
+    return frontiers.get(r.id)!;
+  };
+  const hypAbout = hypotheses.map((h) => ({ h, about: hypothesisPeople(tree, h) }));
+
+  const edges = new Map<string, Edge>();
+  const reachOf = edgeReach(tree, all, kin);
+  for (const p of tree.list<Person>("person")) {
+    if (p.retracted) continue;
+    const reached = reachOf(p);
+    if (!reached) continue;
+    const { missing, proven, est, window, through, scope } = reached;
 
     // ── the books of the birth, and the work on the parents ──
     const placeBooks = est.place ? recordsetsCovering(tree, est.place, undefined, BIRTH_KINDS).filter((b) => !b.retracted) : [];

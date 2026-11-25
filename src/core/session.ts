@@ -31,10 +31,13 @@ import { readCodexConfig } from "../agents/effort.ts";
 import { clearSessionWait, permissionWait, waitingForDecision } from "./archivewait.ts";
 import { forgetLeftAlone } from "./leftalone.ts";
 import { Settings } from "./config.ts";
+import { unsavedOwnWait } from "./ownsave.ts";
+import { runs } from "../cli/format.ts";
 import { claimSite, heldSiteOfTask, heldSites, holderWords, releaseHolder, restrictedSiteOfTask, transferSite, type Holder, type SiteClaim } from "./archiveholds.ts";
 import { forGaps, regionOfTask, takeRegion } from "./pastevents.ts";
 import { placeOfTask, takePlace } from "./placehistory.ts";
 import { PLACES_IDENTIFY_ORIGIN, placesSessionCounts } from "./placeid.ts";
+import { fromDevice } from "./deviceagent.ts";
 
 /** Whose pointers: a worker's, an agent's own conversation's ("@<id>": no letter of a worker's name), or anyone else's (""). */
 function pointerName(env: Env): string {
@@ -208,6 +211,8 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
     const model = opts.model ?? tree.env.STROM_MODEL?.trim();
     // the reasoning effort it ran with: strom's (the person's model.effort), else what Codex's own config says (read only)
     const effort = opts.effort ?? (tree.env.STROM_MODEL_EFFORT?.trim() || (agent === "codex" ? readCodexConfig(tree.env).effort : undefined));
+    // the device of the home network whose terminal started it (spec 094 K3.15: who started it)
+    const device = fromDevice(tree.env);
     const t = now();
     const s: Session = {
       id: tree.allocate("N"),
@@ -224,6 +229,7 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
       ...(agent ? { agent } : {}),
       ...(model ? { model } : {}),
       ...(effort ? { effort } : {}),
+      ...(device ? { device } : {}),
       strom: VERSION,
     };
     tree.put(s, { op: "session.start", targets: [s.id, ...(task ? [task.id] : [])], summary: `${s.id} session started${task ? ` on ${task.id}` : ""}` });
@@ -658,6 +664,18 @@ export function closeSession(tree: Tree, s: Session, input: CloseInput): Session
       } else {
         const back: Task = { ...onceDone(task), state: "open", notes: [...task.notes, note], updated: now() };
         tree.put(back, { op: "task.continue", targets: [task.id, s.id], summary: `${task.id} back to the queue` });
+      }
+    } else if (task && task.state === "waiting") {
+      // waiting for images its own agent's browser was to save, none of which came (core/ownsave.ts): back in the queue
+      // with the images left — a wait no file would ever end, never the person's
+      const settings = new Settings(tree.env, {});
+      const left = unsavedOwnWait(tree, task, { shared: settings.shared()?.value, downloads: settings.downloads() });
+      if (left) {
+        const images = runs(left.map((r) => r.n));
+        const note = makeNote(tree, `${input.interrupted ? "interrupted" : "closed"} in ${s.id}: image ${images} of ${task.awaits!.recordset} still to be saved through the browser (strom media save) — nothing came`.slice(0, 500));
+        const back: Task = { ...onceDone(task), state: "open", notes: [...task.notes, note], updated: now() };
+        for (const k of ["waitingOn", "awaits", "awaitsCheck", "awaitsPermission", "wait", "sent"] as const) delete back[k];
+        tree.put(back, { op: "task.continue", targets: [task.id, s.id], summary: `${task.id} back to the queue: image ${images} of ${task.awaits!.recordset} not saved through the browser` });
       }
     }
     // a session on the places: what it did counted by strom (identified, verified, asked …) before the agent's words

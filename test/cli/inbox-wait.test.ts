@@ -39,27 +39,24 @@ async function world(): Promise<{ w: World; shared: string }> {
 test("the files of a folder: numbered by their names, else by their order when as many as missing, else why not", () => {
   const have = new Set<number>();
   assert.deepEqual(numberFiles(["/x/9.jpg", "/x/10.jpg"], [9, 10], have, "B0002"), { numbers: [9, 10], by: "names" });
-  // the portal's own names (×10): a number in a name is never put aside for the order (B0408) — said what to do; a .jp2
-  // of an archive strom's list says counts them so, counted back
-  assert.equal((numberFiles(["/x/kniha-00090.jpg", "/x/kniha-00100.jpg"], [9, 10], have, "B0002") as { code: string }).code, "inbox.count");
+  // the portal's own names (×10): a number in a name is never put aside for the order (B0408), nor registered as
+  // another image than asked for — in the folder's order once it settled (spec 141 K1.3); a .jp2 of an archive strom's
+  // list says counts them so, counted back
+  assert.deepEqual(numberFiles(["/x/kniha-00090.jpg", "/x/kniha-00100.jpg"], [9, 10], have, "B0002"), { later: true });
   assert.deepEqual(numberFiles(["/x/kniha-00090.jp2", "/x/kniha-00100.jp2"], [9, 10], have, "B0002", 10), { numbers: [9, 10], by: "names" });
   // a file named by a number alone is never numbered by the order (B0408: "1.jpg" of a task waiting for 33 taken for 33)
-  const one = numberFiles(["/x/1.jpg"], [33], new Set(), "B0408");
-  assert.ok("problem" in one && one.code === "inbox.count", JSON.stringify(one));
-  assert.match((one as { problem: string }).problem, /images 33 of B0408 were asked for, but the file names give 1 .*name each by the number its viewer counts \(33\.jpg\)/u);
+  assert.deepEqual(numberFiles(["/x/1.jpg"], [33], new Set(), "B0408"), { later: true });
   // a copy a file manager made (Finder's "33 2.jpg", Explorer's "33 - Copy (2).jpg"): the image's number, not the copy's
   assert.deepEqual(numberFiles(["/x/33 2.jpg"], [33], have, "B0408"), { numbers: [33], by: "names" });
-  assert.equal((numberFiles(["/x/1a.jpg", "/x/kniha-00100.jpg"], [9, 10], have, "B0002") as { code: string }).code, "inbox.count");
+  assert.deepEqual(numberFiles(["/x/1a.jpg", "/x/kniha-00100.jpg"], [9, 10], have, "B0002"), { later: true });
   // a screenshot's date and time is no image's number: by their order
   assert.deepEqual(numberFiles(["/x/Snímek obrazovky 2026-11-17 v 10.21.47.png".normalize("NFD")], [33], have, "B0408"), { numbers: [33], by: "order" });
   // a screenshot's name in any script, decomposed (NFD): no number, by order
   assert.deepEqual(numberFiles(["/x/Снимок экрана.png".normalize("NFD")], [10], new Set([9]), "B0002"), { numbers: [10], by: "order" });
-  const count = numberFiles(["/x/a.jpg", "/x/b.jpg", "/x/c.jpg"], [9, 10], have, "B0002");
-  assert.ok("problem" in count && count.code === "inbox.count");
-  assert.match((count as { problem: string }).problem, /3 files for 2 images/);
+  assert.deepEqual(numberFiles(["/x/a.jpg", "/x/b.jpg", "/x/c.jpg"], [9, 10], have, "B0002"), { later: true });
   // which images not known (a site the person looks at): only numbered files
   assert.deepEqual(numberFiles(["/x/12.jpg"], undefined, have, "B0002"), { numbers: [12], by: "names" });
-  assert.equal((numberFiles(["/x/obrázek.jpg"], undefined, have, "B0002") as { code: string }).code, "inbox.unnamed");
+  assert.deepEqual(numberFiles(["/x/obrázek.jpg"], undefined, have, "B0002"), { later: true });
 });
 
 test("a file still being written is not taken; the folder of a book stays within 80 characters (Windows)", () => {
@@ -237,4 +234,30 @@ test("B0408: a file that is the same scan as another image is never deleted unsa
     await w.ok(["live", "stop"]);
     w.cleanup();
   }
+});
+
+test("1123: images saved under the portal's names (__0236.jpg, Lhota_11__125.JPEG) bring the task back — the status says them saved", opts, async () => {
+  const { w, shared } = await world();
+  await w.ok(["recordset", "add", "Lhota N 1850–1870", "--url", "https://archive.example.org/book/77"]); // B1
+  await w.ok(["task", "add", "Křest Jana", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b"]); // T1
+  const dir = path.join(shared, "inbox", inboxFolderFor({ id: "B0001", title: "Lhota N 1850–1870" }));
+  const asked = await w.ok(["task", "wait", "T1", "--images", "B1:236-237", "--on", "snímky 236–237 knihy Lhota"]);
+  assert.match(asked.out, /each named by its number \(236\.jpg; the number in the name is enough, __0236\.jpg;/u);
+  fs.mkdirSync(dir, { recursive: true });
+  saved("grey.jpg", path.join(dir, "__0236.jpg"));
+  saved("cmyk.jpg", path.join(dir, "__0237.JPEG"));
+  assert.match((await w.ok(["status"])).out, /uloženo 2 z 2/);
+  const first = await w.ok(["media", "add", "--inbox", "--waiting"]);
+  assert.match(first.out, /images 236–237 of B0001 registered — back in the queue: T0001/);
+  assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "open");
+  // the portal pads to three digits only: 025 and 125 in one folder (failed before: "the file names give 25")
+  await w.ok(["task", "wait", "T1", "--images", "B1:25,125", "--on", "snímky 25 a 125 knihy Lhota"]);
+  saved("base420.jpg", path.join(dir, "Lhota_11__025.jpg"));
+  saved("base444.jpg", path.join(dir, "Lhota_11__125.JPEG"));
+  assert.match((await w.ok(["status"])).out, /uloženo 2 z 2/);
+  const second = await w.ok(["media", "add", "--inbox", "--waiting"]);
+  assert.match(second.out, /images 25, 125 of B0001 registered — back in the queue: T0001/);
+  assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "open");
+  assert.ok(!fs.existsSync(dir) || fs.readdirSync(dir).length === 0, "nothing left lying");
+  w.cleanup();
 });

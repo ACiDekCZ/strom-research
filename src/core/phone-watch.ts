@@ -140,6 +140,9 @@ const SHORT_ID = String.raw`\p{Lu}\p{M}*(?:\p{Lu}\p{M}*)?\p{Nd}+`;
 const BRACKET_IDS = new RegExp(String.raw`\[\s*${SHORT_ID}(?:\s*[,;/&+–—-]\s*${SHORT_ID})*\s*\]`, "gu");
 // a link, with its scheme or www.: its site alone
 const LINK = /(?<![\p{L}\p{M}\p{N}.@])(?:(?:https?|ftp):\/\/|www\.)[^\s<>"„“”«»]+/giu;
+// a link of strom's own (strom-research://…, strom-research:…, a second installation's strom-research-<suffix>://…): only
+// this computer opens it — gone whole, as a path
+const APP_LINK = /(?<![\p{L}\p{M}\p{N}.@\/\\-])strom-research(?:-[\p{L}\p{M}\p{N}._-]+)?:[^\s<>"„“”«»]+/giu;
 // a path: of Windows (C:\…, C:/…, \\server\…), the home's (~/…), absolute (/Users/…), in the research (notes/…, data/…),
 // any relative one to a file (a/b.md); a slash between words or numbers ("1842/43", "km/h") is none
 const CHAR = String.raw`[^\s<>"„“”«»()\[\]{}|,;]`;
@@ -184,13 +187,15 @@ function siteOf(link: string): string {
 
 /**
  * A text of the research as the phone shows it to the person: without a record's ID (standing alone, in brackets, a
- * list of them), a path (the research's, this computer's, of Windows or POSIX) or a whole link (its site alone: "at
+ * list of them), a path (the research's, this computer's, of Windows or POSIX), a link of strom's own (strom-research://…)
+ * or a whole link (its site alone: "at
  * https://www.archiv.example.org/book/12" → "at archiv.example.org"), and without what they leave behind: doubled
  * spaces, brackets with nothing in them, commas with nothing between them. Any script, NFD kept as it came; "" when
  * nothing of it is left. Each text the phone's page shows of the research goes through it.
  */
 export function forPhone(text: string): string {
   let s = text
+    .replace(APP_LINK, (m) => peeled(m).tail)
     .replace(LINK, (m) => {
       const { core, tail } = peeled(m);
       return `${siteOf(core)}${tail}`;

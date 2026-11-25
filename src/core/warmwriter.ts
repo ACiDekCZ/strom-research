@@ -22,8 +22,11 @@ export interface StromResult {
   error?: Error;
 }
 
-/** Runs a strom command (its arguments, --json among them) as the person's in the research's folder. */
-export type RunStrom = (argv: string[], done: (r: StromResult) => void) => void;
+/**
+ * Runs a strom command (its arguments, --json among them) as the person's in the research's folder — `extra`: what this
+ * one command gets beside the environment it was started with (the device of the home network it writes for, viaEnv).
+ */
+export type RunStrom = (argv: string[], done: (r: StromResult) => void, extra?: Record<string, string>) => void;
 
 /** The commands the warm writer runs: those that take what the app sent, none reading what is typed. */
 const WARM = ["media original", "media queued", "input amend", "input batch done"];
@@ -31,11 +34,11 @@ export const warmCommand = (argv: string[]): boolean => WARM.some((c) => argv.sl
 
 /** A strom started for one command (the way before the warm writer), its output read. */
 export function spawnRun(cwd: string, env: NodeJS.ProcessEnv, track: (child: ChildProcess) => void): RunStrom {
-  return (argv, done) => {
+  return (argv, done, extra) => {
     const { command, args } = stromLauncher();
     let child: ChildProcess;
     try {
-      child = spawn(command, [...args, ...argv], { cwd, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+      child = spawn(command, [...args, ...argv], { cwd, env: extra ? { ...env, ...extra } : env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
     } catch (e) {
       return done({ code: null, stdout: "", stderr: "", error: e as Error });
     }
@@ -158,18 +161,18 @@ export function warmWriter(o: { root: string; env: NodeJS.ProcessEnv; note(text:
     return c;
   };
 
-  const run: RunStrom = (argv, done) => {
-    if (!warmCommand(argv)) return cold(argv, done);
+  const run: RunStrom = (argv, done, extra) => {
+    if (!warmCommand(argv)) return cold(argv, done, extra);
     const c = start();
-    if (!c || !c.connected) return cold(argv, done);
+    if (!c || !c.connected) return cold(argv, done, extra);
     stopIdle();
     const id = next++;
     waiting.set(id, done);
     try {
-      c.send({ id, argv });
+      c.send({ id, argv, ...(extra ? { env: extra } : {}) });
     } catch {
       waiting.delete(id);
-      cold(argv, done);
+      cold(argv, done, extra);
     }
   };
 

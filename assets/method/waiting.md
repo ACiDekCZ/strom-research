@@ -34,24 +34,39 @@ pass, never yours.
    them). An archive that needs an account: the user logs in with their own.
 2. Which images: the numbers the task names, as the archive's viewer counts
    them (the viewer's own image number, not a folio or a page printed in the
-   book).
+   book). A scan on the boundary of two years (the end of one, the start of
+   the next) is one scan, counted once: 1798 on 1–4 and 1799 on 4–7 is
+   `1-7`, not 8 images.
 3. How: the viewer's download or export, as JPEG; where the viewer offers
    none, the browser's save of the image itself.
-4. The name of each file: its image number (`9.jpg`; a zoomed-in part of it
-   `9a.jpg`).
+4. The name of each file: its image number (`9.jpg`); another sheet under
+   the same number `9a.jpg` — strom tells by its content whether it is a
+   copy, a zoomed-in part of image 9 or a scan of its own. Files named
+   otherwise (the portal's names, the entries on them `001-004.jpg`) need no
+   renaming: strom takes them in the folder's order once nothing more is
+   saved for a while, and the task comes back with which file became which
+   image.
 5. Where: the exact folder of the shared inbox the task shows — say it whole.
 
 The task's wait is written so that the images bring it back:
 `strom task wait T… --images B…:<numbers>` (or `--kind web --book B…` while
-the numbers are still to be found), one book per task (another book: a task of its own),
+the numbers are still to be found — also where the viewer's numbers are not
+certain, a portal that counts the entries rather than the scans: the years or
+the entries in `--on`, never a guessed count of files), one book per task (another book: a task of its own),
 the book a record set of the research first (`strom recordset add`). Images
 named only in words wake nothing. A task whose wait is not written so (an
 older strom took it): `strom task audit T…` says what is wrong and the fix;
 suggest it to the user and write it (`strom task audit T… --fix`) only after
 their yes in this conversation.
 
+`--on` always says what its numbers mean ("scans 27–34 of the viewer, the
+first scan = 1", "entries 27–34 of 1798").
+
 strom takes what is saved there by itself; the task comes back once all are
-there (it says which are missing — ask for those). Saved now:
+there, or with a part of them once nothing more is saved for a while (its
+note says what came and what is missing). Judge by the content whether that
+is all — a number asked for may not exist (a scan counted twice); ask for
+what is truly missing. Saved now:
 `strom media add --inbox --waiting`. Then `strom session start T…`: its brief says how to read and record.
 Read them, record what they say, tell the user what was found
 (`strom person card P…`) and what is needed next — all in this conversation.

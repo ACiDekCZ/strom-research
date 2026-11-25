@@ -5,6 +5,7 @@
 // unchanged BASE of a research; the agent builds the working tree from them
 // through tasks, and the tree it builds is exported as GEDCOM.
 
+import { takeList } from "../core/lists.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
@@ -14,7 +15,7 @@ import type { Context } from "../cli/context.ts";
 import { counted, lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
 import { readingsLine, readingsOf } from "../core/readsync.ts";
 import { notFound, UsageError } from "../core/errors.ts";
-import type { Input, Name, Person, Research, Task } from "../core/model.ts";
+import type { Family, Input, MediaLink, Name, Person, Research, Task } from "../core/model.ts";
 import { collectFiles, fileSha256, inputPath, MAX_IN_TREE, mimeOf, storeShared } from "../core/media.ts";
 import { create, normId, requireRecord, update } from "../core/records.ts";
 import { phrase } from "../core/phrases.ts";
@@ -24,7 +25,7 @@ import { displayName, gedcomName, likelyDuplicates } from "../core/people.ts";
 import { decodeText, safeFolderName } from "../core/text.ts";
 import { decodeGedcom, decodingNote, type DecodingNote } from "../gedcom/encoding.ts";
 import type { Tree } from "../core/tree.ts";
-import { amendInput, checkOriginalMeta } from "../core/originals.ts";
+import { amendInput, checkOriginalMeta, sentByApp } from "../core/originals.ts";
 import { batchStatus, closeBatch, listBatches, readBatch } from "../core/batches.ts";
 import { HIDE_REASONS, MATERIAL_KINDS, SORT_KINDS, type Source } from "../core/model.ts";
 import { assignMaterial, declinedOf, editMaterial, hideMaterial, MATERIAL_MOST_EDIT, MATERIAL_TITLE_MAX, materialPersons, unhideMaterial } from "../core/material.ts";
@@ -40,6 +41,10 @@ import { isArchive } from "../core/mode.ts";
 import { decodingSaid, ui } from "../cli/ui.ts";
 import { fileBy, handFiles, taskForFile, taskPeople } from "../core/taskfiles.ts";
 import { isAgent } from "../core/which.ts";
+import { clientLabel, type SyncInput } from "../core/sync.ts";
+
+/** The device of the Strom app a send came from (spec 094): none of any other input. */
+const clientOf = (i: Input) => (i as SyncInput).sync?.client;
 
 /** A family tree file as text: a GEDCOM by its own encoding rule (CHAR, a Windows code page), anything else as saved. */
 function treeText(file: string): string {
@@ -350,6 +355,8 @@ register(
                   ...(nt.objects ? [ui(tree.lang, "ui.intake.notTaken.objects", { n: nt.objects })] : []),
                   ...(nt.links ? [ui(tree.lang, "ui.intake.notTaken.links", { n: nt.links })] : []),
                   ...Object.entries(nt.tags).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 8).map(([t, n]) => `${t} ×${n}`),
+                  // what of a contact the research does not keep (spec 134 U11): a phone, a fax, a web page
+                  ...Object.entries(nt.contact ?? {}).sort((a, b) => a[0].localeCompare(b[0])).map(([t, n]) => `${t} ×${n}`),
                 ]
               : [];
             if (ntList.length) report.push(`  ${ui(tree.lang, "ui.intake.notTaken", { list: `${ntList.join(", ")}${nt && Object.keys(nt.tags).length > 8 ? " …" : ""}` })}`);
@@ -420,7 +427,7 @@ register(
   },
   {
     path: ["input", "list"],
-    summary: "Inputs of this tree and their state",
+    summary: "Inputs of this tree and their state (a send of the Strom app: the device it came from)",
     group: "inputs",
     tree: true,
     options: [{ name: "state", type: "string", value: "<state>", description: "new, processed or skipped" }, { name: "full", type: "boolean", description: "--json: whole records instead of one row each" }],
@@ -430,8 +437,9 @@ register(
       const page = paginate(all, ctx.limit, ctx.page);
       return {
         // a file read already (strom document read) says so: its reading, not read again
-        text: all.length ? lines(table(page.items.map((i) => [i.id, i.kind, i.state, truncate(i.name, 60), i.read?.length ? `read ${i.read[i.read.length - 1]} (strom readings ${i.read[i.read.length - 1]})` : ""])), moreLine(page, "strom input list")) : 'no inputs → strom intake <files or folder>',
-        data: { total: all.length, inputs: opts.full ? page.items : page.items.map((i) => ({ id: i.id, kind: i.kind, state: i.state, name: i.name, ...(i.read?.length ? { read: i.read } : {}) })) },
+        // a send of the Strom app: the device it came from (spec 094), so two devices' sends are told apart
+        text: all.length ? lines(table(page.items.map((i) => [i.id, i.kind, i.state, truncate(i.name, 60), [i.read?.length ? `read ${i.read[i.read.length - 1]} (strom readings ${i.read[i.read.length - 1]})` : "", clientOf(i) ? `from ${clientLabel(clientOf(i)!)}` : ""].filter(Boolean).join(" · ")])), moreLine(page, "strom input list")) : 'no inputs → strom intake <files or folder>',
+        data: { total: all.length, inputs: opts.full ? page.items : page.items.map((i) => ({ id: i.id, kind: i.kind, state: i.state, name: i.name, ...(i.read?.length ? { read: i.read } : {}), ...(clientOf(i) ? { client: clientOf(i) } : {}) })) },
       };
     },
   },
@@ -455,8 +463,10 @@ register(
         deleted ? "file   none: deleted for good by the person (the same content brought again is new material)" : undefined,
         abs ? `file   ${abs}${missing ? ` — missing on this computer: bring back the ${i.file?.startsWith("media:") ? "shared folder from a backup of the whole Strom folder (its subfolder shared)" : "research's folder from a backup"}` : ""}` : undefined,
         i.from ? `from   ${i.from}` : undefined,
+        clientOf(i) ? `device ${clientLabel(clientOf(i)!)} (${clientOf(i)!.id})` : undefined,
         i.batch ? `batch  ${i.batch}${i.path ? ` · ${i.path}` : ""}` : undefined,
         i.persons?.length ? `of     ${i.persons.join(", ")}` : undefined,
+        i.list ? `list   "${i.list.name}" · ${i.list.count} ${i.list.count === 1 ? "person" : "people"}${i.list.missing ? ` (${i.list.missing} more not in the research)` : ""}${i.list.rule ? ` · rule: ${i.list.rule}` : ""} · ${path.join(tree.root, ...i.list.file.split("/"))}` : undefined,
         i.sorted ? `sorted ${i.sorted.as}${i.sorted.source ? ` → ${i.sorted.source}` : ""}${i.sorted.reason ? ` (${i.sorted.reason})` : ""}` : undefined,
         i.mime ? `type   ${i.mime}${i.size !== undefined ? ` · ${Math.round(i.size / 1024)} kB` : ""}` : undefined,
         i.imported ? `import ${i.imported.persons} persons, ${i.imported.families} families as leads, cited as ${i.source}` : undefined,
@@ -722,6 +732,7 @@ register(
       { name: "person", type: "string", multiple: true, value: "<P…>", description: "a person it is of (repeatable)" },
       { name: "family", type: "string", multiple: true, value: "<F…>", description: "a couple it is of (repeatable): material of both partners" },
       { name: "note", type: "string", value: "<text>", description: "what the user said of it" },
+      { name: "list", type: "string", value: "<id>", description: "the list of people the app sent it to (the bridge keeps it): kept on the input as sent now, up to 50 of its people its people too" },
     ],
     examples: ["strom input amend I0002 --person P0001 --note \"<what the user said of it>\""],
     run(ctx, { args, opts }) {
@@ -729,7 +740,11 @@ register(
       const id = normId(args[0]!, "input");
       const persons = (Array.isArray(opts.person) ? opts.person : opts.person ? [opts.person] : []).flatMap((p) => String(p).split(",")).map((p) => p.trim().toUpperCase()).filter(Boolean);
       const families = (Array.isArray(opts.family) ? opts.family : opts.family ? [opts.family] : []).flatMap((f) => String(f).split(",")).map((f) => f.trim().toUpperCase()).filter(Boolean);
-      const got = tree.withTreeLock(() => amendInput(tree, id, { persons, note: typeof opts.note === "string" ? opts.note : undefined, ...(families.length ? { families } : {}) }, { auto: ctx.settings.intakeAuto(tree.config) }));
+      const got = tree.withTreeLock(() => {
+        // the list it was sent to now: its people up to 50 its people too, after those named
+        const sent = typeof opts.list === "string" ? takeList(tree, opts.list) : undefined;
+        return amendInput(tree, id, { persons: [...new Set([...persons, ...(sent?.persons ?? [])])], note: typeof opts.note === "string" ? opts.note : undefined, ...(families.length ? { families } : {}), ...(sent ? { list: sent.list } : {}) }, { auto: ctx.settings.intakeAuto(tree.config) });
+      });
       return { text: tree.written.length ? lines(...tree.written.map((o) => o.summary)) : `${id}: nothing new`, data: got };
     },
   },
@@ -878,7 +893,9 @@ register(
     description:
       "Sorting a batch: each file's kind and the person it is of. source: a record (give --source S… once it is recorded);\n" +
       "document, photo: the family's own; unrelated: nothing of the family (--reason; it is skipped, nothing of it is written).\n" +
-      "What a file says is recorded as from any material; sorting only says what it is.",
+      "What a file says is recorded as from any material; sorting only says what it is.\n" +
+      "A file the Strom app sent with no place in its tree, sorted of people, goes there at them (two partners: at their\n" +
+      "couple; --json placed); a place taken off stays off.",
     args: [{ name: "inputs", description: "input IDs (I0001 …)", variadic: true }],
     options: [
       { name: "as", type: "string", value: "<kind>", description: `${SORT_KINDS.join(", ")}` },
@@ -906,14 +923,42 @@ register(
       const at = new Date().toISOString();
       // a person the person took off a file is never put back on it by sorting (Input.declined)
       const ofFile = (i: Input) => persons.filter((p) => !declinedOf(tree, i).has(p));
+      let order: Map<string, number> | undefined;
+      /** The next place of a person's or a couple's files in the app's tree (after the last one they have). */
+      const nextOrder = (ref: string): number => {
+        if (!order) {
+          order = new Map();
+          for (const x of tree.list<Input>("input"))
+            for (const l of x.retracted ? [] : (x.links ?? [])) if (!l.retracted && l.type !== "event" && l.type !== "source") order.set(l.ref, Math.max(order.get(l.ref) ?? -1, l.order));
+        }
+        const n = (order.get(ref) ?? -1) + 1;
+        order.set(ref, n);
+        return n;
+      };
+      /**
+       * A file the Strom app sent (a batch, material of a person) with no place in the app's tree yet, sorted as the
+       * family's (a record, a document, a photo) of people: put in the tree at them, as the app's Attach to would — a
+       * couple's at their family, else at each of them; the living as anyone. A file with any place, one taken off too,
+       * is left as it is: what the person removed in the app stays removed.
+       */
+      const placesOf = (i: Input): MediaLink[] => {
+        const of = ofFile(i);
+        if (as === "unrelated" || !of.length || i.retracted || i.hidden || i.links?.length || !(i.batch || sentByApp(i))) return [];
+        const couple = of.length === 2 ? tree.list<Family>("family").find((f) => !f.retracted && !f.mergedInto && of.every((p) => f.partners.includes(p))) : undefined;
+        return couple ? [{ type: "family", ref: couple.id, order: nextOrder(couple.id), at }] : of.map((p) => ({ type: "person" as const, ref: p, order: nextOrder(p), at }));
+      };
+      const placed: { id: string; at: string[] }[] = [];
       tree.withTreeLock(() => {
-        for (const id of ids)
+        for (const id of ids) {
+          const links = placesOf(tree.get<Input>(id)!);
+          if (links.length) placed.push({ id, at: links.map((l) => l.ref) });
           update<Input>(
             tree,
             id,
             "input",
             (i) => ({
               ...i,
+              ...(links.length ? { links } : {}),
               ...(ofFile(i).length ? { persons: [...new Set([...(i.persons ?? []), ...ofFile(i)])] } : {}),
               ...(source ? { source } : {}),
               ...(title ? { title } : {}),
@@ -922,13 +967,14 @@ register(
               ...(as === "unrelated" && i.state !== "skipped" ? { state: "skipped" as const, hidden: { at, by: tree.actor, reason: "unrelated" as const, was: i.state === "processed" ? ("processed" as const) : ("new" as const) } } : {}),
               sorted: { as: as as (typeof SORT_KINDS)[number], ...(ofFile(i).length ? { persons: ofFile(i) } : {}), ...(source ? { source } : {}), ...(reason ? { reason } : {}), at, by: tree.actor },
             }),
-            { op: "input.sort", summary: `${id} ${as}${ofFile(tree.get<Input>(id)!).length ? ` of ${ofFile(tree.get<Input>(id)!).join(", ")}` : ""}${source ? ` → ${source}` : ""}`, ...(reason ? { reason } : {}), targets: persons },
+            { op: "input.sort", summary: `${id} ${as}${ofFile(tree.get<Input>(id)!).length ? ` of ${ofFile(tree.get<Input>(id)!).join(", ")}` : ""}${source ? ` → ${source}` : ""}${links.length ? `, in the app's tree at ${links.map((l) => l.ref).join(", ")}` : ""}`, ...(reason ? { reason } : {}), targets: persons },
           );
+        }
       });
       const kept = ids.flatMap((id) => persons.filter((p) => declinedOf(tree, tree.get<Input>(id)!).has(p)).map((person) => ({ id, person })));
       return {
         text: lines(...tree.written.map((o) => o.summary), ...kept.map((k) => `${k.person} not put on ${k.id}: the person took them off it (strom input assign ${k.id} --add ${k.person} is the person's)`)),
-        data: { inputs: ids, as, ...(kept.length ? { declined: kept } : {}) },
+        data: { inputs: ids, as, ...(placed.length ? { placed } : {}), ...(kept.length ? { declined: kept } : {}) },
       };
     },
   },

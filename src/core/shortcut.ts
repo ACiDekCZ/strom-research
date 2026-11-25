@@ -119,7 +119,10 @@ export function openInNewTerminal(
   platform: NodeJS.Platform = process.platform,
   opts: { terminal?: string; lang?: string; title?: string; key?: string } = {},
 ): boolean | "recent" | "fallback" {
-  if (env.STROM_NO_OPEN === "1") return false;
+  // a test's: the script written as it would be, nothing opened (an isolated strom alone; STROM_NO_OPEN still holds
+  // for everything else)
+  const scriptOnly = env.STROM_TERMINAL_TEST === "script" && env.STROM_ISOLATED === "1";
+  if (env.STROM_NO_OPEN === "1" && !scriptOnly) return false;
   const { command, args } = lastingLauncher();
   const skip = new Set(["STROM_WORKER", "STROM_SESSION", "STROM_IN_AGENT", "STROM_NONINTERACTIVE", "STROM_HANDOVER"]);
   const own = Object.entries(env).filter(([k, v]) => k.startsWith("STROM_") && !skip.has(k) && v !== undefined) as [string, string][];
@@ -136,10 +139,12 @@ export function openInNewTerminal(
   // the title without what a shell or a terminal reads as its own (quotes, controls, escapes)
   const title = opts.title?.replace(/[\p{Cc}\p{Cf}"'`$\\%^&|<>!]/gu, "").slice(0, 120);
   if (platform === "win32") {
-    const q = (a: string) => `"${a.replace(/"/g, '""')}"`;
+    // a .cmd reads %…% as a variable even in quotes (a link's name=, a folder with a %): each % doubled
+    const q = (a: string) => `"${a.replace(/"/g, '""').replace(/%/g, "%%")}"`;
     const file = path.join(dir, `strom-${stamp}.cmd`);
     const lines = ["@echo off", "chcp 65001 >nul", ...(title ? [`title ${title}`] : []), ...marks.map((k) => `set "${k}="`), ...own.map(([k, v]) => `set "${k}=${v}"`), 'set "STROM_HANDOVER=1"', `cd /d ${q(cwd)}`, [command, ...args, ...argv].map(q).join(" "), "if errorlevel 1 pause", ""];
     fs.writeFileSync(file, lines.join("\r\n"));
+    if (scriptOnly) return true;
     const r = spawn(env.ComSpec ?? "cmd.exe", ["/d", "/c", "start", '""', file], { detached: true, stdio: "ignore", windowsHide: true });
     r.on("error", () => undefined);
     r.unref();
@@ -150,6 +155,7 @@ export function openInNewTerminal(
   const body = ["#!/bin/sh", 'rm -f -- "$0"', ...(title ? [`printf '\\033]0;%s\\007' ${q(title)}`] : []), ...(marks.length ? [`unset ${marks.join(" ")}`] : []), ...own.map(([k, v]) => `export ${k}=${q(v)}`), "export STROM_HANDOVER=1", `cd ${q(cwd)}`, `exec ${[command, ...args, ...argv].map(q).join(" ")}`, ""];
   fs.writeFileSync(file, body.join("\n"), { mode: 0o755 });
   fs.chmodSync(file, 0o755);
+  if (scriptOnly) return true;
   // macOS, a terminal chosen: opened by its bundle ID (LaunchServices, as a double-click: no permission asked); not
   // installed (open says so), the system's — the window says it first, then goes on
   const chosen = macTerminal(opts.terminal, platform);

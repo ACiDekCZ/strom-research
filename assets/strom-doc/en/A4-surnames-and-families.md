@@ -360,3 +360,42 @@ detail that tells it apart from the others with the same name. A row with a uniq
 - **Since:** app 3.28.0
 
 <!-- zdroj: app:f5d56ed3 src/picker-distinguish.ts rowKey (shownNameParts + birthNoteText, rok narození jen se showBirthYear, normalizeSearchText), distinguishFeatures (roky * – †, bez roku v řádku a bez části, kterou říká nález; partner první, kterého jiné řádky nemají; rodiče otec, matka, ostatní, bez zástupných; rodiště, jinak poslední bydliště s místem), distinguishLine (nejkratší předpona údajů, kterou nemá nikdo jiný; jinak první známý; jinak distNone), PickerDistinguisher (celý výsledek, i za 50) · src/person-picker.ts renderItem (person-picker-dist, nález na jednom řádku za „ · “, role option, aria-label a title „jméno, rozlišení“) · index.html .person-picker-dist (výpustka, min-width 330 px, telefon 100vw) · všechny new PersonPicker (search.ts, relation-modal.ts, kinship-ui.ts, read-document-ui.ts, tree-management.ts …); PathPersonPicker samostatný · strings.ts personPicker.distNone, distChild, distAnd, distBorn, distLived · app ac34f598 · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §1 · app:1c4b7d19 distinguishLine (údaj shodný u všech ostatních řádků skupiny se vynechá; jinak první známý nesdílený; bez rozlišení vše) · dirigent:spec/085 A4.8.1 -->
+
+<a id="A4.8.2"></a>
+### A4.8.2 Search scope: Whole tree, Direct line, In view
+
+The results of a person search can be narrowed to the direct line of one person or to the people the view shows at
+the moment. The switch **Search scope** is in the header of the expanded results: **Whole tree**, **Direct line**,
+**In view**.
+
+- **Direct line** is the person, all their ancestors and all their descendants, without partners, siblings and
+  placeholder persons. A line below the switch says whose: “Direct line: Jan Horák · with ancestors and descendants”.
+- **In view** are the people the view shows at the moment: the drawn tree or fan, the selection on the map, the rows
+  of the table after filtering (“In view: Table, filtered · 24 people”).
+- **Whose line:**
+  - in the toolbar the person in the centre of the view; on the map and in the table the tree's main person (“Direct
+    line: Jan Horák, the tree's main person · with ancestors and descendants”): the person from **Default person and
+    view** ([A6.1.1](A6-views.md#A6.1.1)), without one the first person of the tree;
+  - in a person picker in a dialog the person the dialog was opened from; in Materials the person of the material,
+    without one the tree's main person.
+- **Limits:**
+  - the narrowing is not a filter: the number of active filters does not change and on its own it highlights
+    nothing. With a query or a filter it narrows the results, the highlighting in the tree and the counts; the footer
+    of the filter panel adds “direct line only” or “in view only”, on a phone the filter sheet says “Searching the
+    direct line only: Jan Horák.”;
+  - a scope the picker cannot offer is not shown and the whole tree is searched: **Direct line** without a person,
+    **In view** without a view behind the dialog (another dialog, a person page, the window Lists of people or
+    Materials covers it) and for a view that shows the whole tree (the timeline with the whole tree);
+  - when nobody is in the narrowed scope, the result says “Nobody in the direct line. 3 matches in the whole tree.”
+    (or “Nobody in view. …”) with the link **Search the whole tree**; Enter searches there;
+  - the choice is one for the toolbar and all person pickers and holds until the app is closed. It is not saved:
+    after a start it is always **Whole tree**.
+- **Where:** the search in the toolbar; the person picker in the dialogs for adding a relationship, a child's parents,
+  a shared event, **Find relationship…**, merging two people; assigning a person in Materials and in the material
+  dialog.
+- **Controls:** a click on the scope; Alt+←/→ between scopes (the tooltip shows “(Alt+←/→)”). The scope's tooltip
+  says what the narrowing holds (“Only Jan Horák and their ancestors and descendants”, “Only the people the view shows
+  now (24)”). On a phone the number of results is at the end of the line below the switch.
+- **Since:** app 3.32.0
+
+<!-- zdroj: app:82cfdbd3 src/search-scope.ts SearchScope, SEARCH_SCOPES, getSearchScope/setSearchScope (jen v paměti, po startu 'tree'), directLineIds (selection ancestors + descendants, bez zástupných), effectiveScope, offeredScopes, narrowIds, stepScope · app:7a72bd1e src/person-picker.ts PickerScopeSource, renderScopeHead (skryté nenabízené rozsahy, titulky, altKeys, lineRef/lineRefMain/viewRef, telefon počet na konci řádku), prázdné zúžení emptyLine/emptyView + searchWhole, Enter · src/ui/search-scope-ui.ts toolbarRefPerson (střed, mapa a tabulka hlavní osoba), mainPerson (defaultPersonId, startupPerson), toolbarViewIds (mapScopePersons, timelineScope 'tree' = null, tableShownPersonIds, getVisiblePersonIds), toolbarScopeSource, viewBehindDialog (stránka osoby, Seznamy osob, Materiály, víc dialogů), dialogScopeSource, materialScopeSource, toolbarScopeNote (footLine/footView, sheetLine/sheetView) · src/ui/search.ts applySearchFilter (zúžení není filtr, zvýraznění a počty) · scope: v relation-modal.ts, relationships-panel.ts, person-events.ts, kinship-ui.ts, merge-ui.ts, materials-window.ts, material-attach-ui.ts, search.ts · strings.ts searchScope.* · app:d5b87792 · dirigent:spec/137 K1, prace/1123-app-137-linie-material (Výsledek, dotazy A1–A2: osa s celým stromem bez V pohledu; bez hlavní osoby první osoba stromu) · ZADANI_UIX_hledani-linie-material-seznam „Rozhodnuto 23. 11.“ bod 4 (bez partnerů) -->

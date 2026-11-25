@@ -13,7 +13,7 @@ jde odkazovat (např. R2.3). Pojmy vysvětluje [rejstřík pojmů](../REJSTRIK.m
 
 - [R1 Výzkum v kostce](R1-research-in-brief.md): jak výzkum pracuje jako celek, na jedné stránce
 - [R2 Linie a fronta](R2-lines-and-queue.md): na čem agent pracuje a v jakém pořadí
-- [R3 Ověřování a citace](R3-verification-and-citation.md): stupně jistoty, co musí platit pro Doložené, prameny a vodítka
+- [R3 Ověřování a citace](R3-verification-and-citation.md): stupně jistoty, co musí platit pro Doložené, prameny a vodítka, náboženství jako údaj
 - [R4 Místa](R4-places.md): ztotožnění míst, názvy a příslušnost, co rozhoduje člověk
 - [R5 Rozpory](R5-conflicts.md): jak rozpor vzniká, kdo ho rozhoduje, co agent nepřepíše
 - [R6 Čeká na vyřízení](R6-awaiting-action.md): co výzkum potřebuje od člověka a kde se to vyřizuje
@@ -35,11 +35,13 @@ jde odkazovat (např. R2.3). Pojmy vysvětluje [rejstřík pojmů](../REJSTRIK.m
 - [A5 Kontrola stromu](A5-tree-check.md): co aplikace ve stromu hlídá, s jakými prahy, a Není chyba
 - [A6 Pohledy a výběr osob](A6-views.md): Rodina, Potomci, Časová osa, Vějíř, Mapa, rod v pohledu, Tabulka a pohled v samostatném okně
 - [A7 Kniha, stránky a export](A7-book-pages-and-export.md): kdo je žijící, ochrana žijících, kniha rodu, stránky, uložené HTML
-- [A8 Sloučení stromů](A8-merging-trees.md): sloučení souboru, stromu nebo pohledu do nového stromu, párování osob
+- [A8 Sloučení stromů](A8-merging-trees.md): průvodce sloučením souboru, stromu nebo výběru do stromu, párování osob, historie a odvolání sloučení
 - [A9 Ovládání aplikace](A9-using-the-app.md): kde co je, čitelné názvy prvků, úpravy při sledování výzkumu, agent v aplikaci, dolní lišta na telefonu a tabletu
 - [A10 Jedna událost u více osob](A10-shared-events.md): společná událost domácnosti (Spolu s), Sjednotit, Spojit do jedné události, kmotři a svědci v životě osoby, sloučení a starší stromy
-- [A11 Seznamy osob](A11-lists-of-people.md): pevný, automatický a pracovní seznam, pravidla, Zmrazit, ruční řazení, Přidat do seznamu, Uložit jako seznam, údaj „přidáno“, odškrtávání hotových, export seznamu
+- [A11 Seznamy osob](A11-lists-of-people.md): pevný, automatický a pracovní seznam, pravidla, vlastní pravidlo z podmínek, rodina osoby, šablony seznamů, Udržovat podle pravidla, Zmrazit, ruční řazení, Přidat do seznamu, Uložit jako seznam, údaj „přidáno“, odškrtávání hotových, export seznamu
 - [A12 Portrét a fotka svazku](A12-portrait-and-couple-photo.md): editor výřezu portrétu, originál se štítkem Portrét, Upravit výřez, Jako portrét…, fotka svazku a portréty z ní, kde se ukážou, export, GEDCOM a verze dat 24
+- [A13 Statistiky stromu](A13-tree-statistics.md): okno Statistiky, témata, rozsah a období narození, proklik do Tabulky, export CSV
+- [A14 Správa stromů a změna struktury](A14-trees-and-structure.md): Správa stromů, rozpracovaná sloučení, Změnit strukturu…, nový strom z výběru, kopie celého stromu, rozdělení, spojení do jiného stromu
 
 ## S Aplikace a výzkum spolu
 
@@ -48,7 +50,7 @@ jde odkazovat (např. R2.3). Pojmy vysvětluje [rejstřík pojmů](../REJSTRIK.m
 - [S3 Co ví výzkum](S3-what-the-research-knows.md): rozpory, hypotézy, prohledáno a Nad osobou v aplikaci
 - [S4 Výzkum řízený z aplikace](S4-research-from-the-app.md): panel a přehled výzkumu, fronta, linie, akce do terminálu
 - [S5 Telefon](S5-phone.md): stránka výzkumu v telefonu, párování, fotky po dávkách
-- [S6 Strom z jiného programu](S6-tree-from-another-program.md): rodokmen z MyHeritage, Gramps, FamilySearch a programů pro Windows: co se načte, značky spolehlivosti, údaje z rodokmenu jako vodítka, karta Co teď, zálohy, export zpět, opakovaný import
+- [S6 Strom z jiného programu](S6-tree-from-another-program.md): rodokmen z MyHeritage, Gramps, FamilySearch a programů pro Windows: co se načte, značky spolehlivosti, údaje z rodokmenu jako vodítka, karta Co teď, zálohy, export zpět, opakovaný import, e-mail osoby jako kontakt
 - [S7 Spolehlivost údajů a ověření podle originálů](S7-reliability-and-verification.md): značky u údajů a na kartičce, Ověřit u údaje, u osoby a ve stromu, ověřování ve frontě výzkumu, Potvrdit podle skenu, co jde s mostem a bez něj
 - [S8 Kde jsou data](S8-where-the-data-are.md): co je jen v prohlížeči, co je ve výzkumu a v Archivu Stromu, fotky a přílohy stromu ve výzkumu, ukazatel Jen v prohlížeči, fotky, které se nepodařilo načíst, balík a odebrání stromu
 

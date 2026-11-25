@@ -18,7 +18,7 @@ import { sameDirection } from "../core/actions.ts";
 import { workOrder } from "../core/order.ts";
 import { displayName, lifespan } from "../core/people.ts";
 import { DEATH_AFTER_YEARS, unprovenPeople } from "../core/review.ts";
-import { planSync, readTreeFile, receivedAll, receivedSince, SYNC_INBOX, type Received, type SyncInput } from "../core/sync.ts";
+import { clientLabel, planSync, readTreeFile, receivedAll, receivedSince, SYNC_INBOX, type Received, type SyncInput } from "../core/sync.ts";
 import { undoSending } from "./menu-links.ts";
 import { humanClaim, humanWhen } from "./human.ts";
 import { truncate } from "./format.ts";
@@ -70,7 +70,7 @@ function undoLast(ctx: Context, run: Run, lang: string, root: string, key: strin
   if (!last?.input) return undefined;
   const input = Tree.open(root, ctx.env).get<SyncInput>(last.input);
   if (!input?.sync || input.sync.undone) return undefined;
-  return { key, label: translator(lang)("ui.more.undo", { when: humanWhen(input.created, lang) }), act: async () => void (await undoSending(ctx, run, lang, root, input.id, true)) };
+  return { key, label: translator(lang)("ui.more.undo", { when: `${humanWhen(input.created, lang)}${input.sync?.client ? ` · ${clientLabel(input.sync.client)}` : ""}` }), act: async () => void (await undoSending(ctx, run, lang, root, input.id, true)) };
 }
 
 /** Files, folders or what the person knows, as inputs of the research; the agent reads them in its next work. */

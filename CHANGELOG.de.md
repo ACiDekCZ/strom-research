@@ -5,6 +5,114 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.37.0
+
+*25.11.2026 · gehört zur Strom-App 3.32.0.*
+
+- **Ein Archiveintrag der Forschung hält kein Portal der Liste von strom mehr:** ein Buch mit einer Adresse auf einem
+  Portal, das die Liste von strom kennt (Porta fontium, Acta Publica…), macht das Portal nicht mehr so streng wie das
+  Archiv, unter dem es eingetragen ist – das Portal folgt seinen eigenen Bedingungen. Das eigene Portal des Archivs unter einer anderen Adresse (die Liste
+  nennt dort die Bedingungen auf der Website des Archivs, etwa die eBadatelna des Prager Staatlichen Gebietsarchivs)
+  hält er weiter. Eine Stufe, die strom von früher
+  hält, bleibt, bis der Mensch unter „Was wartet“ entscheidet. Wo der Archiveintrag eine Website weiter hält, nennen
+  `strom doctor` und `strom allow archive` das Archiv, sein Buch und die Website. Kapitel R12.2 der Anleitung nennt kein
+  nicht vorhandenes `strom run --chrome` mehr.
+- **Die Bildnummer irgendwo im Namen:** von Hand in den Ordner einer wartenden Aufgabe gespeicherte Bilder werden auch
+  unter den Namen eines Portals übernommen – `__0236.jpg`, `Lhota_11__125.jpg` (ein Portal, das nur auf drei Stellen
+  auffüllt, ab Bild 100 nicht mehr), `fond12_kniha3_236.jpg`: von mehreren Zahlen im Namen die eines gewünschten Bildes,
+  die von Datei zu Datei des Ordners wechselnde, sonst die letzte vor der Endung. Datum und Uhrzeit eines
+  Bildschirmfotos sind nie eine Bildnummer, ebenso wenig ein Jahr dahinter (`33 1784.jpg`), wenn nicht bekannt ist,
+  welche Bilder; ein Name mit zwei gewünschten Nummern wird nicht geraten, sondern mit der Datei genannt. Ein Name, der
+  keine Bildnummer ergibt, hält den Rest nicht mehr auf (`000.jpg` bleibt liegen und wird einmal genannt, ohne Rat zum Umbenennen). Dateien, die nach den
+  Einträgen darauf (`001-004.jpg`) oder sonst nicht nach Bildnummern benannt sind, werden in der Reihenfolge des Ordners
+  übernommen, sobald 20 Minuten lang nichts mehr gespeichert wird; die Einträge bleiben bei jedem Bild vermerkt, und die
+  Aufgabe kommt mit der Liste zurück, welche Datei welches Bild wurde. Ein weiteres Blatt unter derselben Nummer
+  (`7a.jpg`) wird am Inhalt erkannt: eine Kopie, ein vergrößerter Ausschnitt oder ein eigener Scan, unter seinem Namen
+  behalten, nie versteckt – im selben oder einem späteren Stapel, auch nach der Rückkehr der Aufgabe und mit `strom
+  media add --inbox <Ordner>`. Eine Aufgabe, für die nur ein Teil der Bilder kam, geht nach derselben Ruhezeit mit dem
+  zurück, was kam und was fehlt – ein Scan an der Grenze zweier Jahrgänge zählt einmal.
+- **Eine erschöpfte Seitengrenze wird nicht mehr ins Leere abgewartet:** nach `web.perHost` erfährt der Agent, wann die
+  Website wieder Seiten gibt – die Grenze dieses Computers, oder in seiner Sitzung keine mehr – und was bis dahin zu tun
+  ist: die Aufgabe bleibt offen, andere Arbeit, sonst Ende der Sitzung; keine Seite vorher erneut und kein Warten.
+  `strom run` lässt eine Aufgabe auf einer solchen Website vorerst aus und nimmt eine andere; gibt es keine, wartet er,
+  bis genug Seiten frei sind (ohne Agent, nichts wird gesendet), oder endet und sagt, wann. Eine Aufgabe, die auf ein
+  Bild wartet, das der Browser des Agenten nie gespeichert hat (Seite abgewiesen), kehrt mit dem Ende der Sitzung in
+  die Warteschlange zurück und gilt nie als vom Browser zurückgehalten. Ein so beendeter Lauf ist für die
+  Strom-App ein fertiger Lauf, kein Fehler.
+  Bilder, die der Browser des Agenten speichert, sind seine Arbeit: solange die Sitzung des Agenten Bilder über seinen
+  Browser speichert (`strom media save`), steht die Aufgabe nicht mehr unter „Was wartet“ – auch nicht in deren
+  Zahlen, Markierungen oder Hinweisen – und die Strom-App erfährt sie als laufende Arbeit (`working[].saving`: wie
+  viele der gegebenen Bilder gespeichert sind). Auf den Menschen wartet nur ein Bild, das der Browser zurückgehalten
+  hat – das Herunterladen mehrerer Dateien von der Website erlauben, gleich zuerst gesagt – und eine mittendrin
+  beendete Sitzung: Speichern bei ihrem Bild angehalten, die nächste Sitzung setzt es fort. Früher geschriebene
+  Wartezustände zeigen sich so ohne Eingriff. Ist die Ursache behoben, geht eine solche Aufgabe – und eine mit Aufnahmen,
+  zu denen nur ein Browser führt, sobald der Browser des Agenten dorthin reicht, oder nur vom Bildschirm eines Betrachters
+  gelesen – aus „Was wartet“ an den Agenten zurück, einzeln oder ein ganzes Archiv auf einmal (auch aus der Strom-App:
+  `waiting[].retry` sagt, worauf sie jetzt wartet und wie viele Aufnahmen): sofort an der Reihe, höchstens dreimal am
+  Tag, und wird sie wieder zurückgehalten, wartet sie erneut und sagt es. Ein mit `--again` erneut gespeichertes Bild wird sofort als das Bild
+  übernommen, das bisherige zurückgezogen und aufbewahrt – kein `strom media aside --take` für jedes Bild. Mehrere
+  Bilder auf einmal kosten weit weniger: `strom media save --image 40,41,45` (höchstens zehn, je eine Seite oder eine
+  Adresse mit `{n}`) gibt ein kürzeres Skript für alle – jedes Bild weiter auf seiner eigenen Seite im Tempo eines
+  Menschen – und ein `strom media add --inbox --waiting` übernimmt sie; ein Agent mit Subagenten gibt mehr als drei an den
+  Subagenten des Baums `strom-image-saver` (kleiner Kontext, `model.cheap` der Person, dieselben Hooks). Eine ordentlich
+  gespeicherte Kopie geht einem Bildschirmfoto vor, auch einem mit mehr Pixeln, und `strom media cites M… --move-to M…`
+  verlegt die Quellen, die das Bildschirmfoto zitieren, auf sie – das Bildschirmfoto bleibt erhalten.
+- **Sendungen aus der App leichter und schneller:** eine Sendung aus der Strom-App wird einmal statt zweimal geplant,
+  und Dateien, die die Forschung schon hat, reisen per Verweis (ihrem Hash) statt mit allen Daten; eine Sendung, die
+  eine Datei nennt, die die Forschung nicht findet, wird ganz abgewiesen, bevor etwas gespeichert wird, und die App
+  sendet sie mit den Daten erneut. „Was wartet“ zeigt eine Sendung, die noch gezählt wird, nie als 0 Änderungen.
+  Mehrere Geräte an einer Forschung: eine Sendung nennt den Browser oder Computer, von dem sie kam (in
+  `strom input list`, im Verlauf und im Commit); ein Konflikt zweier Sendungen nennt beide Geräte; das Zurücknehmen
+  einer Sendung lässt einen Teil einer Angabe, den seitdem ein anderes Gerät oder die Forschung geändert hat, wie er ist,
+  und sagt es.
+- **E-Mails einer Person sind ein Kontakt, kein Wohnort:** E-Mails aus einem GEDCOM (ein Wohnort von MyHeritage nur mit
+  E-Mail, die ältere Notiz „E-mail: …“ der Strom-App) werden zum Kontakt der Person, getrennt von den Fakten in `strom
+  person show` und auf der Personenkarte gezeigt – nie ein Ereignis oder ein Ort, an dem die Person lebte, nie dem
+  Agenten gegeben. Der Abgleich mit der App fügt E-Mails hinzu und nimmt sie weg wie andere Änderungen. Die neue
+  Prüfung `strom fixes contact-residences` macht aus Wohnorten, die ein älterer strom aus E-Mails gemacht hat, den
+  Kontakt (zurückgezogen, nie gelöscht, rückgängig mit `strom fixes undo`).
+  **Volkszählungen als eigenes Ereignis:** die Volkszählung einer Person, als Ereignis namens „Volkszählung“
+  („Census“, „Sčítání lidu“…) geschrieben, geht als Volkszählung in die Strom-App, so dass das Laden der Version der
+  Forschung solche Volkszählungen nicht mehr jedes Mal durchgestrichen zeigt; der Datensatz der Forschung bleibt, wie er
+  geschrieben wurde. `strom check` warnt vor zwei Volkszählungen einer Person mit demselben Datum, und ein zweimal
+  zitierter Eintrag steht in der Notiz des Fakts nur einmal.
+  **Religion als Angabe:** die Religion, die ein Eintrag bei einer Person nennt – als Wort in ihrer Spalte oder als
+  Zeichen darin –, wird als Angabe Religion (RELI) mit dem Eintrag als Quelle und seinem Datum erfasst, nie aus den
+  Eltern, der Pfarrei, dem Buch oder dem Ritus abgeleitet und nie aus einem nicht sicher gelesenen Wort. Ein weiterer
+  Eintrag derselben Konfession fügt der Angabe nur seine Quelle hinzu; eine gewechselte Konfession ist eine eigene
+  Angabe. Nennt die Abschrift eines eigenen Eintrags der Person eine Religion, die die Forschung noch nicht als Angabe
+  hat, erinnert das Briefing den Agenten daran, wenn er an dieser Person arbeitet.
+- **Material zu einer Personenliste:** die Strom-App kann einen Scan statt an eine Person an eine ganze Personenliste
+  schicken (einen Zählbogen, eine Matrikenseite). Das Material behält die Liste so, wie sie geschickt wurde – Name,
+  Art, Regel und die IDs ihrer Personen; bis zu 50 davon sind die Personen des Materials, eine längere Liste wird mit
+  einer Datei aller ihrer Personen genannt. Die Aufgabe des Agenten trägt den Namen der Liste und sagt, jeden Namen vom
+  Scan zuerst mit diesen Personen zu vergleichen, erst dann mit dem ganzen Baum.
+  Auch der Scan einer Quelle lässt sich so schicken: er bleibt ein Bild der Quelle, behält die Liste ebenso, und die
+  Aufgabe, ihn zu lesen, hat die Personen der Liste (bis zu 50) unter den betroffenen.
+  **Material ohne Rückfrage sortieren:** eine Einstellung `sort.confirm` (pro Forschung mit `--for-tree`, sonst für
+  diesen Computer): `ask` – der Standard, wie bisher: die Zustimmung der Person zu den bezahlten Lesungen vor jeder
+  Sortierung – oder `no`: `strom material sort` sortiert sofort, wenn die Person darum bittet, und sagt, dass nicht
+  gefragt wurde; nie von selbst, und ein Lauf, den niemand beobachtet, fragt weiterhin. `no` setzt nur die Person im
+  eigenen Terminal oder in der Strom-App auf diesem Computer (eine Zeile im Log der Brücke sagt es), nie ein Agent;
+  zurück zur Rückfrage kann jeder.
+  **Material aus der App in den Stammbaum einsortiert:** eine Datei aus einem Stapel, den die Strom-App geschickt hat
+  (oder anderes Material von ihr), die die Forschung als Eintrag, Dokument oder Foto von Personen einsortiert, kommt jetzt
+  bei ihnen in den Stammbaum der App — bei zwei Partnern eines Paares zu ihrem Paar —, sodass die App sie bei der Person
+  zeigt, nicht nur im Fenster Materialien. Lebende sind keine Ausnahme: was von ihnen geschickt wurde, wird wie bei allen
+  anderen einsortiert und erfasst (der Schutz Lebender gehört zum Export). Eine Datei mit einem Platz im Stammbaum oder
+  eine, deren Platz in der App entfernt wurde, bleibt, wie sie ist; eine von einer Datei entfernte Person bekommt dort
+  keinen Platz.
+- **Eine Forschung für die Kopie eines Stammbaums:** der Link der Strom-App, der eine neue Forschung beginnt, kann ihren
+  Namen vorschlagen (Kopie eines Baums: „… (Kopie)“); das Terminal bietet ihn zum Behalten oder Überschreiben an, und
+  die Brücke nennt der App den Ordner, in dem neue Forschungen entstehen. Ein Baum, der mit den Nummern einer anderen
+  Forschung übergeben wird (Kopie eines Baums mit Forschung, aus einer älteren App), bekommt für seine Personen und
+  Quellen die Nummern der neuen Forschung nach den eigenen Marken der Datei – nie die Nummern der anderen Forschung,
+  die Zitate der Quellen bleiben.
+- **Was am meisten hilft:** alles, was auf die Person wartet und hinter dem Aufgaben stehen, sagt, wie sehr seine
+  Erledigung den Stammbaum erweitert – eine neue Generation über einer Person, die die Forschung erreicht, die direkte
+  Linie, die Aufgaben, die es freigibt – und warum, in wenigen Worten in der Sprache der Forschung; die Strom-App kann
+  so zuerst zeigen, was am meisten hilft. Im Terminal dasselbe: `strom task list --state waiting --order gain`.
+
 ## 1.36.0
 
 *22.11.2026 · gehört zur Strom-App 3.31.0.*
@@ -31,7 +139,8 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   nur nach der Anzahl gefragt, und Enter startet mindestens einen), startet sofort; eine Zeile im Terminal sagt es und
   wo die Rückfrage wieder eingeschaltet wird. Weiter gefragt wird: eine Frage mit einem Preis in Geld, Zustimmungen,
   Löschen, das Absenden einer Anfrage, die Bedingung der Alleinarbeit und jeder Befehl eines Agenten. Die Rückfrage
-  schaltet nur der Mensch ab, nie ein Agent.
+  schaltet nur der Mensch ab – im Terminal oder in der Strom-App auf diesem Computer (eine Zeile im Log der Brücke sagt
+  es), nie ein Agent.
 - **Eine Quelle löschen:** Eine Quelle lässt sich in der Forschung löschen – `strom source retract` im Terminal oder
   durch Löschen der Quelle in der Strom-App, nur durch die Person, nie durch einen Agenten (er darf es nur vorschlagen,
   mit dem, was es laut `--dry-run` mitnähme). Die Werte bleiben; ihre Zitate werden von den Angaben genommen und in der

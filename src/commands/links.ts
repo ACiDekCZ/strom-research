@@ -6,11 +6,11 @@ import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { register, type Result } from "../cli/registry.ts";
-import type { Context } from "../cli/context.ts";
+import { Context } from "../cli/context.ts";
 import { lines } from "../cli/format.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import { readJsonIfExists } from "../core/json.ts";
-import type { Conflict, Person, Research, Source, Task, TreeConfig } from "../core/model.ts";
+import type { AppClient, Conflict, Person, Research, Source, Task, TreeConfig } from "../core/model.ts";
 import { Tree } from "../core/tree.ts";
 import { LinkError, linkHandlerState, linkScheme, linkStateText, linkText, parseLink, registerLinks, titleLinkWindow, unregisterLinks, type Link, type TakenLink } from "../core/links.ts";
 import { noteHandoff } from "../core/handoffs.ts";
@@ -24,13 +24,17 @@ import { knownOriginal } from "../core/originals.ts";
 import { openForUser } from "../core/open.ts";
 import { openInNewTerminal } from "../core/shortcut.ts";
 import { systemNotice } from "../core/dialog.ts";
-import { configDir, noLinks } from "../core/paths.ts";
+import { configDir, noLinks, type Env } from "../core/paths.ts";
 import { liveBook } from "../core/books.ts";
 import { inboxFolderFor } from "../core/media.ts";
 import { startLive } from "../core/live.ts";
 import { stateOf } from "../core/state.ts";
 import { isEditConflict } from "../core/conflicts.ts";
 import { fixCheck, quietCheck } from "./fixchecks.ts";
+import { DevicePreview, fromDevice, fromDeviceEnv, newYes, sendYes, takeYes, yesHolds } from "../core/deviceagent.ts";
+import { forPhone } from "../core/phone-watch.ts";
+import { isAgent } from "../core/which.ts";
+import { StromError, UsageError } from "../core/errors.ts";
 
 /** The researches here with this id — a copy of a research folder has its id too; the current one first. */
 function researchesWithId(ctx: Context, id: string): { name: string; root: string }[] {
@@ -76,6 +80,14 @@ function lineWindow(ctx: Context, link: TakenLink, root: string): { title?: stri
   return { title: ["Strom", tree.config.name, line?.type === "research" ? `${line.name} (${line.id})` : link.research].join(" · "), key: link.research };
 }
 
+/**
+ * The terminal a link opens for the research at `root`, as a link of the app opened without one does it — and a link a
+ * device asked for (spec 094 K3.15: its own environment, the device named): one code for both.
+ */
+function linkTerminal(ctx: Context, link: Exclude<TakenLink, { action: "menu" }>, root: string, env: Env = ctx.env): boolean | "recent" | "fallback" {
+  return openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], root, env, process.platform, { ...windowOf(ctx), ...lineWindow(ctx, link, root) });
+}
+
 /** The chosen terminal not here: the window opened in the system's (said in it). */
 function fellBack(opened: boolean | "recent" | "fallback"): { terminal?: "fallback" } {
   return opened === "fallback" ? { terminal: "fallback" } : {};
@@ -98,7 +110,9 @@ function bringForward(env: NodeJS.ProcessEnv | Record<string, string | undefined
 function runnerOf(ctx: Context): RunIn {
   return async (root) => {
     const { main } = await import("../cli/main.ts");
-    return (argv, quiet, said) => main(argv, said ? { ...ctx.io, stdout: said } : quiet ? { ...ctx.io, stdout: () => undefined } : ctx.io, ctx.env, root ?? ctx.cwd);
+    return (argv, quiet, said) =>
+      // a device's preview (spec 094 K3.15): nothing is run — a command of its own asks in the terminal itself
+      ctx.devicePreview ? Promise.reject(new DevicePreview({ kind: "computer", why: "question" })) : main(argv, said ? { ...ctx.io, stdout: said } : quiet ? { ...ctx.io, stdout: () => undefined } : ctx.io, ctx.env, root ?? ctx.cwd);
   };
 }
 
@@ -168,10 +182,10 @@ function refusedHere(ctx: Context, root: string, link: TreeLink): { key: UIKey; 
   return { key: "ui.waiting.refuse", values: { agent: PROFILES[agent]?.name ?? agent }, state };
 }
 
-/** What a link asks, in this terminal: which copy of the research, then as the menu does it. */
-async function inTerminal(ctx: Context, link: TreeLink) {
+/** What a link asks, in this terminal: which copy of the research (`at`: that one), then as the menu does it. */
+async function inTerminal(ctx: Context, link: TreeLink, at?: string) {
   const lang = ctx.uiLang();
-  const copies = researchesWithId(ctx, link.tree);
+  const copies = at ? [{ name: "", root: at }] : researchesWithId(ctx, link.tree);
   if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
   let root = copies[0]!.root;
   if (copies.length > 1) {
@@ -488,7 +502,7 @@ async function openLink(ctx: Context, link: TakenLink, handed: { on: boolean }):
     if (ctx.io.tty) {
       const { newFromApp } = await import("../cli/menu-links.ts");
       const { openAppAt } = await import("./sync.ts");
-      const done = await newFromApp(ctx, runnerOf(ctx), link.app, (url) => openAppAt(ctx, url, { holdsTree: true }), () => bringForward(ctx.env), { ...(link.browser ? { browser: link.browser } : {}), ...(link.file ? { file: link.file } : {}) });
+      const done = await newFromApp(ctx, runnerOf(ctx), link.app, (url) => openAppAt(ctx, url, { holdsTree: true }), () => bringForward(ctx.env), { ...(link.browser ? { browser: link.browser } : {}), ...(link.file ? { file: link.file } : {}), ...(link.name ? { name: link.name } : {}) });
       if (!done) await pause(ctx, ctx.uiLang(), "ui.enter.close");
       return { text: "", data: { done, action: "new" } };
     }
@@ -557,7 +571,7 @@ async function openLink(ctx: Context, link: TakenLink, handed: { on: boolean }):
     if (refused) return say(ctx, refused.key, refused.values, { action: link.action, tree: copies[0]!.root, refused: refused.state });
     const quiet = await withoutTerminal(ctx, link, copies[0]!.root);
     if (quiet) return quiet;
-    const opened = openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], copies[0]!.root, ctx.env, process.platform, { ...windowOf(ctx), ...lineWindow(ctx, link, copies[0]!.root) });
+    const opened = linkTerminal(ctx, link, copies[0]!.root);
     handed.on = opened !== false;
     if (opened === false)
       return link.action === "send"
@@ -576,6 +590,150 @@ async function openLink(ctx: Context, link: TakenLink, handed: { on: boolean }):
   }
   return say(ctx, got.missing === "tree" ? "ui.link.notree" : got.missing === "scan" ? "ui.link.noscan" : "ui.link.noclip", { source: link.source }, { tree: link.tree, source: link.source, clip: link.clip });
 }
+
+/** The device's yes this terminal was opened with, taken (ctx.deviceYes) — or none: the terminal asks as ever. */
+function takeDeviceYes(ctx: Context, link: TakenLink): void {
+  const device = fromDevice(ctx.env);
+  const yes = ctx.env.STROM_DEVICE_YES;
+  if (!device || !yes || !ctx.io.tty || isAgent(ctx.env) || !("tree" in link)) return;
+  const text = linkText(link, linkScheme(ctx.env));
+  if (researchesWithId(ctx, link.tree).some((c) => takeYes(c.root, yes, text, device.id))) ctx.deviceYes = device;
+}
+
+/**
+ * The links a device may ask for (spec 094 K3.15): those that start the agent in a terminal, as the app on the computer
+ * opens them — a conversation, work on the queue or a line, a task's conversation, a conflict left to the agent, places
+ * and a place's history looked up by the agent, a fix that reads again (paid). Anything else stays the computer's.
+ */
+function deviceMay(link: TakenLink): boolean {
+  switch (link.action) {
+    case "chat":
+    case "work":
+      return true;
+    case "places":
+      return link.do === "run";
+    case "history":
+      return link.do === "search";
+    case "task":
+      return link.do === "chat";
+    case "conflict":
+      return link.do === "agent";
+    case "fixes":
+      return link.id !== undefined && link.do === undefined && !!fixCheck(link.id)?.paid;
+    default:
+      return false;
+  }
+}
+
+/** The environment of a terminal a device opens: as a link of the app opens one, the device named (and its yes). */
+function deviceTerminalEnv(env: Env, device: AppClient, yes?: string): Env {
+  const not = new Set(["STROM_SPAWNED", "STROM_FOR_APP", "STROM_TREE", "STROM_DEVICE_YES", "STROM_FROM_DEVICE", "STROM_FROM_DEVICE_NAME", "STROM_VIA_DEVICE", "STROM_VIA_DEVICE_NAME", "STROM_NONINTERACTIVE"]);
+  return { ...Object.fromEntries(Object.entries(env).filter(([k]) => !not.has(k))), ...fromDeviceEnv(device), ...(yes ? { STROM_DEVICE_YES: yes } : {}) };
+}
+
+/** What the gateway answers the device: its HTTP status and the body (an error's code and its sentence). */
+type DeviceAnswer = { status: number; answer: Record<string, unknown> };
+
+/**
+ * What a device asks of the agent by a link (spec 094 K3.15; the gateway of the devices runs it in the tree's folder,
+ * the device from its pairing): without a yes, the link's way gone through without doing anything — the question the
+ * terminal would ask (ask: a yes for it, YES_MS, once), started at once (run.confirm no: the terminal opened), a question
+ * that stays the terminal's (computer: a price in money, another question — the terminal opened), or only said; with
+ * the device's yes, the terminal opened with it.
+ */
+async function deviceLink(ctx: Context, raw: string, yes: string | undefined): Promise<DeviceAnswer> {
+  const device = fromDevice(ctx.env);
+  if (!device) throw new UsageError("no device named (STROM_FROM_DEVICE): the gateway of the devices runs this");
+  let tree: Tree;
+  try {
+    tree = ctx.tree();
+  } catch (e) {
+    // written by a newer strom: nothing here reads it
+    if (e instanceof StromError && /^tree\.newer/.test(e.code ?? "")) return refusedForDevice(ctx.uiLang(), 409, "research.locked", "ui.link.device.locked");
+    throw e;
+  }
+  const root = tree.root;
+  const lang = tree.lang;
+  let link: TakenLink;
+  const scheme = linkScheme(ctx.env);
+  // the app's scheme or this strom's own (a second strom beside the first), read as this strom's: no other
+  const given = /^([^:/?#]{1,64}):/u.exec(raw.trim())?.[1]?.toLowerCase();
+  if (raw.length > 2048 || (given !== "strom-research" && given !== scheme)) return refusedForDevice(lang, 400, "device.link", "ui.link.device.bad");
+  try {
+    link = parseLink(`${scheme}:${raw.trim().slice(given.length + 1)}`, scheme);
+  } catch (e) {
+    if (!(e instanceof LinkError)) throw e;
+    return refusedForDevice(lang, 400, "device.link", "ui.link.device.bad");
+  }
+  if (!("tree" in link) || link.tree !== tree.config.id.toLowerCase()) return refusedForDevice(lang, 400, "device.link", "ui.link.device.bad");
+  if (!deviceMay(link)) return refusedForDevice(lang, 403, "device.computer-only", "ui.link.device.computer", { action: `link.${link.action}` });
+  const text = linkText(link, linkScheme(ctx.env));
+  const open = (with_?: string): DeviceAnswer => {
+    const opened = linkTerminal(ctx, link, root, deviceTerminalEnv(ctx.env, device, with_));
+    if (opened === false) return refusedForDevice(lang, 503, "agent.noterminal", "ui.link.device.noterminal");
+    if (opened === "recent") return refusedForDevice(lang, 409, "agent.recent", "ui.link.device.recent");
+    return { status: 200, answer: { state: "started", ...fellBack(opened) } };
+  };
+  if (yes !== undefined) {
+    if (!yesHolds(root, yes, text, device.id)) return refusedForDevice(lang, 410, "agent.yes-expired", "ui.link.device.expired");
+    // sent to the terminal before it opens (it takes it as sent alone); not opened: the device may send it again
+    sendYes(root, yes);
+    const started = open(yes);
+    if (started.status !== 200) sendYes(root, yes, false);
+    return started;
+  }
+  // the way gone through as the terminal would (its question the end of it): nothing written, nothing started
+  const said: string[] = [];
+  const env = Object.fromEntries(Object.entries(ctx.env).filter(([k]) => k !== "STROM_NONINTERACTIVE")) as Env;
+  const preview = Context.fromOptions({ env, cwd: root, io: { stdout: (s) => said.push(s), stderr: () => undefined, tty: true }, json: false, values: {} });
+  preview.devicePreview = true;
+  const shown = (s: string) => s.split("\n").map(forPhone).filter((l) => l.trim());
+  try {
+    const r = await inTerminal(preview, link as TreeLink, root);
+    const refused = (r.data as { refused?: unknown } | undefined)?.refused;
+    return { status: 200, answer: { state: "said", text: shown(said.join("")).join("\n"), ...(refused === "archive" || refused === "waiting" ? { refused } : {}) } };
+  } catch (e) {
+    if (!(e instanceof DevicePreview)) throw e;
+    const o = e.outcome;
+    if (o.kind === "ask") {
+      const before = shown(said.join(""));
+      const y = newYes(root, text, device.id);
+      return { status: 200, answer: { state: "ask", ask: { what: forPhone(o.what), note: o.note.map(forPhone).filter((l) => l.trim()), ...(before.length ? { said: before } : {}), tree: tree.config.name }, yes: y.yes, expiresAt: y.expiresAt } };
+    }
+    // started at once (run.confirm no), or a question the terminal keeps: the terminal opened now, as the app's link
+    const opened = open();
+    if (opened.status !== 200 || o.kind === "started") return opened;
+    return { status: 200, answer: { state: "computer", why: o.why, ...(opened.answer.terminal ? { terminal: opened.answer.terminal } : {}) } };
+  }
+}
+
+function refusedForDevice(lang: string, status: number, code: string, key: UIKey, params: Record<string, string> = {}): DeviceAnswer {
+  return { status, answer: { code, text: ui(lang, key), ...params } };
+}
+
+register(
+  {
+    path: ["link", "device"],
+    summary: "What a paired device of the home network asks of the agent by a strom-research:// link (the gateway of the devices runs it)",
+    group: "setup",
+    hidden: true,
+    tree: true,
+    person: "Start the agent from a device of the home network?",
+    description:
+      "Run by the gateway of the devices (spec 094) in the research's folder, the device named by its pairing alone. Without\n" +
+      "--yes: the link's way gone through without doing anything — what the terminal would ask (a yes token for the device),\n" +
+      "started at once (run.confirm no), a question the terminal keeps (a price in money, another question), or only said.\n" +
+      "With the device's --yes: the terminal opened with it, its question before the agent starts not asked again.",
+    options: [
+      { name: "link", type: "string", description: "the strom-research:// link", value: "<link>" },
+      { name: "yes", type: "string", description: "the yes the device was given", value: "<token>" },
+    ],
+    async run(ctx, { opts }) {
+      const r = await deviceLink(ctx, typeof opts.link === "string" ? opts.link : "", typeof opts.yes === "string" ? opts.yes : undefined);
+      return { text: JSON.stringify(r.answer), data: r };
+    },
+  },
+);
 
 register(
   {
@@ -646,13 +804,14 @@ register(
       "  its hash (the bridge's /log head, or its first 8), else the earlier changes to pick from — what returns shown, the\n" +
       "  return only on the person's word in the terminal.\n" +
       "strom-research://update|sessions|setup?tree=<id> — strom update, the agent's sessions and their cost, strom setup.\n" +
-      "strom-research://new?app=<the app's mark> — a tree of the app becomes a new research: named, made, the app hands the\n" +
-      "tree to its bridge (?adopt=, GET/POST /adopt), taken in as leads, sent back to the app. Family trees here already:\n" +
+      "strom-research://new?app=<the app's mark>[&name=<text>] — a tree of the app becomes a new research: named, made, the app hands the\n" +
+      "tree to its bridge (?adopt=, GET/POST /adopt), taken in as leads, sent back to the app. name= (one line, at most 120\n" +
+      "characters) is only the name suggested in the terminal, the person keeps it or writes another. Family trees here already:\n" +
       "opening one of them in the app (strom app) is offered first; with no terminal the result lists them (trees).\n" +
       "What writes tasks or starts the agent is said and asked in the terminal first; with run.confirm no (the person's,\n" +
       "this computer's) what only starts the agent on the subscription or AI credit starts at once, one line says so — a\n" +
       "price in money, a consent, a deletion, a request sent, the gate and an agent's own command still ask. Any page can open such a link:\n" +
-      "each part is checked (only IDs and fixed values, never text), an unknown research, person, task or excerpt is\n" +
+      "each part is checked (only IDs and fixed values, never text but new's suggested name), an unknown research, person, task or excerpt is\n" +
       "only said. No link: the menu.\n" +
       "&handoff=<uuid> (any link of a research): the app's id of it — written when the link was taken (the terminal it\n" +
       "opens came up, or what needs none was done) and said by the research's bridge in GET /status (handoffs) for a\n" +
@@ -672,6 +831,9 @@ register(
       if (ctx.io.tty) titleLinkWindow(ctx.env);
       const handoff = link.handoff && "tree" in link ? { id: link.handoff, tree: link.tree } : undefined;
       if (handoff && ctx.io.tty) noteTaken(ctx, handoff);
+      // a terminal a device opened with the person's yes there (spec 094 K3.15): taken instead of the question before
+      // the agent starts — once, for this link and this device alone, never by an agent or a script
+      takeDeviceYes(ctx, link);
       const handed = { on: false };
       const result = await openLink(ctx, link, handed);
       if (handoff && !ctx.io.tty && !handed.on && (result.data as { done?: unknown } | undefined)?.done === true) noteTaken(ctx, handoff);

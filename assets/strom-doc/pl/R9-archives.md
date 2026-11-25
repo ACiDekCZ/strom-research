@@ -77,13 +77,22 @@ strom może robić automatycznie; szczegółowa tabela poziomów jest w [R8.2](R
   - zakazana ścieżka `/` (cały serwer obrazów) zamyka także przeglądarkę agenta: skany tylko ręcznie;
   - witryny jednego archiwum (np. archiwum cyfrowe i czytelnia jednego archiwum krajowego) mają każda swój zapis;
     w Co czeka pokazują się jednak pod jedną nazwą archiwum ([R9.6](#R9.6)).
+- **Od badania 1.37.0:** księga zapisana w badaniu pod archiwum, której adres jest na portalu z listy archiwów (np.
+  Porta fontium, Acta Publica), już nie czyni portalu tak surowym jak to archiwum: portal kieruje się swoimi warunkami
+  i pozostałymi źródłami. Własny portal archiwum pod innym adresem, przy którym lista podaje warunki na stronie
+  archiwum (np. eBadatelna SOA Praha), archiwum trzyma dalej. Poziom, który strom trzyma z wcześniej, zostaje, dopóki
+  nie zdecyduje człowiek w Co czeka. Tam, gdzie wpis archiwum trzyma witrynę przez księgę, `strom doctor`, pytanie
+  w Co czeka i `strom allow archive` wymieniają archiwum, księgę i witrynę: „wpis archiwum w badaniu R… (…) przez
+  jego księgę … na … (strom recordset show …)”.
 - **Dlaczego:** metodyka chce przestrzegać warunków każdego archiwum. Tam, gdzie robots.txt wpuszcza tylko
   przeglądarkę, idzie najwyżej przeglądarka, za zgodą człowieka i w jego tempie; to, co lista archiwów zostawia
   ręce człowieka, zapisuje człowiek.
 - **Obsługa:** terminal: `strom net web --check <adres>` (co strom zrobiłby z adresem), menu archiwów, `strom
   allow archive` (tylko człowiek). Aplikacja: Czeka na załatwienie.
-- **Obowiązuje od:** badanie 1.14.0. Kolejne archiwa Czech, Niemiec i Polski oraz serwer obrazów od 1.27.0.
+- **Obowiązuje od:** badanie 1.14.0. Kolejne archiwa Czech, Niemiec i Polski oraz serwer obrazów od 1.27.0. Portal
+  z listy według swoich warunków, nie według księgi innego archiwum, od 1.37.0.
 
+<!-- zdroj: 1.37.0: research:91631d2e, 66a521fa src/core/terms.ts listStates, treeLevel (kniha jen tam, kde seznam podmínky webu neuvádí; vlastní portál archivu s podmínkami na webu archivu drží), src/core/floor.ts FloorHold tree recordset, holdText, floorWhat · cs.json ui.archive.floor.hold.treeSet · CHANGELOG.cs.md 1.37.0 -->
 <!-- zdroj: research:src/core/terms.ts:566-680 archiveLevel (robots "Disallow: /" → browserOnly, restricted; robotsYield: openByTerms + robotsNamesAi false), :789-803 allows (browserOnly + manual → nothing) · assets/archives.json (level, browserOnly, pace, disallow, imagesFrom, quote, quoteFrom, checked; metrikai.lt, lagis, gov, online-ofb restricted + browserOnly; ebadatelna.soapraha.cz manual) · src/core/knownterms.ts imagesFrom · test/unit/known-terms.test.ts (imagesFrom closed whole ⇒ manual) · src/core/browserhelp.ts browserHelps (disallow "/") · CHANGELOG.cs.md 1.26.0, 1.27.0 (c3ee4422) -->
 
 <a id="R9.1.1"></a>
@@ -160,14 +169,30 @@ sprawdza go hookiem przed każdym pobraniem i liczy zapytania do każdej witryny
     strom pyta człowieka raz na sesję i witrynę;
   - na wolne miejsce strom czeka najwyżej 30 s; odrzucone jest także wtedy, gdy strom daje witrynie spokój albo gdy ma
     ona wyczerpany limit lub godzinowy pułap.
+- **Od badania 1.37.0 (wyczerpany limit):**
+  - po `web.perHost` stronach agent słyszy, kiedy witryna znowu da strony: w tej sesji już żadnych albo od określonego
+    czasu (limit tego komputera, strony wszystkich sesji w czasie jednej sesji). Zadanie zostaje otwarte, nigdy
+    wykonane ani porzucone z powodu limitu; do tego czasu inna praca, inaczej koniec sesji. Strony witryny nie próbuje
+    się wcześniej ponownie i na limit się nie czeka; po trzeciej odmowie tej samej witryny w sesji agent słyszy, że
+    ma sesję zakończyć;
+  - `strom run` zadanie, którego praca prowadzi na taką witrynę (zapis skanu przeglądarką agenta albo księga tylko na
+    tej witrynie bez programu pobierającego), na razie pomija i bierze inne: „· T… na razie pominięte: strony … dla
+    tego komputera są wyczerpane do …”. Sesja na takiej witrynie zaczyna się, gdy wolna jest co najmniej jedna
+    trzecia limitu (10 z domyślnych 30);
+  - gdy innego zadania nie ma: przebieg z `--loop` albo `--until` czeka (bez agenta, nic się nie wysyła; „⏸ oczekiwanie
+    do … – pozostałe zadania potrzebują stron …”), inny przebieg się kończy i mówi kiedy („do … nie ma nic do zrobienia
+    – …”). Dla aplikacji Strom to zakończony przebieg, nie błąd;
+  - zadanie czekające na skan, którego przeglądarka agenta nigdy nie zapisała (strona odrzucona), wraca z końcem
+    sesji do kolejki; nigdy się o nim nie mówi, że przeglądarka je wstrzymała.
 - **Tylko metodyka:** przy odrzuconej witrynie najpierw inna droga. Wyszukiwanie zapisuje się z wynikiem
   nierozstrzygającym (`strom search add … --result inconclusive`). Dopiero gdy źródło jest nadal konieczne, zadanie
   czeka na człowieka, aby sprawdził witrynę (`strom task wait --check`, [R6.2.2](R6-awaiting-action.md#R6.2.2)).
 - **Dlaczego:** pobieranie stron i przeglądarka agenta liczą się i zwalniają razem, aby żadna droga nie szła szybciej
   niż inna.
-- **Obsługa:** terminal (agent): `strom net web --check <adres>`.
-- **Obowiązuje od:** badanie 1.14.0
+- **Obsługa:** terminal (agent): `strom net web --check <adres>`; `strom run`.
+- **Obowiązuje od:** badanie 1.14.0; wyczerpany limit od 1.37.0
 
+<!-- zdroj: 1.37.0: research:ce89202a src/core/web.ts ManyWhen, whenText, WEB_REFUSED_LOOP 3, manyText · src/core/webfull.ts (runWebFree perHost/3, WebFull) · src/core/machine.ts siteFreeAt · src/commands/session.ts:1311-1390 webOut, gateHolds (--loop, --until), stopCode web · cs.json ui.run.skip.web, ui.run.web.wait, ui.run.stop.web · CHANGELOG.cs.md 1.37.0 „Vyčerpaný limit webu“ -->
 <!-- zdroj: research:src/core/webgate.ts webGate (TERMS_PER_DAY, browserOnly advice, otherWay) · src/core/web.ts WEB_SOFT 12, WEB_SOFT_GAP_MS, WEB_PER_HOST 30, WEB_WAIT_MAX_MS · src/core/config.ts web.perHost · assets/method/locate.md -->
 
 <a id="R9.4"></a>
@@ -312,8 +337,26 @@ jednym: otwiera skan w Chrome i zapisuje to, co pokazuje przeglądarka skanów a
 - **Obowiązuje od:** badanie 1.27.0. Wstrzymany skan jest zgłaszany od badania 1.30.0, nierysowana karta od 1.31.0.
   Znacznik badania w nazwie pliku, księga bez `--recordset`, sprzątanie późnych kopii, czekanie na zapisywane
   pobieranie i nieosiągalna przeglądarka skanów od 1.33.0.
+- **Od badania 1.37.0 (kilka skanów naraz):**
+  - `--image 40,41,45` albo `--image 40-45` (najwyżej 10 skanów) z jednym `--at` do każdego w ich kolejności albo
+    z jednym adresem z `{n}` w miejscu numeru daje jeden krótszy skrypt dla wszystkich. Skrypt rozpoznaje skan po
+    adresie karty i inną stronę odrzuca;
+  - każdy skan jest nadal na własnej stronie, którą agent otwiera w ludzkim tempie pod pilnowaniem strom; żaden
+    zakres. Jedno `strom media add --inbox --waiting` po ostatnim przejmuje wszystkie;
+  - skan z listy, którego strona nie została jeszcze otwarta, nigdy nie liczy się jako zatrzymany przez przeglądarkę;
+  - Claude Code przy więcej niż trzech skanach przekazuje je pomocnikowi drzewa `strom-image-saver`: mały kontekst,
+    tylko narzędzia, których zapisanie potrzebuje, najwyżej 10 skanów na wywołanie, model `model.cheap` osoby,
+    inaczej model agenta, który go uruchomił. Jego strony liczą się razem ze stronami agenta i obowiązuje je to samo
+    pilnowanie.
+- **Od badania 1.37.0 (oczekiwanie):** dopóki sesja agenta zapisuje skany, zadanie nie czeka na człowieka, a aplikacja
+  Strom pokazuje je jako pracę agenta ([R6.1](R6-awaiting-action.md#R6.1)). Na człowieka czeka: skan zatrzymany przez
+  przeglądarkę (powiedziane od razu na początku oczekiwania), zapisywanie zatrzymane końcem sesji (kontynuuje je
+  następna sesja albo skany zapisuje człowiek; [R6.2.1](R6-awaiting-action.md#R6.2.1)) i oczekiwanie, które agent dla
+  tego samego zadania zapisze sam (`strom task wait --images` po `strom media save`): niedokończone zapisy są
+  odrzucane, a zadanie jest od razu w **Co czeka** z jego słowami. Zadanie czekające na skan, którego stronę
+  pilnowanie odrzuciło (wyczerpany limit witryny), wraca z końcem sesji do kolejki z notatką, które skany zostały.
 
-<!-- zdroj: research:a4a2f6c0 src/core/browser.ts SaveRecord, HELD_AFTER_MS 5000 · src/commands/media.ts heldSaves, heldLine (media add --inbox --waiting) · assets/lang/cs.json browser.wait.held · research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · research:c6b6444d, dee0bb03 src/core/browser.ts VIEWER_HIDDEN_MS = 30_000, CAPTURE_JS (čekání jen na snímky kreslené karty, NOT_SHOWN, „the viewer's tiles did not all come in 30 s“, „the viewer was paged to another image … nothing saved“) · CHANGELOG.cs.md 1.31.0 · 1.33.0: research:7306f2a7 src/core/browser.ts researchMark (8 hex z id), waitFileBase (strom-<značka>-T…-NNNN), staré jméno jen podle SaveRecord.file · f6de01b7 src/commands/media.ts saveBookOf (kniha bez --recordset), tidyDownloads, TAKEN_KEEP_MS 14 dní · 903ce928 media add --inbox --waiting (zapisované stahování, STROM_DOWNLOAD_WAIT_MS, heldSaves dl.unfinished) · f5339b36 findViewer (OpenSeadragon v kódu stránky), hláška „strom cannot reach it … nothing saved“ · strom help media save · CHANGELOG.cs.md 1.33.0 -->
+<!-- zdroj: research:a4a2f6c0 src/core/browser.ts SaveRecord, HELD_AFTER_MS 5000 · src/commands/media.ts heldSaves, heldLine (media add --inbox --waiting) · assets/lang/cs.json browser.wait.held · research:src/commands/media.ts:1206-1294 media save (browserGate, guarded browser, permission browser) · commit dadd91e7 (viewer paged on) · src/core/browserhelp.ts agentBrowserAdvice · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · research:c6b6444d, dee0bb03 src/core/browser.ts VIEWER_HIDDEN_MS = 30_000, CAPTURE_JS (čekání jen na snímky kreslené karty, NOT_SHOWN, „the viewer's tiles did not all come in 30 s“, „the viewer was paged to another image … nothing saved“) · CHANGELOG.cs.md 1.31.0 · 1.33.0: research:7306f2a7 src/core/browser.ts researchMark (8 hex z id), waitFileBase (strom-<značka>-T…-NNNN), staré jméno jen podle SaveRecord.file · f6de01b7 src/commands/media.ts saveBookOf (kniha bez --recordset), tidyDownloads, TAKEN_KEEP_MS 14 dní · 903ce928 media add --inbox --waiting (zapisované stahování, STROM_DOWNLOAD_WAIT_MS, heldSaves dl.unfinished) · f5339b36 findViewer (OpenSeadragon v kódu stránky), hláška „strom cannot reach it … nothing saved“ · strom help media save · CHANGELOG.cs.md 1.33.0 · 1.37.0: research:66ef4451 src/commands/media.ts media save (--image seznam nebo rozsah, nejvýš 10, --at ke každému nebo {n}; skript pozná snímek podle adresy karty; neotevřená stránka není zadržená), agent strom-image-saver (model.cheap, delegate hook) · 81de7cdb, aae8f1aa src/core/waiting.ts savedByAgentNow, waitOnNow · 1c8a4380 (task wait --images po media save: uložení zahozena, čekání hned člověka) · src/core/ownsave.ts unsavedOwnWait, saveNeverOpened (návrat do fronty s koncem sezení) · CHANGELOG.cs.md 1.37.0 -->
 
 <a id="R9.5.1"></a>
 ### R9.5.1 Ostrzejsza kopia skanu
@@ -332,8 +375,24 @@ przeglądarką archiwum przybliżoną albo w pełnej rozdzielczości.
 - **Granice:** tylko cały skan, nie jego wycinek.
 - **Obsługa:** terminal (agent): `strom media save T… --image <numer> --recordset B… --at <adres> --again`.
 - **Obowiązuje od:** badanie 1.33.0
+- **Od badania 1.37.0:** `strom media add --inbox --waiting` przejmuje kopię zapisaną z `--again` od razu: ten
+  sam skan, ostrzejszy, idzie obok jako kopia (obrazem jest ta z największą liczbą pikseli), inny skan staje się
+  obrazem, a dotychczasowy zostaje wycofany i zachowany (ten, który cytuje źródło, zostaje obok). Nic nie jest
+  odkładane ani potwierdzane, żadnego `strom media aside --take` przy każdym skanie.
+- **Od badania 1.37.0 (zrzut ekranu):** porządnie zapisana kopia ma pierwszeństwo przed zrzutem ekranu, nawet gdy ma
+  mniej pikseli. Kopia uchodzi za zrzut ekranu, gdy jej pierwotna nazwa jest nazwą zrzutu ekranu (albo jest to PNG
+  obok JPEG) i jej proporcje boków różnią się od innej kopii skanu o więcej niż 15 %. Kopia pobrana przez program
+  pobierający albo zapisana przez przeglądarkę agenta (nazwa `strom-…-T…-NNNN.jpg`) nigdy nie jest zrzutem ekranu.
+  W przeciwnym razie obowiązuje kolejność według pikseli. Oblicza się to za każdym razem z zapisów, więc tak samo
+  czyta to starsze badanie.
+- **Od badania 1.37.0 (cytaty na inną kopię):** `strom media cites M…` wypisuje źródła, które cytują kopię, i inne
+  kopie tego samego skanu; z `--move-to M…` przenosi je na inną kopię całego skanu (każde źródło jedną zmianą; stara
+  kopia zostaje i nie jest wycofywana). Wycinek miejsca idzie z nimi tylko wtedy, gdy strom rozpozna oba pliki jako
+  ten sam skan tak samo obrócony i nie chodzi o zrzut ekranu obok skanu; inaczej zostaje na starej kopii, a wypis
+  podaje polecenia do jego ponownego zaznaczenia. Wycinek całego skanu idzie zawsze. Nic nie przenosi się samo;
+  `--dry-run` mówi, co by się stało.
 
-<!-- zdroj: research:6651b60b src/commands/media.ts media save --again, againPending, settleAgain · src/core/media.ts findImage (nejvíc pixelů, ne část) · src/core/browser.ts SaveRecord.again · strom help media save (--again) · dirigent:prace/1114-vyzkum-z-hlidani-2/vysledek-sub1.md (A2, otevřené: výřez ne; citace na M… zůstávají) · CHANGELOG.cs.md 1.33.0 -->
+<!-- zdroj: research:6651b60b src/commands/media.ts media save --again, againPending, settleAgain · src/core/media.ts findImage (nejvíc pixelů, ne část) · src/core/browser.ts SaveRecord.again · strom help media save (--again) · dirigent:prace/1114-vyzkum-z-hlidani-2/vysledek-sub1.md (A2, otevřené: výřez ne; citace na M… zůstávají) · CHANGELOG.cs.md 1.33.0 · 1.37.0: research:66ef4451 (--again převzato hned, bez media aside --take) · a2fe388d src/core/media.ts rankCopies (jméno snímku obrazovky, poměr stran > 15 %), src/commands/media.ts media cites --move-to (výřez jen u téhož skenu, jinak příkazy) · d93be067 (PNG vedle JPEG; savedProperly: stahovač nebo jméno strom-…) · 0c7ed4d3 · strom help media cites · CHANGELOG.cs.md 1.37.0 -->
 
 <a id="R9.5.2"></a>
 ### R9.5.2 Przeglądarka, która rysuje kartę powoli
@@ -438,8 +497,26 @@ nich folder. Zadanie wraca do kolejki samo, gdy w badaniu są wszystkie jego ska
     z obu numerów jest błędny. Gdy zmiana nazwy się nie uda, plik zostaje w folderze i mówi się to samo;
   - pliki `.jp2` z portalu Moravský zemský archiv przelicza się z powrotem ([R6.8.2](R6-awaiting-action.md#R6.8.2))
     także w folderze czekającego zadania.
+- **Od badania 1.37.0 (skany zapisane ręcznie):**
+  - numer skanu może być w dowolnym miejscu nazwy (`__0236.jpg`, `Lhota_11__125.jpg`, `fond12_kniha3_236.jpg`):
+    z kilku liczb ta, która należy do chcianych skanów, ta, która zmienia się między plikami folderu, inaczej
+    ostatnia przed rozszerzeniem. Data i godzina zrzutu ekranu nigdy nie są brane za numer, ani rok za numerem
+    (`33 1784.jpg`), gdy nie wiadomo, które skany; nazwa z dwoma chcianymi numerami nie jest zgadywana, lecz
+    zgłaszana;
+  - plik, z którego nie da się rozpoznać numeru skanu (`000.jpg`), nie wstrzymuje pozostałych: zostaje w folderze
+    i jest zgłaszany raz, bez rady, by zmienić nazwę;
+  - pliki nazwane według aktów na nich (`001-004.jpg`) albo własnymi numerami portalu są przejmowane w kolejności
+    folderu jako kolejne skany księgi, gdy przez 20 minut nic więcej się nie zapisze. Akty zostają zapisane przy
+    skanie, a zadanie wraca z listą, który plik jest którym skanem;
+  - kolejny arkusz pod tym samym numerem (`7a.jpg`) jest rozpoznawany po zawartości: kopia, powiększona część skanu
+    albo osobny skan zapisany pod własną nazwą; nigdy nie jest ukrywany jako kopia tylko według nazwy. Dotyczy to tej
+    samej i późniejszej partii, po powrocie zadania i przy `strom media add --inbox <folder>`;
+  - zadanie, do którego przyszła tylko część skanów, wraca po 20 minutach ciszy z tym, co przyszło i czego brakuje;
+    nigdy wcześniej. Skan na granicy dwóch roczników liczy się raz;
+  - pliki nazwane numerem skanu są brane jak dotąd; nic nie jest przenumerowywane. Stan, menu i dziennik mostu mówią,
+    kiedy folder zostanie przejęty i co zostało w folderze (czas lokalny).
 
-<!-- zdroj: research:src/commands/tasks.ts:1041 task wait (--images, folder) · src/core/media.ts:117 inboxFolderFor · src/core/inboxwait.ts:25 SETTLE_MS · src/core/inboxwatch.ts:1-8 (30 s) · src/commands/media.ts:141-180 wakeWaiting · src/core/live.ts waiting/<T> answer, PUT /media (X-Strom-Task, X-Strom-Image, 409 waiting.image-same) · src/commands/media.ts:403-478 (same sha under its number → 200 same: true, added []; another number/book → 409 waiting.image-same) · src/core/waiting.ts actionsOf, archiveGroup · src/core/waitkind.ts waitGroupOf (repo: before archive:, host:) · assets/method/waiting.md "Images saved by hand" (the one exception, 7bd55fa1) · assets/method/reading.md · src/commands/guide.ts rule 7 · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · app:CHANGELOG.cs.md 3.23.0 · src/research-waiting.ts:216-272 (actions, order), :448-488 assignImages · src/research-waiting-write.ts:532 WAITING_ANSWER_MAX · src/ui/research-overview-ui.ts:698-812 group head · src/strings.ts live.waitingTask · 1.33.0: research:bfa01a34 src/commands/media.ts media view (snímek, na který úkol čeká: kdo a další krok) · research:dddeb8a6 src/core/media.ts copyless (COPY_WORD copy/kopie/kopia/…, COPY_PAREN, COPY_BARE jen za číslem), namedByNumber · src/core/inboxwait.ts numberFiles (pořadí jen bez souboru pojmenovaného samým číslem; times .jp2 i u čekajících), bookTimes · src/commands/media.ts registerImages clashed, takeFiles (kolize → rename `${f}.same-as-${same}`, jinak leží; SetAside), asideLine (live.log, výpis ⚠, aside v JSON) · research:18fd10ec COPY_BARE \p{Nd}+\p{L}? („33a 2.jpg“) · CHANGELOG.cs.md 1.35.0 (research:e263eacb) -->
+<!-- zdroj: research:src/commands/tasks.ts:1041 task wait (--images, folder) · src/core/media.ts:117 inboxFolderFor · src/core/inboxwait.ts:25 SETTLE_MS · src/core/inboxwatch.ts:1-8 (30 s) · src/commands/media.ts:141-180 wakeWaiting · src/core/live.ts waiting/<T> answer, PUT /media (X-Strom-Task, X-Strom-Image, 409 waiting.image-same) · src/commands/media.ts:403-478 (same sha under its number → 200 same: true, added []; another number/book → 409 waiting.image-same) · src/core/waiting.ts actionsOf, archiveGroup · src/core/waitkind.ts waitGroupOf (repo: before archive:, host:) · assets/method/waiting.md "Images saved by hand" (the one exception, 7bd55fa1) · assets/method/reading.md · src/commands/guide.ts rule 7 · src/agents/files.ts:80-95 · CHANGELOG.cs.md 1.27.0 · app:CHANGELOG.cs.md 3.23.0 · src/research-waiting.ts:216-272 (actions, order), :448-488 assignImages · src/research-waiting-write.ts:532 WAITING_ANSWER_MAX · src/ui/research-overview-ui.ts:698-812 group head · src/strings.ts live.waitingTask · 1.33.0: research:bfa01a34 src/commands/media.ts media view (snímek, na který úkol čeká: kdo a další krok) · research:dddeb8a6 src/core/media.ts copyless (COPY_WORD copy/kopie/kopia/…, COPY_PAREN, COPY_BARE jen za číslem), namedByNumber · src/core/inboxwait.ts numberFiles (pořadí jen bez souboru pojmenovaného samým číslem; times .jp2 i u čekajících), bookTimes · src/commands/media.ts registerImages clashed, takeFiles (kolize → rename `${f}.same-as-${same}`, jinak leží; SetAside), asideLine (live.log, výpis ⚠, aside v JSON) · research:18fd10ec COPY_BARE \p{Nd}+\p{L}? („33a 2.jpg“) · CHANGELOG.cs.md 1.35.0 (research:e263eacb) · 1.37.0: research:62e335eb src/core/inboxwait.ts (000.jpg leží, akty jako záznamy, cizí jména v pořadí složky po STROM_INBOX_QUIET_MS 20 min, část snímků po tichu), 7a2a04cc src/core/media.ts findPart, 6fee0f71 (7a podle obsahu v každém převzetí i media add --inbox <složka>; soubor ležící schválně řečen jednou; místní čas) · src/core/media.ts (číslo kdekoli v názvu) · assets/method/waiting.md (sken na hranici jednou) · CHANGELOG.cs.md 1.37.0 · dirigent:spec/141 K1.1–K1.6, K2.2 -->
 
 <a id="R9.7"></a>
 ## R9.7 Sesja automatyczna i czat
@@ -494,7 +571,9 @@ mówi „Claude + Chrome”, chodzi o Claude Code z rozszerzeniem Claude in Chro
    Koniec.
 3. W przeciwnym razie agent ustawia `strom task wait T… --images B…:40-45`. Zadanie jest w stanie **czeka**, w Co
    czeka pod nazwą archiwum, z folderem w `inbox/`.
-4. Ze zgodą **przez przeglądarkę** i z Claude + Chrome agent zapisuje skany sam ([R9.5](#R9.5)) i je przejmuje.
+4. Ze zgodą **przez przeglądarkę** i z Claude + Chrome agent zapisuje skany sam ([R9.5](#R9.5)) i je przejmuje. Od
+   badania 1.37.0 zadanie w tym czasie nie czeka na człowieka ani nie jest w Co czeka; na człowieka przechodzi tylko
+   skan zatrzymany przez przeglądarkę albo zapisywanie zatrzymane końcem sesji.
 5. W przeciwnym razie skany zapisuje człowiek do folderu albo wysyła je z aplikacji (**Dodaj skany**)
    ([R9.9](#R9.9)).
 6. Przejęcie: most od razu, w przeciwnym razie start kolejnej sesji albo polecenie `strom media add --inbox --waiting`.
@@ -505,8 +584,12 @@ mówi „Claude + Chrome”, chodzi o Claude Code z rozszerzeniem Claude in Chro
    w folderze jeszcze nic nie mają.
 
 - **Obowiązuje od:** badanie 1.27.0, aplikacja Strom 3.23.0
+- **Od badania 1.37.0:** zadanie, które przeszło na człowieka z powodu przeglądarki agenta (wstrzymane pobieranie,
+  zatrzymane zapisywanie) albo czeka na skany księgi, do której przeglądarka agenta ma dostęp, człowiek zwraca
+  agentowi, gdy przeszkoda minęła ([R6.7.3](R6-awaiting-action.md#R6.7.3)); zadanie trafia od razu na początek
+  kolejki i wraca do kroku 4.
 
-<!-- zdroj: research:src/commands/media.ts:141 wakeWaiting · src/core/archivewait.ts:188 wakeForArchive · src/core/inboxwatch.ts · src/commands/session.ts takeWaiting · src/core/live.ts waiting answer -->
+<!-- zdroj: research:src/commands/media.ts:141 wakeWaiting · src/core/archivewait.ts:188 wakeForArchive · src/core/inboxwatch.ts · src/commands/session.ts takeWaiting · src/core/live.ts waiting answer · 1.37.0: research:81de7cdb src/core/waiting.ts savedByAgentNow -->
 
 <a id="R9.9"></a>
 ## R9.9 Co robi człowiek
@@ -804,8 +887,16 @@ jest jednym wspólnym wydarzeniem **Spis ludności** ([A10.1](A10-shared-events.
   `--member P0002:"głowa rodziny":41 --member P0003:"żona głowy rodziny":36 --others "parobek, 19 lat"`
   zapisze Janowi Horákowi głowę gospodarstwa domowego (41), a Marie Horákovej żonę (36), oba na dzień 31.12.1890.
 - **Obowiązuje od:** badanie 1.36.0, aplikacja 3.31.0
+- **Od badania 1.37.0:**
+  - spis ludności osoby zapisany jako własne wydarzenie z nazwą spisu („Spis ludności”, „Census”, „Sčítání lidu”…)
+    idzie do aplikacji Strom jako spis ludności (`1 CENS`); zapis w badaniu zostaje, jak został zapisany. Wydarzenie
+    pary i nazwa z czymś więcej zostają, jak są. Aplikacja 3.32.0 nie pokazuje już takiego spisu przekreślonego przy
+    wczytaniu wersji badania ([S2.7.1](S2-edits-from-the-app.md#S2.7.1));
+  - `strom check` ostrzega przed dwoma spisami jednej osoby z tą samą datą (`two-censuses`) i radzi zachować ten,
+    który mówi więcej (gospodarstwo domowe, cytaty), a drugi wycofać `strom event retract`;
+  - te same słowa zapisu cytowanego dwa razy trafiają do notatki faktu, imienia lub rodziny tylko raz.
 
-<!-- zdroj: research:8dba2e52 src/commands/household.ts census add (--source, --date, --place, --house, --member, --others, --note, --locator, --transcript/--quote, --information, --status, --country; sameHouse, elsewhere) · src/core/household.ts addHousehold (census.member.none, record.none, merged/retracted, census.member.twice, census.living, relace chybí, census.head.twice, domácnost už zapsaná; jeden člen bez share id, vztah do poznámky; others jen v poznámce), parseMember, alignCopies · src/gedcom/export.ts (2 NOTE bez řádků kopie) · src/commands/people.ts alignCopies u note edit/retract/restore, cite, event edit, event main · research:ece404b9 src/core/origin.ts (přijatý návrh na všechny kopie), censusDay jedna tabulka · research:5a73905e assets/archives.json censusDays CZ · research:d2bef48e src/core/household.ts householdRoleOf, src/core/phrases.ts HOUSEHOLD_ROLES, HOUSEHOLD_ROLES_ALSO, HOUSEHOLD_OF_HEAD · test/cli/census-household.test.ts, census-reader.test.ts · assets/method/census.md „Reading and recording“ · CHANGELOG.cs.md 1.36.0 · dirigent:spec/106 K3.1–K3.3 · dirigent:prace/1120-vyzkum-106-scitani Výsledek (census add i při vypnutí, stav jen výslovně) -->
+<!-- zdroj: research:8dba2e52 src/commands/household.ts census add (--source, --date, --place, --house, --member, --others, --note, --locator, --transcript/--quote, --information, --status, --country; sameHouse, elsewhere) · src/core/household.ts addHousehold (census.member.none, record.none, merged/retracted, census.member.twice, census.living, relace chybí, census.head.twice, domácnost už zapsaná; jeden člen bez share id, vztah do poznámky; others jen v poznámce), parseMember, alignCopies · src/gedcom/export.ts (2 NOTE bez řádků kopie) · src/commands/people.ts alignCopies u note edit/retract/restore, cite, event edit, event main · research:ece404b9 src/core/origin.ts (přijatý návrh na všechny kopie), censusDay jedna tabulka · research:5a73905e assets/archives.json censusDays CZ · research:d2bef48e src/core/household.ts householdRoleOf, src/core/phrases.ts HOUSEHOLD_ROLES, HOUSEHOLD_ROLES_ALSO, HOUSEHOLD_OF_HEAD · test/cli/census-household.test.ts, census-reader.test.ts · assets/method/census.md „Reading and recording“ · CHANGELOG.cs.md 1.36.0 · dirigent:spec/106 K3.1–K3.3 · dirigent:prace/1120-vyzkum-106-scitani Výsledek (census add i při vypnutí, stav jen výslovně) · 1.37.0: research:6aa96d31 src/gedcom/export.ts (vlastní událost sčítání jako 1 CENS), src/core/labelkind.ts kindOfLabel, strom check two-censuses, poznámka bez zdvojených slov · CHANGELOG.cs.md 1.37.0 · dirigent:K052 -->
 
 <a id="R9.12.4"></a>
 ### R9.12.4 Spisy ludności wyłączone: odłożone zadania

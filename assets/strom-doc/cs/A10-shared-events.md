@@ -240,5 +240,9 @@ Strom uložený starší verzí aplikace se při prvním otevření upraví pro 
 - **Ovládání:** nic, proběhne samo. Záloha je v nabídce stromu → **Zálohy** → **Historie záloh**
   ([S6.5](S6-tree-from-another-program.md#S6.5)).
 - **Platí od:** aplikace 3.28.0
+- **Od aplikace 3.32.0:** totéž platí už při čtení verze výzkumu: vlastní událost se jménem sčítání
+  (`1 EVEN` / `2 TYPE Sčítání lidu`) je sčítání. **Načíst verzi výzkumu?** ji proto neukazuje přeškrtnutou a párování
+  událostí ji bere jako sčítání ([S2.7.1](S2-edits-from-the-app.md#S2.7.1)). Jméno s něčím navíc („Sčítání lidu
+  1890“) zůstane vlastní událostí.
 
-<!-- zdroj: app:80c2ffb9 src/tree-manager.ts (verze dat 20, migrace), src/snapshots.ts 'pre-migration' · src/shared-events.ts (zahození neplatných shareId) · strings.ts snapshots.pre-migration „Před úpravou dat pro novou verzi“ · test gedcom-census-legacy.test.ts · dirigent:prace/1113-app-085-nalezy Výsledek (Census → census, záloha, NFC, trim, bez roleAt) -->
+<!-- zdroj: app:1319a508 src/ged-parser.ts, src/research-changes.ts (3.32.0, K052) · app:80c2ffb9 src/tree-manager.ts (verze dat 20, migrace), src/snapshots.ts 'pre-migration' · src/shared-events.ts (zahození neplatných shareId) · strings.ts snapshots.pre-migration „Před úpravou dat pro novou verzi“ · test gedcom-census-legacy.test.ts · dirigent:prace/1113-app-085-nalezy Výsledek (Census → census, záloha, NFC, trim, bez roleAt) -->

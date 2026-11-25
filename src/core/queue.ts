@@ -198,7 +198,7 @@ export function waitsForDecision(tree: Tree, qs: PendingQuestion[] = permissionQ
 }
 
 /** Levels whose work asks an archive for its images or its indexes (the user's material, a request, a story: none). */
-const ASKS_ARCHIVE = new Set(["locate", "link", "verify", "enrich"]);
+export const ASKS_ARCHIVE = new Set(["locate", "link", "verify", "enrich"]);
 
 /**
  * An open task whose archive strom leaves alone now (core/leftalone.ts): its level asks an archive, every record set of
@@ -400,7 +400,10 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     const gen = at?.gen ?? OFF_LINE_GENERATION;
     const line = at?.line ?? `task:${t.id}`;
     const recent = recentLines.filter((l) => l === line).length;
-    const tried = tries.get(t.id) ?? 0;
+    // returned to the agent by the person (What waits, spec 089): only the sessions since count against it
+    const tried = t.retried ? ended.filter((s) => s.task === t.id && (s.ended ?? s.updated) > t.retried!.at).length : (tries.get(t.id) ?? 0);
+    // … and while that turn holds, its images are the agent's browser's to fetch, not the person's to download
+    const returned = !!t.retried && !hist && own(t) === "next";
     const intake = t.level === "intake" ? 3 : 0;
     const score =
       strategy === "depth"
@@ -408,7 +411,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
         : strategy === "priority"
           ? 0
           : 2 * t.priority + intake - (gen - 1) - 2 * recent - 1.5 * tried + lineBonus(lineAt);
-    const blocked = lacksImages(tree, t, withImages);
+    const blocked = !returned && lacksImages(tree, t, withImages);
     // queue.sameBook: the next task of the book the last session worked in, its images on disk (one that can be done now)
     const inBook = !!sameBook && !blocked && !forHistory(t) && booksOfTask(tree, t).some((b) => b.id === sameBook.book);
     const storyTurn = storyDue && forStory(t);
@@ -461,6 +464,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
       placesAsked ? "places the person asked to be identified: on top of the queue" : undefined,
       storyTurn ? STORY_WHY : undefined,
       blocked ? "needs images the user has to download" : undefined,
+      returned ? "the person returned it to the agent (What waits): its images through the agent's browser" : undefined,
       inBook ? `the same book as the last session (${sameBook!.book}, its images on disk: queue.sameBook; ${sameBook!.inRow} in a row so far, at most ${SAME_BOOK_MAX})` : undefined,
       `p${t.priority}`,
       t.level === "intake" ? "the user's material" : at ? `generation ${gen}` : "not about an ancestor",

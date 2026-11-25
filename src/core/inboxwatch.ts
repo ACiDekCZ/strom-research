@@ -14,6 +14,7 @@ import path from "node:path";
 import type { Env } from "./paths.ts";
 import { Tree } from "./tree.ts";
 import { bookFolders, folderBusy, folderFiles, inboxWaits, SETTLE_MS } from "./inboxwait.ts";
+import { dueAfterQuiet } from "./inboxsettle.ts";
 
 export interface InboxWatch {
   /** The folders watched now (for the log and tests). */
@@ -77,6 +78,16 @@ export function watchInbox(o: InboxWatchOptions): InboxWatch {
     }
   };
 
+  const settledNow = (): Set<string> => {
+    const shared = o.shared();
+    if (!shared || !watchers.size) return new Set();
+    try {
+      return dueAfterQuiet(Tree.open(o.root, o.env), shared, Date.now(), o.env);
+    } catch {
+      return new Set();
+    }
+  };
+
   const rewatch = () => {
     const want = new Set(wanted());
     for (const [dir, w] of watchers)
@@ -105,7 +116,14 @@ export function watchInbox(o: InboxWatchOptions): InboxWatch {
     if (ended || taking) return;
     let due = false;
     let wait = 0;
+    // a folder that settled with something to do (spec 141: files named not by the images' numbers, a task a part of
+    // whose images came): taken once more, though nothing in it changed — once done, never due again
+    const settled = settledNow();
     for (const dir of watchers.keys()) {
+      if (settled.has(dir)) {
+        due = true;
+        continue;
+      }
       const files = folderFiles(dir);
       if (!files.length) {
         tried.delete(dir);

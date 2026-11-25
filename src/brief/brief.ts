@@ -5,9 +5,11 @@
 // The brief has a hard token budget; sections come in priority order and
 // what does not fit is cut to a pointer: the command that shows the rest.
 
+import { religionNamed } from "../core/religion.ts";
 import { noteWhole } from "../core/model.ts";
+import { LIST_PEOPLE } from "../core/lists.ts";
 import { orderCitations } from "../core/citeorder.ts";
-import type { Citation, Conflict, Family, Hypothesis, HypothesisVariant, Input, Lesson, Media, Name, Person, Place, RecordSet, Repository, Research, Search, Session, Source, Task, VariantLink } from "../core/model.ts";
+import type { Citation, Conflict, Family, Hypothesis, HypothesisVariant, Input, InputList, Lesson, Media, Name, Person, Place, RecordSet, Repository, Research, Search, Session, Source, Task, VariantLink } from "../core/model.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { inboxFolders, inputPath } from "../core/media.ts";
@@ -63,6 +65,7 @@ import { WEB_SOFT } from "../core/metrics.ts";
 import { indexBriefLines } from "../core/indexfirst.ts";
 import { activeFetches, endedFetches, heavySaid, withRegistered } from "../core/fetching.ts";
 import { needsBooks, sameBookLine } from "../core/books.ts";
+import { addressLabel, contactOnlyEvent } from "../core/contact.ts";
 
 /** What strom tuned for the session's agent and model (core/tune.ts), as at the session's start: it holds for all of it. */
 interface BriefTuning {
@@ -168,7 +171,7 @@ function eventLine(tree: Tree, e: Person["events"][number]): string {
   const cites = citesOf(orderCitations(e.citations, (id) => tree.get<Source>(id), { kind: e.kind, date: e.date }));
   // what the user removed from the fact: never cited there again without a reason (strom cite … --reason)
   const removed = (e.uncited ?? []).filter((u) => !u.cleared).map((u) => u.source);
-  return `    ${e.id} ${e.kind}${e.label ? ` ${e.label}` : ""}${e.date ? ` ${e.date}` : ""}${e.place ? ` ${e.place}` : ""}${e.house ? `, house ${e.house}` : ""}${e.value ? ` "${e.value}"` : ""} [${e.status}]${cites ? ` ← ${cites}` : ""}${removed.length ? ` (removed by the user: ${[...new Set(removed)].join(", ")})` : ""}`;
+  return `    ${e.id} ${e.kind}${e.label ? ` ${e.label}` : ""}${e.date ? ` ${e.date}` : ""}${e.place ? ` ${e.place}` : ""}${e.house && !addressLabel(e.house) ? `, house ${e.house}` : ""}${e.value ? ` "${e.value}"` : ""} [${e.status}]${cites ? ` ← ${cites}` : ""}${removed.length ? ` (removed by the user: ${[...new Set(removed)].join(", ")})` : ""}`;
 }
 
 function citesOf(citations: Citation[] | undefined): string {
@@ -182,13 +185,27 @@ function notesShort(p: Person): string[] {
   return [`    note: ${noteStart(noteWhole(last), NOTE_LINE)}${p.notes.length > 1 ? ` (${p.notes.length} notes: strom person show ${p.id})` : [...noteWhole(last).replace(/\s+/gu, " ").trim()].length > NOTE_LINE ? ` (strom person show ${p.id})` : ""}`];
 }
 
+/**
+ * A religion the person's own record names in its transcript, with no RELI fact (core/religion.ts religionNamed): one
+ * line to write it down when working on them — the record's own words, never guessed; nothing when there is none.
+ */
+function religionLine(tree: Tree, p: Person): string[] {
+  const named = religionNamed(tree, p);
+  if (!named.length) return [];
+  const first = named[0]!;
+  return [
+    `    religion: the transcript of ${named.slice(0, 3).map((n) => `${n.source} says "${n.text}"`).join(", ")} — no RELI fact; if the record says it of ${p.id} clearly: strom event add ${p.id} RELI --value "${first.text}" --date <the record's> --cite ${first.source}`,
+  ];
+}
+
 /** Whom the task is about: every fact with its sources, other names, parents, families, the story — and the last notes (in short: the start of the last one). */
 function personBlock(tree: Tree, p: Person, depth: number, short = false): string[] {
   const out = [`  ${label(p)} ${p.sex}`];
   // other names, and where any name comes from
   if (p.names.length > 1 || p.names.some((n) => n.citations?.length))
     out.push(`    names: ${p.names.map((n) => `${formatName(n)}${n.kind ? ` (${n.kind})` : ""}${n.primary ? " (shown by it)" : ""}${n.citations?.length ? ` ← ${citesOf(n.citations)}` : ""}`).join("; ")}`);
-  for (const e of p.events.filter((x) => !x.retracted)) out.push(eventLine(tree, e));
+  // a residence of nothing but a contact is no fact to work on (spec 134 U11): never shown, its e-mail never in a brief
+  for (const e of p.events.filter((x) => !x.retracted && !contactOnlyEvent(x))) out.push(eventLine(tree, e));
   const parents = parentsOf(tree, p.id);
   const birthFamily = familiesAsChild(tree, p.id)[0];
   out.push(`    parents: ${parents.length ? parents.map(label).join(" & ") : "unknown"}${birthFamily?.citations?.length ? ` (${birthFamily.id} ← ${citesOf(birthFamily.citations)})` : ""}`);
@@ -198,6 +215,7 @@ function personBlock(tree: Tree, p: Person, depth: number, short = false): strin
       const kids = f.children.map((c) => tree.get<Person>(c.person)).filter(Boolean).map((x) => `${displayName(x!)}${lifespan(x!) ? ` ${lifespan(x!)}` : ""}`);
       out.push(`    ${f.id} with ${partner.join(", ") || "?"}${kids.length ? ` · children: ${kids.join(", ")}` : ""}`);
     }
+  out.push(...religionLine(tree, p));
   if (p.story) out.push(`    story: ${p.story.status}${p.story.title ? ` "${p.story.title}"` : ""}, ${p.story.text.split(/\s+/).length} words (strom story show ${p.id})`);
   if (short) return [...out, ...notesShort(p)];
   for (const n of p.notes.slice(-3)) out.push(`    note: ${noteWhole(n)}`);
@@ -211,7 +229,9 @@ const NOTE_SHOWN = 300;
 
 /** Where a person lived and what they did, the years with each: what tells namesakes apart. */
 function identifying(p: Person, vitalToo: boolean): { houses: string[]; work: string[]; more: number } {
-  const facts = p.events.filter((e) => !e.retracted && !VITAL.has(e.kind));
+  // a residence of nothing but a contact (spec 134 U11) is neither where they lived nor a fact more
+  const kept = p.events.filter((e) => !e.retracted && !contactOnlyEvent(e));
+  const facts = kept.filter((e) => !VITAL.has(e.kind));
   const grouped = (list: [string, string | undefined][]) => {
     const by = new Map<string, Set<number>>();
     for (const [what, date] of list) {
@@ -226,8 +246,10 @@ function identifying(p: Person, vitalToo: boolean): { houses: string[]; work: st
     });
   };
   // where they lived: a house in a place, or the place of a residence
-  const lived = (e: Person["events"][number]) => !!e.house || (e.kind === "RESI" && !!e.place);
-  const houses = grouped((vitalToo ? p.events.filter((e) => !e.retracted) : facts).filter(lived).map((e) => [[e.place, e.house].filter(Boolean).join(" "), e.date]));
+  // (a label of an address, "Email", is no house)
+  const house = (e: Person["events"][number]) => (e.house && !addressLabel(e.house) ? e.house : undefined);
+  const lived = (e: Person["events"][number]) => !!house(e) || (e.kind === "RESI" && !!e.place);
+  const houses = grouped((vitalToo ? kept : facts).filter(lived).map((e) => [[e.place, house(e)].filter(Boolean).join(" "), e.date]));
   const work = grouped(facts.filter((e) => e.kind === "OCCU" && e.value).map((e) => [e.value!, e.date]));
   const more = facts.filter((e) => !lived(e) && !(e.kind === "OCCU" && e.value)).length;
   return { houses, work, more };
@@ -462,6 +484,32 @@ function lookAlike(a: string, b: string): boolean {
     prev = row;
   }
   return prev[y.length]! <= max;
+}
+
+/**
+ * The list of people the material was sent to (spec 137 K2.4): its name, kind and rule, how many of its people the
+ * research has (and has not), and its file — the IDs of all its people as they were sent, when the list is longer than
+ * the people it is of (those are in People concerned).
+ */
+function listLine(tree: Tree, l: InputList, of: number): string {
+  const kind = l.kind === "auto" ? `automatic${l.rule ? `, rule: ${l.rule}` : ""}` : l.kind === "work" ? "a working list" : l.kind === "fixed" ? "fixed" : l.rule ? `rule: ${l.rule}` : "";
+  const people = `${l.count} ${l.count === 1 ? "person" : "people"}${l.missing ? `, ${l.missing} more not in the research yet` : ""}`;
+  return `list: "${l.name}" (${[kind, people, `as sent ${l.at.slice(0, 10)}`].filter(Boolean).join("; ")})${l.count > of ? ` — the IDs of all its people: ${path.join(tree.root, ...l.file.split("/"))} (look them up yourself: strom person show P…)` : ""}`;
+}
+
+/**
+ * The list of people a scan of a source the task reads was sent to (spec 137, media.list.source): named, and whom the
+ * names read on it are matched to first — up to LIST_PEOPLE of its people are in about, a longer list in its file.
+ */
+function scanLists(tree: Tree, task: Task): string[] {
+  const lists = task.where
+    .map((w) => (/^M\d{4,}$/.test(w) ? tree.get<Media>(w) : undefined))
+    .filter((m): m is Media => !!m && m.type === "media" && !!m.list);
+  if (!lists.length) return [];
+  return [
+    ...lists.map((m) => `${m.id} ${listLine(tree, m.list!, m.list!.count <= LIST_PEOPLE ? m.list!.count : 0)}`),
+    `(the user sent the scan for the list's people: match each name you read on it to them first — only a name none of them fits is looked for in the whole tree, strom find "<name>")`,
+  ];
 }
 
 /** What the material of an intake task says, for the lessons it needs: its words, or unknown (an image, a document). */
@@ -789,7 +837,7 @@ function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, sha
             ? `a part sharper: strom fetch ${route.connector} --recordset ${b.id} --images <n> --crop x,y,w,h`
             : // an archive your own browser saves images of: the image once more, sharper — never a wait for the person
               saveAgain
-              ? `a sharper scan through your browser: ${saveAgain} (the viewer zoomed in on the entry, or its full resolution; a new copy beside it, nothing removed — the sharpest is the image)`
+              ? `a sharper scan through your browser: ${saveAgain} (the viewer zoomed in on the entry, or its full resolution; strom media add --inbox --waiting takes it at once — no media aside --take: the one there is kept)`
               : SHARPER_SCAN
         }`
       : "",
@@ -1147,6 +1195,7 @@ export function buildBrief(
         `why:   ${task.why}`,
         `done:  ${task.doneWhen}`,
         task.subject.length ? `about: ${task.subject.join(" ")}` : "",
+        ...scanLists(tree, task),
         ...surnameFormLines(tree, task),
         ...task.notes.slice(-3).map((n) => `note:  ${n.text}`),
         task.notes.length > 3 ? `(notes: the last 3 of ${task.notes.length} — all: strom task show ${task.id})` : "",
@@ -1208,12 +1257,17 @@ export function buildBrief(
             read ? `read: ${read}` : "",
             i.batch ? `batch: ${i.batch}${i.path ? ` · ${i.path}` : ""}` : "",
             i.persons?.length ? `of: ${i.persons.join(", ")}` : "",
+            i.list ? listLine(tree, i.list, (i.persons ?? []).length) : "",
             i.sorted ? `sorted: ${i.sorted.as}${i.sorted.source ? ` → ${i.sorted.source}` : ""}${i.sorted.reason ? ` (${i.sorted.reason})` : ""}` : "",
             i.imported ? `imported: ${i.imported.persons} persons, ${i.imported.families} families as leads, cited as ${i.source}` : "",
             ...i.notes.map((n) => `note: ${n.text}`),
             i.text ? `text:\n${i.text}` : small ? `text:\n${small}` : "",
           ].filter(Boolean).join("\n");
         }),
+        // whom the names read on it are matched to first (spec 137 K2.2): the people it was sent for, its list's
+        ...(inputs.some((i) => i.persons?.length || i.list)
+          ? [`(the user sent it for these people${inputs.some((i) => i.list) ? " and the list's" : ""}: match each name you read on it to them first — only a name none of them fits is looked for in the whole tree, strom find "<name>")`]
+          : []),
       ].join("\n"),
     });
   } else

@@ -18,6 +18,7 @@ import { afterDeath, afterDeathMessage } from "./afterdeath.ts";
 import { longNames, NAME_WORDS_MAX } from "./participants.ts";
 import { sameStrongIds } from "./originalids.ts";
 import { twoPeople } from "./quality.ts";
+import { isCensus } from "./labelkind.ts";
 
 export interface Finding {
   level: "error" | "warn";
@@ -198,6 +199,19 @@ export function check(tree: Tree): Finding[] {
       params: { a: d.a, b: d.b },
     });
 
+  // 5h. one person in two censuses of the same date (K052: an event of its own "Sčítání lidu" beside a CENS the household
+  // command wrote, or one census written twice): most likely one record twice — looked into, never blocking; a fact the
+  // person wrote is taken back only on their word (strom event retract makes it a proposal)
+  for (const f of twoCensuses(persons))
+    out.push({
+      level: "warn",
+      code: "two-censuses",
+      id: f.person,
+      message: `${f.person} has ${f.events.length} censuses of ${f.date}: ${f.events.join(", ")} — likely one record twice`,
+      hint: `strom person show ${f.person} — one census twice: keep the one that says more (household, citations), retract the other: strom event retract <${f.events.join("|")}> --reason "the census of ${f.date} twice"`,
+      params: { person: f.person, date: f.date, events: f.events.join(",") },
+    });
+
   // 6. counters are ahead of every ID on disk
   const counters = readJsonIfExists<Record<string, number>>(path.join(tree.dataDir, "_counters.json")) ?? {};
   for (const id of [...seen.keys(), ...eventOwner.keys()]) {
@@ -207,6 +221,24 @@ export function check(tree: Tree): Finding[] {
       out.push({ level: "warn", code: "counter", id, message: `counter ${prefix} is behind existing IDs (it self-heals on next write)` });
   }
 
+  return out;
+}
+
+/** People with two or more censuses (CENS, or EVEN named a census) of one date: the person, the date, the events. */
+export function twoCensuses(persons: Person[]): { person: string; date: string; events: string[] }[] {
+  const out: { person: string; date: string; events: string[] }[] = [];
+  for (const p of persons) {
+    if (p.retracted) continue;
+    const byDate = new Map<string, { date: string; events: string[] }>();
+    for (const e of p.events) {
+      if (e.retracted || !e.date?.trim() || !isCensus(e)) continue;
+      const key = e.date.normalize("NFC").replace(/\s+/g, " ").trim().toUpperCase();
+      const at = byDate.get(key) ?? { date: e.date.trim(), events: [] };
+      at.events.push(e.id);
+      byDate.set(key, at);
+    }
+    for (const at of byDate.values()) if (at.events.length > 1) out.push({ person: p.id, ...at });
+  }
   return out;
 }
 

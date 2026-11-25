@@ -9,6 +9,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { acquireLock } from "./lock.ts";
+import { viaChecked } from "./devicevia.ts";
+import type { AppClient } from "./model.ts";
 
 /** A run's worker as the app is told it and sends it back (strom run: run-<pid>-<base36>). */
 export const RUN_ID = /^run-[A-Za-z0-9._-]{1,36}$/;
@@ -27,6 +29,8 @@ export interface RunState {
   /** Its session at work now, and that session's task. */
   session?: string;
   task?: string;
+  /** The device of the home network whose terminal started it (spec 094 K3.15). */
+  device?: AppClient;
 }
 
 /** Why a run ended, as the app is told (runsEnded[].why). */
@@ -110,6 +114,7 @@ export function readRunState(root: string, id: string): RunState | undefined {
     ...(typeof s.model === "string" && s.model ? { model: s.model } : {}),
     ...(s.stop === "finish" || s.stop === "stop" ? { stop: s.stop } : {}),
     ...(typeof s.session === "string" && /^N\d+$/u.test(s.session) ? { session: s.session, ...(typeof s.task === "string" && /^T\d+$/u.test(s.task) ? { task: s.task } : {}) } : {}),
+    ...(viaChecked(s.device) ? { device: viaChecked(s.device)! } : {}),
   };
 }
 
@@ -131,8 +136,8 @@ export function askRunStop(root: string, id: string, how: RunStop, by = "user"):
  * The run's own writer of its file: a step at most every WRITE_MS (the last one always written in the end), its
  * sessions and the stop it saw at once. `end` takes its files away.
  */
-export function runStateWriter(root: string, id: string, model?: string): { step(text: string): void; session(id: string | undefined, task?: string): void; sessions(n: number): void; stop(how: RunStop): void; end(): void } {
-  const state: RunState = { sessions: 0, ...(model ? { model } : {}) };
+export function runStateWriter(root: string, id: string, model?: string, device?: AppClient): { step(text: string): void; session(id: string | undefined, task?: string): void; sessions(n: number): void; stop(how: RunStop): void; end(): void } {
+  const state: RunState = { sessions: 0, ...(model ? { model } : {}), ...(device ? { device } : {}) };
   let last = 0;
   let timer: NodeJS.Timeout | undefined;
   let ended = false;
@@ -191,7 +196,8 @@ export function clearRunFiles(root: string, id: string): void {
 /** Why a run ended, from strom run's stop code (and whether it was asked to stop). */
 export function runEndOf(stop: string, asked: boolean): RunEnd {
   if (asked || stop === "user") return "stopped";
-  if (["done", "empty", "tasks", "sessions", "asleep"].includes(stop)) return "done";
+  // nothing to do until a time (asleep: the subscription's window; web: a site whose pages are used up here) is a run done
+  if (["done", "empty", "tasks", "sessions", "asleep", "web"].includes(stop)) return "done";
   if (stop === "limit") return "limit";
   if (stop === "gate" || stop === "gate.cap" || stop === "gate.declined") return "gate";
   if (stop === "time") return "time";

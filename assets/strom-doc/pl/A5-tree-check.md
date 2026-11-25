@@ -218,8 +218,10 @@ osoby**.
     jedna osoba na pewno zmarła przed urodzeniem (lub chrztem) drugiej.
 - **Obsługa:** **To dwie różne osoby** ([A5.7](#A5.7)); przy werdykcie badania **Scal…** ([A5.6.1](#A5.6.1)).
 - **Obowiązuje od:** aplikacja 1.9.9; lata z chrztu i zgonu 3.17.0
+- Scalenie dwóch osób jednego drzewa to coś innego niż scalenie dwóch drzew albo import drzewa genealogicznego do
+  drzewa ([A8](A8-merging-trees.md)): to prowadzi kreator i można je cofnąć ([A8.12](A8-merging-trees.md#A8.12)).
 
-<!-- zdroj: app:src/validation.ts:1084 birthYears, :1127 checkPossibleDuplicates STAND_IN_YEARS_SLACK · strings.ts treeManager.valGroupPossibleDuplicate, twoPeople -->
+<!-- zdroj: app:src/validation.ts:1084 birthYears, :1127 checkPossibleDuplicates STAND_IN_YEARS_SLACK · strings.ts treeManager.valGroupPossibleDuplicate, twoPeople · odkaz na A8: spec 134 (dokumentace „A5.6 odkaz“) -->
 
 <a id="A5.6.1"></a>
 ### A5.6.1 Werdykt badania

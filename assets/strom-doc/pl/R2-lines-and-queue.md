@@ -143,6 +143,10 @@ rozpoczęte idzie przed wszystkimi.
   (miejsca), `enrich` (źródła poza metrykami), `request` (zapytania), `story` (opowieści), `history` (historia),
   `census` (spisy ludności, [R9.12](R9-archives.md#R9.12)), `other` (inne); nieznany rodzaj kończy się błędem
   z listą rodzajów. W aplikacji rząd **Rodzaj zadania** w **Kolejce** ([S4.2.4](S4-research-from-the-app.md#S4.2.4)).
+- **Od badania 1.37.0:** zadanie, które człowiek zwrócił agentowi z **Co czeka**
+  ([R6.7.3](R6-awaiting-action.md#R6.7.3)), dostaje miejsce jak zadanie **od razu** (klucz 2); kilka zwróconych naraz
+  między sobą w kolejności kolejki. Strategia liczy mu tylko sesje od zwrotu, a klucz 7 go nie wstrzymuje, dopóki
+  jest jego kolej.
 
 <!-- zdroj: 1.36.0: research:7116bb60 src/core/taskkind.ts (TASK_KINDS, taskKind; census: research:c7b117cd), src/commands/task.ts list --kind, src/core/verify.ts verifyBulk try (priority 3, queueAt next) · CHANGELOG.cs.md 1.36.0 · research:src/core/queue.ts rankTasks (řazení :374-396), LEVEL_ORDER :52, linksFirst (hypolinks.ts:453), placesFirst · verze klíčů: git log -S na „a.blocked - b.blocked“ (v1.0.0), „a.story - b.story“ (v1.1.0), „a.first - b.first“ (v1.17.0), „a.hist - b.hist“ (v1.22.0), „a.offLine - b.offLine“ a placesFirst (v1.25.0) · 1.32.0: src/core/live.ts searchQueue, queueAsk (GET /queue?q=, q nikdy v logu mostu), funkce queue.search · CHANGELOG.cs.md 1.32.0 · 1.33.0: research:c50f80f5 task list --all (= --state all), strom help task list -->
 

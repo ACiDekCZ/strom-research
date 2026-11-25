@@ -27,12 +27,12 @@ chain = chain.then(async () => {
   }
 });
 
-const answer = async (m: { id: number; argv: string[] }) => {
+const answer = async (m: { id: number; argv: string[]; env: Record<string, string> }) => {
   let stdout = "";
   let stderr = "";
   let code: number;
   try {
-    code = await main(m.argv, { stdout: (s) => (stdout += s), stderr: (s) => (stderr += s), tty: false, stdinText: () => "" }, { ...base }, home);
+    code = await main(m.argv, { stdout: (s) => (stdout += s), stderr: (s) => (stderr += s), tty: false, stdinText: () => "" }, { ...base, ...m.env }, home);
   } catch (e) {
     // as a strom started for it ends on what it did not catch
     stderr += `${(e as Error)?.stack ?? String(e)}\n`;
@@ -48,9 +48,13 @@ const answer = async (m: { id: number; argv: string[] }) => {
   }
 };
 
-process.on("message", (m: { id?: unknown; argv?: unknown }) => {
+// what one command gets beside: only the device of the home network it writes for (core/devicevia.ts), for it alone
+const { VIA_KEYS } = await import("./devicevia.ts");
+process.on("message", (m: { id?: unknown; argv?: unknown; env?: unknown }) => {
   if (typeof m?.id !== "number" || !Array.isArray(m.argv)) return;
-  const msg = { id: m.id, argv: m.argv.map(String) };
+  const extra = m.env && typeof m.env === "object" ? (m.env as Record<string, unknown>) : {};
+  const env = Object.fromEntries(VIA_KEYS.filter((k) => typeof extra[k] === "string").map((k) => [k, extra[k] as string]));
+  const msg = { id: m.id, argv: m.argv.map(String), env };
   chain = chain.then(() => answer(msg));
 });
 // let go by the bridge (or the bridge gone): what it writes now finishes, then it ends

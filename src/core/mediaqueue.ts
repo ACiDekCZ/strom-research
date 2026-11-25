@@ -13,6 +13,8 @@ import { StromError, UsageError } from "./errors.ts";
 import { HELD, retryingHeld, type HeldError } from "./json.ts";
 import type { Env } from "./paths.ts";
 import type { Tree } from "./tree.ts";
+import type { AppClient } from "./model.ts";
+import { viaChecked, viaTaken } from "./devicevia.ts";
 import { fileSha256, sharedMediaPath } from "./media.ts";
 import { knownOriginal, originalMax, ORIGINAL_TYPES, takeOriginal, type TakenOriginal } from "./originals.ts";
 import { batchFileOf, batchFull, batchPath, batchRoom, noteBatch, openBatch, readBatch, type Batch, type BatchTaken } from "./batches.ts";
@@ -28,6 +30,8 @@ export interface QueueJob {
   name: string;
   persons: string[];
   families?: string[];
+  /** The list of people the app sent it to (X-Strom-List-Ref, spec 137). */
+  list?: string;
   note?: string;
   /** The batch it came in, its path there; a ZIP of the batch. */
   batch?: string;
@@ -35,6 +39,11 @@ export interface QueueJob {
   zip?: boolean;
   /** Who sent it: the app's page and version. */
   client: { origin?: string; app?: string };
+  /**
+   * The device of the home network it came from (spec 094; the bridge's, for a paired device its gateway named):
+   * named on the operation that takes it, whenever that is. Optional — a job without it is the computer's.
+   */
+  via?: AppClient;
   /** When it came. */
   at: string;
   bytes: number;
@@ -291,44 +300,53 @@ export function takeQueued(tree: Tree, shared: string, env: Env, o: { batch: str
   const maxFiles = o.maxFiles ?? Infinity;
   const maxMs = o.maxMs ?? Infinity;
   let n = 0;
-  for (const q of jobs) {
-    if (n >= maxFiles || (n > 0 && Date.now() - started >= maxMs)) break;
-    n++;
-    const j = q.job;
-    // put back as it is when the command fails (its commit not made): taken again by the next one — its batch's record too
-    tree.remember(q.at);
-    if (j.batch) tree.remember(batchFileOf(tree.root, j.batch));
-    const said: TakenFile = { sha: j.sha, ...(j.path ? { path: j.path } : {}), ...(j.batch ? { batch: j.batch } : {}) };
-    try {
-      // readable (again for a while on Windows while another program holds it): else nothing of the command written
-      if (fs.existsSync(j.file)) retryingHeld(j.file, process.platform, () => fs.closeSync(fs.openSync(j.file, "r")));
-      if (!fs.existsSync(j.file) && !bytesBack(shared, j)) {
-        const k = knownOriginal(tree, shared, j.sha);
-        if (!k) throw new UsageError(`${j.name}: its bytes are no longer here — send it again`, { code: "media.gone", params: { name: j.name } });
-        said.known = k.id;
-        if (j.batch) noteBatch(tree.root, openBatch(tree.root, j.batch), { known: k.id });
-      } else if (j.batch) {
-        const got = takeBatchFile(tree, shared, env, j.file, j.sha, { name: j.name, persons: j.persons, batch: j.batch, path: j.path ?? j.name, note: j.note, zip: !!j.zip });
-        if ("zip" in got) said.zip = got.zip;
-        else if (got.known) said.known = got.known;
-        else said.input = got.input!;
-      } else {
-        const got = takeOriginal(tree, shared, j.file, j.sha, { name: j.name, persons: j.persons, ...(j.families?.length ? { families: j.families } : {}), note: j.note, auto: !!o.auto });
-        if (got.known) said.known = got.known;
-        else said.input = got.input!;
-        if (got.added) said.added = got.added;
-        if (got.task) said.task = got.task;
+  // each file's operations name the device it came from (its job's), as its write would have named it — only for the
+  // person's strom of the bridge, never an agent's; the command's own device again after it
+  const base = tree.via;
+  const named = viaTaken(env);
+  try {
+    for (const q of jobs) {
+      if (n >= maxFiles || (n > 0 && Date.now() - started >= maxMs)) break;
+      n++;
+      const j = q.job;
+      if (named) tree.via = viaChecked(j.via);
+      // put back as it is when the command fails (its commit not made): taken again by the next one — its batch's record too
+      tree.remember(q.at);
+      if (j.batch) tree.remember(batchFileOf(tree.root, j.batch));
+      const said: TakenFile = { sha: j.sha, ...(j.path ? { path: j.path } : {}), ...(j.batch ? { batch: j.batch } : {}) };
+      try {
+        // readable (again for a while on Windows while another program holds it): else nothing of the command written
+        if (fs.existsSync(j.file)) retryingHeld(j.file, process.platform, () => fs.closeSync(fs.openSync(j.file, "r")));
+        if (!fs.existsSync(j.file) && !bytesBack(shared, j)) {
+          const k = knownOriginal(tree, shared, j.sha);
+          if (!k) throw new UsageError(`${j.name}: its bytes are no longer here — send it again`, { code: "media.gone", params: { name: j.name } });
+          said.known = k.id;
+          if (j.batch) noteBatch(tree.root, openBatch(tree.root, j.batch), { known: k.id });
+        } else if (j.batch) {
+          const got = takeBatchFile(tree, shared, env, j.file, j.sha, { name: j.name, persons: j.persons, batch: j.batch, path: j.path ?? j.name, note: j.note, zip: !!j.zip });
+          if ("zip" in got) said.zip = got.zip;
+          else if (got.known) said.known = got.known;
+          else said.input = got.input!;
+        } else {
+          const got = takeOriginal(tree, shared, j.file, j.sha, { name: j.name, persons: j.persons, ...(j.families?.length ? { families: j.families } : {}), ...(j.list ? { list: j.list } : {}), note: j.note, auto: !!o.auto });
+          if (got.known) said.known = got.known;
+          else said.input = got.input!;
+          if (got.added) said.added = got.added;
+          if (got.task) said.task = got.task;
+        }
+      } catch (e) {
+        if (!(e instanceof UsageError)) throw heldOf(e, j);
+        if (!tree.dryRun) fs.rmSync(j.file, { force: true });
+        said.refused = { code: e.code ?? "media.refused", why: e.message };
       }
-    } catch (e) {
-      if (!(e instanceof UsageError)) throw heldOf(e, j);
-      if (!tree.dryRun) fs.rmSync(j.file, { force: true });
-      said.refused = { code: e.code ?? "media.refused", why: e.message };
+      if (!tree.dryRun) {
+        fs.rmSync(q.at, { force: true });
+        if (j.batch) noteBatch(tree.root, openBatchQuietly(tree.root, j.batch), { taken: said });
+      }
+      files.push(said);
     }
-    if (!tree.dryRun) {
-      fs.rmSync(q.at, { force: true });
-      if (j.batch) noteBatch(tree.root, openBatchQuietly(tree.root, j.batch), { taken: said });
-    }
-    files.push(said);
+  } finally {
+    tree.via = base;
   }
   return { files, left: jobs.length - n };
 }

@@ -38,12 +38,10 @@ import { BATCH_ID, idleBatches, phoneBatch, readBatch } from "./batches.ts";
 import { cleanIncoming, knownOriginal, originalMax } from "./originals.ts";
 import { closeBatchBy, receiveOriginal, refusal, replyJson, stromBy, type Receiver } from "./receive.ts";
 import { waysHere } from "./readable.ts";
-import { birthEvent, deathEvent, displayName, findPersons } from "./people.ts";
-import { yearLabel } from "./gdate.ts";
-import { foldText } from "./text.ts";
+import { peopleFound } from "./people.ts";
 import { treeFinds } from "./phone-finds.ts";
 import { LOG_PHONE, WAITING_ASKED, WAITING_SHOWN, phoneLineKey, treeLog, treeMarks, treeOverview, treeWaiting } from "./phone-watch.ts";
-import type { Person, Research } from "./model.ts";
+import type { Research } from "./model.ts";
 
 /** How often the batches of a phone are looked at, and the parts of uploads cut short. */
 const INCOMING_EVERY_MS = 60 * 60_000;
@@ -179,18 +177,8 @@ export function phoneSend(env: Env, note: (text: string) => void): PhoneSend {
         req.resume();
         const t = treeOf();
         if (!t) return gone();
-        const q = (url.searchParams.get("q") ?? "").slice(0, 100);
-        if (foldText(q).replace(/[^\p{L}\p{M}\p{N}]/gu, "").length < 2) return reply(200, { people: [] });
-        const place = (p: Person) => (birthEvent(p)?.place ?? deathEvent(p)?.place)?.split(",")[0]?.trim();
-        const people = findPersons(Tree.open(t.root, env), q)
-          .filter((p) => !p.mergedInto)
-          .slice(0, 8)
-          .map((p) => {
-            const b = birthEvent(p)?.date;
-            const d = deathEvent(p)?.date;
-            const at = place(p);
-            return { id: p.id, name: displayName(p), ...(b ? { birth: yearLabel(b) } : {}), ...(d ? { death: yearLabel(d) } : {}), ...(at ? { place: at } : {}) };
-          });
+        // the phone's page as before: without the years as one (span)
+        const people = peopleFound(Tree.open(t.root, env), url.searchParams.get("q") ?? "").map(({ span: _, ...p }) => p);
         reply(200, { people });
       };
 

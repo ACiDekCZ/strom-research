@@ -5,15 +5,18 @@ import { hasErrors } from "../core/check.ts";
 import { giveNotesBack, guard } from "../core/guard.ts";
 import { snapshot, verifyFast } from "../core/integrity.ts";
 import { isArchive } from "../core/mode.ts";
+import type { AppClient } from "../core/model.ts";
 import type { Context } from "./context.ts";
 import type { CommandDef } from "./registry.ts";
 import { counted } from "./format.ts";
 
-export function commitMessage(summaries: string[], command: string): string {
+export function commitMessage(summaries: string[], command: string, via?: AppClient): string {
   const unique = [...new Set(summaries)];
   const subject = unique.length === 1 ? unique[0]! : `${command}: ${unique.length} changes`;
   const body = unique.length > 1 ? "\n\n" + unique.map((s) => `- ${s}`).join("\n") : "";
-  return subject + body;
+  // the device of the Strom app whose send it is (spec 094): one line after the rest, the format otherwise as it was
+  const device = via ? `\n\nVia: ${via.name ?? via.id} (${via.id})` : "";
+  return subject + body + device;
 }
 
 export interface NotCommitted {
@@ -52,7 +55,7 @@ export function autoCommit(ctx: Context, def: CommandDef): NotCommitted | undefi
         problems: errors.map((f) => ({ ...(f.id ? { id: f.id } : {}), ...(f.file ? { file: f.file } : {}), message: f.message })),
       };
     }
-    const message = commitMessage((gave ? tree.uncommitted() : ops).map((o) => o.summary), `strom ${def.path.join(" ")}`);
+    const message = commitMessage((gave ? tree.uncommitted() : ops).map((o) => o.summary), `strom ${def.path.join(" ")}`, ops.find((o) => o.via)?.via);
     // Only the files this command wrote, plus the free-form folders the agent
     // may edit — `git add` then never has to scan the whole data/ tree.
     const written = new Set<string>(["data/_counters.json"]);

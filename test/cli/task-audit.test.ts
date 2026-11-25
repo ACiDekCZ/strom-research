@@ -565,7 +565,9 @@ test("task wait --images given again: the same book's images joined (as a comma 
     assert.deepEqual(waitOf(get(w, id)), waitOf(before), "nothing written");
   }
   await w.ok(["task", "wait", id, "--images", "B0001:50", "--images", "B0001:52", "--on", "Snímky 50 a 52 knihy Podhradí 1"]);
-  assert.deepEqual(get(w, id).awaits, { recordset: "B0001", images: "50, 52", folder: inboxFolderFor({ id: "B0001", title: "Podhradí 1, N 1700–1750" }) });
+  const { since, ...awaits } = get(w, id).awaits!;
+  assert.deepEqual(awaits, { recordset: "B0001", images: "50, 52", folder: inboxFolderFor({ id: "B0001", title: "Podhradí 1, N 1700–1750" }) });
+  assert.ok(since && Number.isFinite(Date.parse(since)), "when it began to wait (spec 141 K1.5)");
   await w.ok(["task", "wait", id, "--images", "B0001:50-52", "--images", "b0001:53", "--on", "Snímky 50–53 knihy Podhradí 1"]);
   assert.equal(get(w, id).awaits?.images, "50–53");
 });

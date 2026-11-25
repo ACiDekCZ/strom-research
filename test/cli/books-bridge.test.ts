@@ -136,15 +136,14 @@ test("K1.4 numbers of a book's folder by the names alone: a portal's .jp2 counte
   assert.deepEqual(numberBookFiles(["/x/0000000040.jp2", "/x/50.jp2", "/x/7.jpg"], "B0004", 10), { files: ["/x/0000000040.jp2", "/x/50.jp2", "/x/7.jpg"], numbers: [4, 5, 7], by: "names", left: 0 });
   // no multiple of 10: its number is not known — that one left, the other taken
   assert.deepEqual(numberBookFiles(["/x/45.jp2", "/x/50.jp2"], "B0004", 10), { files: ["/x/50.jp2"], numbers: [5], by: "names", left: 1 });
-  const odd = numberBookFiles(["/x/45.jp2"], "B0004", 10);
-  assert.equal("code" in odd && odd.code, "inbox.unnamed");
+  // none with a number known: nothing taken, it lies there
+  assert.deepEqual(numberBookFiles(["/x/45.jp2"], "B0004", 10), { files: [], numbers: [], by: "names", left: 1 });
   // a portal that names images as they are
   assert.deepEqual(numberBookFiles(["/x/40.jp2", "/x/snímek 8.jpg".normalize("NFD")], "B0001"), { files: ["/x/40.jp2", "/x/snímek 8.jpg".normalize("NFD")], numbers: [40, 8], by: "names", left: 0 });
   // a file without a number beside numbered ones: the numbered taken, it alone left
   assert.deepEqual(numberBookFiles(["/x/sken.jpg", "/x/3.jpg", "/x/обложка.jpg"], "B0001"), { files: ["/x/3.jpg"], numbers: [3], by: "names", left: 2 });
-  // none with a number: nothing taken, what is needed said
-  const none = numberBookFiles(["/x/sken.jpg", "/x/obal.jpg"], "B0001");
-  assert.ok("problem" in none && /2 files of B0001 without an image number/u.test(none.problem), JSON.stringify(none));
+  // none with a number: nothing taken, they lie there — never advice to rename them (spec 141 K2.2)
+  assert.deepEqual(numberBookFiles(["/x/sken.jpg", "/x/obal.jpg"], "B0001"), { files: [], numbers: [], by: "names", left: 2 });
 });
 
 test("the books: offered by the research's books.minTasks, the whole book where the archive lets it, the folder of a book taken (K1.4), queue.sameBook at most 5 in a row, the book of each task", opts, async () => {
@@ -186,7 +185,7 @@ test("the books: offered by the research's books.minTasks, the whole book where 
     saved(path.join(b3, "3.jpg"), "base444.jpg");
     const took = await w.ok(["media", "add", "--inbox", "--waiting"]);
     assert.match(took.out, /the book's own folder: its tasks read them from disk/u);
-    assert.match(took.out, /images 3 of B0003 registered.* — 1 file left lying: no image number in the name/u, took.out);
+    assert.match(took.out, /images 3 of B0003 registered.* — 1 file left lying: no image's number in the name \(strom media add <file> --recordset B0003 --image <n>, once its content says which\)/u, took.out);
     const images = tree().list<Media>("media").filter((m) => m.recordset === "B0001" && !m.retracted).map((m) => m.image).sort();
     assert.deepEqual(images, [7, 8]);
     assert.deepEqual(tree().list<Media>("media").filter((m) => m.recordset === "B0003" && !m.retracted).map((m) => m.image), [3], "the numbered file beside it taken");

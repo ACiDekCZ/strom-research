@@ -31,6 +31,7 @@ import { ICON } from "./shortcut.ts";
 import { browserKind, type BrowserKind } from "./chromium.ts";
 import { normalizeKinds } from "./eventkinds.ts";
 import { HANDOFF } from "./handoffs.ts";
+import { oneLineName } from "./text.ts";
 
 export const LINK_SCHEME = "strom-research";
 
@@ -134,7 +135,7 @@ export const LINK_WORK_DEFAULT = 5;
  * strom's fixes a link names (commands/fixchecks.ts FIX_CHECKS, the same ids — a test holds them together): only one of
  * these, never a name the link brings.
  */
-export const LINK_FIX_IDS = ["blind-reduced", "new-model", "participant-names", "app-shapes", "street-places", "edit-decisions", "woken-waits", "readers", "proven-originals", "origins", "verify-originals", "name-status"] as const;
+export const LINK_FIX_IDS = ["blind-reduced", "new-model", "participant-names", "app-shapes", "street-places", "edit-decisions", "woken-waits", "readers", "proven-originals", "origins", "verify-originals", "name-status", "contact-residences"] as const;
 /** What a link does with a fix besides showing it: put back what it set right (strom fixes undo asks the person). */
 export const LINK_FIX_DOS = ["undo"] as const;
 /** For whom a link sets the kinds of history looked for: this research, or this computer (the researches without their own). */
@@ -183,6 +184,8 @@ const HOST = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:
 const TRANSFER_NAME = /^strom-prenos-[A-Za-z0-9_-]{8}\.json$/;
 /** The app's own mark of a tree it hands over (32 random bytes, base64url). */
 export const APP_TOKEN = /^[A-Za-z0-9_-]{22,43}$/;
+/** The longest name a link new suggests (the Strom app's dialog allows 120 characters). */
+export const NEW_NAME_MAX = 120;
 /**
  * The tree of the Strom app the person installed strom for: its mark, given to the installer by the line the app
  * shows (STROM_FROM_APP) — strom installed, that tree becomes a research as from the link new?app=. Only the mark.
@@ -265,7 +268,7 @@ export type Link =
   | { action: "back"; tree: string; change?: string }
   | { action: "history-kinds"; tree: string; scope: (typeof LINK_KINDS_SCOPES)[number]; kinds?: string; inherit?: "1" }
   | { action: "history-align"; tree: string; prune?: "1" }
-  | { action: "new"; app: string; browser?: BrowserKind; file?: string }
+  | { action: "new"; app: string; browser?: BrowserKind; file?: string; name?: string }
   | { action: "menu" };
 
 /**
@@ -326,7 +329,10 @@ function linkParts(text: string | undefined, scheme: string): Link {
     const browser = browserKind(q.get("browser") ?? undefined);
     // the tree's file of a move (Safari: strom-prenos-<8 of its mark>.json) — only a name of that one shape, never a path
     const file = q.get("file") ?? "";
-    return { action, app, ...(browser ? { browser } : {}), ...(TRANSFER_NAME.test(file) ? { file } : {}) };
+    // the name the app suggests for the research (a copy of a tree, spec 139 K5.4): the one text a link carries — only
+    // offered in the terminal for the person to keep or write over, never acted on; one line, at most 120 characters
+    const name = oneLineName(q.get("name"), NEW_NAME_MAX);
+    return { action, app, ...(browser ? { browser } : {}), ...(TRANSFER_NAME.test(file) ? { file } : {}), ...(name ? { name } : {}) };
   }
   const tree = q.get("tree") ?? "";
   if (!UUID.test(tree)) throw new LinkError("no research named");

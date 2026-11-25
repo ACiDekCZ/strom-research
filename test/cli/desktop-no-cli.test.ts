@@ -96,7 +96,7 @@ test("the setup: Claude's app alone said in one line and Claude Code offered —
   both.cleanup();
 });
 
-test("the doctor: a warning with its code, never a failure; --fix offers Claude Code; the browser of a conversation in the app apart from strom run --chrome", unix, async () => {
+test("the doctor: a warning with its code, never a failure; --fix offers Claude Code; the browser of a conversation in the app apart from strom run", unix, async () => {
   const w = new World();
   claudeApp(w);
   await w.ok(["setup", "--yes", "--lang", "cs"]);
@@ -110,7 +110,7 @@ test("the doctor: a warning with its code, never a failure; --fix offers Claude 
   const fix = await w.run(["doctor", "--fix"], { tty: true, answers: ["0", "0", "0", "0"] });
   assert.match(fix.out, LINE);
   assert.match(fix.out, /Nainstalovat Claude Code do terminálu hned/u);
-  // an archive through the browser, the extension in Chrome: there in a conversation in the app, not for strom run --chrome
+  // an archive through the browser, the extension in Chrome: there in a conversation in the app, not for strom run
   const dir = await fakeConnector(w, "archiv-a");
   const manifest = readJsonFile(path.join(dir, "connector.json"));
   fs.writeFileSync(path.join(dir, "connector.json"), JSON.stringify({ ...manifest, routes: ["direct", "browser"], can: [...new Set([...(manifest.can ?? []), "locate"])] }, null, 2));
@@ -118,7 +118,7 @@ test("the doctor: a warning with its code, never a failure; --fix offers Claude 
   const chrome = process.platform === "darwin" ? path.join(w.env.HOME!, "Library", "Application Support", "Google", "Chrome") : path.join(w.env.HOME!, ".config", "google-chrome");
   fs.mkdirSync(path.join(chrome, "Default", "Extensions", "fcoeoabgfenejglbffodgkkbkcdhcgfn"), { recursive: true });
   const browser = await w.run(["doctor"]);
-  assert.match(browser.out, /prohlížeč \(Claude in Chrome\)\s+rozšíření v Chrome[^\n]* · v rozhovoru v aplikaci Claude ano; samostatná práce \(strom run --chrome\) jen s Claude Code v terminálu/u, browser.out);
+  assert.match(browser.out, /prohlížeč \(Claude in Chrome\)\s+rozšíření v Chrome[^\n]* · v rozhovoru v aplikaci Claude ano; samostatná práce \(strom run\) jen s Claude Code v terminálu/u, browser.out);
   // the opposite: Claude Code here, no warning
   const both = new World();
   claudeApp(both, true);

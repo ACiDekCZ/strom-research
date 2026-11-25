@@ -142,7 +142,7 @@ test("the scan reader on the model strom set: a call without model, with the sam
 test("strom agents delegate: strom's subagents and the model each runs on", opts, async () => {
   const w = new World();
   await w.withTree();
-  assert.deepEqual((await w.ok(["agents", "delegate", "--json"])).json.delegates, { "strom-scan-reader": "inherit" });
+  assert.deepEqual((await w.ok(["agents", "delegate", "--json"])).json.delegates, { "strom-scan-reader": "inherit", "strom-image-saver": "inherit" });
   await w.ok(["config", "set", "model.vision", "opus-x", "--for-tree"]);
   const o = await w.ok(["agents", "delegate"]);
   assert.match(o.out, /strom-scan-reader {2}model: opus-x \(model\.vision\)/);

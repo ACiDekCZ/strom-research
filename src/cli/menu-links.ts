@@ -19,9 +19,10 @@ import { DEFAULT_RUN_MINUTES, DEFAULT_RUN_PARALLEL, readStored } from "../core/c
 import { lineRunFilter, runRefusal } from "../core/linerun.ts";
 import { runsAtWork } from "../core/workers.ts";
 import { choosePace } from "../commands/setup.ts";
-import type { Conflict, Family, Hypothesis, HypothesisVariant, HypothesisWrote, Person, Research, Session, Source, Task, VariantLink } from "../core/model.ts";
+import type { AppClient, Conflict, Family, Hypothesis, HypothesisVariant, HypothesisWrote, Person, Research, Session, Source, Task, VariantLink } from "../core/model.ts";
+import { DevicePreview } from "../core/deviceagent.ts";
 import { costPartial, monthSpend, sessionCost } from "../core/session.ts";
-import { adoptAskedSince, adoptFailedSince, adoptedAt, adoptionNeverCame, awaitAdoption, nothingSince, removedByItsDecision, SYNC_INBOX, undoSync, withoutImages, type SyncInput } from "../core/sync.ts";
+import { adoptAskedSince, adoptFailedSince, adoptedAt, adoptionNeverCame, awaitAdoption, nothingSince, removedByItsDecision, SYNC_INBOX, keptLines, clientLabel, undoSync, withoutImages, type SyncInput, type UndoKept } from "../core/sync.ts";
 import { moveToTrash } from "../core/trash.ts";
 import { noteMovedByFile } from "../core/transfer.ts";
 import { appBrowsers, browserKind, kindReaches, type BrowserKind } from "../core/chromium.ts";
@@ -48,7 +49,7 @@ import { chooseWay } from "./ways.ts";
 import { claimText, displayName } from "../core/people.ts";
 import { normId } from "../core/records.ts";
 import { settledClaim } from "../core/labels.ts";
-import { sideOf, sideText, sidesOf } from "../core/conflicts.ts";
+import { sentDevices, sideOf, sideText, sidesOf } from "../core/conflicts.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { isAgent } from "../core/which.ts";
 import { foldText, safeFolderName } from "../core/text.ts";
@@ -75,8 +76,13 @@ import { placeView, queueView } from "../core/placesview.ts";
 import { kindsAdded, kindsOf, kindsSetting } from "../core/eventkinds.ts";
 import { alignEmpty, kindNames, planAlign } from "../core/historyalign.ts";
 
+/** A note under a question as its lines (what a device's dialog shows). */
+const noteLines = (note: string | undefined): string[] => (note ?? "").split("\n").filter((l) => l.trim());
+
 /** What the Strom app asks, said before anything is done; true when the person goes on. */
 export async function asks(ctx: Context, lang: string, root: string, what: string, note?: string, suggested = true): Promise<boolean> {
+  // a device's preview of the link (spec 094 K3.15): this is the question the device asks instead
+  if (ctx.devicePreview) throw new DevicePreview({ kind: "ask", what, note: noteLines(note) });
   const name = Tree.open(root, ctx.env).config.name;
   ctx.io.stdout(lines(translator(lang)("ui.link.asks", { what, name }), note, "") + "\n");
   return ctx.confirm(translator(lang)("ui.link.go"), suggested);
@@ -89,18 +95,30 @@ export async function asks(ctx: Context, lang: string, root: string, what: strin
  * own command (only the person in their terminal), and all the rest (consents, deletions, the gate of strom run).
  */
 export async function asksToStart(ctx: Context, lang: string, root: string, what: string, note?: string, suggested = true, priced = false): Promise<boolean> {
+  // a device's preview (spec 094 K3.15): a price in money stays the terminal's, run.confirm no starts at once, else the
+  // device asks this question itself
+  if (ctx.devicePreview) throw new DevicePreview(priced ? { kind: "computer", why: "price" } : startsUnasked(ctx) ? { kind: "started" } : { kind: "ask", what, note: noteLines(note) });
   if (!startsUnasked(ctx, priced)) return asks(ctx, lang, root, what, note, suggested);
   const name = Tree.open(root, ctx.env).config.name;
-  ctx.io.stdout(translator(lang)("ui.link.noconfirm", { what: what.trim().replace(/[.:]$/u, ""), name }) + "\n");
+  const said = what.trim().replace(/[.:]$/u, "");
+  ctx.io.stdout((ctx.deviceYes ? deviceYesLine(ctx.deviceYes, lang, said, name) : translator(lang)("ui.link.noconfirm", { what: said, name })) + "\n");
   return true;
 }
 
+/** The line a terminal says for the device's yes it took instead of its question (spec 094 K3.15). */
+function deviceYesLine(device: AppClient, lang: string, what: string, name: string): string {
+  return translator(lang)("ui.link.device.yes", { device: device.name ?? device.id, what, name });
+}
+
 /**
- * Whether asksToStart starts without its question (run.confirm no, a person in their terminal, no price in money): what
- * the link starts right after it is then not asked yes or no again — the line said it starts.
+ * Whether asksToStart starts without its question (run.confirm no, a person in their terminal, no price in money — or
+ * the yes of a device that opened this terminal, spec 094 K3.15): what the link starts right after it is then not
+ * asked yes or no again — the line said it starts.
  */
 export function startsUnasked(ctx: Context, priced = false): boolean {
-  return !priced && ctx.settings.runConfirm() === "no" && ctx.interactive && !isAgent(ctx.env);
+  if (priced) return false;
+  if (ctx.deviceYes) return true;
+  return ctx.settings.runConfirm() === "no" && ctx.interactive && !isAgent(ctx.env);
 }
 
 const out = (ctx: Context, line: string) => ctx.io.stdout(line + "\n");
@@ -436,11 +454,18 @@ export async function placeSearch(ctx: Context, run: Run, lang: string, root: st
   const place = placeLabel(p, lang);
   // its session is strom run's: the agent's CLI not here said before the estimate and the question
   if (!(await agentCliHere(ctx, run, lang, tree))) return false;
-  if (!(await asks(ctx, lang, root, t("ui.link.what.history.place", { place }), placeCost(t, lang, tree), false))) return false;
+  // a price in money stays the terminal's question; the yes of a device that opened it (no price): queued and started
+  // now, both questions answered (spec 094 K3.15)
+  const priced = !!placeEstimate(tree).usd;
+  if (ctx.devicePreview && priced) throw new DevicePreview({ kind: "computer", why: "price" });
+  const yes = !!ctx.deviceYes && !priced;
+  const what = t("ui.link.what.history.place", { place });
+  if (yes) out(ctx, deviceYesLine(ctx.deviceYes!, lang, what.trim().replace(/[.:]$/u, ""), tree.config.name));
+  else if (!(await asks(ctx, lang, root, what, placeCost(t, lang, tree), false))) return false;
   if ((await run(["history", "place", p.id], true)) !== 0) return false;
   const task = placeTask(Tree.open(root, ctx.env), p.id);
   out(ctx, t("ui.link.history.place.done", { place }));
-  if (!task || !(await ctx.confirm(t("ui.link.history.place.now"), false))) return true;
+  if (!task || (!yes && !(await ctx.confirm(t("ui.link.history.place.now"), false)))) return true;
   return (await run(["run", "--task", task.id])) === 0;
 }
 
@@ -780,7 +805,13 @@ export async function decideConflict(ctx: Context, run: Run, lang: string, root:
   const sides = take ? sidesOf(c) : undefined;
   if (take && sides) {
     const value = sideText(tree, c, sides[take]) || t("ui.link.conflict.empty");
-    if (!(await asks(ctx, lang, root, t(take === "user" ? "ui.link.what.conflict.user" : "ui.link.what.conflict.research", { title: c.title, value })))) return false;
+    // two sends of the Strom app (spec 094 K2.2): the side named by its device, as What waits and the app name it — the
+    // user's side is the later send that opened the conflict, the research's the earlier one it holds
+    const devices = sentDevices(lang, c);
+    const what = devices
+      ? t("ui.link.what.conflict.sent", { title: c.title, device: take === "user" ? devices.later : devices.earlier, value })
+      : t(take === "user" ? "ui.link.what.conflict.user" : "ui.link.what.conflict.research", { title: c.title, value });
+    if (!(await asks(ctx, lang, root, what))) return false;
     // the side picked in the app: confirmed is enough (the app says it only asks to confirm) — why may be said, Enter skips
     const said = (await ctx.ask(t("ui.link.conflict.whyMaybe"))).trim();
     if (said === "0") return false;
@@ -1106,15 +1137,19 @@ export async function undoSending(ctx: Context, run: Run, lang: string, root: st
   // of a send the app counted as 1, a yes on Enter)
   const preview = Tree.open(root, ctx.env);
   preview.dryRun = true;
-  preview.withTreeLock(() => undoSync(preview, input));
+  // what another device's send or the research changed since stays as it is (spec 094 K2.3): said with the rest
+  const kept: UndoKept[] = [];
+  preview.withTreeLock(() => undoSync(preview, input, kept));
   const ops = actsAsArchive(preview) ? preview.written.filter((o) => !o.op.startsWith("task.")) : preview.written;
   // what it is now beside what it goes back to (found on Mac: only the value it would have again)
   const said = [
     ...changeLines(preview, ops, "", lang, Tree.open(root, ctx.env)).map((l) => `  ${l.text}`),
+    ...keptLines(preview, kept).map((l) => `  ${l}`),
     // whom its removal took away on the person's word stays away (found by the verification: nothing said of it)
     ...removedByItsDecision(preview, input).map((r) => `  ${t("ui.sync.undone.stillRemoved", { name: r.name, person: r.person, id: r.conflict })}`),
   ];
-  const when = humanWhen(input.created, lang);
+  // the device of the app it came from (spec 094): beside when, so two devices' sends are told apart
+  const when = `${humanWhen(input.created, lang)}${input.sync?.client ? ` · ${clientLabel(input.sync.client)}` : ""}`;
   if (fromMenu) {
     out(ctx, lines(t("ui.more.undo.what", { when }), ...said, ""));
     if (!(await ctx.confirm(t("ui.link.go"), false))) return false;
@@ -1172,7 +1207,7 @@ export function treesToOpen(ctx: Context): { name: string; root: string; kind: K
  * agent chosen, made; the app opened to hand the tree over (?adopt=<the bridge>), the tree taken in as leads,
  * the research sent back to the app — then the conversation offered.
  */
-export async function newFromApp(ctx: Context, runIn: RunIn, token: string, openAt: (url: string) => boolean, forward: () => void, opts: { browser?: BrowserKind; file?: string } = {}): Promise<boolean> {
+export async function newFromApp(ctx: Context, runIn: RunIn, token: string, openAt: (url: string) => boolean, forward: () => void, opts: { browser?: BrowserKind; file?: string; name?: string } = {}): Promise<boolean> {
   // family trees here already (the app's data cleared, an empty app): one of them opened in the app as strom app opens
   // it, before anything is moved or set up — or a new research from the app's tree; 0 is nothing (b-D4)
   const here = ctx.interactive ? treesToOpen(ctx) : [];
@@ -1247,8 +1282,9 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
     }
   }
   const joined = Boolean(root);
-  // suggested: the app's tree's name (its line carries it), else the usual one — Enter never ends the handover
-  const suggested = (move?.mark.tree || undefined) ?? appTreeNameFromInstall(ctx.env) ?? t("ui.tree.default");
+  // suggested: the name the app's link gives (a copy of a tree: its own name, never the original's research), else the
+  // app's tree's name (its move, its line), else the usual one — Enter never ends the handover
+  const suggested = opts.name || (move?.mark.tree || undefined) || appTreeNameFromInstall(ctx.env) || t("ui.tree.default");
   const ways = waysHere(agentsHere(ctx.env));
   const mine = ctx.settings.agent().value;
   let agent = mine;

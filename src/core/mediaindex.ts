@@ -34,6 +34,8 @@ export interface SetImages {
   connector?: string;
   /** Its copies with more detail than the scan they are of (gain > 1), in the order of the records. */
   copies?: SharperCopy[];
+  /** When its last image was registered (ISO; core/inboxsettle.ts: did anything come since a task began to wait). */
+  last?: string;
 }
 
 /** A copy of a scan with more detail than the scan it is of: a part of it, or a new scan of the same image. */
@@ -73,7 +75,7 @@ interface Stored {
   sets: Record<string, SetImages>;
 }
 
-const FORMAT = 3;
+const FORMAT = 4;
 const TYPE: RecordType = "media";
 /** A folder changed this recently may change again within the same tick of its clock: no stamp for it. */
 export const STABLE_MS = 2000;
@@ -203,6 +205,7 @@ function build(all: Media[]): ImagesIndex {
     s.count++;
     if (m.image !== undefined) s.images.push(m.image);
     if (s.connector === undefined && m.fetched?.connector) s.connector = m.fetched.connector;
+    if (m.created && (s.last === undefined || m.created > s.last)) s.last = m.created;
     sets.set(m.recordset, s);
     // a part of an image is not its scan
     if (!m.part && m.width && m.height) {

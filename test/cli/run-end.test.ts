@@ -73,7 +73,7 @@ test("a run's end in .strom/runs/<run>.end.json: why as runsEnded[] says it, the
 
 test("each stop code of strom run has its why, the same for .end.json and the bridge's runsEnded[] (runEndOf); asked to stop: stopped", () => {
   const whys: Record<string, string> = {
-    done: "done", tasks: "done", sessions: "done", empty: "done", asleep: "done",
+    done: "done", tasks: "done", sessions: "done", empty: "done", asleep: "done", web: "done",
     user: "stopped",
     limit: "limit",
     gate: "gate", "gate.cap": "gate", "gate.declined": "gate",

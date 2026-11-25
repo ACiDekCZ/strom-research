@@ -41,9 +41,9 @@ import { beatSession } from "./holds.ts";
 import { bridgeRefusal, fetchReachesBridge } from "./bridgeguard.ts";
 import fs from "node:fs";
 import path from "node:path";
-import { agentRequest, clock, hostAllowed, type AgentSlot, type HostRefusal } from "./net.ts";
+import { agentRequest, clock, clockUp, hostAllowed, type AgentSlot, type HostRefusal } from "./net.ts";
 import { LockedError } from "./errors.ts";
-import { noteSitePage, sitePagesHere } from "./machine.ts";
+import { noteSitePage, siteFreeAt, sitePagesHere } from "./machine.ts";
 import { metricsDir, PUBLIC_SECOND_LEVEL, recordWebRequest, webDomain, webHost, webHourOf, webRequestsOf, metricsOn, WEB_PER_HOST, WEB_SAID_NO, WEB_SOFT, type AgentWebRecord, type WebRequests } from "./metrics.ts";
 import { listConnectors, suggestName } from "./connector.ts";
 import { deadlineOf, finishAsked } from "./clock.ts";
@@ -372,9 +372,61 @@ export function wayText(host: string, way: ConnectorWay): string {
   );
 }
 
-/** More than the threshold to one host in a run: the way on for exactly this host — never round the limit. */
-function manyText(host: string, site: string, n: number, way: ConnectorWay, where = IN_SESSION): string {
-  return `strom: ${n} requests to ${siteText(host, site)} through the web fetch tool ${where} — the limit for one site (web.perHost). ${wayText(host, way)} ${NEVER}`;
+/**
+ * When a site past web.perHost takes pages again (core/machine.ts siteFreeAt): `session` — this session had its
+ * web.perHost of them, none more in it; `at` — when the next page goes (the computer's window: page by page as the oldest
+ * leave it), for a session the next session's first page (now: a next session may have them at once).
+ */
+export interface ManyWhen {
+  session: boolean;
+  at: number;
+}
+
+/**
+ * After this many refusals past web.perHost of one site in one session, the refusal says to end the session now: the
+ * first is news, a second may be a slip (another page, thought to count apart) — a third is a loop (a live run: 116 times
+ * the same page, then a helper left to wait with a command run again and again as its pause).
+ */
+export const WEB_REFUSED_LOOP = 3;
+
+/**
+ * The words of the time a site past web.perHost takes pages again, and what to do until then — never wait for it.
+ * `goesOn`: the way on reaches the site through strom (its connector, built now or here; strom history page) — the work
+ * goes on there, so no word of ending the session, only none of its pages through the web tools before then. `wait`: the
+ * way on is the images by hand (strom task wait), so the task may wait as well as stay open.
+ */
+function whenText(site: string, when: ManyWhen, now: number, refusals: number, o: { goesOn: boolean; wait: boolean }): string {
+  const at = clockUp(when.at, now);
+  const soon = when.at <= now;
+  const head = when.session
+    ? `None more of its pages in this session${soon ? " — a next session may have them" : ` — a next session from ${at} (the limit of this computer)`}.`
+    : `Its next page goes at ${at} — not sooner (then one page at a time, as the oldest leave the window).`;
+  const before = when.session ? "in this session" : `before ${at}`;
+  const never = `never wait for it (no sleep, no loop, no command run again and again as a pause — strom tidy and the like), never leave the waiting to a helper (a subagent)`;
+  const loop = refusals >= WEB_REFUSED_LOOP ? ` This is refusal ${refusals} of the same in this session` : "";
+  if (o.goesOn)
+    return (
+      `${head} No page of ${site} through the web tools ${before} — the way above instead; ${never}.` +
+      (loop ? `${loop}: nothing more through the web tools — the way above, else end the session now (strom session close --continue --summary "<what was found>" --next "<what is left>").` : "")
+    );
+  const next = when.session ? `${site} in a next session${soon ? "" : `, from ${at}`}` : `${site} from ${at}`;
+  const until = when.session ? "In this session" : `Until ${at}`;
+  return (
+    `${head} Leave the task open${o.wait ? " (or waiting for its images by hand, as below)" : ""} — never done, never given up for this limit. ${until}: other work of this session that needs no page of ${site}; none left: ` +
+    `end the session now — strom session close --continue --summary "<what was found>" --next "<what is left: the pages of ${next}>". ` +
+    `Never try a page of ${site} again ${before}, ${never}.` +
+    (loop ? `${loop}: end the session now (strom session close --continue as above), nothing more tried.` : "")
+  );
+}
+
+/** More than the threshold to one host in a run: when it takes pages again, the way on for exactly this host — never round the limit. */
+function manyText(host: string, site: string, n: number, way: ConnectorWay, where = IN_SESSION, when?: { when: ManyWhen; now: number; refusals: number }): string {
+  const head = `strom: ${n} requests to ${siteText(host, site)} through the web fetch tool ${where} — the limit for one site (web.perHost).`;
+  // the way on reaches the site through strom: the way first, then when its pages go through the web tools again
+  const goesOn = !way.closed && (!!way.have || !!way.history || !way.later);
+  const wait = way.closed === "manual" || (way.closed === "browser" && !!way.browser);
+  const w = when ? whenText(site, when.when, when.now, when.refusals, { goesOn, wait }) : undefined;
+  return goesOn ? `${head} ${wayText(host, way)} ${w ? `${w} ` : ""}${NEVER}` : `${head} ${w ? `${w} ` : ""}${wayText(host, way)} ${NEVER}`;
 }
 
 /** Where the requests to a site are counted, as the agent hears it: its session, or every session of this computer. */
@@ -524,7 +576,13 @@ async function answerWeb(ev: WebEvent, o: { env: Env; cwd: string; now?: () => n
     const deny = (reason: string, as: string = why): { take: boolean; value: WebAnswer } => ({ take: false, value: { decision: "deny", reason, record: { ...base, decision: "deny", why: as, n: mine } } });
     const paced = () => paceText(host, why === "pace" ? waitMs : undefined, w, before >= soft ? { site, soft, where: where() } : undefined);
     if (why !== "many" && before >= soft) return deny(paced());
-    if (unattended(o.env)) return deny(why === "many" ? manyText(host, site, before, w, where()) : paced());
+    if (unattended(o.env)) {
+      if (why !== "many") return deny(paced());
+      // when the site takes pages again: none more in this session (its own web.perHost), else the computer's window
+      const now = o.now?.() ?? Date.now();
+      const when: ManyWhen = { session: mine >= perHost, at: siteFreeAt(stateDir, site, minutes * 60_000, perHost, now) };
+      return deny(manyText(host, site, before, w, where(), { when, now, refusals: (had.refusedMany?.get(site) ?? 0) + 1 }));
+    }
     // below the soft threshold, in a conversation: the person is never disturbed for the pace — let go once the hook's
     // wait is over, counted (in the session; in the host's hour where its lock was had)
     if (why !== "many") return { take: true, value: { record: { ...base, decision: "allow", why, n: mine + 1 } } };

@@ -61,7 +61,9 @@ wird derselbe aktualisiert.
     Meldung „Der Link verwies auf eine Datei, die nicht auf diesem Computer liegt, und wurde daher ignoriert.“
   - Der Stammbaum aus der Forschung ist schon in der App und hat sich seit dem letzten Laden in der App nicht
     geändert: er wird aktualisiert. Hat er sich geändert: die App fragt, ob sie ihn **Aktualisieren** oder **Als
-    Kopie öffnen** soll. Vor der Aktualisierung wird eine Sicherung gespeichert.
+    Kopie öffnen** soll. Vor der Aktualisierung wird eine Sicherung gespeichert. **Als Kopie öffnen** macht aus der
+    Forschung einen neuen Stammbaum, der die weiteren Aktualisierungen bekommt; der Stammbaum mit den Änderungen bleibt,
+    wie er ist, ab App 3.32.0 als Kopie ohne Forschung ([S1.10](#S1.10)).
   - Safari erlaubt einer Webseite keine Verbindung mit einem Programm auf diesem Computer. `strom app` öffnet Safari
     darum nie. Ohne geeigneten Browser übernimmt die installierte App die Datei, oder die Datei
     `output/tree-strom.ged` aus dem Ordner der Forschung lässt sich in das Fenster der App ziehen.
@@ -106,7 +108,7 @@ App, wohin sie ihn zurückschickt.
 | Forschung | **Forschung** | ein Stammbaum, in dem der Agent der Forschung arbeitet |
 | Strom-Archiv | **Archiv** | ein Stammbaum, den die Forschung mit den Quellen auf dem Datenträger hält, ohne Agent |
 | Forschung wartet auf einen Agenten | **Archiv** | eine Forschung, die noch keinen Agenten hat; die App behandelt sie wie ein Archiv |
-| Kopie | ohne Marke | eine ältere Kopie eines Stammbaums aus der Forschung (**Als Kopie öffnen**, Duplikat, zweiter Import); wird aus der Forschung nicht mehr aktualisiert |
+| Kopie | ohne Marke | eine Kopie eines Stammbaums aus der Forschung (**Als Kopie öffnen**, Kopie des ganzen Stammbaums, zweiter Import); wird aus der Forschung nicht aktualisiert und ist ab App 3.32.0 ohne Forschung ([S1.10](#S1.10)) |
 
 - **Grenzen:** ob ein Stammbaum Forschung oder Archiv ist, entscheidet die Forschung, nicht die App. Umschalten
   lässt es sich nur in der Forschung.
@@ -363,7 +365,8 @@ Einstellung **Forschung bei Untätigkeit ausschalten** sagt.
     gesetzter Wert erscheint als **Eigener Wert (N Min.)**. Läuft keine Forschung, die die Wahl annimmt, zeigt die App
     statt der Wahlmöglichkeiten die Befehle für das Terminal.
   - Auf Telefon und Tablet gibt es keinen Schalter (die Forschung läuft auf einem Computer). Eine Kopie eines
-    Stammbaums aus einer Forschung hat keinen Schalter.
+    Stammbaums aus einer Forschung hat in Stammbäume verwalten den Schalter ausgeschaltet; sein Einschalten öffnet
+    **Forschung für eine Kopie** ([S1.10.1](#S1.10.1)).
 - **Bedienung:** App: der Schalter **Forschung an** im Panel der Forschung (ein Stammbaum, der nicht live verfolgt
   wird, und nach dem Ende des Verfolgens) und in **Stammbäume verwalten** in der Zeile des Stammbaums; im Panel der
   Forschung, wenn die Forschung nicht läuft: **Einschalten**; **Einstellungen** → **Forschung auf diesem Computer** →
@@ -372,3 +375,83 @@ Einstellung **Forschung bei Untätigkeit ausschalten** sagt.
 - **Gilt seit:** App 3.25.0, Forschung 1.29.0. Der Stand am Schalter und der Satz nach 30 s seit App 3.30.0.
 
 <!-- zdroj: research:src/core/live.ts liveWrite (POST <token>/live {idleMinutes 0…10080} → strom config set live.idleMinutes; {do: stop} → konec stopped, adresa zůstává), liveState (/status live idleMinutes, idleChoices), IDLE_READ_MS 60 s, reviveLive + endedIdle (zpět s prací jen konec idle; bez slova: zpět s menu, prací, aktualizací), stop SIGTERM → signal · src/core/config.ts DEFAULT_LIVE_IDLE_MINUTES 0, LIVE_IDLE_AFTER_MINUTES 120, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES · src/core/links.ts LINK_LIVE_DOS start · src/commands/links.ts startBridge (bez okna) · app:src/ui/research-live-ui.ts researchLiveState (onComputer, link.copy, features live.stop / live.start), fillResearchLiveSlot, fillResearchLiveStart, renderResearchLiveSettings (LIVE_IDLE_FOREVER, LIVE_IDLE_TWO_HOURS, idleCustom), COMMAND_START / COMMAND_STOP · src/ui/research-ui.ts researchLiveSlot (panel po skončení sledování, idle, start) · src/ui/tree-management.ts researchLiveSlotHtml · strings.ts researchLive.* · index.html settings-group-research-live · spec 064 K1.1–K2.3 · 3.30.0: app:cd35804c src/ui/research-live-ui.ts START_CONFIRM_MS 30 s, researchLiveTimedOut (liveSilent, COMMAND_START, retry) · src/ui/switch-pend.ts (turningOn, turningOff) -->
+
+<a id="S1.10"></a>
+## S1.10 Eine Forschung, ein Stammbaum: Kopie ohne Forschung
+
+In eine Forschung schreibt nur ein Stammbaum in der App: der, der mit der Forschung entstanden ist oder sie übernommen
+hat. Jede Kopie eines Stammbaums aus einer Forschung ist ein Stammbaum ohne Forschung. Sie sendet nichts an die
+Forschung: weder von selbst noch mit der Schaltfläche noch beim ersten Schreiben der Dateien.
+
+- **Was eine Kopie ist:** **Kopie des ganzen Stammbaums** (früher **Duplizieren**,
+  [A14.3](A14-trees-and-structure.md#A14.3)), der bisherige Stammbaum nach **Als Kopie öffnen** bei einem Stammbaum
+  aus einer Forschung (der neue Stammbaum aus der Forschung bekommt ihre Aktualisierungen, der Stammbaum mit den
+  Änderungen bleibt, wie er ist, als Kopie; [S1.2](#S1.2)), das zweite Laden der JSON-Datei derselben Forschung, eine
+  Zusammenführung in einen neuen Stammbaum ([A8.10](A8-merging-trees.md#A8.10)) und Stammbäume, die aus der Sicherung
+  aller Stammbäume als neue wiederhergestellt wurden.
+- **Wie sich eine Kopie zeigt:** in Stammbäume verwalten und in Schritt 1 des Zusammenführungs-Assistenten „Kopie des
+  Stammbaums „{Name}“ · ohne Forschung“, mit ausgeschaltetem Schalter **Forschung an**. Aktionen der Forschung hat sie
+  nicht; ⋯ bietet nur **Forschung einschalten…**.
+- **Änderungen aus der Forschung anfordern:** der Link, mit dem die Forschung um die Änderungen bittet, sendet immer
+  nur den Stammbaum, der zur Forschung gehört. Die Frage, welcher Stammbaum gesendet werden soll, gibt es nicht mehr.
+- **Grenzen:** eine Kopie einer Kopie trägt den Namen dieser Kopie. Ein neuer Stammbaum aus einer Auswahl und
+  Stammbäume aus einer Aufteilung sind ebenfalls ohne Forschung ([A14](A14-trees-and-structure.md#A14)).
+- **Bedienung:** Stammbäume verwalten ([A14.1](A14-trees-and-structure.md#A14.1)).
+- **Gilt seit:** App 3.32.0. Vorher blieb eine Kopie mit der Forschung des Originals verbunden, wurde aus ihr nur
+  nicht aktualisiert.
+
+<!-- zdroj: app:7d4236f8 (134 bod 11, 13: kopie stromu výzkumu nic nezapisuje do výzkumu originálu) · src/tree-manager.ts canSendToResearch (isResearchOwner), duplicateTree copyOf · src/research-owner.ts · src/ui/research-ui.ts sendChangesToResearch (?send= jen vlastník, „Only the research's owner is sent“) · f3c66503 (sloučení do nového stromu a obnovená záloha = kopie bez výzkumu) · src/tree-row.ts treeOriginLine · strings.ts research.copyOf, structure.turnOnResearch · dirigent:prace/_drobnosti/doc.md 134 bod 11+13 -->
+
+<a id="S1.10.1"></a>
+### S1.10.1 Forschung für eine Kopie
+
+Eine Kopie kann eine eigene, neue Forschung bekommen oder die Forschung des Originals übernehmen. Beides bietet das
+Fenster **Forschung für eine Kopie**: „„{Kopie}“ ist eine Kopie des Stammbaums „{Original}“. In eine Forschung
+schreibt nur ein Stammbaum, daher erhält die Kopie eine eigene, neue.“
+
+- **Neue Forschung anlegen:** das Feld **Ordner der neuen Forschung** ist mit dem Namen der Kopie vorausgefüllt (mit
+  dem Pfad, in dem die Forschung auf diesem Computer Forschungen anlegt, wenn die Forschung ihn mitteilt). Danach geht
+  das Anlegen der Forschung weiter wie bei **Forschung starten** ([S4](S4-research-from-the-app.md)). In die neue
+  Forschung kommen keine Nummern von Personen und Quellen einer anderen Forschung; die Kopie bekommt die Nummern der
+  neuen Forschung.
+- **Forschung von „{Original}“ übernehmen…:** nur wenn das Original eine Forschung hat; das Fenster sagt dann auch
+  „Die Forschung „{Nummer}“ bleibt beim Stammbaum „{Original}“.“ Die Übernahme wird mit einer Warnung bestätigt: „Der
+  Stammbaum „{Original}“ wird von der Forschung „{Nummer}“ getrennt und schreibt nicht mehr hinein. Schreiben wird nur
+  die Kopie.“ und „Das Original bleibt als Stammbaum ohne Forschung.“, Schaltfläche **Forschung übernehmen**. Die
+  Übernahme geschieht nur in der App; an die Forschung wird nichts gesendet.
+- **Grenzen:** das Fenster gibt es nur auf einem Computer, auf dem sich eine Forschung aus der App anlegen lässt; nicht
+  beim Beispiel-Stammbaum.
+- **Bedienung:** Stammbäume verwalten, der Schalter bei einer Kopie; ⋯ bei einer Kopie → **Forschung einschalten…**.
+- **Gilt seit:** App 3.32.0
+
+<!-- zdroj: app:023879dd src/ui/research-adopt-ui.ts showCopyResearchDialog (složka = název kopie, treesRoot, copyResearchStays a Převzít jen u vlastníka originálu, is-danger potvrzení), src/research-owner.ts transferResearchTie (jen v aplikaci), src/research-link.ts (bez REFN P…/S… jiného výzkumu, K5.4) · a236a31e (název složky i přes soubor v Safari, cesta výzkumů) · strings.ts structure.copyResearch*, createResearch, takeOver* · spec 139 K5.1–K5.4 -->
+
+<a id="S1.10.2"></a>
+### S1.10.2 Einmaliges Trennen von Stammbäumen, die eine Forschung teilten
+
+Stammbäume, die vor App 3.32.0 eine Forschung teilten (ältere Kopien oder zwei Stammbäume derselben Forschung), werden
+beim ersten Start der neuen Version einmal getrennt. Die Forschung behält einen Stammbaum, die anderen sind Kopien ohne
+Forschung.
+
+- **Welcher Stammbaum bleibt:** der Stammbaum, der keine Kopie ist; von mehreren solchen der älteste. Sind alle Kopien,
+  bleibt die älteste Kopie, wie sie ist, und schreibt weiterhin nichts in die Forschung.
+- **Die anderen:** vor dem Trennen bekommen sie die Sicherung **Vor der Anpassung der Daten an eine neue Version**
+  ([S6.5](S6-tree-from-another-program.md#S6.5)); die Daten bleiben unverändert. Ein gesperrter verschlüsselter
+  Stammbaum wird weder gelesen noch gesichert; nur sein Eintrag in Stammbäume verwalten ändert sich.
+- **Beim ersten Öffnen** eines getrennten Stammbaums erscheint einmal das Fenster **Kopie ohne Forschung**: „Der
+  Stammbaum „{Name}“ war eine Kopie, die mit der Forschung des Stammbaums „{Original}“ verbunden war. Die Verbindung
+  wurde aufgehoben, damit nur ein Stammbaum in die Forschung schreibt. Eine eigene Forschung lässt sich unter
+  Stammbäume verwalten starten.“ Hat die Kopie vorher Änderungen an die Forschung gesendet:
+  - warten sie in der Forschung: „Davor hat die Kopie Änderungen an diese Forschung gesendet ({Datum}). Die Änderungen
+    warten in der Forschung und lassen sich dort verwerfen.“;
+  - sind sie geschrieben: „…Die Forschung nimmt sie mit einem Schritt in ihrem Terminal zurück:“ und der Befehl
+    `strom sync undo I0042` mit **Kopieren**; bei bekannter Unterlage auch **In der Forschung zurücknehmen**, sonst
+    `I…` und „I… steht für die Nummer dieser Sendung in der Forschung (strom input list zeigt sie).“
+    ([S2.6](S2-edits-from-the-app.md#S2.6)).
+
+  Das Fenster hat **Schließen** und, wo es geht, **Forschung starten**.
+- **Grenzen:** die Reparatur läuft einmal; ein älteres zurückgebrachtes Register der Stammbäume wird erneut
+  durchgesehen.
+- **Gilt seit:** App 3.32.0
+
+<!-- zdroj: app:e4e3eeea src/tree-manager.ts repairSharedResearchTies (researchTiesRepaired, planSharedTieRepair, backupBeforeTieRepair 'pre-migration' bez čtení zamčeného šifrovaného, detachAsCopy, researchDetached) · src/research-owner.ts planSharedTieRepair (keeper: bez copyOf, nejstarší; jinak nejstarší kopie) · src/ui/research-detached-ui.ts showResearchDetached (jednou, sentAfterCopy pending/undo step, adoptTree) · strings.ts research.detached*, undoStep*, backups label pre-migration · dirigent:prace/_drobnosti/doc.md 134 bod 13 -->

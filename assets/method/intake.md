@@ -46,7 +46,7 @@ outside the tree's history: what you do not record of them stays private.
    belongs to the people of the research.
 2. **Not of the family** (a tax form, a holiday photo of strangers, the same
    picture again in another size): `--as unrelated --reason "…"` and nothing
-   of it is written anywhere. Someone living: sort it, record nothing of them.
+   of it is written anywhere. Someone living: sort and record as anyone.
 3. **Scans of a book** (many numbered images of one register): not read file
    by file — `strom recordset add "<the book>" …`, then `strom media add
    --from-input I… --recordset B…` (the numbers come from their names); then

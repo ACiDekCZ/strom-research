@@ -20,7 +20,12 @@ import { ui } from "../cli/ui.ts";
 import { humanDay } from "../cli/human.ts";
 
 /** What else holds an archive at its floor's level now: a connector's reading, the research's record of the archive, the host itself, another settings folder. */
-export type FloorHold = { by: "connector"; name: string } | { by: "tree"; repository?: string } | { by: "host" } | { by: "other" };
+export type FloorHold =
+  | { by: "connector"; name: string }
+  /** The research's record of an archive: its name, and the record set of its whose address is on the host's site when that holds it (not the archive's own address; K051). */
+  | { by: "tree"; repository?: string; name?: string; recordset?: string; site?: string }
+  | { by: "host" }
+  | { by: "other" };
 
 export interface FloorNote {
   host: string;
@@ -52,7 +57,7 @@ function holdsOf(a: ArchiveLevel, c: Connector | undefined): FloorHold[] {
   const out: FloorHold[] = [];
   for (const f of a.from) {
     if (c && (f === "connector" || f === "new connector" || f === "kept" || f === "pages")) out.push({ by: "connector", name: c.name });
-    else if (f === "tree") out.push({ by: "tree", ...(a.repository ? { repository: a.repository } : {}) });
+    else if (f === "tree") out.push({ by: "tree", ...(a.repository ? { repository: a.repository } : {}), ...(a.repositoryName ? { name: a.repositoryName } : {}), ...(a.recordset ? { recordset: a.recordset.id, site: a.recordset.host } : {}) });
     else if (f === "robots" || f === "refused") out.push({ by: "host" });
   }
   return out;
@@ -113,7 +118,14 @@ export function floorQuestion(env: Env, host: string, o: { tree?: Tree; shared?:
 
 /** What holds a floor, for the agent and in strom's own outputs (English): "connector example-archive", "the research's archive R0001". */
 export function holdText(h: FloorHold): string {
-  return h.by === "connector" ? `connector ${h.name}` : h.by === "tree" ? `the research's archive${h.repository ? ` ${h.repository}` : ""} (strom repo show${h.repository ? ` ${h.repository}` : ""})` : h.by === "host" ? "the host's own refusal or robots.txt" : "the person's default settings folder";
+  if (h.by === "tree") {
+    const id = h.repository ? ` ${h.repository}` : "";
+    const name = h.name ? ` (${h.name})` : "";
+    return h.recordset
+      ? `the research's archive${id}${name} through its record set ${h.recordset} on ${h.site ?? "the site"} (strom recordset show ${h.recordset} · strom repo show${id})`
+      : `the research's archive${id}${name} (strom repo show${id})`;
+  }
+  return h.by === "connector" ? `connector ${h.name}` : h.by === "host" ? "the host's own refusal or robots.txt" : "the person's default settings folder";
 }
 
 /** Whose reading raised a floor, for the agent and strom's outputs (English). */
@@ -137,7 +149,10 @@ export function floorLine(lang: string, n: FloorNote): string {
 export function floorWhat(lang: string, n: FloorNote): string {
   if (!n.holds.length) return ui(lang, "ui.archive.floor.decide", { host: n.host, code: n.list });
   const what = n.holds.map((h) =>
-    h.by === "connector" ? ui(lang, "ui.archive.floor.hold.connector", { name: h.name }) : h.by === "tree" ? ui(lang, "ui.archive.floor.hold.tree", { id: h.repository ?? "R…" }) : h.by === "host" ? ui(lang, "ui.archive.floor.hold.host") : ui(lang, "ui.archive.floor.hold.other"),
+    h.by === "connector" ? ui(lang, "ui.archive.floor.hold.connector", { name: h.name }) : h.by === "tree"
+        ? h.recordset
+          ? ui(lang, "ui.archive.floor.hold.treeSet", { id: h.repository ?? "R…", name: h.name ?? h.repository ?? "R…", set: h.recordset, site: h.site ?? n.host })
+          : ui(lang, "ui.archive.floor.hold.tree", { id: h.repository ?? "R…" }) : h.by === "host" ? ui(lang, "ui.archive.floor.hold.host") : ui(lang, "ui.archive.floor.hold.other"),
   );
   return ui(lang, "ui.archive.floor.holds", { what: what.join(", ") });
 }

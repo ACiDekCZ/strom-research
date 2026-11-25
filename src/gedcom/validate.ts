@@ -14,7 +14,8 @@ export interface GedFinding {
 
 const LINE = /^(\d{1,2}) (?:(@[^@ ]+@) )?([A-Za-z0-9_]+)(?: (.*))?$/;
 
-const EVENT_DETAIL = ["TYPE", "DATE", "PLAC", "AGE", "SOUR", "NOTE", "ASSO", "_WITN", "CAUS", "ADDR", "AGNC", "RELI", "OBJE", "HUSB", "WIFE", "_STROM_STATUS", "_STROM_ORIGIN", "_STROM_WAS", "_STROM_EID", "_STROM_CONFIRMED", "_STROM_VERIFY", "_STROM_CHECKED", "_STROM_SHARE", "_STROM_ROLE"];
+// the address structure of 5.5.1 beside ADDR: EMAIL (a person's contact, spec 134 U11), PHON, FAX, WWW
+const EVENT_DETAIL = ["TYPE", "DATE", "PLAC", "AGE", "SOUR", "NOTE", "ASSO", "_WITN", "CAUS", "ADDR", "EMAIL", "PHON", "FAX", "WWW", "AGNC", "RELI", "OBJE", "HUSB", "WIFE", "_STROM_STATUS", "_STROM_ORIGIN", "_STROM_WAS", "_STROM_EID", "_STROM_CONFIRMED", "_STROM_VERIFY", "_STROM_CHECKED", "_STROM_SHARE", "_STROM_ROLE"];
 const INDI_EVENTS = [
   "BIRT", "DEAT", "BAPM", "CHR", "CHRA", "CONF", "FCOM", "BARM", "BASM", "ORDN", "EDUC", "GRAD", "OCCU", "RESI", "EMIG", "IMMI",
   "NATU", "RELI", "TITL", "NATI", "ADOP", "WILL", "PROB", "BURI", "CREM", "CENS", "EVEN", "RETI", "BLES", "CAST", "DSCR", "IDNO",

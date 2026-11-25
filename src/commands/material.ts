@@ -229,15 +229,23 @@ const shownData = (tree: Tree, s: SortState) => {
  * A sort the app queued (its own dialog asked the person, POST /material/sort) is not asked again — only one its bridge
  * signed and only once (sort.ts startable): a record that merely says it is the app's, or one begun once and put back
  * into the queue, is never sorted (sortQueued).
+ * The person's sort.confirm no (spec 102 U8, theirs alone to set): sorted at once on their ask, nothing asked — "no",
+ * said in the output; never in a run nobody watches (strom run, a reader: STROM_NONINTERACTIVE), asked as before there.
  */
-async function personSays(ctx: Context, tree: Tree, s: SortState | Pick<SortState, "files" | "text">, set: string): Promise<boolean> {
+async function personSays(ctx: Context, tree: Tree, s: SortState | Pick<SortState, "files" | "text">, set: string): Promise<boolean | "no"> {
   // the app's only when its bridge signed it as it took it and it never began (never a record that merely says so: see sortQueued)
   if ("id" in s && startable(tree.key, s)) return true;
+  // a session nobody watches (as core/web.ts unattended: strom run not --interactive, a reader) asks as before
+  if (ctx.settings.sortConfirm(tree.config) === "no" && ctx.env.STROM_NONINTERACTIVE !== "1") return "no";
   const n = s.files.length;
   const says = ui(ctx.uiLang(), "ui.consent.sort", { n: String(n), readings: String(sortCost(n)) });
   return !!(await ctx.requireHumanYes(`Sort ${n} file(s) of the material by readers of the research (${sortCost(n)} paid reading(s))? Only when the user asked for it.`, set, "material.sort", says));
 }
 const notSorted = (ctx: Context, files: string[]) => ({ text: ui(ctx.uiLang(), "ui.consent.sort.no"), data: { sorted: false, files } });
+/** A sort not asked about by the person's sort.confirm no: said under it, and confirm "no" in its data. */
+const NOT_ASKED = "not asked: the person's sort.confirm no — sorted at once on their ask (strom config set sort.confirm ask asks again)";
+const withConfirm = (yes: boolean | "no", out: { text: string; data: Record<string, unknown>; exitCode: number }) =>
+  yes === "no" ? { ...out, text: lines(out.text, "", NOT_ASKED), data: { ...out.data, confirm: "no" } } : out;
 
 /** A queued sort sorted now (the bridge starts it so, detached). */
 async function sortQueued(ctx: Context, tree: Tree, id: string, opts: Record<string, unknown>) {
@@ -265,13 +273,14 @@ async function sortQueued(ctx: Context, tree: Tree, id: string, opts: Record<str
   // a part of a run of the app not counted against its readings yet: its bridge alone starts it, when read.app allows
   if (s.run !== undefined && !countedRead(key, s)) throw new UsageError(`${id} is part ${s.part} of ${s.parts} of the Strom app's run ${s.run}: its bridge starts it when the app's readings allow (read.app)`, { code: "material.sort-waiting", params: { id, run: s.run }, hint: `strom material show ${s.run}` });
   if (s.pid && s.pid !== process.pid && alive(s.pid)) throw new UsageError(`${id} is being sorted now`, { hint: `strom material show ${id}` });
-  if (!fs.existsSync(sortCancelPath(tree.root, id)) && !(await personSays(ctx, tree, s, `strom material sort ${id}`))) return notSorted(ctx, s.files);
+  const yes = fs.existsSync(sortCancelPath(tree.root, id)) || (await personSays(ctx, tree, s, `strom material sort ${id}`));
+  if (!yes) return notSorted(ctx, s.files);
   if (fs.existsSync(sortCancelPath(tree.root, id))) {
     fs.rmSync(sortCancelPath(tree.root, id), { force: true });
     s = { ...s, state: "cancelled", since: now() };
     saveSort(tree.root, s);
   } else s = await sortNow(ctx, tree, s, opts);
-  return { text: said(tree, s), data: shownData(tree, s), exitCode: s.state === "failed" ? 1 : 0 };
+  return withConfirm(yes, { text: said(tree, s), data: shownData(tree, s), exitCode: s.state === "failed" ? 1 : 0 });
 }
 
 register({
@@ -297,7 +306,9 @@ register({
     "signature is good once: spent with the sort's first step out of the queue, so one begun and put back into the\n" +
     "queue by hand is never sorted again (failed, \"begun once already\"; asked again in the app).\n" +
     "Paid readings, only when the user asks for them: the user says yes in their own terminal (Enter says no) or in a\n" +
-    "window of the system; with nobody to ask it ends with exit 4 (needs-input) — an agent never answers for the user.",
+    "window of the system; with nobody to ask it ends with exit 4 (needs-input) — an agent never answers for the user.\n" +
+    "With the person's sort.confirm no (strom config, theirs alone to set) nothing is asked: sorted at once on their\n" +
+    "ask, said so (confirm: \"no\"); a run nobody watches (strom run) still asks.",
   args: [{ name: "files", description: "the files: inputs I… of the material; or a sort queued: sort-…", variadic: true }],
   options: [
     { name: "text", type: "string", value: "<text>", description: `what the person knows of the files (at most ${SORT_TEXT_MAX} characters)` },
@@ -316,10 +327,11 @@ register({
     // asked here: never a sort of the app's (only its bridge gives that, signed; its own dialog asked the person) — a
     // worker named so is no app
     const from = ctx.env.STROM_WORKER === APP_SORT_FROM ? undefined : ctx.env.STROM_WORKER;
-    if (!opts.queue && !(await personSays(ctx, tree, { files: ask.files, text: ask.text }, ["strom material sort", ...ask.files, ...(ask.text ? ["--text", JSON.stringify(ask.text)] : [])].join(" ")))) return notSorted(ctx, ask.files);
+    const yes = opts.queue ? true : await personSays(ctx, tree, { files: ask.files, text: ask.text }, ["strom material sort", ...ask.files, ...(ask.text ? ["--text", JSON.stringify(ask.text)] : [])].join(" "));
+    if (!yes) return notSorted(ctx, ask.files);
     let s = queueSort(tree, ask, { lang: tree.lang, from });
     if (!opts.queue) s = await sortNow(ctx, tree, s, opts);
-    return { text: said(tree, s), data: shownData(tree, s), exitCode: s.state === "failed" ? 1 : 0 };
+    return withConfirm(yes, { text: said(tree, s), data: shownData(tree, s), exitCode: s.state === "failed" ? 1 : 0 });
   },
 });
 

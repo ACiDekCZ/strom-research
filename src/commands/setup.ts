@@ -567,7 +567,7 @@ function diagnoseInto(
 
   // Archives through the browser: only Claude Code has browser tools, and they work through the Claude in Chrome extension.
   // Claude's app without Claude Code in the terminal: its conversation has Claude in Chrome, a run of strom's
-  // (strom run --chrome) does not — said beside the extension found
+  // (strom run) does not — said beside the extension found
   const appOnly = chosen === "claude" && appWithoutCli("claude", ctx.env) ? t("ui.doc.browser.apponly", { app: DESKTOP_APPS.claude!.name, cli: PROFILES.claude!.name }) : "";
   const shared = ctx.settings.shared()?.value;
   const viaBrowser = shared ? timed("doctor.browser", () => browserConnectors(ctx.env, shared)) : [];
@@ -1237,6 +1237,7 @@ const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | unde
   "sync.review": () => "off",
   "read.sourceTask": () => "ask",
   "run.confirm": () => "ask",
+  "sort.confirm": () => "ask",
   "hypotheses.decide": () => "agent",
   "excerpts.quality": (s, tree) => s.excerpts(tree).quality,
   "excerpts.for": (s, tree) => s.excerpts(tree).for,
@@ -1373,6 +1374,25 @@ function addonsDecision(ctx: Context, key: string, value: string | number | unde
   const { now, next } = layerChange(ctx, key, value, scope);
   if (next === "on" && now !== "on")
     ctx.requireHuman("Let the agent working alone load your own add-ons (skills, plugins, MCP servers), as in a conversation?", "strom config set agent.addons on", "agent.addons", ui(ctx.uiLang(), "ui.consent.addons"));
+}
+
+/**
+ * The gateway of other devices (devices.mode on: the phone's server gives the Strom app to the devices of the home
+ * network): turned on by the person alone, in their own terminal. Anywhere else — an agent, a command with nobody at a
+ * terminal — refused without a window: no dialog says it is there, and nothing is written; off is anyone's.
+ */
+function devicesDecision(ctx: Context, key: string, value: string | number | undefined): void {
+  if (key !== "devices.mode" || value !== "on") return;
+  if (ctx.interactive && !isAgent(ctx.env)) return;
+  if (readStored(ctx.settings.config, key, "") === "on") return;
+  throw new NeedsConsentError([
+    {
+      key,
+      kind: "consent",
+      question: `${key} on is the person's own choice, typed in their own terminal — never an agent's (an agent cannot answer this)`,
+      set: `strom config set ${key} on`,
+    },
+  ]);
 }
 
 /**
@@ -1673,6 +1693,30 @@ function intakeDecision(ctx: Context, key: string, value: string | number | unde
   );
 }
 
+/**
+ * A sort of the material without the question about its paid readings (sort.confirm no, spec 102 U8): a standing yes
+ * to what the readers spend — turned on by the person alone, their yes in a terminal too (a window where an agent asks),
+ * or their switch in the Strom app on this computer (the bridge; never a device of the home network nor an agent: 403
+ * sort.raise); back to ask is anyone's. false: the person said no — nothing changed.
+ */
+async function sortDecision(ctx: Context, key: string, value: string | number | undefined, scope: "tree" | "user"): Promise<boolean> {
+  if (key !== "sort.confirm") return true;
+  const { now, next } = layerChange(ctx, key, value, scope);
+  if (next !== "no" || now === "no") return true;
+  // the Strom app on this computer (spec 123 P2): the bridge writes it in the app's environment — the person's switch
+  // there, confirmed in the app's own dialog; never a device of the home network nor an agent (the bridge refuses them)
+  if (ctx.env.STROM_FOR_APP === "1" && !isAgent(ctx.env)) return true;
+  const forTree = scope === "tree" ? " --for-tree" : "";
+  return !!(await ctx.requireHumanYes(
+    scope === "tree"
+      ? "Sort files of this research's material by its readers at once when asked, without the question about the paid readings?"
+      : "Sort files of the material by the readers of the research at once when asked, without the question about the paid readings, in every research on this computer?",
+    value === undefined ? `strom config unset sort.confirm${forTree}` : `strom config set sort.confirm no${forTree}`,
+    "sort.confirm",
+    ui(ctx.uiLang(), "ui.consent.sort.confirm"),
+  ));
+}
+
 /** The tree here, or undefined where none opens. */
 function safeTree(ctx: Context): Tree | undefined {
   try {
@@ -1828,11 +1872,15 @@ function isFolder(p: string): boolean {
 /** false: the person said no in their terminal to what needs their own yes there (requireHumanYes) — nothing changed. */
 async function setUserSetting(ctx: Context, key: string, value: string | number | undefined): Promise<boolean> {
   const s = ctx.settings;
+  devicesDecision(ctx, key, value);
+  // devices.mode off is the default: stored as nothing (nothing of it said in strom config where while it is off)
+  if (key === "devices.mode" && value === "off") value = undefined;
   syncDecisions(ctx, key, value, "user");
   addonsDecision(ctx, key, value, "user");
   experimentsDecision(ctx, key, value, "user");
   censusDecision(ctx, key, value, "user");
   intakeDecision(ctx, key, value, "user");
+  if (!(await sortDecision(ctx, key, value, "user"))) return false;
   const pace = await askPace(ctx, key, value);
   browserDecision(ctx, key, value, "user");
   effortDecision(ctx, key, value, "user");
@@ -1889,8 +1937,10 @@ async function setUserSetting(ctx: Context, key: string, value: string | number 
     )
       return false;
   // The agent started from the Strom app's links without the question (a standing yes to its subscription or credit):
-  // turned on by the user alone, their yes in a terminal too; asking again is anyone's.
-  if (key === "run.confirm" && value === "no" && s.runConfirm() !== "no")
+  // turned on by the user alone — their yes in a terminal too, or their switch in the Strom app on this computer (the
+  // bridge writes it in the app's environment; never for a device of the home network nor an agent, spec 123 P2);
+  // asking again is anyone's.
+  if (key === "run.confirm" && value === "no" && s.runConfirm() !== "no" && !(ctx.env.STROM_FOR_APP === "1" && !isAgent(ctx.env)))
     if (
       !(await ctx.requireHumanYes(
         "Start the agent from the Strom app's links without asking first (it works on the subscription or AI credit)?",
@@ -1991,7 +2041,7 @@ register(
     ],
     description: [
       "A setting of choices takes one of its values:",
-      ...SETTINGS.filter((s) => s.kind === "choice" && s.choices?.length).map((s) => `  ${s.key}  ${s.choices!.join(" | ")}`),
+      ...SETTINGS.filter((s) => s.kind === "choice" && s.choices?.length && !s.hidden).map((s) => `  ${s.key}  ${s.choices!.join(" | ")}`),
       "hypotheses.decide: agent (default where nothing is set, a research of 1.28 or older too) — the agent decides once a",
       "cited record points to one variant (strom hypothesis decide), never changing the user's decision; person — the agent",
       "proposes a decision (strom hypothesis propose), the user decides it in What waits. Back to the person at any time:",
@@ -2022,6 +2072,7 @@ register(
       let text: string;
       let data: Record<string, unknown>;
       if (opts["for-tree"]) {
+        if (!(await sortDecision(ctx, def.key, value, "tree"))) return kept(ctx, def);
         const tree = setTreeSetting(ctx, def.key, value);
         text = `${def.key} = ${display(ctx, def, value)}${who} for tree "${tree.config.name}"`;
         data = { key: def.key, value, scope: "tree", ...(forAgent ? { agent: forAgent } : {}) };
@@ -2070,8 +2121,10 @@ register(
     examples: ["strom config unset shared", "strom config unset agent --for-tree"],
     async run(ctx, { args, opts }) {
       const def = settingDef(args[0]!);
-      if (opts["for-tree"]) setTreeSetting(ctx, def.key, undefined);
-      else if (!(await setUserSetting(ctx, def.key, undefined))) return kept(ctx, def);
+      if (opts["for-tree"]) {
+        if (!(await sortDecision(ctx, def.key, undefined, "tree"))) return kept(ctx, def);
+        setTreeSetting(ctx, def.key, undefined);
+      } else if (!(await setUserSetting(ctx, def.key, undefined))) return kept(ctx, def);
       const r = effective(ctx, def);
       // a setting with no default: nothing holds now, said once (never "now (unset) (unset)")
       const now = r.value === undefined ? "nothing set now" : `now ${display(ctx, def, r.value)} (${r.source})`;

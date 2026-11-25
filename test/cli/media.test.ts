@@ -257,37 +257,32 @@ test("images the user saves by hand: the folder is made and shown with the link,
   const folder = "B0002 Žďár N 1784–1820";
   const dir = path.join(w.home, "shared", "inbox", folder);
   const asked = await w.ok(["task", "wait", "T1", "--images", "B2:9-10", "--on", "snímky 9–10 knihy Žďár (https://archive.example.org/book/5359)"]);
-  assert.match(asked.out, /the user saves images 9–10 of B0002 into .*B0002 Žďár N 1784–1820, each named by its number \(9\.jpg; named otherwise, they are taken by their order when as many as asked for\)/);
+  assert.match(asked.out, /the user saves images 9–10 of B0002 into .*B0002 Žďár N 1784–1820, each named by its number \(9\.jpg; the number in the name is enough, __0009\.jpg; named otherwise, they are taken by their order when as many as asked for; named by their entries, 001-004\.jpg, or as many otherwise: in the folder's order once nothing was saved for 20 minutes/);
   assert.ok(fs.statSync(dir).isDirectory(), "the folder is there before the user looks for it");
   const t = (await w.ok(["task", "show", "T1", "--json"])).json.task;
-  assert.deepEqual(t.awaits, { recordset: "B0002", images: "9–10", folder });
+  assert.deepEqual({ ...t.awaits, since: undefined }, { recordset: "B0002", images: "9–10", folder, since: undefined });
+  assert.ok(Number.isFinite(Date.parse(t.awaits!.since!)), "when it began to wait (spec 141)");
   assert.ok(t.where.includes("B0002"));
   assert.match(
     (await w.ok(["status"])).out,
     /čeká \(1\)\n  T0001  snímky 9–10 knihy Žďár \(https:\/\/archive\.example\.org\/book\/5359\)\n {9}snímky 9–10 z B0002 Žďár N 1784–1820 · https:\/\/archive\.example\.org\/book\/5359\n {9}uložit je do .*B0002 Žďár N 1784–1820[\/\\]\n/,
   );
   assert.equal((await w.run(["task", "wait", "T1", "--images", "B2:x", "--on", "?"])).code, 2);
-  // saved under the portal's own names, whose numbers are something else (×10), more files than images missing: nothing is taken
+  // saved under the portal's own names, whose numbers are something else (×10): never put onto the images asked for
+  // (B0408), never "rename" — taken now in the folder's order as the next numbers of the book, the task back to tell
+  // each by its content (spec 141 K1.3)
   fs.copyFileSync(path.join(fixtures, "s0001.jpg"), path.join(dir, "kniha-00090.jpg"));
   fs.copyFileSync(path.join(fixtures, "s0002.jpg"), path.join(dir, "kniha-00100.jpg"));
   fs.copyFileSync(path.join(fixtures, "s0003.jpg"), path.join(dir, "kniha-00110.jpg"));
-  const wrong = await w.run(["media", "add", "--inbox", folder.normalize("NFD")]);
-  assert.equal(wrong.code, 2);
-  assert.match(wrong.err, /images 9–10 of B0002 were asked for, but the file names give 90, 100, 110 — 3 files for 2 images: name each by the number its viewer counts \(9\.jpg\)/);
-  assert.equal(fs.readdirSync(dir).length, 3, "nothing moved");
-  // as many as the images missing, but numbered otherwise: never by their order (B0408) — nothing is taken
-  fs.rmSync(path.join(dir, "kniha-00110.jpg"));
-  assert.equal((await w.run(["media", "add", "--inbox", folder.normalize("NFD")])).code, 2);
-  // named with no number at all, as many as missing: taken by their order
-  fs.renameSync(path.join(dir, "kniha-00090.jpg"), path.join(dir, "stažená stránka.jpg".normalize("NFD")));
-  fs.renameSync(path.join(dir, "kniha-00100.jpg"), path.join(dir, "stažená stránka – kopie.jpg".normalize("NFD")));
   const r = await w.ok(["media", "add", "--inbox", folder.normalize("NFD")]);
-  assert.match(r.out, /2 images registered: M0001–M0002 of B0002 \(images 9–10, numbered by their order: the names gave none of the numbers asked for\)/);
-  assert.match(r.out, /back in the queue \(they waited for these images\): T0001/);
+  assert.doesNotMatch(r.out + r.err, /rename|name each/u);
+  assert.match(r.out, /3 images registered: M0001–M0003 of B0002 \(images 11–13\)/u);
+  assert.match(r.out, /numbered in the folder's order from 11/u);
+  assert.match(r.out, /back in the queue \(they waited for these images\): T0001/u);
   const back = (await w.ok(["task", "show", "T1", "--json"])).json.task;
   assert.equal(back.state, "open");
   assert.equal(back.awaits, undefined);
-  assert.match(back.notes.at(-1).text, /2 images of B0002 registered \(it waited for images 9–10\)/);
+  assert.match(back.notes.map((n: { text: string }) => n.text).join(" "), /taken in the folder's order as images 11–13 of B0002, the next numbers of the book: kniha-00090\.jpg → image 11/u);
   assert.ok(!fs.existsSync(dir), "the emptied folder goes");
   w.cleanup();
 });

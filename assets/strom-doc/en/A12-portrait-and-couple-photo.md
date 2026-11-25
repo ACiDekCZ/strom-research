@@ -15,7 +15,8 @@ A photo chosen when editing a person opens in the editor **Portrait crop**. A fr
 card stands still and the photo moves, zooms and rotates under it.
 
 - **In the editor:**
-  - **moving** by dragging the photo; the movement stops before an empty space would remain in the frame;
+  - **moving** by dragging the photo; up to app 3.31.0 the movement stops before an empty space would remain in the
+    frame (from 3.32.0 it goes past the edge, see below);
   - **Zoom** from 100 % (the frame covers the shorter side of the photo) up to at most 800 %; the crop always has at
     least 128 px of the original photo, so a small photo zooms less (at most to twice its real resolution);
     **Default** returns the initial crop: the largest square from the centre;
@@ -50,8 +51,13 @@ card stands still and the photo moves, zooms and rotates under it.
 - **From app 3.31.0:** **Choose photo** at a person who has photos to offer first opens the picker **Portrait from
   a photo** ([A12.2](#A12.2)); a file from the computer comes through **From the computer…** in it (on touch **From
   this device…**). A new person and a person without such photos get the file picker as before.
+- **From app 3.32.0:** under the frame the photo can also be moved past its edge (with the mouse, a finger and the
+  arrows) and zoomed there, so a face at the edge of the photo can be in the middle of the portrait. The centre of the
+  frame always stays on the photo. The part of the portrait outside the photo has a neutral light colour, the same on
+  the card (in dark mode too), in the Fan, in the book, in the image export, in saved pages, in print and in GEDCOM.
+  Portraits cropped earlier look as before.
 
-<!-- zdroj: app:327d9734 src/ui/portrait-editor.ts (rámeček, posun, kolečko, dva prsty, ↺ ↻, narovnání s mřížkou, Zrcadlit, náhled karty / Stránka osoby / Rodinné stránky, telefon), src/photo.ts PHOTO_SIZE 256, PORTRAIT_MIN_SOURCE_PX 128, PORTRAIT_MAX_ANGLE 45, PORTRAIT_ANGLE_STEP 0.5, minZoomForAngle, cropToJpeg (bílý podklad) · src/portrait-editor-model.ts isIdentityPortrait (Hotovo beze změny z nového souboru = compressPhoto), isSmallPortrait · app:88859da2 src/ui/person-modal.ts handlePhotoInput → editor, Zrušit/Escape nechá dialog, dialog zavřený bez Uložit nic nenechá, #photo-rotate-left/right odstraněny · app:a2af453a jen ke čtení / zamčená osoba, personGone · app:ef688950 dlouhá jména, telefon na šířku · strings.ts portrait.title, preview, personPage, familyPages, savedCircle, savedRounded, rotate, straighten, zoom, reset, mirror, small, personGone · ZADANI_DEV §1, §9, §10 · 3.31.0: app:c6fbb3ff src/ui/person-modal.ts choosePersonPhoto (#photo-choose-btn; bez currentId → #input-photo), src/ui/portrait-picker-ui.ts openPortraitPicker (prázdný model → portraitPickFile), portraitPickerHtml (fromComputer / fromDevice) · strings.ts labels.photoChoose, portrait.pickTitle, fromComputer, fromDevice · dirigent:prace/1122-app-portret-dev · app:docs/ZADANI_DEV_portret-z-materialu.md §1.2, §1.3 -->
+<!-- zdroj: app:327d9734 src/ui/portrait-editor.ts (rámeček, posun, kolečko, dva prsty, ↺ ↻, narovnání s mřížkou, Zrcadlit, náhled karty / Stránka osoby / Rodinné stránky, telefon), src/photo.ts PHOTO_SIZE 256, PORTRAIT_MIN_SOURCE_PX 128, PORTRAIT_MAX_ANGLE 45, PORTRAIT_ANGLE_STEP 0.5, minZoomForAngle, cropToJpeg (bílý podklad) · src/portrait-editor-model.ts isIdentityPortrait (Hotovo beze změny z nového souboru = compressPhoto), isSmallPortrait · app:88859da2 src/ui/person-modal.ts handlePhotoInput → editor, Zrušit/Escape nechá dialog, dialog zavřený bez Uložit nic nenechá, #photo-rotate-left/right odstraněny · app:a2af453a jen ke čtení / zamčená osoba, personGone · app:ef688950 dlouhá jména, telefon na šířku · strings.ts portrait.title, preview, personPage, familyPages, savedCircle, savedRounded, rotate, straighten, zoom, reset, mirror, small, personGone · ZADANI_DEV §1, §9, §10 · 3.31.0: app:c6fbb3ff src/ui/person-modal.ts choosePersonPhoto (#photo-choose-btn; bez currentId → #input-photo), src/ui/portrait-picker-ui.ts openPortraitPicker (prázdný model → portraitPickFile), portraitPickerHtml (fromComputer / fromDevice) · strings.ts labels.photoChoose, portrait.pickTitle, fromComputer, fromDevice · dirigent:prace/1122-app-portret-dev · app:docs/ZADANI_DEV_portret-z-materialu.md §1.2, §1.3 · 3.32.0: app:5ec53843, 950904bd, 6a3f1550 (1123-app-vyrez-pripojit) isPortraitRegionShape (strana ≤ 1, střed na fotce), plocha mimo fotku #f0e9da pečená do Person.photo, GED bez CROP · CHANGELOG.cs.md 3.32.0 (Portrét přes kraj fotky) · dirigent:test/vysledek-1123-app-vyrez-pripojit.md A -->
 
 <a id="A12.1.1"></a>
 ### A12.1.1 Keyboard, mouse and touch in the editor
@@ -152,10 +158,10 @@ only change within its square.
   the current crop.
 - **Without an original** (a portrait from the time before app 3.30.0, from a GEDCOM import, from a merge without a
   source, after the source attachment was deleted): the editor works with the finished 256 px square. The crop can
-  only get smaller, move inside, rotate, straighten and flip. The editor says so (“The whole photo is not stored; the
-  crop can only get smaller.”) and offers **Choose the photo again…**: it opens the file choice and then goes on as a
-  new photo ([A12.1](#A12.1)). Each further edit without an original makes the portrait softer; a new choice of the
-  photo puts that right.
+  only get smaller, move inside (from app 3.32.0 past the edge too), rotate, straighten and flip. The editor says so
+  (“The whole photo is not stored; the crop can only get smaller.”) and offers **Choose the photo again…**: it opens
+  the file choice and then goes on as a new photo ([A12.1](#A12.1)). Each further edit without an original makes the
+  portrait softer; a new choice of the photo puts that right.
 - **Portrait | Whole photo:** the enlarged portrait on the person page has at the bottom the switch **Portrait** |
   **Whole photo** when the portrait has its original in the tree. A saved person page (**Save as HTML**) has the link
   **Whole photo** in the enlarged portrait only when the file carries that photo (attachments or the couple's photo
@@ -171,8 +177,10 @@ only change within its square.
   crop**: it opens the picker **Portrait from a photo** ([A12.2](#A12.2)) under ⋯ and the new portrait is written at
   once with **Undo**. The item is only at a person with a portrait who can be changed and has a photo to offer
   (photos from a research that does not run count too). A click on the portrait still opens the enlargement.
+- **From app 3.32.0:** a portrait without an original can also be moved past the edge of its square; the area
+  outside it has a neutral light colour and the centre of the frame stays on the portrait ([A12.1](#A12.1)).
 
-<!-- zdroj: app:1feae064 src/ui/person-modal.ts #photo-recrop-btn (labels.photoRecrop), editor nad zdrojem s photoSource, jinak squareOnly + chooseAgain → #input-photo · src/ui/person-page-ui.ts item('crop', editCrop) jen canEdit && person.photo, Hotovo = jedna transakce, toast portraitUpdated s Vrátit · app:dab74024 src/ui/image-viewer.ts přepínač Portrét | Celá fotka (jen s existujícím zdrojem), src/person-page.ts portraitLightbox odkaz Celá fotka jen když soubor fotku nese · strings.ts labels.photoRecrop, personPage.moreActions, editCrop, portrait, wholePhoto, portrait.noOriginal, chooseAgain, updated · ZADANI_DEV §2, §10 · 3.31.0: app:3f6c9dfd src/ui/person-page-ui.ts togglePersonPageMenu item('portrait') před crop, personPageCanChangePortrait (shown + researchOnly > 0), runPersonPageMenu → openPortraitPicker pod .pp-more · strings.ts personPage.changePortrait · dirigent:prace/1122-app-portret-dev · app:docs/ZADANI_DEV_portret-z-materialu.md §1.3 -->
+<!-- zdroj: app:1feae064 src/ui/person-modal.ts #photo-recrop-btn (labels.photoRecrop), editor nad zdrojem s photoSource, jinak squareOnly + chooseAgain → #input-photo · src/ui/person-page-ui.ts item('crop', editCrop) jen canEdit && person.photo, Hotovo = jedna transakce, toast portraitUpdated s Vrátit · app:dab74024 src/ui/image-viewer.ts přepínač Portrét | Celá fotka (jen s existujícím zdrojem), src/person-page.ts portraitLightbox odkaz Celá fotka jen když soubor fotku nese · strings.ts labels.photoRecrop, personPage.moreActions, editCrop, portrait, wholePhoto, portrait.noOriginal, chooseAgain, updated · ZADANI_DEV §2, §10 · 3.31.0: app:3f6c9dfd src/ui/person-page-ui.ts togglePersonPageMenu item('portrait') před crop, personPageCanChangePortrait (shown + researchOnly > 0), runPersonPageMenu → openPortraitPicker pod .pp-more · strings.ts personPage.changePortrait · dirigent:prace/1122-app-portret-dev · app:docs/ZADANI_DEV_portret-z-materialu.md §1.3 · 3.32.0: dirigent:prace/_drobnosti/doc.md (1123-app-vyrez-pripojit: platí i pro čtvercový portrét bez originálu) -->
 
 <a id="A12.4"></a>
 ## A12.4 The couple's photo
@@ -260,6 +268,9 @@ the relationships, in the Unions table, on person pages and in the family book.
   **Tree overview** counts couples' photos among the photos and the originals of portraits among the attachments.
 - **Controls:** Table › Unions, the choice of columns; the person page; export **Family book**.
 - **Since:** app 3.30.0
+- **From app 3.31.0:** The fan shows portraits with **Portraits** switched on ([A6.4.2](A6-views.md#A6.4.2)); from
+  3.32.0 in every ring where there is room, and on the poster and in print from 7 mm ([A6.4.3](A6-views.md#A6.4.3)).
+  The fan does not show the couple's photo.
 
 <!-- zdroj: app:45f7ca2a src/ui/table-view/table-columns.ts:732 uPhoto (group uextra, skrytý, kind thumb), thumbCell (strings.table.yes, sortKey), table-filter.ts presence (withPhoto / withoutPhoto), prohlížeč s Udělat portréty… a Vrátit, telefon (D10) · app:fd1f0c3c src/person-page.ts couplePhotoItems (první v galerii, popisek, počet obrázků, bez skupiny obrázků / žijící partner pod ochranou), rodinné stránky totéž, src/book-blocks.ts couplePhotoHtml (jen parts.media, popisek fields.marriageRow / book.partners + datum), src/book-css.ts .book-photo--couple max-height 110mm · app:50e49518 src/ui/tree-overview.ts a src/attachments.ts: fotka svazku mezi fotkami, originál portrétu je příloha · ZADANI_DEV §5, §8, D10, D12 · strings.ts tableCols.uPhoto, tableFilter.withPhoto, withoutPhoto, table.groups.uextra, personPage.sec.materials, relationships.unionPhotoCaption, book.parts.media -->
 

@@ -136,7 +136,8 @@ GETTING STARTED (once)
   strom document read <photo or PDF>   one document of the user's read at once: its transcript, translation,
                                        terms and people — tell the user; nothing of it enters the tree by itself
   strom material sort I… [--text "…"]   only when the user asks: files of the family's material sorted by
-                                       readers (paid readings; the user says yes, never you) — a proposal, nothing written
+                                       readers (paid readings; the user says yes, never you) — a proposal, nothing written;
+                                       with sort.confirm no (the person's setting, never yours) nothing is asked
   A file sent to the research (a batch or a single file from the Strom app, a phone, material the user added in
   strom's menu) becomes a task for you only where the user turned intake.auto on (strom config — their switch,
   never yours) or asked for it (the app's Sort by agent…, strom input batch done <mark> --sort); else it waits in
@@ -208,6 +209,9 @@ A record (register entry, certificate) — the source first, then its facts:
   strom family add --partner P0002 --partner P0003 --child P0001    the baptism naming the parents proves the link
   strom event add P0001 CHR --date "25 JUN 1885" --cite S0001 --locator "fol. 12" --with "godparent:Marie Dvořáková" --status proven
   strom event add P0002 OCCU --value "rolník" --cite S0001
+  strom event add P0001 RELI --value "katolické" --date "25 JUN 1885" --cite S0001
+A religion only as the record writes it of that person (a mark in its column counts), dated by it — never from the
+parents, the parish, the book or the rite, nor from a word not read for sure; the same faith again cites the fact.
 The same fact from a second record: strom cite E0001 S0002 (never a second BIRT).
 Names a record gives: strom name add P0003 "Marie /Svobodová/" --kind birth --cite S0001
 (a maiden name completes "Marie"; --kind married for a married name). A record

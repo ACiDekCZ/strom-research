@@ -507,8 +507,9 @@ page.
 - **Text in the sectors:** **Name and years** (default) · **Name, dates and places** (birth and death with the date and
   the place, of the place only the part before the first comma, for example "* 22 Nov 1888 Kessenau"; only where it
   fits) · **Names only** (in a slightly larger font). "Where the text does not fit, it is shortened."
-- **Portraits** "In the centre, for parents and grandparents" (off by default): a round portrait in the centre and in
-  the first two rings. A protected living person has no portrait. The text takes precedence: a portrait for which no
+- **Portraits** (off by default): a round portrait; in app 3.31.0 ("In the centre, for parents and grandparents") in
+  the centre and in the first two rings, from 3.32.0 in every ring (**From app 3.32.0** below). A protected living
+  person has no portrait. The text takes precedence: a portrait for which no
   room would be left is not drawn. While loading, the panel says "Portraits loading (k / n)"; "Nobody in the fan has a
   portrait yet."
 - **Three levels of appearance:**
@@ -519,6 +520,7 @@ page.
   - the **output appearance** (poster, image, print) is not remembered ([A6.4.3](#A6.4.3)).
 
   A lower level never overwrites a higher one; only **Save as default** does.
+<!-- zdroj 3.32.0: app:a938802d, bcdcab9e, f229be62 src/fan-chart.ts FAN_PORTRAIT_MIN_PX 32, portraitOf (každý prstenec předků i potomků, dPx < portraitMin → nic, fotka se pak ani nežádá; text výseče jako bez portrétu), opts.portrait jen pro výseče v pohledu, ne chráněná osoba · strings.ts fanLook.portraits, portraitsSub · CHANGELOG.cs.md 3.32.0 · dirigent:spec/118 K2.7, K2.8 -->
 - **Panel footer:** when the appearance differs from the default, "Differs from the default appearance." with **Save
   as default** ("Saved as the default fan appearance.") and **Back to default**; the button **Appearance** then
   carries a dot. Otherwise "Default appearance · can be changed in Settings"; the link opens Settings at the group
@@ -528,7 +530,15 @@ page.
 - **Phone:** **Colours** and **Appearance** are tabs of one sheet from below; the sheet opens on the one used last.
 - **Limits:** the fan on the person page does not change (only the gender colours).
 - **Controls:** the fan's bar → **Appearance**; **Settings → Fan**.
-- **Since:** app 3.31.0
+- **Since:** app 3.31.0; 3.32.0: portraits in every ring
+- **From app 3.32.0:** **Portraits** "Ancestors and descendants where there is room; zooming in shows more": a round
+  portrait in the centre and in any sector of any ring, for ancestors and (in the shape Two-way) also for descendants
+  and partners.
+  - A portrait is drawn only where at the current zoom it has a diameter of at least 32 px and the sector's text
+    beside it says the same as without it; otherwise the sector has no portrait. The text still takes precedence.
+  - Zooming in shows the portraits of the outer rings; photos are loaded only for the sectors that are visible and
+    would show a portrait.
+  - On the poster and in print a portrait has a diameter of at least 7 mm on paper ([A6.4.3](#A6.4.3)).
 
 <!-- zdroj: app:53ad42f1 src/fan-look.ts (hlavička: tři úrovně, ne úprava stromu, další okno; FAN_LOOK_DEFAULT color/all/years/portraits false), storage-keys.ts FAN_STORAGE_KEYS, FAN_LOOK_SESSION_KEY · 2236bbd4 src/fan-rod-assign.ts (rodScope main: 10 největších, rod středu vždy), src/fan-colors.ts FAN_STYLES, FAN_PATTERNS (vl, hl, grid, dot, dot2, ring, plus, dash), palety světlá/tmavá/tisk · c2dc2520 src/fan-labels.ts (content years/places/names, místo před čárkou), src/fan-chart.ts portréty prstence 1–2, chránění žijící, text má přednost · 2e9d8ad0 Nastavení → Vějíř (index.html settings-group-fan, setFanDefaultLook; vějíř s výchozím vzhledem změnu převezme) · e07ed419 (stránka osoby) · strings.ts fan.look*, style*, scope*, content*, portraits*, lookDiffers, lookIsDefault, lookSaveDefault, lookResetDefault, lookSavedToast, defaultsDesc, textNote, legendOtherGrey, posterColorsMain · SPEC.md 1120-app-vejir-vzhled · spec 118 K1.1–K2.6 · CHANGELOG.cs.md 3.31.0 -->
 
@@ -547,6 +557,11 @@ appearance** with the same options as the panel **Appearance** ([A6.4.2](#A6.4.2
   screen.
 - **Controls:** **Export poster** → **Poster appearance**.
 - **Since:** app 3.31.0
+- **From app 3.32.0:** with **Portraits** switched on, the poster and the print of the fan (also Ctrl+P from the view
+  on an A4 landscape sheet) draw a portrait where it has a diameter of at least 7 mm on paper; otherwise the same holds
+  as on the screen ([A6.4.2](#A6.4.2)).
+
+<!-- zdroj 3.32.0: app:a938802d, bcdcab9e, f229be62 src/fan-chart.ts FAN_PORTRAIT_MIN_MM 7, renderFanPoster portraitMinPx = 7 mm / mmPerPx (0,26), fanPrintPortraitMinPx (A4 na šířku 277 × 0,85·190 mm, ne pod 32 px) · src/ui/fan-view.ts printing → fanPrintPortraitMinPx · dirigent:spec/118 K2.8 -->
 
 <!-- zdroj: app:2e9d8ad0 src/ui/export-image-ui.ts (PosterLook předvyplněný z obrazovky, náhled toutéž funkcí plakátu, Jako na obrazovce, sloty rodů z obrazovky, telefon jeden řádek), src/fan-look.ts (vzhled výstupu se nepamatuje) · e2e/fan-look-output.spec.ts · strings.ts poster.menu, title, lookTitle, lookPreview, lookOnlyHere, lookAsScreen, lookChanged · SPEC.md 1120-app-vejir-vzhled · spec 118 -->
 

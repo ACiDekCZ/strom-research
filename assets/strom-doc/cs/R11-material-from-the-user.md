@@ -125,7 +125,8 @@ Složku, ZIP nebo krabici dokumentů poslanou z aplikace výzkum přijme jako je
 - **Jen metodika:**
   - agent si nejdřív levně prohlédne všechny soubory úkolu (náhledy v mřížce) a každý hned zařadí: záznam
     (pramen), dokument, fotka, nesouvisející, a čí je. Do hloubky čte jen to, co patří lidem výzkumu;
-  - o žijící osobě se nic nezapíše; soubor se jen zařadí;
+  - o žijící osobě se do výzkumu 1.36.0 nic nezapsalo, soubor se jen zařadil. Od 1.37.0 se materiál žijícího zařadí
+    a zapíše jako u kohokoli jiného; ochrana žijících patří k exportu ([A7.2](A7-book-pages-and-export.md#A7.2));
   - skeny jedné knihy (mnoho číslovaných snímků) se nečtou soubor po souboru: zapíšou se jako kniha a čtou se
     z ní zápisy jako z každé knihy ([R8](R8-reading-scans.md));
   - úkol se zavře, až je každý jeho soubor zařazený; další část dávky je vlastní úkol.
@@ -141,7 +142,13 @@ Složku, ZIP nebo krabici dokumentů poslanou z aplikace výzkum přijme jako je
 - **Platí od:** výzkum 1.12.0; dávka z telefonu 1.18.0
 - **Od výzkumu 1.36.0:** úkoly roztřídění vzniknou jen se zapnutým `intake.auto`, nebo když člověk o roztřídění
   dávky požádá; jinak se dávka uzavře bez úkolů a soubory čekají v Materiálech neroztříděné ([R11.6](#R11.6)).
+- **Od výzkumu 1.37.0:** soubor poslaný z aplikace Strom (z dávky i materiál osoby), který ve stromu aplikace ještě
+  nemá místo a který `strom input sort` zařadí jako záznam, dokument nebo fotku osob, dostane místo u nich: dva
+  partneři jednoho svazku u svazku, jinak u každé osoby. Aplikace ho pak ukáže u osoby, ne jen v okně
+  **Materiály**. Místo nedostane soubor, který ve stromu místo má nebo jehož místo bylo v aplikaci odebráno,
+  skrytý, nesouvisející, vlastní materiál výzkumu, ani osoba z něj odebraná.
 
+<!-- zdroj: 1.37.0: research:ce89202a src/commands/intake.ts input sort (MediaLink, pořadí za posledním souborem místa; pár u FAM, jinak u INDI; --json placed; bez místa: má místo nebo odebrané, skrytý, unrelated, vlastní, odebraná osoba) · assets/method/intake.md „Someone living: sort and record as anyone.“ · CHANGELOG.cs.md 1.37.0 „Materiál z aplikace zařazený do stromu“ -->
 <!-- zdroj: research:src/core/batches.ts hlavička, BATCH_TASK_FILES=25 (od v1.12.0), BATCH_IDLE_MS, PHONE_BATCH_IDLE_MS (od v1.18.0) · research:src/commands/intake.ts input batch done (--idle), input sort (unrelated --reason) · research:assets/method/intake.md "A batch from the Strom app" -->
 
 <a id="R11.5"></a>
@@ -260,8 +267,18 @@ druh a vazby na osoby, svazky, jejich události a prameny stromu, s důvodem a j
 - **Ovládání:** terminál: `strom material sort I… [--text …] [--queue]`, `strom material show`, `strom material
   cancel`; aplikace: **Roztřídit agentem…** ([A3.5.8](A3-evidence-in-the-app.md#A3.5.8)).
 - **Platí od:** výzkum 1.35.0
+- **Od výzkumu 1.37.0 (třídění bez dotazu):** nastavení `sort.confirm`:
+  - `ask` (výchozí): souhlas člověka s placenými čteními před každým tříděním jako dosud;
+  - `no`: `strom material sort` třídí hned, když o to člověk požádá, a řekne, že se neptalo (ve `--json`
+    `confirm: "no"`). Nikdy samo od sebe; běh, který nikdo nesleduje, se ptá dál (a bez člověka skončí s kódem 4);
+  - `no` nastaví jen člověk ve vlastním terminálu: `strom config set` se ho zeptá („Třídit soubory materiálu
+    čtenáři výzkumu hned, jak se o to požádá, bez dotazu na placená čtení? …“). Agent nebo příkaz bez jeho terminálu
+    dostane kód 4 a nic se nezmění. Pro jeden výzkum ho nastaví i aplikace Strom na tomto počítači po potvrzení
+    v jejím dialogu; záznam mostu to řekne jednou řádkou. Zpět na `ask` nebo zrušit může kdokoli, i aplikace Strom
+    ([S4.4.13](S4-research-from-the-app.md#S4.4.13));
+  - s `--for-tree` platí pro tento výzkum, jinak pro tento počítač. Limity třídění se nemění.
 
-<!-- zdroj: research:acb5d1ce src/core/sort.ts SORT_MOST_FILES=50, SORT_TEXT_MAX=2000, SORT_QUEUE_MAX=3, SORT_PDF_PAGES=10, SORT_FILES_PER_READING=10, typy vazeb person/family/event/source · research:0cc2cfca src/core/sort.ts SORT_LINK_TYPES back, portrait · research:d667304d (souhlas člověka, exit 4) · research:2978645b, 19e525e5, 5b76fb43 (podpis mostu APP_SORT_FROM, platí jednou) · src/commands/material.ts · help material sort · research:ae866bb7 src/core/sort.ts SORT_TEXT_FILE_MAX=20_000, SORT_TEXT_TYPES, isTextFile, textOfFile (UTF-8 / UTF-16 BOM, jinak windows-1252; cut), řádek „read as text (only its first … characters: the file is … KB)“, unproposedOf (nothing-said, nothing-new, dropped, left-out, reader-failed + outcome; said) · src/commands/material.ts filesDone (+ group.length po čtenáři), show „N of M files done“, „no proposal: why (outcome)“ · research:f36b3941 (ve vydání 1.35.0) src/core/sort.ts pokyn čtenáři „unrelated: yes“ (jen soubor zjevně mimo rodinu, nikdy jen nezařazený), YES, keptProposals (unrelated: jen why a sure, ostatní dropped „unrelated“) · src/commands/material.ts show „· unrelated (not of the family)“ · src/core/live.ts GET /material/sort/<id> unrelated?: true („the person hides it, never strom“) · CHANGELOG.md 1.35.0 -->
+<!-- zdroj: research:acb5d1ce src/core/sort.ts SORT_MOST_FILES=50, SORT_TEXT_MAX=2000, SORT_QUEUE_MAX=3, SORT_PDF_PAGES=10, SORT_FILES_PER_READING=10, typy vazeb person/family/event/source · research:0cc2cfca src/core/sort.ts SORT_LINK_TYPES back, portrait · research:d667304d (souhlas člověka, exit 4) · research:2978645b, 19e525e5, 5b76fb43 (podpis mostu APP_SORT_FROM, platí jednou) · src/commands/material.ts · help material sort · research:ae866bb7 src/core/sort.ts SORT_TEXT_FILE_MAX=20_000, SORT_TEXT_TYPES, isTextFile, textOfFile (UTF-8 / UTF-16 BOM, jinak windows-1252; cut), řádek „read as text (only its first … characters: the file is … KB)“, unproposedOf (nothing-said, nothing-new, dropped, left-out, reader-failed + outcome; said) · src/commands/material.ts filesDone (+ group.length po čtenáři), show „N of M files done“, „no proposal: why (outcome)“ · research:f36b3941 (ve vydání 1.35.0) src/core/sort.ts pokyn čtenáři „unrelated: yes“ (jen soubor zjevně mimo rodinu, nikdy jen nezařazený), YES, keptProposals (unrelated: jen why a sure, ostatní dropped „unrelated“) · src/commands/material.ts show „· unrelated (not of the family)“ · src/core/live.ts GET /material/sort/<id> unrelated?: true („the person hides it, never strom“) · CHANGELOG.md 1.35.0 · 1.37.0: research:5520e0ac src/core/config.ts sort.confirm (ask | no, --for-tree), requireHumanYes, assets/lang/cs.json ui.consent.sort.confirm, src/commands/material.ts (no: třídí hned, confirm no v --json; STROM_NONINTERACTIVE se ptá), src/core/live.ts /status sort, POST /settings/sort (403 sort.raise) · CHANGELOG.cs.md 1.37.0 · dirigent:spec/102 U8 -->
 
 <a id="R11.5.4"></a>
 ### R11.5.4 Materiál přes most
@@ -382,3 +399,32 @@ o roztřídění, nebo dokud v nastavení výzkumu nezapne, že poslané soubory
 - **Platí od:** výzkum 1.36.0
 
 <!-- zdroj: research:da86bbe7, 90f33705 src/core/config.ts:400 intake.auto (tree: true, off|on, výchozí off), :962 intakeAuto · src/commands/setup.ts:1311, :1655-1673 intakeDecision (requireHuman, STROM_FOR_APP bez agenta, off kdokoli) · src/commands/intake.ts:202-225 (--sort, --text vždy úkol), :829-848 input batch done --sort/--no-sort · src/cli/menu-research.ts:110-125 (ui.intake.sort.ask, výchozí ne; ui.intake.done.waits) · src/cli/menu-settings.ts:98, :247-250 · src/core/live.ts:6693 POST /intake, BRIDGE_FEATURES intake.auto · cs.json ui.settings.intake(.about, .on, .off), ui.intake.sort.ask, ui.intake.done.waits · CHANGELOG.cs.md 1.36.0 · dirigent:spec/130 K1.1–K1.3, K2.1, K3.1, K4.1, rozhodnutí 21. 11. · app:docs/ZADANI_VYZKUM_trideni-davek.md (Most, Doplněk K1.3) · app:strings.ts read.menu (položka menu s „…“, titulek read.title bez) · dirigent:prace/1122-app-nalezy-330 -->
+
+<a id="R11.7"></a>
+## R11.7 Materiál k seznamu osob
+
+Aplikace Strom může poslat sken k celému seznamu osob (sčítací arch, stránka matriky), ne k jedné osobě
+([A3.5.18](A3-evidence-in-the-app.md#A3.5.18)). Výzkum seznam uloží tak, jak přišel, a agent jména ze skenu páruje
+nejdřív s osobami seznamu.
+
+- **Hlídá kód:**
+  - aplikace pošle nejdřív seznam (název, druh: pevný, automatický nebo pracovní, pravidlo, výzkumná čísla osob,
+    kolik osob výzkum nezná, čas) a každý soubor na něj odkáže. Most seznam drží, dokud ho soubor nepoužije; nové
+    poslání téhož seznamu ho nahradí. Soubor, který odkáže na seznam, jenž výzkum nemá, most odmítne a aplikace
+    seznam pošle znovu;
+  - podklad si seznam ponechá, jak byl poslán: zapíše se do výzkumu (`notes/lists/`, v historii) a už se nemění;
+  - seznam do 50 osob: všechny jeho osoby jsou osoby podkladu. Delší seznam je jen pojmenovaný; výčet jeho osob je
+    v souboru seznamu a agent si je dohledá sám (`strom person show P…`);
+  - úkol podkladu, když vznikne ([R11.6](#R11.6)), se jmenuje podle seznamu. Zadání agenta seznam uvede (název,
+    druh, pravidlo, počet osob, kolik jich výzkum ještě nemá, datum poslání) a řekne, že každé přečtené jméno se
+    páruje nejdřív s osobami seznamu a v celém stromu se hledá (`strom find "<jméno>"`) jen jméno, které žádné
+    z nich neodpovídá;
+  - sken pramene poslaný k seznamu zůstane obrazem pramene a seznam si ponechá stejně; úkol k jeho přečtení má mezi
+    osobami, kterých se týká, osoby seznamu (do 50);
+  - seznam nejvýš 100 000 osob a 2 MB; jinak most seznam odmítne;
+  - v Archivu Stromu se seznam jen uloží k materiálu, nic víc.
+- **Ovládání:** aplikace: **Poslat materiál…** → **Týká se** → seznam ([A3.5.18](A3-evidence-in-the-app.md#A3.5.18)).
+  Terminál: `strom input show I…` ukáže řádek seznamu (název, počet osob, kolik jich výzkum nemá, pravidlo, soubor).
+- **Platí od:** výzkum 1.37.0 (sken pramene k seznamu také 1.37.0)
+
+<!-- zdroj: research:de5f709d src/core/lists.ts (LIST_ID, LIST_PEOPLE 50, LIST_MAX 100 000, LIST_BODY_MAX 2 MB, .strom/lists/<id>.json, notes/lists/<hash>.json, takeList), src/core/live.ts PUT <token>/lists/<id> (list.bad-body 400, list.large 413), X-Strom-List-Ref, media.no-list 404, BRIDGE_FEATURES media.list, src/brief/brief.ts listLine, src/commands/intake.ts (řádek list v input show, --list), src/core/model.ts Input.list · 5f429022 (soubor seznamu jako zapsaná operace, i v archivu) · 778846e6 scanLists (media.list.source: sken pramene, osoby seznamu do 50 v about úkolu, „match each name you read on it to them first … strom find“) · CHANGELOG.md 1.37.0 „Material sent to a list of people“ · dirigent:spec/137 K2.2, K2.4, K2.5 · app:docs/ZADANI_VYZKUM_material-seznam.md (Odpověď výzkumu) -->

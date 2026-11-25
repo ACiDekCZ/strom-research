@@ -11,8 +11,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { UsageError } from "./errors.ts";
 import { removeRetrying, retryingHeld } from "./json.ts";
-import type { Family, Input, Media, Person, Region, Source, Task } from "./model.ts";
-import { mimeOf, sharedMediaPath } from "./media.ts";
+import type { Family, Input, InputList, Media, Person, Region, Source, Task } from "./model.ts";
+import { sameList, takeList } from "./lists.ts";
+import { mediaMime, mimeOf, sharedMediaPath } from "./media.ts";
 import { create, update } from "./records.ts";
 import { makeNote } from "./actions.ts";
 import { foldText } from "./text.ts";
@@ -121,7 +122,7 @@ export function originalProblem(file: string, mime: string): { text: string; cod
 /** What the research has of this content: an input or an image (by SHA-256), with where its file is. */
 export function knownOriginal(tree: Tree, shared: string | undefined, sha: string): { id: string; kind: "input" | "media"; mime: string; bytes: number; name?: string; file?: string } | undefined {
   const m = recordsBySha<Media>(tree, "media", sha).find((x) => !x.retracted);
-  if (m) return { id: m.id, kind: "media", mime: m.mime, bytes: m.size, ...(m.from ? { name: m.from } : {}), ...(shared ? { file: path.join(shared, m.file) } : {}) };
+  if (m) return { id: m.id, kind: "media", mime: mediaMime(m, shared), bytes: m.size, ...(m.from ? { name: m.from } : {}), ...(shared ? { file: path.join(shared, m.file) } : {}) };
   // a file deleted for good (core/materialdelete.ts) is none: the same content sent again is new
   const i = recordsBySha<Input>(tree, "input", sha).find((x) => x.file && x.retracted?.reason !== "deleted");
   if (!i) return undefined;
@@ -166,6 +167,8 @@ export interface OriginalMeta {
   persons: string[];
   /** The couples (F…) it is of (X-Strom-Family, spec 108 V9): material of both partners. */
   families?: string[] | undefined;
+  /** The list of people it was sent to (X-Strom-List-Ref, spec 137): the bridge's list of that mark (core/lists.ts). */
+  list?: string | undefined;
   source?: string | undefined;
   region?: Region | undefined;
   note?: string | undefined;
@@ -189,8 +192,8 @@ export interface OriginalMeta {
 export interface TakenOriginal {
   /** What the research already had of this content. */
   known?: string;
-  /** …and what was added to it now (its people, the user's note, its couples). */
-  added?: { persons: string[]; note: boolean; families?: string[] };
+  /** …and what was added to it now (its people, the user's note, its couples, the list it was sent to). */
+  added?: { persons: string[]; note: boolean; families?: string[]; list?: boolean };
   input?: string;
   media?: string;
   source?: string;
@@ -248,7 +251,12 @@ const displayOf = (p: Person) => `${[p.names[0]?.given, p.names[0]?.surname].fil
  * caller holds the tree lock and commits.
  */
 export function takeOriginal(tree: Tree, shared: string, file: string, sha: string, metaIn: OriginalMeta): TakenOriginal {
-  const meta = { ...metaIn, ...checkOriginalMeta(tree, metaIn) };
+  const checked = checkOriginalMeta(tree, metaIn);
+  // the list it was sent to (of the material, or of a source's scan): its people up to LIST_PEOPLE are its people too,
+  // after those named
+  const sent = metaIn.list ? takeList(tree, metaIn.list) : undefined;
+  const meta = { ...metaIn, ...checked, ...(sent ? { persons: [...new Set([...checked.persons, ...sent.persons])] } : {}) };
+  const list = sent?.list;
   const name = path.basename(metaIn.name.normalize("NFC").replace(/[\\/]+/g, "/")).replace(/[\u0000-\u001f]/g, "").slice(0, 200) || `${sha.slice(0, 12)}`;
   const type = originalType(file, name);
   if (!type) throw new UsageError(`${name}: not a kind of file the research takes`, { hint: `images (JPEG, PNG, TIFF, HEIC, WebP), PDF, texts and documents, sound — ${ORIGINAL_TYPES.map((t) => t.ext[0]).join(" ")}`, code: "media.type", params: { name } });
@@ -261,8 +269,8 @@ export function takeOriginal(tree: Tree, shared: string, file: string, sha: stri
     if (!tree.dryRun) fs.rmSync(file, { force: true });
     // an input of the people: what is said of it now is added (in a batch the batch's tasks see to it)
     if (known.kind === "input" && !meta.batch) {
-      const a = amendInput(tree, known.id, { persons: meta.persons, note: meta.note, families: meta.families }, { again: !meta.task && !meta.read, auto: !!meta.auto });
-      return { known: known.id, ...(a.added.persons.length || a.added.note || a.added.families ? { added: a.added } : {}), ...(a.task ? { task: a.task } : {}) };
+      const a = amendInput(tree, known.id, { persons: meta.persons, note: meta.note, families: meta.families, list }, { again: !meta.task && !meta.read, auto: !!meta.auto });
+      return { known: known.id, ...(addedAny(a) ? { added: a.added } : {}), ...(a.task ? { task: a.task } : {}) };
     }
     return { known: known.id };
   }
@@ -291,8 +299,8 @@ export function takeOriginal(tree: Tree, shared: string, file: string, sha: stri
   if (waiting) {
     update<Input>(tree, waiting.id, "input", (x) => ({ ...x, file: `media:${rel}`, size, mime: type.mime }), { op: "input.original", summary: `${waiting.id} its original "${name.slice(0, 50)}" (the Strom app)` });
     if (meta.batch) return { known: waiting.id };
-    const a = amendInput(tree, waiting.id, { persons: meta.persons, note: meta.note, families: meta.families }, { again: !meta.task && !meta.read, auto: !!meta.auto });
-    return { known: waiting.id, ...(a.added.persons.length || a.added.note || a.added.families ? { added: a.added } : {}), ...(a.task ? { task: a.task } : {}) };
+    const a = amendInput(tree, waiting.id, { persons: meta.persons, note: meta.note, families: meta.families, list }, { again: !meta.task && !meta.read, auto: !!meta.auto });
+    return { known: waiting.id, ...(addedAny(a) ? { added: a.added } : {}), ...(a.task ? { task: a.task } : {}) };
   }
 
   if (s) {
@@ -311,10 +319,13 @@ export function takeOriginal(tree: Tree, shared: string, file: string, sha: stri
               ...(type.image && !tree.dryRun ? (imageSizeOfFile(dest) ?? {}) : {}),
               from: `${APP_FROM}: ${name}`,
               accessed: new Date().toISOString().slice(0, 10),
+              ...(list ? { list } : {}),
             } as never,
             (id) => `+${id} image "${name.slice(0, 50)}" of ${s.id} (the Strom app)`,
             [s.id],
           );
+    // an image the research had (of another source) sent now to a list: the list as sent now kept on it
+    if (known?.kind === "media" && list && !sameList(m.list, list)) update<Media>(tree, m.id, "media", (x) => ({ ...x, list }), { op: "media.list", summary: `${m.id} sent to the list "${list.name.slice(0, 50)}" (the Strom app)` });
     // the part the entry is on, where nobody said it yet (another one waits for the reader's word)
     const clip = !!meta.region && !s.clips?.length && !!type.image;
     update<Source>(
@@ -366,6 +377,7 @@ export function takeOriginal(tree: Tree, shared: string, file: string, sha: stri
       state: "new",
       ...(meta.persons.length ? { persons: meta.persons } : {}),
       ...(meta.families?.length ? { families: meta.families } : {}),
+      ...(list ? { list } : {}),
       ...(meta.batch ? { batch: meta.batch } : {}),
       ...(meta.path ? { path: meta.path } : {}),
       ...(meta.note?.trim() ? { note: meta.note.trim().slice(0, 500) } : {}),
@@ -399,7 +411,10 @@ export function gatherTask(tree: Tree, input: Input, persons: string[]): string 
     .list<Task>("task")
     .filter((t) => t.origin === APP_MEDIA_ORIGIN && (t.state === "open" || (held && t.state === "parked")) && Date.now() - Date.parse(t.created) < GATHER_MS && t.where.length < GATHER_MAX && same(t))
     .pop();
-  const who = persons.map((p) => displayOf(tree.get<Person>(p)!)).join(", ") || phrase(lang, "app.media.nobody");
+  // sent to a list: named by it, never by its people one by one (up to 50 of them)
+  const who = input.list
+    ? phrase(lang, "app.media.list", { name: input.list.name, count: input.list.count })
+    : persons.map((p) => displayOf(tree.get<Person>(p)!)).join(", ") || phrase(lang, "app.media.nobody");
   if (recent) {
     const where = [...recent.where, input.id];
     update<Task>(
@@ -433,7 +448,7 @@ export function gatherTask(tree: Tree, input: Input, persons: string[]): string 
 export interface AmendedInput {
   known: string;
   /** What came of it: the people the input lacked, the user's note it had not got, the couples (only when some came). */
-  added: { persons: string[]; note: boolean; families?: string[] };
+  added: { persons: string[]; note: boolean; families?: string[]; list?: boolean };
   /** The intake task that looks at it again (none held it open). */
   task?: string;
   /** People the person took off the file, not put back (strom intake --person: the agent's, never the person's). */
@@ -447,7 +462,7 @@ export interface AmendedInput {
  * intake task looks at it again (in an archive put aside). Nothing new: nothing written. The caller holds the tree lock
  * and commits.
  */
-export function amendInput(tree: Tree, id: string, more: { persons: string[]; note?: string | undefined; families?: string[] | undefined }, o: { again?: boolean; app?: boolean; auto?: boolean } = {}): AmendedInput {
+export function amendInput(tree: Tree, id: string, more: { persons: string[]; note?: string | undefined; families?: string[] | undefined; list?: InputList | undefined }, o: { again?: boolean; app?: boolean; auto?: boolean } = {}): AmendedInput {
   const input = tree.get<Input>(id);
   if (!input || input.type !== "input") throw new UsageError(`no input ${id} in this research`, { hint: "strom input list" });
   const had = input.persons ?? [];
@@ -460,8 +475,10 @@ export function amendInput(tree: Tree, id: string, more: { persons: string[]; no
   const families = (checked.families ?? []).filter((f) => !(input.families ?? []).includes(f));
   const text = more.note?.replace(/[\p{Cc}]/gu, " ").trim().slice(0, 500);
   const note = !!text && !input.notes.some((n) => foldText(n.text) === foldText(text));
-  const out: AmendedInput = { known: id, added: { persons, note, ...(families.length ? { families } : {}) }, ...(kept.length ? { declined: kept } : {}) };
-  if (!persons.length && !note && !families.length) return out;
+  // the list it was sent to now (the latest send's, as it was sent then)
+  const list = more.list && !sameList(input.list, more.list) ? more.list : undefined;
+  const out: AmendedInput = { known: id, added: { persons, note, ...(families.length ? { families } : {}), ...(list ? { list: true } : {}) }, ...(kept.length ? { declined: kept } : {}) };
+  if (!persons.length && !note && !families.length && !list) return out;
   const held = tree.list<Task>("task").some((t) => t.where.includes(id) && (t.state === "open" || t.state === "doing" || t.state === "parked" || t.state === "waiting"));
   const again = o.again !== false && !held && !input.batch;
   const next = update<Input>(
@@ -473,14 +490,18 @@ export function amendInput(tree: Tree, id: string, more: { persons: string[]; no
       ...(persons.length ? { persons: [...had, ...persons] } : {}),
       ...(persons.some((p) => off.has(p)) ? { declined: (i.declined ?? []).filter((d) => !persons.includes(d.person)) } : {}),
       ...(families.length ? { families: [...(i.families ?? []), ...families] } : {}),
+      ...(list ? { list } : {}),
       ...(note ? { notes: [...i.notes, makeNote(tree, text!)] } : {}),
       ...(again ? { state: "new" as const } : {}),
     }),
-    { op: "input.amend", summary: `${id}: ${[persons.length ? `+ ${persons.join(", ")}` : "", families.length ? `+ ${families.join(", ")}` : "", note ? "+ a note" : ""].filter(Boolean).join(", ")}${o.app === false ? "" : " (the Strom app)"}`, targets: persons },
+    { op: "input.amend", summary: `${id}: ${[persons.length ? `+ ${persons.join(", ")}` : "", families.length ? `+ ${families.join(", ")}` : "", list ? `+ the list "${list.name.slice(0, 50)}"` : "", note ? "+ a note" : ""].filter(Boolean).join(", ")}${o.app === false ? "" : " (the Strom app)"}`, targets: persons },
   );
   if (again && o.auto) out.task = gatherTask(tree, next, next.persons ?? []);
   return out;
 }
+
+/** Something came of a file sent again: people, a note, couples or a list. */
+const addedAny = (a: AmendedInput): boolean => !!(a.added.persons.length || a.added.note || a.added.families || a.added.list);
 
 /** The originals from the app (or a phone) nobody has worked through yet: what waits in the research (the bridge's inbox.material). */
 export function materialWaiting(tree: Tree): number {

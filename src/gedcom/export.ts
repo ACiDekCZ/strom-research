@@ -32,6 +32,7 @@ import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, Hypo
 import { agentDecided, changeKeeps, linkInTree, pickableInApp, recordedLinks, reopenBlock } from "../core/hypolinks.ts";
 import { birthEvent, claimText, conflictTitle, coupleSides, currentName, displayName, familySides, formatName, gedcomTitledName, noName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
+import { kindOfLabel } from "../core/labelkind.ts";
 import { relaForApp } from "../core/roles.ts";
 import { dateYears } from "../core/gdate.ts";
 import { humanAge, isGedcomAge, normalizeAge } from "../core/age.ts";
@@ -323,6 +324,22 @@ const FAM_TAGS = new Set(["MARR", "DIV", "MARB", "MARC", "MARL", "MARS", "ANUL",
 const AS_EVEN: Record<string, LabelKey> = { MILI: "MILI" };
 /** Events that may carry "Y" when nothing else is known about them (5.5.1). */
 const Y_TAGS = new Set(["BIRT", "CHR", "DEAT", "BURI", "CREM", "ADOP", "BAPM", "CHRA", "CONF", "FCOM", "ORDN", "NATU", "EMIG", "IMMI", "CENS", "PROB", "WILL", "GRAD", "RETI", "MARR", "DIV", "ANUL", "ENGA", "MARB", "MARC", "MARL", "MARS", "DIVF"]);
+
+/**
+ * The words of the records cited, each once (K052: a record cited twice put the same "Zápis: „…“" twice into one note);
+ * the same words compared as they read, with their spaces and form evened out.
+ */
+export function quotesOnce(quotes: (string | undefined)[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const q of quotes) {
+    const key = q?.normalize("NFC").replace(/\s+/g, " ").trim();
+    if (!q || !key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(q);
+  }
+  return out;
+}
 
 /** _FREL/_MREL values (Legacy, RootsMagic, FTM). */
 const FREL: Record<ChildRelation, string> = { birth: "Natural", adopted: "Adopted", step: "Step", foster: "Foster", unknown: "Unknown" };
@@ -665,10 +682,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       // "birth" says something only next to another name
       if (n.kind && (n.kind !== "birth" || p.names.length > 1)) w.line(2, "TYPE", NAME_TYPE[n.kind]);
       if (!strict && n.primary) w.line(2, "_STROM_PRIMARY", "Y");
-      for (const c of ordered(n.citations ?? [])) {
-        const q = citation(2, c);
-        if (q) nameQuotes.push(`${L("name")} ${formatName(n)} — ${L("quote")}: „${q}“`);
-      }
+      const quotes = ordered(n.citations ?? []).map((c) => citation(2, c));
+      for (const q of quotesOnce(quotes)) nameQuotes.push(`${L("name")} ${formatName(n)} — ${L("quote")}: „${q}“`);
       if (origins) {
         w.line(2, "_STROM_ORIGIN", originSaid(n.origin, NAME_PART_TAGS));
         // one for each part changed, the part's value alone (a given name, a surname)
@@ -698,6 +713,13 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     const deferred: string[] = [];
     const assos: { person: string; rela: string }[] = [];
     for (const e of preferredOrder(p.events)) deferred.push(...event(e, "INDI", {}, assos));
+    // the person's contact (spec 134 U11): a residence of e-mails alone (5.5.1 has EMAIL beside an event's address, at
+    // most three), no date, no status, no mark of strom's — the user's, as the Strom app and other programs read it
+    const emails = p.contact?.emails ?? [];
+    for (let i = 0; i < emails.length; i += 3) {
+      w.line(1, "RESI");
+      for (const m of emails.slice(i, i + 3)) w.line(2, "EMAIL", m.normalize("NFC"));
+    }
     // 5.5.1 has associations on the individual only (strict); the event's note names the event.
     for (const a of assos) {
       w.line(1, "ASSO", x(a.person));
@@ -786,10 +808,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     }
     if (!strict && (f.union === "partners" || f.union === "separated")) w.line(1, "_STAT", f.union === "partners" ? "Partners" : "Separated");
     originalIdLines(f);
-    for (const c of ordered(f.citations ?? [])) {
-      const q = citation(1, c);
-      if (q) deferred.push(`${L("family")} — ${L("quote")}: „${q}“`);
-    }
+    const quotes = ordered(f.citations ?? []).map((c) => citation(1, c));
+    for (const q of quotesOnce(quotes)) deferred.push(`${L("family")} — ${L("quote")}: „${q}“`);
     for (const e of preferredOrder(f.events)) deferred.push(...event(e, "FAM", { husb: husb?.id, wife: wife?.id }, []));
     for (const n of f.notes) w.text(1, "NOTE", noteWhole(n));
     for (const d of deferred) w.text(1, "NOTE", d);
@@ -1062,7 +1082,14 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     const allowed = on === "INDI" ? INDI_TAGS : FAM_TAGS;
     let tag = e.kind;
     let typeLabel = e.label;
-    if (on === "FAM" && tag === "RESI" && (strict || opts.coupleResi)) {
+    // a person's census written as an event of its own ("Sčítání lidu", by hand or from an older app) goes as the census
+    // it is (K052): the Strom app makes such an event a census when it saves the tree, so the research's version would
+    // never pair with the tree the person has; the record keeps what was written
+    const asCensus = on === "INDI" && tag === "EVEN" && kindOfLabel(typeLabel) === "CENS";
+    if (asCensus) {
+      tag = "CENS";
+      typeLabel = undefined;
+    } else if (on === "FAM" && tag === "RESI" && (strict || opts.coupleResi)) {
       // standard on FAM; for a Strom app before its couple's events an EVEN named so
     } else if (AS_EVEN[tag] || !allowed.has(tag)) {
       typeLabel = e.label ?? (AS_EVEN[tag] ? L(AS_EVEN[tag]!) : L(tag as LabelKey) ?? tag);
@@ -1147,10 +1174,11 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     if (verify) verifyLines(e, verify.get(e.id));
     // in memory (strom sync's snapshot of the research): the user's confirmation against the scan, what a send compares
     else if (opts.ids && e.confirmed && /^\d{4}-\d{2}-\d{2}/.test(e.confirmed.at)) w.line(2, "_STROM_CONFIRMED", e.confirmed.at.slice(0, 10));
-    if (!VALUE_TAGS.has(tag) && e.value && tag !== "EVEN") noteParts.push(e.value);
+    // the value of an event of its own that is only its name again (1 EVEN Census) says nothing beside the census
+    if (!VALUE_TAGS.has(tag) && e.value && tag !== "EVEN" && !(asCensus && kindOfLabel(e.value) === "CENS")) noteParts.push(e.value);
     // The ages for a Strom older than STROM_READS_TAGS (or with no AGE form), the words of the record always.
     if (!shared && (repeat || ageUntagged) && ageNotes.length) noteParts.push(`${L("age")}: ${ageNotes.join(", ")}`);
-    if (!strict) for (const c of cites) if (c.quote) noteParts.push(`${L("quote")}: „${c.quote}“`);
+    if (!strict) noteParts.push(...quotesOnce(cites.map((c) => c.quote)).map((q) => `${L("quote")}: „${q}“`));
     if (e.note) noteParts.push(e.note);
     for (const m of media?.events.get(e.id) ?? []) appObje(2, m, "event");
     if (noteParts.length) {

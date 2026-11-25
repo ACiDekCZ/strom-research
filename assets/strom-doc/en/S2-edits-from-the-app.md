@@ -66,7 +66,14 @@ with new coordinates and surname variants. Each group has its own section. After
 - **Limits:** when the exact list cannot be computed, the tree is sent as it is and the research writes only the
   differences.
 - **Since:** app 3.14.0
+- **From app 3.32.0 (research 1.37.0):** a send says which browser it came from: a lasting random id stored in that
+  browser and a readable name from the browser and the system (e.g. "Chrome · Mac", not translated, nothing
+  personal). Both go only with a send to the research; an exported file never carries them. A change in the
+  research's history sent from another browser has "from Chrome · Mac" after it; a returned send from another browser
+  says "Sent from Chrome · Mac.". A browser without a name is stood for by the first 8 characters of its id. With an
+  older research everything reads as before.
 
+<!-- zdroj: 3.32.0: app:src/device-client.ts (DEVICE_ID_KEY strom-device-id, browserOf, systemOf, deviceNameOf „Chrome · Mac“), src/research-link.ts:5883-5957 1 _STROM_CLIENT / 2 NAME jen při poslání do mostu, src/conflict-devices.ts otherDeviceWords, deviceWords (ID_SHOWN 8), src/ui/research-ui.ts:838-842, src/ui/research-sync-ui.ts:3556-3560 · strings.ts research.fromDevice, research.sentFromDevice · research:3856505e src/core/sync.ts _STROM_CLIENT · spec 094 K2.4 -->
 <!-- zdroj: app:strings.ts changes.willSendTitle, changes.kind*, changes.inexact, changes.writtenSection, changes.notWrittenSection · CHANGELOG.cs.md 3.14.0 -->
 
 <a id="S2.2.2"></a>
@@ -112,6 +119,9 @@ nothing about that.
   sent again: that send did not carry this tree's people. The changes stay here.” A send by itself and leaving the
   page say nothing; the mark shows the edits waiting.
 - **The sample tree** is never sent to a research ([S1.3.1](S1-connecting-app-and-research.md#S1.3.1)).
+- **From app 3.32.0:** a copy of a tree from a research is not sent to the research at all, not even with the button.
+  When the research asks for the changes through a link, the tree that belongs to the research is sent
+  ([S1.10](S1-connecting-app-and-research.md#S1.10)).
 - **Limits:** from research 1.34.0 the research itself also refuses a small other tree under its connection
   ([S2.5](#S2.5)). A send taken back that did not carry the tree's people is not offered again ([S2.7](#S2.7)).
 - **Since:** app 3.29.0
@@ -382,8 +392,14 @@ nothing by itself; it can be deleted in the research". A Strom archive mirrors t
   - **Edited elsewhere:** **Remove from the tree**, or **Keep in the tree**.
   The research confirms the decision. Then the app loads its version.
 - **Since:** research 1.0.0; the question about a removed person from app 3.16.0 (research 1.20.0)
+- **From app 3.32.0:** the same holds for the people of an undone merge of trees
+  ([A8.12](A8-merging-trees.md#A8.12)). A merge not yet sent to the research is undone only in the app, and the
+  research gets nothing. A merge already sent the app undoes at once and says that the research does not delete the
+  people by itself; when it knows the research's entry the merge brought, it gives a step in the research's terminal
+  `strom sync undo I…` with **Copy**, otherwise it points here. Until then the research brings the people back with
+  its next version and the app offers them for removal ([A8.13](A8-merging-trees.md#A8.13)).
 
-<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 „What the app no longer has is only reported“, gone :2355 · app:src/ui/research-removed-ui.ts :1-14 · strings.ts sync.notWrittenReport, conflict.person.* · CHANGELOG.cs.md 3.16.0 -->
+<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 „What the app no longer has is only reported“, gone :2355 · app:src/ui/research-removed-ui.ts :1-14 · strings.ts sync.notWrittenReport, conflict.person.* · CHANGELOG.cs.md 3.16.0 · 3.32.0: app:debf50cc src/ui/merge-history-ui.ts (resSent, resUndoStep / resUndoHelp), undoResearchStep (jen záznam I\d+), src/help/topics.ts:38 HELP_LINKS.mergeUndoResearch = 'S2.6' · strings.ts mergeWizard.resSent, resUndoStep, resUndoHelp, resUndoHelpLink, resComesBack, copy · research:src/commands/sync.ts:627 sync undo · spec 134 K9.3 -->
 
 <a id="S2.6.1"></a>
 ### S2.6.1 A source deleted in the app
@@ -469,5 +485,9 @@ what changes or goes in the app.
   **Open as copy**.
 - **Controls:** app: **Load the research's version**
 - **Since:** app 3.9.0; a note line by line from 3.29.0; an image number or folio added from 3.31.0
+- **From app 3.32.0:** a person's census that the research wrote as a custom event "Census" (with research
+  1.37.0 it comes as a census, [R9.12.3](R9-archives.md#R9.12.3)) is read as a census the tree has
+  ([A10.7](A10-shared-events.md#A10.7)). The list no longer shows it struck through, and the same version loads
+  without the question.
 
-<!-- zdroj: app:src/ui/research-load-ui.ts askResearchLoad (ROWS_SHOWN 8, overwrite: sendMode off nebo nezapsané z posledního poslání → loadOverwrite + research.openCopy), src/ui/research-ui.ts:2377 · 03352a9c src/line-diff.ts diffLines (LCS po řádcích, mezery na konci a CRLF nejsou změna), research-load-ui.ts notes · strings.ts sync.loadTitle, loadColChange, loadMore, loadAdded, loadBackupNote, loadOverwrite, loadOverNotWritten · CHANGELOG.cs.md 3.29.0 „Načíst verzi výzkumu?“ · v3.9.0 (loadColChange) · 3.31.0: app:2e68d373 src/research-changes.ts placeNumberAdded, pageMoved, diffValues numbersAdded; src/ui/research-load-ui.ts (věta pod seznamem, nepočítá se); strings.ts sync.loadImageNumbers, loadFolioNumbers · CHANGELOG.cs.md 3.31.0 „Načtení verze výzkumu“ -->
+<!-- zdroj: app:src/ui/research-load-ui.ts askResearchLoad (ROWS_SHOWN 8, overwrite: sendMode off nebo nezapsané z posledního poslání → loadOverwrite + research.openCopy), src/ui/research-ui.ts:2377 · 03352a9c src/line-diff.ts diffLines (LCS po řádcích, mezery na konci a CRLF nejsou změna), research-load-ui.ts notes · strings.ts sync.loadTitle, loadColChange, loadMore, loadAdded, loadBackupNote, loadOverwrite, loadOverNotWritten · CHANGELOG.cs.md 3.29.0 „Načíst verzi výzkumu?“ · v3.9.0 (loadColChange) · 3.31.0: app:2e68d373 src/research-changes.ts placeNumberAdded, pageMoved, diffValues numbersAdded; src/ui/research-load-ui.ts (věta pod seznamem, nepočítá se); strings.ts sync.loadImageNumbers, loadFolioNumbers · CHANGELOG.cs.md 3.31.0 „Načtení verze výzkumu“ · 3.32.0: app:1319a508 src/ged-parser.ts (EVEN / TYPE Sčítání lidu → census), src/research-changes.ts pairEvents · dirigent:K052 -->

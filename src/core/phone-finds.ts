@@ -60,7 +60,7 @@ export interface FindGroup {
   /** A person: the name alone, and the years of the life ("1762–1820") — the title is both. */
   name?: string;
   span?: string;
-  /** A person: its record ID (phone-watch.ts PERSON: never in JSON). */
+  /** A person: its record ID; a family: its first partner's (phone-watch.ts PERSON: never in JSON). */
   [PERSON]?: string;
   /** Its newest line's moment. */
   at: string;
@@ -175,7 +175,9 @@ export function findGroups(tree: Tree, ops: Op[], lang = tree.lang): FindGroup[]
         return title ? { kind: "person", title, name: forPhone(displayName(r)), ...(span ? { span } : {}), [PERSON]: r.id } : undefined;
       }
       const title = forPhone(ownerName(tree, r.id));
-      return title ? { kind: "family", title } : undefined;
+      // the family shown in the tree by its first partner there (the app's "Show in the tree"; the phone's page: none)
+      const partner = r.partners.map((x) => live(x)).find((x) => x?.type === "person");
+      return title ? { kind: "family", title, ...(partner ? { [PERSON]: partner.id } : {}) } : undefined;
     });
   const add = (g: FindGroup | undefined, line: FindLine) => {
     if (!g || g.lines.some((l) => l.kind === line.kind && l.text === line.text)) return;
@@ -306,4 +308,24 @@ export function treeFinds(root: string, env: Env, since?: string, now = Date.now
     kept.delete(old);
   }
   return value;
+}
+
+/** A find of the app's (the bridge, a device of the person's): the record IDs a group or a child line has, said as `person`. */
+export type AppFindLine = Omit<FindLine, typeof PERSON> & { person?: string };
+export type AppFindGroup = Omit<FindGroup, typeof PERSON | "lines"> & { person?: string; lines: AppFindLine[] };
+export interface AppFinds extends Omit<Finds, "groups"> {
+  groups: AppFindGroup[];
+}
+
+/**
+ * The finds as the bridge gives them to the Strom app (GET <token>/finds, feature finds.person): the phone's page's,
+ * and the person each group and child line is about by ID, for "Show in the tree" (spec 094 D3) — the app and a device
+ * paired with it hold the tree anyway; the phone's page never says an ID.
+ */
+export function findsForApp(f: Finds): AppFinds {
+  const withId = <T extends { [PERSON]?: string }>(x: T): Omit<T, typeof PERSON> & { person?: string } => {
+    const { [PERSON]: id, ...rest } = x;
+    return { ...rest, ...(id ? { person: id } : {}) };
+  };
+  return { ...f, groups: f.groups.map((g) => ({ ...withId(g), lines: g.lines.map(withId) })) };
 }

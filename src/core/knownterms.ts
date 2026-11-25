@@ -92,6 +92,12 @@ export interface KnownTerms {
    * task (core/census.ts censusHoldings); nothing of the level comes from it.
    */
   census?: KnownCensus;
+  /**
+   * Paths of the site (a prefix, as /aron/) whose viewer strom media save does not know: the agent's browser reads its
+   * images from the screen only, none is saved (spec 089 K1.2b — What waits says so beside "return to the agent").
+   * Taken off the list once media save knows that viewer. Optional.
+   */
+  screenOnly?: string[];
   /** A test's own (STROM_ARCHIVES_FILE), not strom's. */
   extra?: boolean;
 }
@@ -214,6 +220,20 @@ export function openByTerms(k: KnownTerms | undefined): boolean {
 /** strom's own list says a host's terms expressly allow automated use (its strictest entry, a site above it too). */
 export function knownOpen(host: string): boolean {
   return openByTerms(strictestEntry(shippedTerms().filter((k) => within(host, k.host))));
+}
+
+/**
+ * Whether an address lies in a viewer strom media save does not know (KnownTerms.screenOnly of strom's list, a test's
+ * own list too, core/terms.ts knownTerms): the agent's browser only reads its images from the screen. Its path compared
+ * as given (a prefix, or the prefix without its last slash).
+ */
+export function knownScreenOnly(url: string | undefined, terms: KnownTerms[] = shippedTerms()): boolean {
+  if (!url || !URL.canParse(url)) return false;
+  const u = new URL(url);
+  const host = u.hostname.toLowerCase();
+  return terms
+    .filter((k) => within(host, k.host) && Array.isArray(k.screenOnly))
+    .some((k) => k.screenOnly!.some((p) => typeof p === "string" && p.startsWith("/") && (u.pathname.startsWith(p) || (p.endsWith("/") && u.pathname === p.slice(0, -1)))));
 }
 
 /** The paths strom's list keeps automated requests off on a host. */

@@ -45,6 +45,8 @@ test("the bridge says which links work here (none unless registered) and serves 
     // when the research last changed: the time of its last commit
     const git = (...args: string[]) => spawnSync("git", args, { cwd: w.cwd, encoding: "utf8" }).stdout.trim();
     assert.equal((status as { headAt?: string }).headAt, git("log", "-1", "--format=%cI"));
+    // where a new research is made here (strom init's folder): the app shows it for a research of a copy (spec 139 K5.4)
+    assert.equal((status as { treesRoot?: string }).treesRoot, path.dirname(w.cwd));
     // what the research saved, newest first, each commit with the task it was saved for
     await w.ok(["session", "start", "T0002"]);
     await w.ok(["person", "add", "Karel /Novák/", "--sex", "M"]);

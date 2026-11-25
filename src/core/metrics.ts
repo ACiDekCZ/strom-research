@@ -423,6 +423,8 @@ export interface WebRequests {
   /** Per site (webDomain) the hook asked the person about: their one answer — asked once per site and session, never again. */
   answered: Map<string, WebAnswerOfPerson>;
   search: number;
+  /** Per site (webDomain): how many calls of the session the hook refused past web.perHost (why "many") — a loop told so. */
+  refusedMany?: Map<string, number>;
 }
 
 /** At most this much of the end of fetch.jsonl is read for the web requests of a session. */
@@ -445,6 +447,43 @@ function journalTail(root: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Whether the agent's web tools were refused a page of a site (webDomain) since `since` (ms) and given none of it — the
+ * tree's hook's lines of fetch.jsonl (its end): a page asked for (strom media save's) that never opened.
+ */
+export function siteRefusedSince(root: string, site: string, since: number): boolean {
+  const text = journalTail(root);
+  if (text === undefined) return false;
+  let refused = false;
+  for (const line of text.split("\n")) {
+    if (!line.includes('"via":"web"') || !line.includes('"from":"hook"')) continue;
+    let r: AgentWebRecord & { at?: string };
+    try {
+      r = JSON.parse(line) as AgentWebRecord & { at?: string };
+    } catch {
+      continue;
+    }
+    if (!r.host || (r.domain ?? webDomain(r.host)) !== site || !(Date.parse(r.at ?? "") >= since)) continue;
+    if (r.decision === "allow") return false;
+    if (r.decision === "deny") refused = true;
+  }
+  return refused;
+}
+
+/** Two addresses of one page as a viewer keeps it: the same site, path, parameters (in any order) and anchor. */
+export function samePage(a: string, b: string): boolean {
+  let x: URL, y: URL;
+  try {
+    x = new URL(a);
+    y = new URL(b);
+  } catch {
+    return false;
+  }
+  const keys = (u: URL) => [...u.searchParams].map((kv) => kv.join("=")).sort().join("&");
+  const bare = (h: string) => (h === "#" ? "" : h);
+  return x.origin === y.origin && x.pathname === y.pathname && keys(x) === keys(y) && bare(x.hash) === bare(y.hash);
 }
 
 /**
@@ -509,6 +548,7 @@ export function webRequestsOf(root: string, who: { session?: string; agentSessio
   const answered = new Map<string, WebAnswerOfPerson>();
   const advised = new Set<string>();
   const advisedSites = new Set<string>();
+  const refusedMany = new Map<string, number>();
   let search = 0;
   if (!who.session && !who.agentSession) return { hosts, domains, toolUses, asked, advised, answered, search };
   const text = journalTail(root);
@@ -542,6 +582,7 @@ export function webRequestsOf(root: string, who: { session?: string; agentSessio
         if (r.decision === "ask" && r.why === "many" && !answered.has(site)) answered.set(site, "pending");
         else if (r.decision === "allow" && r.why === "asked" && threshold) answered.set(site, "yes");
         else if (r.decision === "deny" && r.why === WEB_SAID_NO && threshold) answered.set(site, "no");
+        if (r.decision === "deny" && r.why === "many") refusedMany.set(site, (refusedMany.get(site) ?? 0) + 1);
       }
     }
     mine.push(r);
@@ -554,5 +595,5 @@ export function webRequestsOf(root: string, who: { session?: string; agentSessio
       domains.set(site, (domains.get(site) ?? 0) + 1);
     }
   }
-  return { hosts, domains, toolUses, asked, advised, advisedSites, answered, search };
+  return { hosts, domains, toolUses, asked, advised, advisedSites, answered, search, refusedMany };
 }

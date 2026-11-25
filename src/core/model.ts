@@ -398,6 +398,16 @@ export interface Person extends BaseRecord {
   refs?: ExternalRef[];
   /** The IDs the person had in the family trees they came from (spec 066 K3.2). */
   originalIds?: OriginalIds[];
+  /**
+   * How to reach the person (spec 134 U11): the user's data — the e-mails another family tree or the Strom app gives
+   * them. No evidence, no citation, no origin; empty never written.
+   */
+  contact?: PersonContact;
+}
+
+/** A person's contact: e-mail addresses, each once. */
+export interface PersonContact {
+  emails?: string[];
 }
 
 export const CHILD_RELATIONS = ["birth", "adopted", "step", "foster", "unknown"] as const;
@@ -864,7 +874,7 @@ export interface Task extends BaseRecord {
   heldFrom?: "waiting";
   waitingOn?: string;
   /** The images it waits for, which the user saves by hand: of this record set, into this folder of the shared inbox. */
-  awaits?: { recordset: string; images: string; folder: string };
+  awaits?: { recordset: string; images: string; folder: string; since?: string };
   /**
    * The person's check of a site it waits for (strom task wait --check): the address, and what to check there — a
    * site that keeps automated tools off, the source still necessary. Only the person answers it.
@@ -931,6 +941,13 @@ export interface Task extends BaseRecord {
    * done or set back. Optional: an older strom keeps it and ignores it.
    */
   queueAt?: { do: "next" | "last"; at: string };
+  /**
+   * The person returned it to the agent from What waits (strom task wake --retry: the menu, the Strom app) — images its
+   * archive's browser held back, or that the agent's browser reaches now: the last time (at), by whom, given in the app,
+   * and the last times (at most 5, ISO) — the queue counts only the sessions after it, at most RETRY_MAX returns a day
+   * (core/retry.ts). Optional: an older strom keeps it and ignores it.
+   */
+  retried?: { at: string; by: string; givenIn?: "app"; times: string[] };
   /**
    * A new wording proposed for a transcript the person read or confirmed (core/proposal.ts): the person's decision alone,
    * to take it or keep the transcript — never the queue's nor an agent's (core/transcriptguard.ts). The latest
@@ -1002,8 +1019,13 @@ export interface Conflict extends BaseRecord {
   /** The fact it is about, by its GEDCOM tag (BIRT, DEAT, NAME, SEX, MARR…), when known. */
   fact?: string;
   subject: string[];
-  /** value: the claim as strom compares it; text: as a person reads it, in the research's language (the Strom app shows it). */
-  claims: { source?: string; value: string; note?: string; text?: string }[];
+  /**
+   * value: the claim as strom compares it; text: as a person reads it, in the research's language (the Strom app shows it).
+   * sent (spec 094): a conflict of two sends of the Strom app — the research's value an earlier send of the user wrote
+   * (its input, its device), the user's side the send that opened it (its device): both sides named by their devices.
+   * Optional; none where an agent or a record gave the research's value.
+   */
+  claims: { source?: string; value: string; note?: string; text?: string; sent?: { input?: string; client?: AppClient } }[];
   /**
    * A conflict of the user's edit in the Strom app with a fact of the research: that fact, the user's value of it and
    * the sources they gave it — what `strom conflict resolve --take user` writes.
@@ -1191,6 +1213,31 @@ export interface Lesson extends BaseRecord {
 export const INPUT_KINDS = ["document", "photo", "tree", "text", "other"] as const;
 
 /** Material the research starts from: kept unchanged, the base. */
+/**
+ * A list of people of the Strom app the material was sent to (spec 137): its name, kind and rule as the app said them,
+ * how many of its people the research has (count) and has not (missing), when it was sent, and its file (notes/lists/
+ * <hash>.json: the IDs of its people then). Up to 50 of them are the input's people too.
+ */
+export interface InputList {
+  id: string;
+  name: string;
+  kind?: "fixed" | "auto" | "work";
+  rule?: string;
+  count: number;
+  missing?: number;
+  at: string;
+  file: string;
+}
+
+/**
+ * A device of the Strom app a send came from (spec 094): a browser's or profile's own random ID and, when it says one, a
+ * name to read it by ("Chrome · Mac") — nothing of a person. Optional wherever it stands: an older app sends none.
+ */
+export interface AppClient {
+  id: string;
+  name?: string;
+}
+
 export interface Input extends BaseRecord {
   type: "input";
   name: string;
@@ -1244,6 +1291,8 @@ export interface Input extends BaseRecord {
   materialKind?: (typeof MATERIAL_KINDS)[number];
   /** The couples (F…) it is of, as the app said with an original (X-Strom-Family). */
   families?: string[];
+  /** The list of people the app sent it to (X-Strom-List-Ref, spec 137): named, its people as sent in its file. */
+  list?: InputList;
   /** Its places in the tree of the Strom app: a record is in the tree while one of them is not retracted. */
   links?: MediaLink[];
   notes: Note[];
@@ -1303,9 +1352,16 @@ export interface Media extends BaseRecord {
   url?: string;
   /** Where it came from: the original file name, a portal. */
   from?: string;
+  /**
+   * The entries on it as its file's name gave them, a portal naming its scans by them ("001-004.jpg": entries 1–4 —
+   * never image 4; spec 141): what the agent checks against what it reads.
+   */
+  entries?: { from: number; to: number };
   /** Fetched through a connector: which one, its ID of the book, and whether the user's browser fetched it. */
   fetched?: { connector: string; book: string; via?: "browser" };
   accessed?: string;
+  /** The list of people the app sent the scan of a source to (X-Strom-Source with X-Strom-List-Ref, spec 137). */
+  list?: InputList;
   notes: Note[];
 }
 
@@ -1363,6 +1419,8 @@ export interface Session extends BaseRecord {
   model?: string;
   /** The reasoning effort it ran with, when strom knows it (it started the agent with it, or the agent's own config says it). */
   effort?: string;
+  /** The device of the home network whose terminal started it (spec 094 K3.15: who started it). */
+  device?: AppClient;
   /** The version of strom it ran with: its method and its checks. */
   strom?: string;
   /** Closed by strom, not by its agent: stopped by the user, its run or conversation gone, the agent quit. */

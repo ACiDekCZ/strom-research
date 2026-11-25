@@ -16,8 +16,14 @@ nur dort erledigt wird. Die Liste wird jedes Mal aus der Forschung berechnet, in
 - **Bedienung:** App: Abschnitt **Wartet auf Bearbeitung** · Terminal: Menü **Was wartet (n)**, Statuszeile
   **Wartet: N** · Seite für das Telefon: **Wartet · N**.
 - **Gilt seit:** Forschung 1.3.0. Die Liste nach Orten der Erledigung und in der App seit 1.14.0 (App 3.11.0).
+- **Ab Forschung 1.37.0:** Bilder, die der Browser des Agenten speichert ([R9.5](R9-archives.md#R9.5)), sind
+  Arbeit des Agenten. Solange die Sitzung des Agenten sie speichert, steht die Aufgabe nicht in der Liste, auch nicht
+  in den Zahlen, Etiketten und Hinweisen; die Strom-App zeigt sie als Arbeit („Agent speichert Aufnahmen (k von n)“,
+  [S4.1](S4-research-from-the-app.md#S4.1)). Auf den Menschen wartet nur ein Bild, das der Browser zurückgehalten
+  hat, und ein Speichern, dessen Sitzung mittendrin endete ([R6.2.1](#R6.2.1)). Früher geschriebene Wartezustände
+  zeigen sich so von selbst.
 
-<!-- zdroj: research:src/core/waiting.ts:1-12, waitingFor :303-460 (filtr :321), actsAsArchive (v1.15.0) · src/cli/menu.ts:234, :379 · CHANGELOG.cs.md 1.14.0 · app:src/ui/research-overview-ui.ts research.waiting -->
+<!-- zdroj: research:src/core/waiting.ts:1-12, waitingFor :303-460 (filtr :321), actsAsArchive (v1.15.0) · src/cli/menu.ts:234, :379 · CHANGELOG.cs.md 1.14.0 · app:src/ui/research-overview-ui.ts research.waiting · 1.37.0: research:81de7cdb src/core/waiting.ts savedByAgentNow (ne ve waitingFor ani v počtech; zadržený snímek a sezení, které už úkol nedrží, čekají na člověka), src/core/ownsave.ts agentSaveWait · aae8f1aa src/cli/menu-waiting.ts (terminál Co čeká bez snímků, které ukládá agent) · 1c8a4380 (vlastní čekání agenta na snímek je hned člověka) -->
 
 <a id="R6.1.1"></a>
 ### R6.1.1 Die Zahl und was nur im Terminal ist
@@ -72,9 +78,21 @@ gebraucht wird. Die Art des Wartens bestimmt den Abschnitt, die Gruppe und die m
 - **Ab Forschung 1.35.0:** ein anders erfasstes Warten auf Bilder (Bilder nur in Worten, mehrere Bücher, ein Buch, das
   die Forschung nicht hat) schreibt `strom task wait` nicht, und `strom task audit` findet solche Aufgaben und
   korrigiert sie ([R6.9](#R6.9)).
+- **Ab Forschung 1.37.0:** eine Datei, aus der sich die Bildnummer nicht erkennen lässt (`000.jpg`), hält die
+  übrigen Bilder nicht auf: sie bleibt liegen und wird einmal gemeldet. Anders benannte Dateien (nach Einträgen,
+  `001-004.jpg`) werden in der Reihenfolge des Ordners übernommen, wenn 20 Minuten lang nichts mehr gespeichert
+  wird; eine Aufgabe, für die nur ein Teil der Bilder kam, kehrt nach derselben Zeit mit dem zurück, was kam und was
+  fehlt ([R9.6](R9-archives.md#R9.6)).
+- **Ab Forschung 1.37.0:** das Warten auf Bilder, die der Browser des Agenten speichert, sagt dem Menschen nur zwei
+  Dinge: ein vom Browser zurückgehaltenes Bild („im Browser das Herunterladen mehrerer Dateien von … erlauben …“)
+  und ein durch das Ende der Sitzung angehaltenes Speichern („Speichern über den Browser des Agenten bei Aufnahme 12
+  des Buches B0003 … angehalten: die Sitzung des Agenten ist beendet – die nächste Sitzung setzt es fort; oder die
+  Aufnahmen 12-15 von Hand von … in den Ordner der Aufgabe speichern“). Das gilt auch für Wartezustände, die eine
+  ältere Forschung geschrieben hat.
+  Ist das Hindernis weg, gibt der Mensch die Aufgabe an den Agenten zurück ([R6.7.3](#R6.7.3)).
 - **Gilt seit:** Forschung 1.0.0. Wecken nach dem Speichern seit 1.15.0.
 
-<!-- zdroj: research:src/commands/tasks.ts:1000-1025 (--images, inbox) · src/commands/media.ts:135-170 wakeWaiting · assets/method/waiting.md · app:src/research-waiting.ts:251 waitingActions (folder) · src/ui/research-overview-ui.ts:1023, src/ui/waiting-task-ui.ts:231 · src/strings.ts waitingTask.openFolder -->
+<!-- zdroj: research:62e335eb, 6fee0f71 src/core/inboxwait.ts (000.jpg jednou, pořadí složky po 20 min, částečný příchod) · 81de7cdb src/core/waiting.ts waitOnNow, ownSaveSaid (browser.wait.held, browser.wait.stopped) · src/commands/tasks.ts:1000-1025 (--images, inbox) · src/commands/media.ts:135-170 wakeWaiting · assets/method/waiting.md · app:src/research-waiting.ts:251 waitingActions (folder) · src/ui/research-overview-ui.ts:1023, src/ui/waiting-task-ui.ts:231 · src/strings.ts waitingTask.openFolder -->
 
 <a id="R6.2.2"></a>
 ### R6.2.2 Seite prüfen
@@ -200,8 +218,40 @@ Nachricht erledigen lassen.
 - **Ab Forschung 1.35.0:** die Forschung sendet beim Eintrag auch sein Buch. Die App 3.30.0 kann die Einträge nach
   Buch gruppieren ([S4.4.4](S4-research-from-the-app.md#S4.4.4)); in **Was wartet** gibt es eine Übersicht der Bücher
   mit den meisten Aufgaben ([R6.8](#R6.8)).
+- **Ab Forschung 1.37.0:** bei einem Eintrag, hinter dem Aufgaben stehen, sendet sie auch, wie viel seine Erledigung
+  hilft ([R6.4.1](#R6.4.1)).
 
 <!-- zdroj: research:src/core/waiting.ts:73 SECTION_RANK, :75 DECIDE_RANK, :468 together, :478-492 ordered · src/core/waitkind.ts:238 waitGroupOf · assets/lang/cs.json:2313-2320 wait.group.* (:2359) · src/cli/menu-waiting.ts:205-232 · app:strings.ts:11958 waitingFilterLabel -->
+
+<a id="R6.4.1"></a>
+### R6.4.1 Was am meisten hilft
+
+Zu jedem Eintrag, hinter dem Aufgaben stehen, berechnet die Forschung, wie sehr seine Erledigung den Stammbaum
+erweitert, und sagt mit wenigen Worten, warum. Die Kosten eines Downloads werden nicht gewichtet; es zählt nur, um
+wie viel der Stammbaum wächst. Nichts wird gelesen, gesendet oder geschrieben.
+
+- **Punktzahl:** die Summe der Teile:
+  - **neue Generation** (+50): die Person, die der Eintrag betrifft, steht am Rand des Stammbaums ohne beide Eltern
+    oder einen von ihnen, und die Forschung steuert auf sie zu (im Umfang der Linie, nicht jenseits ihrer Grenze,
+    nicht bei einer pausierten, fertigen oder wahrscheinlich lebenden Person, nicht bei einem Elternteil, der nur
+    nicht belegt ist). Der Teil nennt eine solche Person: die höchste Generation in der Linie, dann die niedrigste ID;
+  - **direkte Linie** (+30): die Person, die der Eintrag betrifft, ist ein Vorfahre der Menschen, für die die
+    Forschung ist;
+  - **Aufgaben** (+10 für jede, höchstens 10): die Aufgaben, die die Erledigung freigibt – die eigenen und jede
+    offene oder zurückgestellte Aufgabe, die das Buch einer von ihnen braucht. Andere wartende Aufgaben desselben
+    Buches zählen nicht; jede ist ein eigener Eintrag. Gesagt wird es erst ab zwei Aufgaben.
+- **Grund:** die Teile in der Sprache der Forschung, verbunden mit „ · “: „eine neue Generation: die Eltern von Jan
+  Horák“ (oder „eine neue Generation: der Vater von …“, „eine neue Generation: die Mutter von …“), „die direkte
+  Linie“, „gibt 3 Aufgaben frei“. Ein Eintrag mit einer Aufgabe und sonst nichts hat eine Punktzahl ohne Grund.
+- **Grenzen:** Einträge ohne Aufgaben (Erzählungen, Sendungen, Widersprüche, Orte, Zweige, Hypothesen, neue
+  Fassungen einer Transkription) und Einträge mit der Punktzahl 0 haben keine Punktzahl. Berechnet wird einmal für
+  das ganze **Was wartet**.
+- **Bedienung:** App: Reihenfolge **Am hilfreichsten** in **Wartet auf Bearbeitung**
+  ([S4.4.3](S4-research-from-the-app.md#S4.4.3)). Terminal: `strom task list --state waiting --order gain` (nur mit
+  `--state waiting`, ohne `--book` und `--off-tree`).
+- **Gilt seit:** Forschung 1.37.0 (App 3.32.0)
+
+<!-- zdroj: research:44d3f750 src/core/waitgain.ts GAIN_POINTS (generation 50, line 30, task 10), UNBLOCKS_MAX 10, waitGains (edgeReach scope in, ne proof; kinship 0; bookOfTask, bookTasks open + parked; část unblocks od n ≥ 2; bez skóre 0), gainSays · src/core/waiting.ts (gain), src/core/live.ts waiting[].gain, feature waiting.gain · src/commands/tasks.ts task list --order gain (task.order) · assets/lang/cs.json wait.gain.* · CHANGELOG.cs.md 1.37.0 „Co nejvíc pomůže“ · dirigent:spec/105 K4.1 -->
 
 <a id="R6.5"></a>
 ## R6.5 Was sich wo erledigen lässt
@@ -221,6 +271,9 @@ brauchen, öffnen das Terminal der Forschung auf dem Computer.
 - **Bedienung:** Terminal: **Was wartet** → Gruppe (**Der Text aller Anfragen auf einmal**, **Für die ganze Gruppe
   gesendet**, **Ein Gespräch mit dem Agenten über die ganze Gruppe**) oder Eintrag.
 - **Gilt seit:** Forschung 1.14.0 (App 3.11.0). Orte seit 1.25.0.
+- **Ab Forschung 1.37.0 (App 3.32.0):** die App gibt selbst eine Aufgabe an den Agenten zurück, die auf Aufnahmen
+  wartet, die der Agent selbst schafft (**Erneut über den Agenten versuchen**, auch für die ganze Gruppe eines
+  Archivs; [R6.7.3](#R6.7.3), [S4.4.14](S4-research-from-the-app.md#S4.4.14)).
 
 <!-- zdroj: research:src/core/live.ts:60-80 (POST /waiting, /group, PUT /media X-Strom-Task, POST /places/answer, /conflict 403), :2761 · src/core/waiting.ts:78-88 actionsOf · app:src/ui/research-overview-ui.ts · strings.ts:9972, :10078, :11953 -->
 
@@ -254,6 +307,9 @@ startet, fragt die Forschung den Menschen in einem Systemfenster, oder sie lehnt
 - **Ab Forschung 1.35.0:** nur der Mensch entscheidet auch, ob eine kürzere Notiz eines Beteiligten aus der App
   übernommen wird (`strom sync note`, [S2.3.2](S2-edits-from-the-app.md#S2.3.2)); der Agent führt nur die Antwort
   des Menschen auf diese Aufgabe aus.
+- **Ab Forschung 1.37.0:** nur der Mensch gibt auch eine wartende Aufgabe an den Agenten zurück (`strom task wake
+  --retry`, [R6.7.3](#R6.7.3)): im Menü **Was wartet** oder in der Strom-App über die Brücke. Einem Agenten und einem
+  strom in der Sitzung eines Agenten verweigert die Forschung den Befehl.
 
 <!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent; strom help source reading („The person's alone … an agent never decides it“), strom help source proposal („Only the person decides it“) · 1.35.0: research:fb94435f src/commands/sync.ts sync note (person, agentMay s odpovědí), src/core/shorternote.ts decideShorterNote (shorter.person) -->
 
@@ -313,6 +369,66 @@ Eine Antwort bringt die Aufgabe in die Warteschlange zurück, und der Agent vera
     nicht. Solange sie nicht gelaufen ist, weist `strom check` auf solche Aufgaben hin.
 
 <!-- zdroj: research:src/commands/media.ts:135-170 wakeWaiting (1.26.0: awaits jen ta kniha, check nikdy, letter/family/web jen waitingOn; 1.27.0: web i singleBook) · src/commands/fixes.ts:835 woken-waits (commit 740e1893) · src/core/archivewait.ts:188 wakeForArchive · src/commands/tasks.ts:880-895 task park · src/core/queue.ts:112 effectiveState · app:src/ui/research-ui.ts:3473-3500 -->
+
+<a id="R6.7.3"></a>
+### R6.7.3 An den Agenten zurückgeben
+
+Eine Aufgabe, die auf Aufnahmen eines Archivs nur über den Browser wartet, gibt der Mensch an den Agenten zurück,
+sobald das Hindernis des Browsers weg ist (zum Beispiel Downloads erlaubt oder die Erweiterung verbunden). Nichts wird
+als Antwort des Menschen geschrieben, und die Aufgabe kommt sofort an die Reihe.
+
+- **Welche Aufgaben es betrifft:** nur das Warten auf Aufnahmen, die der Agent selbst schafft:
+  - der Browser des Agenten hat die Downloads von der Website des Archivs zurückgehalten (im Profil, in dem der Agent
+    arbeitet, fehlt die Erlaubnis, mehrere Dateien herunterzuladen);
+  - das Speichern über den Browser des Agenten wurde angehalten, weil die Sitzung des Agenten mittendrin endete;
+  - von Hand zu speichernde Aufnahmen eines Buchs, zu dem der Browser des Agenten darf: ein Archiv nur über den
+    Browser mit der Erlaubnis **über den Browser** ([R9.2](R9-archives.md#R9.2)), oder ein Konnektor, dessen
+    Aufnahmen über den Browser kommen;
+  - eine Seite in einem Archiv-Viewer, den `strom media save` nicht kennt (heute ARON des Mährischen Landesarchivs,
+    `www.mza.cz/aron/…`), nur mit der Erlaubnis **über den Browser**: der Agent liest die Aufnahmen nur vom
+    Bildschirm, keine wird gespeichert.
+- **Nie:** ein Brief, eine Anfrage an die Familie, eine Prüfung einer Website, die Erlaubnis eines Archivs, eine
+  gesendete Anfrage, ein Vorschlag einer Transkription, ein Archiv nur von Hand, Aufnahmen eines Buchs, zu dem der
+  Browser des Agenten nicht darf, und nichts in einer Forschung, die als Archiv dient.
+- **Warum es jetzt wartet:** bei einer solchen Aufgabe sagt die Forschung den Grund des jetzigen Wartens, nicht einen
+  früher geschriebenen Text: zurückgehaltene Downloads (mit der Website des Archivs), angehaltenes Speichern, der
+  Browser des Agenten erreicht das Archiv jetzt, die Erweiterung Claude in Chrome ist in keinem Browser verbunden,
+  oder der Agent der Forschung ist ein anderer als Claude Code mit der Erweiterung Claude in Chrome. Eine schon
+  zurückgegebene Aufgabe, die wieder wartet, endet mit „erneut versucht 18:40, wieder zurückgehalten“ (oder „wartet
+  wieder“); eine Zeit vor heute steht mit ihrem Tag. Die Forschung sagt auch die Zahl der Aufnahmen, die der Aufgabe
+  noch fehlen, wenn sie sie kennt.
+- **Was das Zurückgeben tut:**
+  - die Aufgabe ist wieder offen und kommt in der Warteschlange sofort an die Reihe, wie die Wahl **sofort**
+    ([R2.2](R2-lines-and-queue.md#R2.2)); mehrere auf einmal zurückgegebene untereinander in der Reihenfolge der
+    Warteschlange. Frühere Sitzungen an der Aufgabe zählen in der Warteschlange nicht gegen sie (nur die Sitzungen seit
+    dem Zurückgeben zählen), und sie wartet nicht hinter der Arbeit, die sich sofort machen lässt, wegen Aufnahmen,
+    die ein Mensch herunterladen würde;
+  - die Aufgabe bekommt die Notiz „aus Was wartet an den Agenten zurückgegeben; es wartete auf: …“ (aus der App „…
+    aus Was wartet in der Strom-App …“), damit der Agent weiß, was fehlte. Eine Antwort des Menschen wird nicht
+    geschrieben;
+  - was der Browser des Agenten für die Aufgabe speichern sollte und nie gespeichert hat, wird verworfen; die nächste
+    Sitzung speichert es neu;
+  - nichts startet und nichts wird bezahlt: eine laufende Forschung (`strom run`) nimmt die Aufgabe, sonst wartet sie
+    als Erste in der Warteschlange auf den nächsten Start.
+- **Grenzen:**
+  - eine Aufgabe höchstens 3× in 24 Stunden. Danach sagt die Forschung, ab wann es wieder geht; dauert die Ursache an,
+    landet die Aufgabe wieder in **Was wartet** und kreist nicht;
+  - mehrere Aufgaben gehen alle zurück oder keine: eine, die sich nicht zurückgeben lässt, hält das ganze Zurückgeben
+    an, und nichts wird geschrieben;
+  - zurückgeben darf nur der Mensch: im Terminal (Menü **Was wartet**) oder in der Strom-App über die Brücke. Einem
+    Agenten und einem strom in der Sitzung eines Agenten verweigert die Forschung den Befehl ([R6.6](#R6.6));
+  - eine Aufgabe, deren Warten sich inzwischen geändert hat, geht aus der App nicht zurück (die Forschung verweigert
+    es und schreibt nichts).
+- **Bedienung:** Terminal: **Was wartet** → Eintrag: Zeile **jetzt: …** und als letzte Wahl **An den Agenten
+  zurückgeben (N Aufnahmen)** (ohne bekannte Zahl **An den Agenten zurückgeben**); danach „✓ An den Agenten
+  zurückgegeben, sofort an der Reihe: eine laufende Forschung nimmt es, sonst der nächste Start.“ Nach dem Limit statt
+  der Wahl „An einem Tag schon 3× an den Agenten zurückgegeben – wieder ab …“. In der Gruppe eines Archivs mit
+  mindestens zwei solchen Aufgaben **Alles an den Agenten zurückgeben (N Aufgaben, M Aufnahmen)**. Befehl:
+  `strom task wake T… [T…] --retry`. App: **Erneut über den Agenten versuchen**
+  ([S4.4.14](S4-research-from-the-app.md#S4.4.14)).
+- **Gilt seit:** Forschung 1.37.0 (App 3.32.0)
+
+<!-- zdroj: research:9d626062 src/core/retry.ts retryOf (held, stopped, screen jen se svolením permitted, ruční awaits jen bookBrowserArchive permitted nebo viaConnector; ne letter/family/check/permission, proposal, awaitsCheck, waitPhaseOf ≠ todo, actsAsArchive), RETRY_MAX 3, RETRY_WINDOW_MS 24 h, when (HH:MM dnes, jinak humanWhen) · src/commands/tasks.ts retryWake (task.retry-answer, task.retry-person: isAgent nebo STROM_SESSION bez STROM_FOR_APP, task.not-waiting, task.changed --expect, task.retry-not, task.retry-limit; vše nebo nic pod zámkem; stateChange open, queueAt {do: next, at} stejný čas, retried {at, by, givenIn app, times}, poznámka retry.note/retry.note.app, saves bez taken zahozené) · src/core/queue.ts rankTasks (tried jen sezení po retried.at; returned → ne lacksImages/blocked) · src/cli/menu-waiting.ts (ui.wait.d.retry, ui.wait.a.retry, ui.wait.retry.until, ui.wait.retry.done, skupina back.length ≥ 2 ui.wait.group.retry) · assets/lang/cs.json retry.* · assets/archives.json mza.cz screenOnly /aron/ · src/core/live.ts POST /waiting/<T…> a /group/<key> {"do":"retry"}, feature waiting.retry · strom help task wake · CHANGELOG.cs.md 1.37.0 · dirigent:spec/089 K1.1–K1.5, K1.2b, K2.1, K3.1 -->
 
 <a id="R6.8"></a>
 ## R6.8 Bücher mit den meisten Aufgaben

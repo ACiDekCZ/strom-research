@@ -647,8 +647,10 @@ test("the Strom app's two copies against a stable and a beta strom (the beta a s
         // (origin.ids only where /tree.ged sends the IDs, by the gate of the origins: test/cli/origin-app.test.ts; the main
         // citation and a removed one by theirs, spec 095: test/cli/sync-citations.test.ts; material.sort only where an agent
         // reads, spec 102 V13: test/cli/material-sort.test.ts; name-status by the gate APP_READS_NAME_STATUS:
-        // test/cli/name-verify.test.ts; the runs by line only where an agent works, spec 126: test/cli/run-lines.test.ts)
-        const gated = new Set(["origin.ids", "citations.main", "citations.remove", "material.sort", "name-status", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move"]);
+        // test/cli/name-verify.test.ts; the runs by line only where an agent works, spec 126: test/cli/run-lines.test.ts;
+        // sort.confirm likewise, spec 102 U8, and sort.confirm.app with run.confirm, spec 123 P2: test/cli/sort-confirm.test.ts;
+        // finds and finds.person only where an agent works, spec 094: test/cli/phone-finds.test.ts)
+        const gated = new Set(["origin.ids", "citations.main", "citations.remove", "material.sort", "name-status", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sort.confirm", "sort.confirm.app", "run.confirm", "finds", "finds.person"]);
         const noIds = (l: readonly string[]) => l.filter((f) => !gated.has(f));
         assert.deepEqual(noIds(s.features), noIds(BRIDGE_FEATURES));
         if (isBeta) assert.equal(s.channel, "beta");
