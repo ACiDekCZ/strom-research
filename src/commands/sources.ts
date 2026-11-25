@@ -290,12 +290,18 @@ register(
     options: [
       { name: "kind", type: "string", value: "<kind>", description: "only this kind" },
       { name: "recordset", type: "string", value: "<B…>", description: "only from this recordset" },
+      { name: "note", type: "string", value: "<text>", description: "only the sources a note of which says this (diacritics optional), each with that note — e.g. the sources whose address an index gave", mistaken: ["notes", "note-text", "remark"] },
       { name: "full", type: "boolean", description: "--json: whole records instead of one row each" },
       { name: "retracted", type: "boolean", description: "only the sources retracted: deleted by the person (when, how many citations kept in it — strom source restore puts it back), merged, taken back" },
     ],
+    examples: ["strom source list Lhota --kind baptism", 'strom source list --note "index"'],
     run(ctx: Context, { args, opts }: Input) {
       const tree = ctx.tree();
+      // --note: the note that says it (the first), said with the source — no strom source show of each
+      const said = typeof opts.note === "string" ? opts.note : undefined;
+      const noteOf = (s: Source) => (said === undefined ? undefined : s.notes?.find((n) => matches(n.text, said))?.text);
       const wanted = (s: Source) =>
+        (said === undefined || noteOf(s) !== undefined) &&
         (!args[0] || matches(s.title, args[0]) || matches(s.locator, args[0]) || matches(s.folio, args[0]) || matches(s.image, args[0]) || matches(s.transcript, args[0])) &&
         (!opts.kind || s.kind === opts.kind) &&
         (!opts.recordset || s.recordset === normId(opts.recordset as string));
@@ -305,9 +311,9 @@ register(
       const text = all.length
         ? opts.retracted
           ? lines(table(page.items.map((s) => [s.id, s.kind, truncate(s.title, 60), retractedLine(s)])), moreLine(page, "strom source list --retracted"), page.items.some(deletedSource) ? "put back a deleted one (the person's alone): strom source restore <S…>" : undefined)
-          : lines(table(page.items.map((s) => [s.id, s.kind, truncate(s.title, 60), s.locator ?? "", s.form === "original" ? "" : s.form])), moreLine(page, "strom source list"))
+          : lines(table(page.items.map((s) => [s.id, s.kind, truncate(s.title, 60), s.locator ?? "", s.form === "original" ? "" : s.form, ...(said !== undefined ? [truncate(noteOf(s)!, 120)] : [])])), moreLine(page, "strom source list"))
         : opts.retracted ? "no retracted sources match" : lines("no sources match", retractedHint(found));
-      const rows = opts.full ? page.items : page.items.map((s) => ({ id: s.id, kind: s.kind, title: s.title, locator: s.locator, form: s.form, information: s.information, ...(s.retracted ? retractedData(s) : {}) }));
+      const rows = opts.full ? page.items : page.items.map((s) => ({ id: s.id, kind: s.kind, title: s.title, locator: s.locator, form: s.form, information: s.information, ...(said !== undefined ? { note: noteOf(s) } : {}), ...(s.retracted ? retractedData(s) : {}) }));
       return { text, data: { total: page.total, sources: rows } };
     },
   },
@@ -847,9 +853,9 @@ register(
     summary: "Places known in this tree — or, with --off-map, the places of facts not on the Strom app's map yet",
     group: "sources",
     tree: true,
-    args: [{ name: "filter", description: "part of a name" }],
+    args: [{ name: "filter", description: "part of a name, any of the place's names (finds a place: there is no strom place find)", mistaken: ["match", "name", "search", "find", "query", "filter"] }],
     options: [{ name: "off-map", type: "boolean", description: "places of facts without coordinates (no place record yet, or one without them), the most facts first" }],
-    examples: ["strom place list", "strom place list --off-map"],
+    examples: ["strom place list", 'strom place list "Týnec"', "strom place list --off-map"],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       if (opts["off-map"]) {

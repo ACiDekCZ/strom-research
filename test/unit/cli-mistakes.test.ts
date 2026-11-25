@@ -45,10 +45,26 @@ test("a command a group does not have: another word for one of its commands, a g
   assert.equal(read.hint, "similar command: strom history show · strom history list");
   assert.equal(mistake(() => resolveCommand(["history", "lst"])).hint, "similar command: strom history list");
   // another word for show
-  assert.equal(mistake(() => resolveCommand(["task", "view", "T0001"])).hint, "similar command: strom task show · strom task list");
-  assert.equal(mistake(() => resolveCommand(["person", "get", "P0001"])).hint, "similar command: strom person show · strom person list");
+  assert.equal(mistake(() => resolveCommand(["task", "view", "T0001"])).hint, "similar command: strom task show T0001 · strom task list");
+  assert.equal(mistake(() => resolveCommand(["person", "get", "P0001"])).hint, "similar command: strom person show P0001 · strom person list");
   // what was taken stays taken: the group alone, its options, its own commands; a typo still the near one
   assert.deepEqual(resolveCommand(["history", "--limit", "3"]).def.path, ["history"]);
   assert.deepEqual(resolveCommand(["history", "list", "--event", "x"]).def.path, ["history", "list"]);
   assert.equal(mistake(() => resolveCommand(["person", "ad"])).hint, "similar command: strom person add");
+});
+
+test("a place looked up as agents type it (live run, 2026-11-25): place find|search <name>, place <name>, place list --match — strom place list <name>", () => {
+  const find = mistake(() => resolveCommand(["place", "find", "Lhota"]));
+  assert.equal(find.message, 'unknown command "strom place find"');
+  assert.equal(find.hint, "similar command: strom place list Lhota");
+  assert.equal(mistake(() => resolveCommand(["place", "search", "Nová Ves"])).hint, 'similar command: strom place list "Nová Ves"');
+  assert.equal(mistake(() => resolveCommand(["place", "Lhota"])).hint, "similar command: strom place list Lhota");
+  assert.equal(mistake(() => resolveCommand(["place", "Лгота"])).hint, "similar command: strom place list Лгота");
+  // the word after another word for show goes into it; a list that takes none says none
+  assert.equal(mistake(() => resolveCommand(["task", "view", "T0003"])).hint, "similar command: strom task show T0003 · strom task list");
+  // a command a few letters away stays the one said
+  assert.equal(mistake(() => resolveCommand(["place", "merg", "L0001"])).hint, "similar command: strom place merge");
+  const match = mistake(() => parseOptions(def("place", "list"), ["--match", "Lhota"]));
+  assert.equal(match.message, "--match is no option of strom place list: <filter> is its argument");
+  assert.equal(match.hint, "strom place list <filter>");
 });

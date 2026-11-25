@@ -117,7 +117,7 @@ export function resolveCommand(argv: string[]): Resolved {
   if (group.length && subcommandsOf(group).length) {
     if (!extra.length) throw new GroupOnly(group);
     // said as typed (strom book B1, never "strom recordset B1"), looked up in the group it stands for
-    throw unknownCommand([...group, extra[0]!], [...typedGroup, extra[0]!]);
+    throw unknownCommand([...group, extra[0]!], [...typedGroup, extra[0]!], false, extra[1]);
   }
   throw unknownCommand([...words, ...extra].slice(0, Math.max(words.length + 1, 2)));
 }
@@ -145,9 +145,11 @@ export class GroupOnly extends Error {
 /**
  * An unknown command, said as typed (`said`: another name of a group — strom book … — when `words` name the group it
  * stands for) with the commands near it; a group's ID after it (strom book B1) offers the group's show; `hidden`: the
- * group's commands behind a gate are near ones too (a group that is a command of its own: strom history read).
+ * group's commands behind a gate are near ones too (a group that is a command of its own: strom history read); `after`:
+ * the word typed after them, put into the command meant where it takes it (strom place find Lhota → strom place list
+ * Lhota); a word that is no command of a group that lists by a part of a name (strom place Lhota): that list.
  */
-function unknownCommand(words: string[], said = words, hidden = false): UsageError {
+function unknownCommand(words: string[], said = words, hidden = false, after?: string): UsageError {
   const typed = said.join(" ");
   const all = commands().filter((c) => c.path.length > 0).map((c) => c.path.join(" "));
   // A known group narrows the choice ("person ad" → "person add", not "lesson add"); `hidden`: a group that is a
@@ -159,7 +161,13 @@ function unknownCommand(words: string[], said = words, hidden = false): UsageErr
   // before the commands a few letters away (read is no redo)
   const synonyms = words.length === 2 ? (SUBCOMMAND_WORDS[words[1]!.toLowerCase()] ?? []).map((w) => `${words[0]} ${w}`).filter((c) => inGroup.includes(c)) : [];
   const show = !hits.length && words.length === 2 && /^\p{Lu}\p{N}+$/u.test(words[1]!) && inGroup.includes(`${words[0]} show`) ? `${said[0]} show ${said[1]}` : undefined;
-  const more = show ? [show] : synonyms.length ? synonyms : hits.length ? hits : suggest(words[0] ?? "", [...new Set(all.map((c) => c.split(" ")[0]!))]);
+  // a name where the command goes (strom place Lhota): the group's list by a part of a name, with it
+  const byName = !show && !synonyms.length && !hits.length && words.length === 2 && takesWord(`${words[0]} list`, true) ? [`${words[0]} list ${quoted(words[1]!)}`] : [];
+  // the word typed after another word for a command, put into the command meant where it fits: a record's ID into one that
+  // takes it (strom task view T0003 → task show T0003), a name into a list by a part of a name (strom place find Lhota)
+  const isId = after !== undefined && /^\p{Lu}+\p{N}+$/u.test(after);
+  const withAfter = (c: string) => (after !== undefined && (c.endsWith(" list") ? !isId && takesWord(c, true) : isId && takesWord(c)) ? `${c} ${quoted(after)}` : c);
+  const more = show ? [show] : synonyms.length ? synonyms.map(withAfter) : byName.length ? byName : hits.length ? hits : suggest(words[0] ?? "", [...new Set(all.map((c) => c.split(" ")[0]!))]);
   // in the words typed: the group's other name kept (strom book show, not strom recordset show)
   const asTyped = (c: string) => (said[0] !== words[0] && c.split(" ")[0] === words[0] ? [said[0], ...c.split(" ").slice(1)].join(" ") : c);
   const near = more.map((c) => `strom ${asTyped(c)}`).join(" · ");
@@ -167,6 +175,17 @@ function unknownCommand(words: string[], said = words, hidden = false): UsageErr
     hint: more.length ? `similar command: ${near}` : "strom help   (all commands)",
     ...(more.length ? { code: "command.near", params: { cmd: typed, near } } : { code: "command.unknown", params: { cmd: typed } }),
   });
+}
+
+/** The command takes a word after it (`filter`: its first argument a part of a name it lists by, not required). */
+function takesWord(command: string, filter = false): boolean {
+  const first = commands().find((c) => c.path.join(" ") === command)?.args?.[0];
+  return !!first && (!filter || (first.name === "filter" && !first.required));
+}
+
+/** A word as a shell takes it back: in quotes when it has a space or a quote. */
+function quoted(word: string): string {
+  return /[\s"'$`\\]/u.test(word) ? `"${word.replace(/["$`\\]/gu, (c) => `\\${c}`)}"` : word;
 }
 
 /** Other words agents type for a command of a group: the commands they mean, those the group has said. */
@@ -182,6 +201,14 @@ const SUBCOMMAND_WORDS: Readonly<Record<string, string[]>> = {
   details: ["show"],
   ls: ["list"],
   all: ["list"],
+  // looking a record up by a part of its name (strom place find Lhota): the group's list, which takes it
+  find: ["list"],
+  search: ["list"],
+  lookup: ["list"],
+  match: ["list"],
+  query: ["list"],
+  grep: ["list"],
+  filter: ["list"],
   new: ["add"],
   create: ["add"],
   update: ["edit"],
