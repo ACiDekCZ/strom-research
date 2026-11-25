@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.37.0
 
-*W przygotowaniu: bety do 1.37.0-beta.4. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.37.0-beta.5. Sekcja będzie kompletna z wydaniem.*
 
 - **Wpis archiwum w badaniu nie utrzymuje już portalu z listy stroma:** księga z adresem na portalu, który zna lista
   stroma (Porta fontium, Acta Publica…), nie czyni już portalu tak surowym jak archiwum, pod którym jest zapisana –
@@ -85,8 +85,8 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   **Sortowanie materiałów bez pytania:** ustawienie `sort.confirm` (dla badania z `--for-tree`, w przeciwnym razie
   dla tego komputera): `ask` – domyślne, jak dotąd: zgoda osoby na płatne odczyty przed każdym sortowaniem – albo
   `no`: `strom material sort` sortuje od razu, gdy osoba o to poprosi, i mówi, że nie pytano; nigdy samoczynnie,
-  a przebieg, którego nikt nie obserwuje, nadal pyta. `no` ustawia tylko osoba we własnym terminalu; powrót do pytania
-  może każdy, także aplikacja Strom.
+  a przebieg, którego nikt nie obserwuje, nadal pyta. `no` ustawia tylko osoba we własnym terminalu lub w aplikacji
+  Strom na tym komputerze (mówi o tym jedna linia w logu mostu), nigdy agent; powrót do pytania może każdy.
 - **Badanie dla kopii drzewa:** link aplikacji Strom, który zakłada nowe badanie, może zaproponować jego nazwę (kopia
   drzewa: „… (kopia)”); terminal proponuje ją do zachowania lub nadpisania, a most podaje aplikacji folder, w którym
   powstają nowe badania. Drzewo przekazane z numerami innego badania (kopia drzewa, które miało badanie, ze starszej
@@ -120,7 +120,8 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   agentowi, ustalanie miejsc – przy kilku partiach miejsc pyta się tylko o liczbę, a Enter uruchamia co najmniej jedną),
   uruchamia się od razu; jedna linia w terminalu mówi o tym i gdzie pytanie włącza się z powrotem. Nadal pytane są:
   pytanie z ceną w pieniądzach, zgody, usuwanie, wysłanie prośby, warunek samodzielnej pracy i każde polecenie agenta.
-  Pytanie wyłącza tylko człowiek, nigdy agent.
+  Pytanie wyłącza tylko człowiek – w terminalu lub w aplikacji Strom na tym komputerze (mówi o tym jedna linia w logu
+  mostu), nigdy agent.
 - **Usuwanie źródła:** źródło można usunąć w badaniu – `strom source retract` w terminalu lub usunięciem źródła w
   aplikacji Strom, tylko przez osobę, nigdy przez agenta (może je jedynie zaproponować, z tym, co według `--dry-run` by
   zabrało). Wartości zostają; jego cytaty są zdejmowane z danych i przechowywane w źródle, dana może stać się mniej

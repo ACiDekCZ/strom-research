@@ -85,9 +85,10 @@ async function site(): Promise<{ origin: string; icon: Buffer; close: () => Prom
   };
 }
 
-const isPhonePage = (text: string, lang: string) => {
+/** The phone's page, as it is with the gateway of the devices on (Connect device) or off. */
+const isPhonePage = (text: string, lang: string, devices = true) => {
   const nonce = /nonce="([^"]+)"/.exec(text)?.[1];
-  return !!nonce && text.replaceAll(nonce, "N") === phonePage(lang, "N");
+  return !!nonce && text.replaceAll(nonce, "N") === phonePage(lang, "N", { devices });
 };
 
 type Device = { id: string; key: Buffer };
@@ -275,7 +276,7 @@ test("the gateway of the devices: paired through the bridge's code, the sealed t
     await w.ok(["config", "set", "devices.mode", "off"]);
     const off = await x(me, { m: "GET", p: "status" });
     assert.deepEqual([off.status, off.json.code], [404, "device.disabled"]);
-    assert.ok(isPhonePage((await request("GET", `${address}/?lang=en`)).text, "en"));
+    assert.ok(isPhonePage((await request("GET", `${address}/?lang=en`)).text, "en", false), "the phone's page as before: Connect phone");
     assert.ok(!(await request("GET", `${bridge.url}/status`)).json.features.some((f: string) => f.startsWith("device.")));
     assert.ok(!("devices" in (await request("GET", `${bridge.url}/phone`, undefined, APP)).json));
     const kept = JSON.parse(fs.readFileSync(path.join(w.env.STROM_CONFIG_DIR!, "devices.json"), "utf8")) as { devices: { id: string }[] };

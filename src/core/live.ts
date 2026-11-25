@@ -681,6 +681,12 @@
 //   POST <token>/settings/runs  {max: 1…10}: lower — strom config set run.parallel n (the runs at work go on) — {ok,
 //                          limits}; higher: 403 runs.raise {command} (only the person raises it, in the terminal);
 //                          400 runs.max (feature run.limit)
+//   POST <token>/settings/run  {"confirm": "ask" | "no"} (exactly; spec 123 P2, feature run.confirm): the question before
+//                          the agent starts from the app's links (run.confirm, this computer's — every research; /status
+//                          work.confirm) — "ask": strom config unset run.confirm, from anywhere; "no": strom config set
+//                          run.confirm no, only the Strom app on this computer (one line in live.log), else 403 run.raise
+//                          {command, reason: device|browser} — {run {confirm}} (as it holds already: nothing written);
+//                          400 run.body, 409 run.archive (+ reasonCode), 503 research.busy, 500 run.failed
 //   POST <token>/live      {idleMinutes: 0…10080}: strom config set live.idleMinutes (this computer's, every bridge takes
 //                          it; nothing committed) — {live: {idleMinutes, idleChoices}} as /status live says it (feature
 //                          live.idle) — or {do: "stop"}: 202 {stopping: true}, ended as strom live stop ends it (end
@@ -714,8 +720,11 @@
 //   POST <token>/settings/sort  {"confirm": "ask" | "no"} (exactly; spec 102 U8, feature sort.confirm, no gate of the
 //                          app's version): the question before a sort of the material (strom material sort) — "ask":
 //                          strom config set sort.confirm ask --for-tree — {sort {confirm}, head, parent (head when the
-//                          value holds already: nothing written)}; "no" only by the person in the terminal: 403
-//                          sort.raise {command: strom config set sort.confirm no --for-tree} (200 when no holds already);
+//                          value holds already: nothing written)}; "no" (strom config set sort.confirm no --for-tree) by
+//                          the person in the terminal, or the Strom app on this computer (spec 123 P2, feature
+//                          sort.confirm.app; one line in live.log in the research's language) — never a device of the
+//                          home network nor what is no browser's fetch (no Sec-Fetch-Mode: cors): 403 sort.raise
+//                          {command, reason: device|browser} (200 when no holds already);
 //                          400 sort.body, 409 sort.archive (an archive, a research waiting for its agent; + reasonCode),
 //                          409 seal.foreign | tree.not-downloaded, 423 locked, 503 research.busy, 500 sort.failed. The
 //                          bridge sorts nothing by it (POST /material/sort is the app's dialog, the person's ask). /status
@@ -1953,10 +1962,10 @@ const MEDIA_REF_UNKNOWN = "sync.media-ref-unknown";
 /** How many hashes POST /media/known takes at once. */
 export const MEDIA_KNOWN_MAX = 5000;
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sync.mediaRef", "person.contact", "media.list", "media.list.source", "waiting.gain", "sort.confirm", "working.saving", "waiting.retry"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sync.mediaRef", "person.contact", "media.list", "media.list.source", "waiting.gain", "sort.confirm", "working.saving", "waiting.retry", "sort.confirm.app", "run.confirm"] as const;
 
 /** What only a research with its agent here does (accepts.read: none in an archive, nor where it waits for its agent). */
-const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sort.confirm"]);
+const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sort.confirm", "sort.confirm.app", "run.confirm"]);
 const withoutAgent = (features: readonly string[]): readonly string[] => features.filter((f) => !AGENT_FEATURES.has(f));
 
 /**
@@ -4201,9 +4210,15 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       writeFor(req, res, origin, runsLimitWrite());
       return;
     }
-    // the question before a sort of the material (spec 102 U8): asked again from the app, never taken away there
+    // the question before a sort of the material (spec 102 U8): asked again from anywhere, taken away only by the app on
+    // this computer (spec 123 P2)
     if (req.method === "POST" && t === token && what === "settings" && sub === "sort" && !act) {
-      writeFor(req, res, origin, sortConfirmWrite());
+      writeFor(req, res, origin, sortConfirmWrite(req));
+      return;
+    }
+    // the question before the agent starts from the app's links (spec 123 P2): the same, this computer's
+    if (req.method === "POST" && t === token && what === "settings" && sub === "run" && !act) {
+      writeFor(req, res, origin, runConfirmWrite(req));
       return;
     }
     // census records as a source (spec 106)
@@ -7049,14 +7064,31 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   };
 
   /**
-   * The question before a sort of the material (POST /settings/sort {"confirm": "ask" | "no"}, exactly; spec 102 U8,
-   * feature sort.confirm): asked again from the app at once (strom config set sort.confirm ask --for-tree); taken away
-   * only by the person in the terminal (a standing yes to paid readings): 403 sort.raise {command}. As it is already:
-   * 200, nothing written, head = parent. {sort: {confirm}, head, parent}. 400 sort.body; not in an archive nor a research
-   * waiting for its agent (409 sort.archive, reasonCode: its state).
+   * Who may take a question away from the app (spec 123 P2: sort.confirm no, run.confirm no — a standing yes to what the
+   * agent and its readers spend): only the Strom app in a browser on this computer, the person's switch confirmed in the
+   * app's own dialog. Never a device of the home network (its gateway names it: "device") nor what is no browser's fetch
+   * (a page's fetch says Sec-Fetch-Mode: cors, which a program has to make up: "browser"). undefined: it may. A fence,
+   * not a vault: an agent that read the bridge's secret could make up the browser's headers too — kept away by the tree's
+   * rules and hooks (core/bridgeguard.ts), and the change is said in live.log in the research's language.
    */
-  const sortConfirmWrite = (): AppWrite => {
+  const lowersFrom = (req: http.IncomingMessage): "device" | "browser" | undefined => {
+    if (deviceOf(req) || req.headers[DEVICE_HEADER] !== undefined) return "device";
+    if (req.headers["sec-fetch-mode"] !== "cors") return "browser";
+    return undefined;
+  };
+
+  /**
+   * The question before a sort of the material (POST /settings/sort {"confirm": "ask" | "no"}, exactly; spec 102 U8,
+   * feature sort.confirm): asked again from the app at once (strom config set sort.confirm ask --for-tree, from
+   * anywhere); taken away (a standing yes to paid readings: strom config set sort.confirm no --for-tree) by the person
+   * in the terminal or in the Strom app on this computer (spec 123 P2, feature sort.confirm.app; said in live.log) —
+   * never by a device of the home network nor what is no browser's fetch: 403 sort.raise {command, reason: device |
+   * browser}. As it is already: 200, nothing written, head = parent. {sort: {confirm}, head, parent}. 400 sort.body; not
+   * in an archive nor a research waiting for its agent (409 sort.archive, reasonCode: its state).
+   */
+  const sortConfirmWrite = (req: http.IncomingMessage): AppWrite => {
     let before = "";
+    let lowered = false;
     return {
       what: "the question before a sort",
       codes: { badBody: "sort.body", busy: "research.busy", failed: "sort.failed" },
@@ -7068,12 +7100,19 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         before = head(root);
         if (new Settings(env, {}).sortConfirm(tree.config) === body.confirm) return { code: 200, body: { sort: { confirm: body.confirm }, head: before, parent: before } };
         const command = "strom config set sort.confirm no --for-tree";
-        if (body.confirm === "no") return { code: 403, body: { ...refusal(`a sort without the question only by the person in the terminal: ${command}`, "sort.raise"), command } };
+        if (body.confirm === "no") {
+          const reason = lowersFrom(req);
+          if (reason) return { code: 403, body: { ...refusal(`a sort without the question only by the person, in the terminal or the Strom app on this computer: ${command}`, "sort.raise", { reason }), command, reason } };
+          lowered = true;
+          return { args: ["config", "set", "sort.confirm", "no", "--for-tree"] };
+        }
         return { args: ["config", "set", "sort.confirm", "ask", "--for-tree"] };
       },
       done(tree, _data, h) {
         const now = Tree.open(tree.root, env);
-        return { sort: { confirm: new Settings(env, {}).sortConfirm(now.config) }, head: h, parent: before };
+        const confirm = new Settings(env, {}).sortConfirm(now.config);
+        if (lowered && confirm === "no") noteLive(root, ui(langOf(root, env), "ui.live.unasked.sort"));
+        return { sort: { confirm }, head: h, parent: before };
       },
       refused(tree, code, why) {
         if (code === "archive" || code === "agent.missing") return { code: 409, body: { ...refusal(why, "sort.archive"), reasonCode: stateOf(tree) } };
@@ -7170,6 +7209,45 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     done: () => ({ ok: true, limits: runLimits(root, new Settings(env, {})) }),
     refused: () => undefined,
   });
+
+  /**
+   * The question before the agent starts from the Strom app's links (POST /settings/run {"confirm": "ask" | "no"},
+   * exactly; spec 123 P2, feature run.confirm; this computer's, every research): asked again from anywhere (strom config
+   * unset run.confirm); taken away (a standing yes to the subscription or AI credit: strom config set run.confirm no) by
+   * the person in the terminal or in the Strom app on this computer (said in live.log) — never by a device of the home
+   * network nor what is no browser's fetch: 403 run.raise {command, reason: device | browser}. {run: {confirm}} (as it is
+   * already: nothing written). 400 run.body; not in an archive nor a research waiting for its agent (409 run.archive,
+   * reasonCode: its state). What says a price in money, consents, runs nobody watches and the gate run.gate still ask.
+   */
+  const runConfirmWrite = (req: http.IncomingMessage): AppWrite => {
+    let lowered = false;
+    return {
+      what: "the question before the agent starts",
+      codes: { badBody: "run.body", busy: "research.busy", failed: "run.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body);
+        if (keys.length !== 1 || keys[0] !== "confirm" || (body.confirm !== "ask" && body.confirm !== "no")) return { code: 400, body: refusal(`the body: {"confirm": "ask"} or {"confirm": "no"}`, "run.body") };
+        if (actsAsArchive(tree)) return { code: 409, body: { ...refusal("nobody researches here: no agent starts", "run.archive"), reasonCode: stateOf(tree) } };
+        if (new Settings(env, {}).runConfirm() === body.confirm) return { code: 200, body: { run: { confirm: body.confirm } } };
+        if (body.confirm === "ask") return { args: ["config", "unset", "run.confirm"] };
+        const command = "strom config set run.confirm no";
+        const reason = lowersFrom(req);
+        if (reason) return { code: 403, body: { ...refusal(`the agent without the question only by the person, in the terminal or the Strom app on this computer: ${command}`, "run.raise", { reason }), command, reason } };
+        lowered = true;
+        return { args: ["config", "set", "run.confirm", "no"] };
+      },
+      done() {
+        const confirm = new Settings(env, {}).runConfirm();
+        if (lowered && confirm === "no") noteLive(root, ui(langOf(root, env), "ui.live.unasked.run"));
+        return { run: { confirm } };
+      },
+      refused(tree, code, why) {
+        if (code === "archive" || code === "agent.missing") return { code: 409, body: { ...refusal(why, "run.archive"), reasonCode: stateOf(tree) } };
+        return undefined;
+      },
+    };
+  };
 
   const liveWrite = (): AppWrite => ({
     what: "the bridge's idle time",

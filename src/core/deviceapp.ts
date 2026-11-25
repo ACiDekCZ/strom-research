@@ -45,8 +45,9 @@ function file(env: Env, name: string): string {
 interface DeviceAppNote {
   /** The app the bridge was asked by about the phone: its origin, its version. */
   source?: { origin: string; appVersion?: string; at: string };
-  /** The copy kept now: its version, its ETag, when the site was asked last. */
+  /** The copy kept now: its version, the origin of the site it came from, its ETag, when the site was asked last. */
   version?: string;
+  from?: string;
   etag?: string;
   checkedAt?: string;
   /** The last download that failed: when, why (tried again after DEVICE_APP_RETRY_MS). */
@@ -150,6 +151,8 @@ export interface DeviceAppFiles {
   dir: string;
   version: string;
   etag: string | undefined;
+  /** The origin of the site the copy came from (none: downloaded by an older strom) — the app's beta has a gate of its own. */
+  from?: string;
 }
 
 /** The copy the gateway serves now: its folder (index.html in it), its version, its ETag; none — none downloaded. */
@@ -158,7 +161,7 @@ export function deviceAppFiles(env: Env): DeviceAppFiles | undefined {
   if (!n.version || !isAppVersion(n.version)) return undefined;
   const dir = path.join(deviceAppRoot(env), n.version);
   if (!fs.existsSync(path.join(dir, "index.html"))) return undefined;
-  return { dir, version: n.version, etag: n.etag };
+  return { dir, version: n.version, etag: n.etag, ...(n.from ? { from: n.from } : {}) };
 }
 
 export interface DeviceAppState {
@@ -259,7 +262,11 @@ export async function ensureDeviceApp(env: Env, opts: { now?: Clock } = {}): Pro
     const n = readNote(env);
     const kept = deviceAppFiles(env);
     const t = now();
-    if (kept && n.checkedAt && t - Date.parse(n.checkedAt) < DEVICE_APP_EVERY_MS && t >= Date.parse(n.checkedAt)) return { result: "fresh", version: kept.version };
+    // a copy of another site than the one asked now (the app moved to its beta, or back), or one an older strom did not
+    // say the site of: downloaded again, at once
+    const source = deviceAppSource(env);
+    const sameSite = !source || !kept || kept.from === new URL(source).origin;
+    if (kept && sameSite && n.checkedAt && t - Date.parse(n.checkedAt) < DEVICE_APP_EVERY_MS && t >= Date.parse(n.checkedAt)) return { result: "fresh", version: kept.version };
     if (n.failedAt && t - Date.parse(n.failedAt) < DEVICE_APP_RETRY_MS && t >= Date.parse(n.failedAt))
       return { result: "failed", error: n.error ?? "failed lately" };
     try {
@@ -268,7 +275,7 @@ export async function ensureDeviceApp(env: Env, opts: { now?: Clock } = {}): Pro
       if (err instanceof LockedError) return { result: "busy" };
       throw err;
     }
-    const result = await download(env, kept, now);
+    const result = await download(env, kept, now, sameSite);
     if (result.result === "failed") {
       writeNote(env, (x) => ({ ...x, failedAt: new Date(now()).toISOString(), error: result.error }));
       notePhone(env, `the app for the devices not downloaded: ${result.error}`);
@@ -281,16 +288,16 @@ export async function ensureDeviceApp(env: Env, opts: { now?: Clock } = {}): Pro
   }
 }
 
-async function download(env: Env, kept: DeviceAppFiles | undefined, now: Clock): Promise<EnsureResult> {
+async function download(env: Env, kept: DeviceAppFiles | undefined, now: Clock, sameSite = true): Promise<EnsureResult> {
   const source = deviceAppSource(env);
   if (!source) return { result: "failed", error: "no address of the Strom app to download it from" };
   const base = new URL(source);
   const at = () => new Date(now()).toISOString();
   try {
-    const index = await get(new URL("index.html", base).href, kept?.etag ? { "If-None-Match": kept.etag } : {});
-    if (index.status === 304 && kept) {
+    const index = await get(new URL("index.html", base).href, kept?.etag && sameSite ? { "If-None-Match": kept.etag } : {});
+    if (index.status === 304 && kept && sameSite) {
       await index.body?.cancel().catch(() => {});
-      writeNote(env, (x) => ({ ...x, checkedAt: at(), failedAt: undefined, error: undefined }));
+      writeNote(env, (x) => ({ ...x, from: base.origin, checkedAt: at(), failedAt: undefined, error: undefined }));
       return { result: "unchanged", version: kept.version };
     }
     if (index.status !== 200) {
@@ -351,7 +358,7 @@ async function download(env: Env, kept: DeviceAppFiles | undefined, now: Clock):
     }
 
     store(env, version, files);
-    writeNote(env, (x) => ({ ...x, version, ...(etag ? { etag } : { etag: undefined }), checkedAt: at(), failedAt: undefined, error: undefined }));
+    writeNote(env, (x) => ({ ...x, version, from: base.origin, ...(etag ? { etag } : { etag: undefined }), checkedAt: at(), failedAt: undefined, error: undefined }));
     prune(env, version);
     notePhone(env, `the app for the devices downloaded: ${version} from ${base.origin}`);
     return { result: "fetched", version };

@@ -220,6 +220,13 @@ test("the phone's name of its browser; the page's language: the phone's, the QR 
     assert.doesNotMatch(page, /\{\{/);
   }
   assert.match(JSON.stringify(phonePage("cs", "n")), /Spárováno/);
+  // the gateway of the devices on: the app pairs by Connect device (3.32), never Connect phone
+  assert.match(phonePage("cs", "n"), /Výzkum → Další → Připojit telefon/u);
+  for (const [lang, said] of [["cs", "Připojit zařízení"], ["en", "Connect device"], ["de", "Gerät verbinden"], ["pl", "Połącz urządzenie"], ["fi", "Connect device"]] as const) {
+    const page = phonePage(lang, "n", { devices: true });
+    assert.ok(page.includes(said), lang);
+    assert.ok(!/Připojit telefon|Connect phone|Telefon verbinden|Połącz telefon/u.test(page), lang);
+  }
 });
 
 test("who may ask the phone's server: a device of the network it is asked at; the loopback only in a test", () => {

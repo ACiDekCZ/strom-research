@@ -2564,6 +2564,8 @@
   "ui.link.noterminal.new": "strom konnte kein Terminalfenster öffnen. {strom} starten und es dann erneut aus der Strom-App versuchen.",
   "ui.link.asks": "Die Strom-App bittet um: {what}\nForschung: {name}",
   "ui.link.go": "Fortfahren?",
+  "ui.live.unasked.sort": "Die Rückfrage vor dem Sortieren des Materials dieser Forschung wurde in der Strom-App auf diesem Computer ausgeschaltet (wieder einschalten: strom config set sort.confirm ask --for-tree).",
+  "ui.live.unasked.run": "Die Rückfrage vor dem Start des Agenten aus der Strom-App wurde in der Strom-App auf diesem Computer ausgeschaltet, für alle Forschungen hier (wieder einschalten: strom config unset run.confirm).",
   "ui.link.noconfirm": "▶ Startet ohne Rückfrage (Forschung {name}): {what}. Die Rückfrage vor dem Start des Agenten wird in den Einstellungen → 1 → „Agent aus der Strom-App starten“ eingeschaltet, oder strom config unset run.confirm.",
   "ui.link.cost": "Der Agent arbeitet auf das eigene Abonnement oder KI-Guthaben.",
   "ui.link.tasks": "Die Forschung schreibt Aufgaben für den Agenten – jetzt wird nichts gesucht und nichts bezahlt.",

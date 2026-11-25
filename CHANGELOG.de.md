@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.37.0
 
-*In Vorbereitung: die Betas bis 1.37.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.37.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein Archiveintrag der Forschung hält kein Portal der Liste von strom mehr:** ein Buch mit einer Adresse auf einem
   Portal, das die Liste von strom kennt (Porta fontium, Acta Publica…), macht das Portal nicht mehr so streng wie das
@@ -93,7 +93,8 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   diesen Computer): `ask` – der Standard, wie bisher: die Zustimmung der Person zu den bezahlten Lesungen vor jeder
   Sortierung – oder `no`: `strom material sort` sortiert sofort, wenn die Person darum bittet, und sagt, dass nicht
   gefragt wurde; nie von selbst, und ein Lauf, den niemand beobachtet, fragt weiterhin. `no` setzt nur die Person im
-  eigenen Terminal; zurück zur Rückfrage kann jeder, auch die Strom-App.
+  eigenen Terminal oder in der Strom-App auf diesem Computer (eine Zeile im Log der Brücke sagt es), nie ein Agent;
+  zurück zur Rückfrage kann jeder.
 - **Eine Forschung für die Kopie eines Stammbaums:** der Link der Strom-App, der eine neue Forschung beginnt, kann ihren
   Namen vorschlagen (Kopie eines Baums: „… (Kopie)“); das Terminal bietet ihn zum Behalten oder Überschreiben an, und
   die Brücke nennt der App den Ordner, in dem neue Forschungen entstehen. Ein Baum, der mit den Nummern einer anderen
@@ -131,7 +132,8 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   nur nach der Anzahl gefragt, und Enter startet mindestens einen), startet sofort; eine Zeile im Terminal sagt es und
   wo die Rückfrage wieder eingeschaltet wird. Weiter gefragt wird: eine Frage mit einem Preis in Geld, Zustimmungen,
   Löschen, das Absenden einer Anfrage, die Bedingung der Alleinarbeit und jeder Befehl eines Agenten. Die Rückfrage
-  schaltet nur der Mensch ab, nie ein Agent.
+  schaltet nur der Mensch ab – im Terminal oder in der Strom-App auf diesem Computer (eine Zeile im Log der Brücke sagt
+  es), nie ein Agent.
 - **Eine Quelle löschen:** Eine Quelle lässt sich in der Forschung löschen – `strom source retract` im Terminal oder
   durch Löschen der Quelle in der Strom-App, nur durch die Person, nie durch einen Agenten (er darf es nur vorschlagen,
   mit dem, was es laut `--dry-run` mitnähme). Die Werte bleiben; ihre Zitate werden von den Angaben genommen und in der

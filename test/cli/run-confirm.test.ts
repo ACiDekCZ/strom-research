@@ -40,15 +40,18 @@ test("run.confirm: asked by default (K1.1); no — the agent from the app's link
   assert.doesNotMatch(asked.out, /Pojďme teď projít úkol/u);
   assert.doesNotMatch(asked.out, /bez potvrzení/u);
 
-  // K1.4 never an agent's, nor a command without the person's terminal (the bridge, a script): refused, nothing written
+  // K1.4 never an agent's, nor a command without the person's terminal (a script; the bridge writes it only for the
+  // Strom app on this computer, spec 123 P2 — test/cli/sort-confirm.test.ts): refused, nothing written
   w.env.CLAUDECODE = "1";
   const agent = await w.run(["config", "set", "run.confirm", "no"]);
   assert.equal(agent.code, 4);
   assert.match(agent.err + agent.out, /an agent cannot answer this/);
   assert.match(agent.err + agent.out, /strom config set run\.confirm no/);
   delete w.env.CLAUDECODE;
-  const script = await w.run(["config", "set", "run.confirm", "no"], { env: { STROM_FOR_APP: "1" } });
+  const script = await w.run(["config", "set", "run.confirm", "no"]);
   assert.equal(script.code, 4);
+  // an agent in the app's environment is still an agent
+  assert.equal((await w.run(["config", "set", "run.confirm", "no"], { env: { STROM_FOR_APP: "1", CLAUDECODE: "1" } })).code, 4);
   assert.equal(config().runConfirm, undefined, "nothing turned off");
   // the person: their own yes in the terminal too — Enter is no
   const enter = await w.run(["config", "set", "run.confirm", "no"], { tty: true, answers: [""] });
@@ -69,6 +72,9 @@ test("run.confirm: asked by default (K1.1); no — the agent from the app's link
   const person = await link("chat?person=P0001", []);
   assert.match(person.out, /▶ Spouští se bez potvrzení \(výzkum Lhotákovi\): rozhovor s agentem \(Claude Code\) o osobě Vojtěch Lhoták/u);
   assert.doesNotMatch(person.out, /Pokračovat\?/u);
+  // a link nobody watches (no terminal): never started without the question (spec 123 K2.4)
+  const unwatched = await link("task?task=T0001", [], { tty: false });
+  assert.doesNotMatch(unwatched.out + unwatched.err, /bez potvrzení|Pojďme teď/u);
   // in German: the research's language decides the line
   await w.ok(["config", "set", "lang", "de", "--for-tree"]);
   assert.match((await link("chat", [])).out, /▶ Startet ohne Rückfrage \(Forschung Lhotákovi\): /u);

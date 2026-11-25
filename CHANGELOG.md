@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.37.0
 
-*In preparation: the betas up to 1.37.0-beta.4. The section is complete with the release.*
+*In preparation: the betas up to 1.37.0-beta.5. The section is complete with the release.*
 
 - **A research's archive no longer holds a portal of strom's list:** a book whose address is on a portal strom's list
   knows (Porta fontium, Acta Publica…) no longer makes the portal as strict as the archive the book is recorded under —
@@ -80,8 +80,8 @@ The changes of each version in short. The full notes and the install lines are o
   **Sorting the material without the question:** a setting `sort.confirm` (per research with `--for-tree`, else for
   this computer): `ask` — the default, as before: the person's yes to the paid readings before every sort — or `no`:
   `strom material sort` sorts at once when the person asks for it, saying it was not asked; never by itself, and a run
-  nobody watches still asks. Only the person sets `no`, in their own terminal; asking again is anyone's, the Strom app
-  too.
+  nobody watches still asks. Only the person sets `no`, in their own terminal or in the Strom app on this computer (one
+  line in the bridge's log says so), never an agent; asking again is anyone's.
 - **A research for a copy of a family tree:** the Strom app's link that starts a new research may suggest its name (a
   copy of a tree: "… (copy)"), offered in the terminal to keep or write over; the bridge tells the app the folder new
   researches are made in. A tree handed over with the numbers of another research (a copy of a tree that had one, from
@@ -115,7 +115,8 @@ The changes of each version in short. The full notes and the install lines are o
   to the agent, the identification of places — places of several batches ask only how many, and Enter starts at least
   one) starts at once; one line in the terminal says so and where the question is turned on again. Still asked: a
   question with a price in money, consents, deletions, a request sent, the condition of working alone, and any command
-  of an agent. Only the person turns the question off — never an agent.
+  of an agent. Only the person turns the question off — in the terminal or in the Strom app on this computer (one line
+  in the bridge's log says so), never an agent.
 - **Deleting a source:** a source can be deleted in the research — `strom source retract` in the terminal or deleting
   the source in the Strom app, only by the person, never by an agent (it may only propose it, with what `--dry-run` says
   it would take). The values stay; its citations are taken off the facts and kept in the source, a fact may become less

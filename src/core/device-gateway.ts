@@ -370,11 +370,11 @@ function appGate(env: Env): string | undefined {
 }
 
 /** The copy of the app the gateway serves now: downloaded and of a version the gate lets in; none — the phone's page. */
-function servable(env: Env): ReturnType<typeof deviceAppFiles> {
+export function servable(env: Env): ReturnType<typeof deviceAppFiles> {
   const files = deviceAppFiles(env);
   if (!files) return undefined;
-  const gate = appGate(env);
-  return (gate ? deviceAppServable(files.version, gate) : deviceAppServable(files.version)) ? files : undefined;
+  // the gate of a test of the loopback, else the app's (undefined: its default); a copy of its beta site by its own gate too
+  return deviceAppServable(files.version, appGate(env), files.from) ? files : undefined;
 }
 
 /** The origin of the copy of the app the devices are given — what the bridge lets write (its pages alone). */

@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.37.0
 
-*Připravuje se: bety do 1.37.0-beta.4. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.37.0-beta.5. Oddíl bude úplný s vydáním.*
 
 - **Záznam archivu už nedrží portál ze seznamu stromu:** kniha s adresou na portálu, který seznam stromu zná (Porta
   fontium, Acta Publica…), už nedělá portál tak přísný jako archiv, pod kterým je zapsaná – portál se řídí svými
@@ -77,7 +77,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   **Třídění materiálu bez dotazu:** nastavení `sort.confirm` (pro výzkum s `--for-tree`, jinak pro tento počítač):
   `ask` – výchozí, jako dosud: souhlas člověka s placenými čteními před každým tříděním – nebo `no`: `strom material
   sort` třídí hned, když o to člověk požádá, a řekne, že se neptalo; nikdy samo od sebe a běh, který nikdo nesleduje,
-  se ptá dál. `no` nastaví jen člověk ve vlastním terminálu; zpět na dotaz může kdokoli, i aplikace Strom.
+  se ptá dál. `no` nastaví jen člověk ve vlastním terminálu nebo v aplikaci Strom na tomto
+  počítači (řekne to jedna řádka v logu mostu), nikdy agent; zpět na dotaz může kdokoli.
 - **Výzkum pro kopii rodokmenu:** odkaz aplikace Strom, který zakládá nový výzkum, může navrhnout jeho název (kopie
   stromu: „… (kopie)“); terminál ho nabídne k ponechání nebo přepsání a most aplikaci řekne složku, kde nové výzkumy
   vznikají. Strom předaný s čísly jiného výzkumu (kopie stromu, který výzkum měl, ze starší aplikace) dostane pro své
@@ -110,7 +111,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   předplatné nebo kredit AI (rozhovor, úkol, práce na frontě, rozpor ponechaný agentovi, určení míst – u více dávek míst
   se zeptá jen na počet a Enter spustí aspoň jednu), se spustí hned; v terminálu to řekne jedna řádka i to, kde se dotaz
   znovu zapíná. Ptá se dál: dotaz s cenou v penězích, souhlasy, mazání, odeslání žádosti, podmínka samostatné práce a
-  jakýkoli příkaz agenta. Dotaz vypíná jen člověk, nikdy agent.
+  jakýkoli příkaz agenta. Dotaz vypíná jen člověk – v terminálu nebo v aplikaci Strom na tomto počítači (řekne to jedna
+  řádka v logu mostu), nikdy agent.
 - **Smazání pramene:** pramen jde ve výzkumu smazat – `strom source retract` v terminálu nebo smazáním pramene v
   aplikaci Strom, jen člověkem, nikdy agentem (ten ho smí jen navrhnout s tím, co by podle `--dry-run` vzal). Hodnoty
   zůstanou; citace se z údajů odeberou a uchovají v prameni, údaj může být méně jistý, úkol stojící jen na něm se vzdá

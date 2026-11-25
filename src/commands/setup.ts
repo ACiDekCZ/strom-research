@@ -1695,13 +1695,17 @@ function intakeDecision(ctx: Context, key: string, value: string | number | unde
 
 /**
  * A sort of the material without the question about its paid readings (sort.confirm no, spec 102 U8): a standing yes
- * to what the readers spend — turned on by the person alone, their yes in a terminal too (a window where an agent asks;
- * the Strom app's bridge never: 403 sort.raise); back to ask is anyone's. false: the person said no — nothing changed.
+ * to what the readers spend — turned on by the person alone, their yes in a terminal too (a window where an agent asks),
+ * or their switch in the Strom app on this computer (the bridge; never a device of the home network nor an agent: 403
+ * sort.raise); back to ask is anyone's. false: the person said no — nothing changed.
  */
 async function sortDecision(ctx: Context, key: string, value: string | number | undefined, scope: "tree" | "user"): Promise<boolean> {
   if (key !== "sort.confirm") return true;
   const { now, next } = layerChange(ctx, key, value, scope);
   if (next !== "no" || now === "no") return true;
+  // the Strom app on this computer (spec 123 P2): the bridge writes it in the app's environment — the person's switch
+  // there, confirmed in the app's own dialog; never a device of the home network nor an agent (the bridge refuses them)
+  if (ctx.env.STROM_FOR_APP === "1" && !isAgent(ctx.env)) return true;
   const forTree = scope === "tree" ? " --for-tree" : "";
   return !!(await ctx.requireHumanYes(
     scope === "tree"
@@ -1933,8 +1937,10 @@ async function setUserSetting(ctx: Context, key: string, value: string | number 
     )
       return false;
   // The agent started from the Strom app's links without the question (a standing yes to its subscription or credit):
-  // turned on by the user alone, their yes in a terminal too; asking again is anyone's.
-  if (key === "run.confirm" && value === "no" && s.runConfirm() !== "no")
+  // turned on by the user alone — their yes in a terminal too, or their switch in the Strom app on this computer (the
+  // bridge writes it in the app's environment; never for a device of the home network nor an agent, spec 123 P2);
+  // asking again is anyone's.
+  if (key === "run.confirm" && value === "no" && s.runConfirm() !== "no" && !(ctx.env.STROM_FOR_APP === "1" && !isAgent(ctx.env)))
     if (
       !(await ctx.requireHumanYes(
         "Start the agent from the Strom app's links without asking first (it works on the subscription or AI credit)?",

@@ -13,7 +13,8 @@ import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { acquireLock } from "../../src/core/lock.ts";
 import { deviceAppFiles, deviceAppRoot, deviceAppSource, deviceAppState, DEVICE_APP_EVERY_MS, ensureDeviceApp, ICON_MAX, INDEX_MAX, noteDeviceAppSource } from "../../src/core/deviceapp.ts";
-import { APP_DEVICE_MODE, deviceAppServable, STROM_APP_BETA_URL, STROM_APP_URL } from "../../src/core/stromapp.ts";
+import { APP_DEVICE_MODE, APP_DEVICE_MODE_BETA, deviceAppServable, STROM_APP_BETA_URL, STROM_APP_URL } from "../../src/core/stromapp.ts";
+import { servable } from "../../src/core/device-gateway.ts";
 
 const T0 = Date.parse("2026-11-24T10:00:00.000Z");
 const DAY = DEVICE_APP_EVERY_MS;
@@ -146,7 +147,7 @@ test("downloaded into <shared>/device-app/<version>/: the index, the manifest an
     assert.deepEqual(deviceAppState(w.env), { app: "none" });
     assert.deepEqual(await ensureDeviceApp(w.env, { now: () => T0 }), { result: "fetched", version: "3.40.0" });
     const dir = path.join(w.dir, "shared", "device-app", "3.40.0");
-    assert.deepEqual(deviceAppFiles(w.env), { dir, version: "3.40.0", etag: '"v340"' });
+    assert.deepEqual(deviceAppFiles(w.env), { dir, version: "3.40.0", etag: '"v340"', from: s.origin });
     assert.deepEqual(deviceAppState(w.env), { app: "ready", appVersion: "3.40.0" });
     assert.equal(fs.readFileSync(path.join(dir, "index.html"), "utf8"), html("3.40.0"));
     assert.ok(fs.existsSync(path.join(dir, "manifest.json")));
@@ -360,4 +361,71 @@ test("the gate of the app for the devices: pending — nothing served; set — t
   assert.equal(deviceAppServable("3.39.9", "3.40.0"), false);
   assert.equal(deviceAppServable(undefined, "3.40.0"), false);
   assert.equal(deviceAppServable("3.40", "3.40.0"), false);
+});
+
+test("the gate of the app's beta (APP_DEVICE_MODE_BETA): a copy downloaded from the app's beta site of that version or newer is served before APP_DEVICE_MODE — never a copy of the app's site, a development copy or one whose site is not known", () => {
+  assert.equal(APP_DEVICE_MODE_BETA, "3.32.0-beta.4");
+  const BETA = "https://beta.stromapp.info";
+  assert.equal(deviceAppServable("3.32.0-beta.4", undefined, BETA), true);
+  assert.equal(deviceAppServable("3.32.0-beta.5", undefined, BETA), true);
+  assert.equal(deviceAppServable("3.32.0", undefined, BETA), true);
+  assert.equal(deviceAppServable("3.32.0-beta.3", undefined, BETA), false);
+  assert.equal(deviceAppServable("3.31.0", undefined, BETA), false);
+  for (const from of ["https://stromapp.info", "http://localhost:5173", "http://127.0.0.1:8080", undefined]) assert.equal(deviceAppServable("3.32.0-beta.4", undefined, from), false, String(from));
+  assert.equal(deviceAppServable(undefined, undefined, BETA), false);
+  assert.equal(deviceAppServable("3.32", undefined, BETA), false);
+  // APP_DEVICE_MODE set: every copy from it on, the beta's as well
+  assert.equal(deviceAppServable("3.33.0", "3.33.0", "https://stromapp.info"), true);
+  assert.equal(deviceAppServable("3.32.0-beta.4", "3.33.0", BETA), true);
+});
+
+test("what the gateway serves (no gate of a test): the copy of the app's beta site; the copy of its site or of an older strom (its site not said) — the phone's page", () => {
+  const w = world("http://127.0.0.1:9");
+  try {
+    const copy = (version: string, from?: string) => {
+      const dir = path.join(deviceAppRoot(w.env), version);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, "index.html"), html(version));
+      fs.writeFileSync(path.join(w.env.STROM_CONFIG_DIR!, "device-app.json"), JSON.stringify({ version, ...(from ? { from } : {}) }));
+    };
+    assert.equal(w.env.STROM_DEVICE_APP_GATE, undefined);
+    copy("3.32.0-beta.4", "https://beta.stromapp.info");
+    assert.equal(servable(w.env)?.version, "3.32.0-beta.4");
+    copy("3.32.0-beta.3", "https://beta.stromapp.info");
+    assert.equal(servable(w.env), undefined);
+    copy("3.32.0-beta.4", "https://stromapp.info");
+    assert.equal(servable(w.env), undefined);
+    copy("3.32.0-beta.4");
+    assert.equal(servable(w.env), undefined);
+  } finally {
+    w.done();
+  }
+});
+
+test("a copy of another site than the one asked now, or one an older strom did not say the site of: downloaded again at once, without its ETag, its site noted", async () => {
+  const s = await site();
+  const w = world(s.origin);
+  try {
+    app(s, "3.40.0", { etag: '"v340"' });
+    assert.deepEqual(await ensureDeviceApp(w.env, { now: () => T0 }), { result: "fetched", version: "3.40.0" });
+    const note = path.join(w.env.STROM_CONFIG_DIR!, "device-app.json");
+    // an older strom's note: no site
+    const { from: _f, ...older } = JSON.parse(fs.readFileSync(note, "utf8"));
+    fs.writeFileSync(note, JSON.stringify(older));
+    const before = s.requests.length;
+    assert.deepEqual(await ensureDeviceApp(w.env, { now: () => T0 + 1000 }), { result: "fetched", version: "3.40.0" }, "not fresh: its site not known");
+    const index = s.requests.slice(before).find((r) => r.path === "/run/index.html")!;
+    assert.equal(index.headers["if-none-match"], undefined, "downloaded whole");
+    assert.equal(deviceAppFiles(w.env)?.from, s.origin);
+    // its site known now: fresh again the same day
+    const now = s.requests.length;
+    assert.deepEqual(await ensureDeviceApp(w.env, { now: () => T0 + 2000 }), { result: "fresh", version: "3.40.0" });
+    assert.equal(s.requests.length, now);
+    // the next day, 304: the site noted again
+    assert.deepEqual(await ensureDeviceApp(w.env, { now: () => T0 + DAY + 2000 }), { result: "unchanged", version: "3.40.0" });
+    assert.equal(deviceAppFiles(w.env)?.from, s.origin);
+  } finally {
+    w.done();
+    await s.close();
+  }
 });

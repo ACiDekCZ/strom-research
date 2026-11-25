@@ -2564,6 +2564,8 @@
   "ui.link.noterminal.new": "strom nemohl otevřít okno terminálu. Spustit {strom} a pak to zkusit z aplikace Strom znovu.",
   "ui.link.asks": "Aplikace Strom žádá: {what}\nVýzkum: {name}",
   "ui.link.go": "Pokračovat?",
+  "ui.live.unasked.sort": "Dotaz před tříděním materiálu tohoto výzkumu vypnut v aplikaci Strom na tomto počítači (znovu zapnout: strom config set sort.confirm ask --for-tree).",
+  "ui.live.unasked.run": "Dotaz před spuštěním agenta z aplikace Strom vypnut v aplikaci Strom na tomto počítači, pro všechny výzkumy zde (znovu zapnout: strom config unset run.confirm).",
   "ui.link.noconfirm": "▶ Spouští se bez potvrzení (výzkum {name}): {what}. Dotaz před spuštěním agenta se zapíná v Nastavení → 1 → „Spouštění agenta z aplikace Strom“, nebo strom config unset run.confirm.",
   "ui.link.cost": "Agent pracuje na předplatné nebo kredit AI.",
   "ui.link.tasks": "Výzkum zapíše úkoly pro agenta – teď se nic nehledá a nic se neplatí.",

@@ -192,6 +192,8 @@ function writeAllowed(what: string, sub: string | undefined, act: string | undef
     case "settings":
       // only fewer runs at once: the bridge itself refuses more from any app (403 runs.raise, the person's terminal)
       if (n === 2 && sub === "runs") return undefined;
+      // a question asked again (sort.confirm, run.confirm: ask) is anyone's; taken away only on the computer (spec 123 P2)
+      if (n === 2 && (sub === "sort" || sub === "run")) return only(body?.confirm === "ask" && Object.keys(body).length === 1, `settings.${sub}`);
       return deny(sub === "sort" ? "settings.sort" : "settings");
     default:
       // read (again, cancel), hypotheses, stories, experiments, intake, sourceTask, live, offline, books, census,

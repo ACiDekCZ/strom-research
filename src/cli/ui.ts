@@ -2508,6 +2508,8 @@ export const UI = {
   "ui.link.noterminal.new": "strom could not open a terminal window. Start {strom}, then try again from the Strom app.",
   "ui.link.asks": "The Strom app asks for: {what}\nResearch: {name}",
   "ui.link.go": "Go on?",
+  "ui.live.unasked.sort": "The question before the material of this research is sorted was turned off in the Strom app on this computer (on again: strom config set sort.confirm ask --for-tree).",
+  "ui.live.unasked.run": "The question before the agent starts from the Strom app was turned off in the Strom app on this computer, for every research here (on again: strom config unset run.confirm).",
   "ui.link.noconfirm": "▶ Started without the question (research {name}): {what}. The question before the agent starts is turned on in Settings → 1 → “Starting the agent from the Strom app”, or strom config unset run.confirm.",
   "ui.link.cost": "The agent works on the subscription or AI credit of its account.",
   "ui.link.tasks": "The research writes tasks for the agent — nothing is searched and nothing is paid now.",

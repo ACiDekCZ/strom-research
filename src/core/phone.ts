@@ -20,7 +20,7 @@ import { diskVersion, lastingLauncher, stromLauncher } from "./self.ts";
 import { VERSION } from "./tree.ts";
 import { ui, UI, type UIKey } from "../cli/ui.ts";
 import { assetPath, readAsset } from "./assets.ts";
-import { Settings } from "./config.ts";
+import { loadUserConfig, Settings } from "./config.ts";
 import { phoneSend } from "./phone-send.ts";
 import { deviceGateway } from "./device-gateway.ts";
 import { noteTestProcess } from "./testnote.ts";
@@ -891,9 +891,36 @@ export function pageLang(env: Env, opts: { phone?: PairedPhone; asked?: string |
   return ok(opts.phone?.lang) ?? ok(opts.asked) ?? ok(set.value) ?? ok(browser) ?? "en";
 }
 
-/** The phone's page (assets/phone/index.html) in a language, its script and style allowed by the nonce alone. */
-export function phonePage(lang: string, nonce: string): string {
-  const texts = Object.fromEntries((Object.keys(UI) as UIKey[]).filter((k) => k.startsWith("ui.phone.page.")).map((k) => [k.slice("ui.phone.page.".length), ui(lang, k)]));
+/** devices.mode on (core/devices.ts devicesOn, read here without it: devices.ts reads this module). A config that cannot be read: off. */
+function devicesModeOn(env: Env): boolean {
+  try {
+    return loadUserConfig(env).devicesMode === "on";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The item of the Strom app that shows the QR code, as the phone's page names it: Connect phone, and with the gateway of
+ * the devices on (the app 3.32 on) Connect device. Here and not in the catalogs: they say nothing of the gateway while
+ * it is off (test devices-quiet). A language not here: as in English.
+ */
+const CONNECT_ITEM: Record<string, readonly [phone: string, device: string]> = {
+  en: ["Connect phone", "Connect device"],
+  cs: ["Připojit telefon", "Připojit zařízení"],
+  de: ["Telefon verbinden", "Gerät verbinden"],
+  pl: ["Połącz telefon", "Połącz urządzenie"],
+};
+
+/**
+ * The phone's page (assets/phone/index.html) in a language, its script and style allowed by the nonce alone. `devices`:
+ * the gateway of the devices is on (devices.mode) — the app shows the QR code by Connect device, never Connect phone.
+ */
+export function phonePage(lang: string, nonce: string, opts: { devices?: boolean } = {}): string {
+  const texts: Record<string, string> = Object.fromEntries((Object.keys(UI) as UIKey[]).filter((k) => k.startsWith("ui.phone.page.")).map((k) => [k.slice("ui.phone.page.".length), ui(lang, k)]));
+  if (opts.devices)
+    for (const [phone, device] of [CONNECT_ITEM[lang] ?? CONNECT_ITEM.en!, CONNECT_ITEM.en!])
+      for (const k of ["expired", "unpaired.how", "unpaired.howHome"]) if (texts[k]) texts[k] = texts[k].replaceAll(phone, device);
   const json = JSON.stringify(texts).replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
   // its style and script inside it, each under the nonce (nothing of them can end its element: our own files)
   return (readAsset("phone", "index.html") ?? "<!doctype html><title>Strom</title>")
@@ -1038,7 +1065,7 @@ export function servePhone(env: Env): Promise<string> {
         "Content-Type": "text/html; charset=utf-8",
         "Content-Security-Policy": `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; worker-src 'self'; child-src 'self'; connect-src 'self'; img-src 'self' data: blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
       });
-      res.end(phonePage(lang, nonce));
+      res.end(phonePage(lang, nonce, { devices: devicesModeOn(env) }));
     };
     // what the phone's page sends and asks (phone-send.ts)
     const send = phoneSend(env, (text) => notePhone(env, text));

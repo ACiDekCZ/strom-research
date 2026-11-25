@@ -96,6 +96,9 @@ const ALLOWED: Case[] = [
   ["POST", "runs/stop", {}],
   ["POST", "verify/stop", {}],
   ["POST", "settings/runs", { max: 1 }],
+  // a question asked again (spec 123 P2): anyone's
+  ["POST", "settings/sort", { confirm: "ask" }],
+  ["POST", "settings/run", { confirm: "ask" }],
 ];
 
 const DENIED: [...Case, string][] = [
@@ -127,6 +130,12 @@ const DENIED: [...Case, string][] = [
   ["POST", "books/aside", {}, "books.aside"],
   ["POST", "census", {}, "census"],
   ["POST", "settings/sort", {}, "settings.sort"],
+  // a question taken away: only the Strom app on the computer (spec 123 P2)
+  ["POST", "settings/sort", { confirm: "no" }, "settings.sort"],
+  ["POST", "settings/sort", { confirm: "ask", more: 1 }, "settings.sort"],
+  ["POST", "settings/run", { confirm: "no" }, "settings.run"],
+  ["POST", "settings/run", {}, "settings.run"],
+  ["POST", "settings/other", { confirm: "ask" }, "settings"],
   ["POST", "adopt", {}, "adopt"],
   ["GET", "adopt", undefined, "adopt"],
   ["GET", "transfer", undefined, "transfer"],

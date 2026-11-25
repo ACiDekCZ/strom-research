@@ -880,11 +880,23 @@ export function appReadsNameStatus(settings: Settings, version?: string, gate: s
  * strom-device/1). Pending: the app has not said its version yet — the gateway serves no copy of it until it does.
  */
 export const APP_DEVICE_MODE: string | undefined = undefined;
+/**
+ * The beta of the Strom app that runs on the devices first (its answer: 3.32.0-beta.4): a copy downloaded from the
+ * app's beta site (https://beta.stromapp.info) of this version or newer is served before APP_DEVICE_MODE is set — never
+ * a copy of the app's site or a development copy.
+ */
+export const APP_DEVICE_MODE_BETA: string | undefined = "3.32.0-beta.4";
 
-/** May the gateway serve the copy of the Strom app of this version (downloaded by core/deviceapp.ts)? A gate pending, a version unknown: no. */
-export function deviceAppServable(version: string | undefined, gate: string | undefined = APP_DEVICE_MODE): boolean {
+/**
+ * May the gateway serve the copy of the Strom app of this version (downloaded by core/deviceapp.ts from `from`, the
+ * origin of its site)? From the app's beta site: from APP_DEVICE_MODE_BETA; else from APP_DEVICE_MODE. A gate pending,
+ * a version unknown: no.
+ */
+export function deviceAppServable(version: string | undefined, gate: string | undefined = APP_DEVICE_MODE, from?: string, beta: string | undefined = APP_DEVICE_MODE_BETA): boolean {
   const v = version?.trim();
-  return !!gate && !!v && isAppVersion(v) && compareVersions(v, gate) >= 0;
+  if (!v || !isAppVersion(v)) return false;
+  if (beta && from === new URL(STROM_APP_BETA_URL).origin && compareVersions(v, beta) >= 0) return true;
+  return !!gate && compareVersions(v, gate) >= 0;
 }
 
 /** Does a file of the Strom app of this version (its HEAD's 2 VERS) say a citation left out was removed by the user? No version said: no. */

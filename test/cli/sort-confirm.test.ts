@@ -2,7 +2,9 @@
 // person's yes before every sort, as before); no — set by the person alone (an agent or a command without their
 // terminal: exit 4, nothing changed; their own yes in the terminal) — sorts at once on the person's ask, said so
 // (confirm "no"); a run nobody watches still asks. Back to ask is anyone's. The bridge: /status sort {confirm}, feature
-// sort.confirm, POST /settings/sort {confirm: ask} written, {confirm: no} only in the terminal (403 sort.raise).
+// sort.confirm, POST /settings/sort {confirm: ask} written from anywhere; {confirm: no} (spec 123 P2, feature
+// sort.confirm.app) only from the Strom app in a browser on this computer — a device of the home network or no browser's
+// fetch: 403 sort.raise {reason}, nothing written; said in live.log. The same for run.confirm: POST /settings/run.
 
 import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
@@ -30,10 +32,13 @@ fs.writeFileSync(report, fs.readFileSync(report, "utf8").replace("<!-- next file
 console.log("cost: 0.25");
 `;
 
-function request(method: string, url: string, body?: unknown): Promise<{ status: number; body: any }> {
+/** A page's fetch in a browser says so (Sec-Fetch-Mode: cors): the Strom app on this computer. */
+const browser = { "Sec-Fetch-Mode": "cors", "Sec-Fetch-Site": "cross-site" };
+
+function request(method: string, url: string, body?: unknown, headers: Record<string, string> = {}): Promise<{ status: number; body: any }> {
   return new Promise((resolve, reject) => {
     const data = body === undefined ? undefined : Buffer.from(JSON.stringify(body));
-    const req = http.request(url, { agent: false, method, headers: { ...app, ...(data ? { "Content-Type": "application/json", "Content-Length": String(data.length) } : {}) } }, (res) => {
+    const req = http.request(url, { agent: false, method, headers: { ...app, ...headers, ...(data ? { "Content-Type": "application/json", "Content-Length": String(data.length) } : {}) } }, (res) => {
       let text = "";
       res.setEncoding("utf8");
       res.on("data", (d) => (text += d));
@@ -78,7 +83,7 @@ async function setUp(o: { archive?: boolean } = {}) {
   return { w, file, starts };
 }
 
-test("sort.confirm: ask by default; no only by the person in their terminal (an agent, the app's environment: exit 4, nothing changed); ask and unset anyone's", opts, async () => {
+test("sort.confirm: ask by default; no only by the person in their terminal or the app's bridge (an agent, also in the app's environment: exit 4, nothing changed); ask and unset anyone's", opts, async () => {
   const { w } = await setUp();
   const get = async () => (await w.ok(["config", "get", "sort.confirm", "--json"])).json.value;
   assert.equal(await get(), "ask");
@@ -90,7 +95,8 @@ test("sort.confirm: ask by default; no only by the person in their terminal (an 
     assert.equal(agent.code, 4, agent.out + agent.err);
     assert.match(agent.err + agent.out, /an agent cannot answer this/u);
     assert.match(agent.err + agent.out, new RegExp(`strom config set sort\\.confirm no${scope.length ? " --for-tree" : ""}`, "u"));
-    assert.equal((await w.run(["config", "set", "sort.confirm", "no", ...scope], { env: { STROM_FOR_APP: "1" } })).code, 4);
+    // an agent in the app's environment is still an agent
+    assert.equal((await w.run(["config", "set", "sort.confirm", "no", ...scope], { env: { STROM_FOR_APP: "1", CLAUDECODE: "1" } })).code, 4);
     // an agent's terminal is no person's yes
     assert.equal((await w.run(["config", "set", "sort.confirm", "no", ...scope], { tty: true, answers: ["a"], env: { CLAUDECODE: "1" } })).code, 4);
   }
@@ -123,6 +129,10 @@ test("sort.confirm: ask by default; no only by the person in their terminal (an 
   await w.ok(["config", "unset", "sort.confirm", "--for-tree"], { env: { CLAUDECODE: "1" } });
   assert.equal(treeJson(w)["sort.confirm"], undefined);
   assert.equal(await get(), "ask");
+
+  // the app's bridge writes the person's switch in the app (spec 123 P2): no window, no question
+  await w.ok(["config", "set", "sort.confirm", "no", "--for-tree"], { env: { STROM_FOR_APP: "1", STROM_NONINTERACTIVE: "1" } });
+  assert.equal(treeJson(w)["sort.confirm"], "no");
 });
 
 test("strom material sort with sort.confirm no: sorted at once on the ask, said so (confirm no); ask still needs the person's yes; a run nobody watches still asks", opts, async () => {
@@ -162,21 +172,38 @@ test("strom material sort with sort.confirm no: sorted at once on the ask, said 
   assert.equal(starts(), 3);
 });
 
-test("the bridge: /status sort {confirm}, feature sort.confirm; POST /settings/sort ask written, no only in the terminal (403 sort.raise), a wrong body 400; none in an archive (409 sort.archive)", opts, async () => {
+test("the bridge: /status sort {confirm}, features sort.confirm and sort.confirm.app; POST /settings/sort ask written from anywhere, no only from the app in a browser (a device, no browser's fetch: 403 sort.raise), said in live.log; a wrong body 400; none in an archive (409 sort.archive)", opts, async () => {
   const { w } = await setUp();
   await w.ok(["live", "start", "--json"]);
   const url = (JSON.parse(fs.readFileSync(path.join(w.cwd, ".strom", "live.json"), "utf8")) as { url: string }).url;
   try {
     let status = (await request("GET", `${url}/status`)).body;
     assert.ok(status.features.includes("sort.confirm"), JSON.stringify(status.features));
+    assert.ok(status.features.includes("sort.confirm.app"), JSON.stringify(status.features));
     assert.deepEqual(status.sort, { confirm: "ask" });
 
-    // taking the question away: the person's alone, in the terminal — nothing written
+    // taking the question away: never what is no browser's fetch (a program, an agent's curl) nor a device of the home
+    // network — nothing written
     const head = git(w, "rev-parse", "HEAD");
-    const raise = await request("POST", `${url}/settings/sort`, { confirm: "no" });
-    assert.equal(raise.status, 403, JSON.stringify(raise.body));
-    assert.equal(raise.body.code, "sort.raise");
-    assert.equal(raise.body.command, "strom config set sort.confirm no --for-tree");
+    for (const [headers, reason] of [[{}, "browser"], [{ "Sec-Fetch-Mode": "no-cors" }, "browser"], [{ ...browser, "X-Strom-Device": "dv_0123456789abcdef" }, "device"]] as const) {
+      const raise = await request("POST", `${url}/settings/sort`, { confirm: "no" }, headers);
+      assert.equal(raise.status, 403, JSON.stringify(raise.body));
+      assert.equal(raise.body.code, "sort.raise");
+      assert.equal(raise.body.reason, reason);
+      assert.equal(raise.body.command, "strom config set sort.confirm no --for-tree");
+    }
+    // not from the app's pages (no Origin of the app): as every write (another page's Origin with the secret: the secret
+    // replaced, 404 — the bridge's own guard)
+    const foreign = await new Promise<number>((resolve, reject) => {
+      const data = Buffer.from(JSON.stringify({ confirm: "no" }));
+      const r = http.request(`${url}/settings/sort`, { agent: false, method: "POST", headers: { ...browser, "Content-Type": "application/json", "Content-Length": String(data.length) } }, (res) => {
+        res.resume();
+        resolve(res.statusCode ?? 0);
+      });
+      r.on("error", reject);
+      r.end(data);
+    });
+    assert.equal(foreign, 403);
     assert.equal(treeJson(w)["sort.confirm"], undefined);
     assert.equal(git(w, "rev-parse", "HEAD"), head);
 
@@ -190,10 +217,18 @@ test("the bridge: /status sort {confirm}, feature sort.confirm; POST /settings/s
     assert.deepEqual(same.body.sort, { confirm: "ask" });
     assert.equal(same.body.head, same.body.parent);
 
-    // the person turned it off in the terminal; the app asks again
-    await w.ok(["config", "set", "sort.confirm", "no", "--for-tree"], { tty: true, answers: ["a"] });
+    // the person turns it off in the Strom app on this computer: written, said in live.log in the research's language
+    const lowered = await request("POST", `${url}/settings/sort`, { confirm: "no" }, browser);
+    assert.equal(lowered.status, 200, JSON.stringify(lowered.body));
+    assert.deepEqual(lowered.body.sort, { confirm: "no" });
+    assert.notEqual(lowered.body.head, lowered.body.parent);
+    assert.equal(treeJson(w)["sort.confirm"], "no");
+    assert.equal(userJson(w)["sort.confirm"], undefined, "this research's alone");
+    const log = fs.readFileSync(path.join(w.cwd, ".strom", "live.log"), "utf8");
+    assert.match(log, /Dotaz před tříděním materiálu tohoto výzkumu vypnut v aplikaci Strom na tomto počítači/u);
     status = (await request("GET", `${url}/status`)).body;
     assert.deepEqual(status.sort, { confirm: "no" });
+    // the app asks again
     const held = await request("POST", `${url}/settings/sort`, { confirm: "no" });
     assert.deepEqual([held.status, held.body.sort, held.body.head === held.body.parent], [200, { confirm: "no" }, true]);
     const asked = await request("POST", `${url}/settings/sort`, { confirm: "ask" });
@@ -216,7 +251,59 @@ test("the bridge: /status sort {confirm}, feature sort.confirm; POST /settings/s
     assert.ok(!status.features.includes("sort.confirm"));
     const r = await request("POST", `${arch}/settings/sort`, { confirm: "ask" });
     assert.deepEqual([r.status, r.body.code], [409, "sort.archive"]);
+    assert.ok(!status.features.includes("run.confirm"));
+    const run = await request("POST", `${arch}/settings/run`, { confirm: "no" }, browser);
+    assert.deepEqual([run.status, run.body.code], [409, "run.archive"]);
   } finally {
     await a.run(["live", "stop"]);
   }
+  assert.equal(userJson(a).runConfirm, undefined);
+});
+
+test("the bridge: POST /settings/run (feature run.confirm, this computer's) — ask from anywhere, no only from the app in a browser (a device, no browser's fetch: 403 run.raise), said in live.log; the terminal's way and a run nobody watches as before", opts, async () => {
+  const { w } = await setUp();
+  await w.ok(["live", "start", "--json"]);
+  const url = (JSON.parse(fs.readFileSync(path.join(w.cwd, ".strom", "live.json"), "utf8")) as { url: string }).url;
+  try {
+    let status = (await request("GET", `${url}/status`)).body;
+    assert.ok(status.features.includes("run.confirm"), JSON.stringify(status.features));
+    assert.equal(status.work.confirm, "ask");
+    const head = git(w, "rev-parse", "HEAD");
+
+    for (const body of [{}, { confirm: "yes" }, { confirm: false }, { confirm: "no", more: 1 }]) {
+      const r = await request("POST", `${url}/settings/run`, body, browser);
+      assert.deepEqual([r.status, r.body.code], [400, "run.body"], JSON.stringify(body));
+    }
+    for (const [headers, reason] of [[{}, "browser"], [{ ...browser, "X-Strom-Device": "dv_0123456789abcdef" }, "device"]] as const) {
+      const raise = await request("POST", `${url}/settings/run`, { confirm: "no" }, headers);
+      assert.deepEqual([raise.status, raise.body.code, raise.body.reason, raise.body.command], [403, "run.raise", reason, "strom config set run.confirm no"]);
+    }
+    assert.equal(userJson(w).runConfirm, undefined);
+    // as it is already: nothing written
+    const same = await request("POST", `${url}/settings/run`, { confirm: "ask" });
+    assert.deepEqual([same.status, same.body], [200, { run: { confirm: "ask" } }]);
+
+    // the Strom app on this computer: written for every research here, nothing of the research committed
+    const lowered = await request("POST", `${url}/settings/run`, { confirm: "no" }, browser);
+    assert.deepEqual([lowered.status, lowered.body], [200, { run: { confirm: "no" } }], JSON.stringify(lowered.body));
+    assert.equal(userJson(w).runConfirm, "no");
+    assert.equal(git(w, "rev-parse", "HEAD"), head);
+    assert.match(fs.readFileSync(path.join(w.cwd, ".strom", "live.log"), "utf8"), /Dotaz před spuštěním agenta z aplikace Strom vypnut v aplikaci Strom na tomto počítači, pro všechny výzkumy zde/u);
+    status = (await request("GET", `${url}/status`)).body;
+    assert.equal(status.work.confirm, "no");
+
+    // asked again from anywhere — a program without a browser's headers too
+    const asked = await request("POST", `${url}/settings/run`, { confirm: "ask" });
+    assert.deepEqual([asked.status, asked.body], [200, { run: { confirm: "ask" } }], JSON.stringify(asked.body));
+    assert.equal(userJson(w).runConfirm, undefined);
+  } finally {
+    await w.run(["live", "stop"]);
+  }
+
+  // the terminal's way as before: an agent, also in the app's environment, never; a command without the person's
+  // terminal outside the bridge needs their yes
+  assert.equal((await w.run(["config", "set", "run.confirm", "no"], { env: { CLAUDECODE: "1" } })).code, 4);
+  assert.equal((await w.run(["config", "set", "run.confirm", "no"], { env: { STROM_FOR_APP: "1", CLAUDECODE: "1" } })).code, 4);
+  assert.equal((await w.run(["config", "set", "run.confirm", "no"])).code, 4);
+  assert.equal(userJson(w).runConfirm, undefined);
 });
