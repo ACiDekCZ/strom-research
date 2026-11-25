@@ -50,7 +50,7 @@ test("the history in a Czech research: strom's own commits and operations said i
   assert.deepEqual(lines.slice(0, 2), ["Odvolaný snímek: Kniha N 1850-1870, obr. 1", "Materiál odložen jako nepoužitelný: I0070"]);
   assert.match(lines[2]!, /^Jan Novák \(\*1865\) \[P0001\] – narození: .*1776$/, "a fact gone since: as its summary names it");
   assert.equal(lines[3], "Upraveno: Jan Novák (*1865) [P0001]", "an operation strom does not know: by the kind of its record");
-  assert.equal(lines[4], "Změněno nastavení výzkumu: stories");
+  assert.equal(lines[4], "Vypnuto ve výzkumu: Příběhy", "a setting in words, never its key");
   assert.equal(lines.length, 5, "an operation about no record: nothing");
   for (const l of lines) assert.doesNotMatch(l, ENGLISH, l);
 
