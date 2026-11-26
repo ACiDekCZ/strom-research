@@ -211,7 +211,7 @@ test("taken back while nothing stands on what it wrote: an agent's record of it,
     const n0 = opCount(w);
     const c0 = await link(w, "hypothesis?tree=<id>&id=H1&do=decide&variant=B", [""]);
     assert.match(c0.out, stays, c0.out);
-    assert.match(c0.out, /Pokračovat\? \(a\/n\)/u, c0.out);
+    assert.match(c0.out, /Pokračovat\? \(a\/n,/u, c0.out);
     assert.deepEqual([opCount(w), hyp(w, "H0001").chosen], [n0, "A"]);
     // gone on all the same: decided for B, the old link kept, B's not written with why, left to the agent
     const c = await link(w, "hypothesis?tree=<id>&id=H1&do=decide&variant=B", ["a", ""]);
@@ -437,7 +437,7 @@ test("the agent's proposals taken at once: listed, the ones it cannot take said 
     const warn = await link(w, "hypotheses?tree=<id>&do=accept&ids=H1", [""]);
     assert.match(warn.out, /H0001 → varianta B: syn Jakuba a Anny\n {4}Stará vazba zůstane ve stromu, stojí na ní další práce: Josef Lhoták \(P0001\) jako dítě rodiny .*\(F0001\); nová se nezapíše: Josef Lhoták \(P0001\) jako dítě rodiny .*\(F0002\)\./u, warn.out);
     assert.doesNotMatch(warn.out, /připojí/u, warn.out);
-    assert.match(warn.out, /\(a\/n\) \[n\]/u, warn.out);
+    assert.match(warn.out, /\(a\/n, Enter = n\)/u, warn.out);
     assert.deepEqual([opCount(w), hyp(w, "H0001").chosen, hyp(w, "H0001").proposal?.variant], [n2, "A", "B"]);
     impersonal(warn.out);
     const yes = await link(w, "hypotheses?tree=<id>&do=accept&ids=H1", ["a"]);

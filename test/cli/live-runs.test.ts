@@ -294,7 +294,7 @@ test("the link finish&run=…: a run no longer at work said, nothing asked; the 
     const id = (JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")) as { id: string }).id;
     const none = await w.run(["link", "open", `strom-research://finish?tree=${id}&run=run-0-nobody`], { tty: true, answers: ["a"] });
     assert.match(none.out, /Tento běh už nepracuje \(mezitím skončil\)\. Nic se neudělalo\./u, none.out);
-    assert.doesNotMatch(none.out, /\(a\/n\)/u);
+    assert.doesNotMatch(none.out, /\(a\/n,/u);
     // the line held by a run (its hold as a run of a line takes it): refused at once, nothing asked
     const { lineFile } = await import("../../src/core/linerun.ts");
     const { acquireLock } = await import("../../src/core/lock.ts");
@@ -305,7 +305,7 @@ test("the link finish&run=…: a run no longer at work said, nothing asked; the 
     try {
       const held = await w.run(["link", "open", `strom-research://work?tree=${id}&do=tasks&n=1&research=G0001`], { tty: true, answers: ["a"] });
       assert.match(held.out, /Linie Předci Jana už má běh \(od [^)]+\) – jedna linie, jeden běh\./u, held.out);
-      assert.doesNotMatch(held.out, /\(a\/n\)/u);
+      assert.doesNotMatch(held.out, /\(a\/n,/u);
       // an agent not here: said, nothing asked
       const agent = await w.run(["link", "open", `strom-research://work?tree=${id}&do=tasks&n=1&research=G0002&agent=nobody-here`], { tty: true, answers: ["a"] });
       assert.match(agent.out, /Agenta nobody-here na tomto počítači spustit nejde/u, agent.out);

@@ -35,7 +35,7 @@ test("name add: the maiden name a record gives completes the name; variants keep
   const show = (await w.ok(["person", "show", "P2"])).out;
   assert.match(show, /^P0002 Markéta Růžičková/);
   // a name cited with no status: probable on the research's record (spec 066 P5)
-  assert.match(show, /names\n  Markéta Růžičková \(birth\) \[probable\]  ← S0001 pag. 228 \(secondary\)\n  Markéta Brdíšková \(married\)/);
+  assert.match(show, /names\n  Markéta Růžičková \(birth\) \(Enter = probable\)  ← S0001 pag. 228 \(secondary\)\n  Markéta Brdíšková \(married\)/);
   assert.equal((await w.run(["name", "primary", "P2", "Marie /Brdíšková/"])).code, 2, "only a name the person has can be the one shown");
   // the same words are one name: a weaker record's name becomes an alias with its citation, not a second entry
   await w.ok(["source", "add", "Křest 1862", "--kind", "baptism"]); // S2

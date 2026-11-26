@@ -50,13 +50,13 @@ test("the menu: work off the lines — when, each choice with what it does and h
   await task(w, "Křest Жофии", ["P8"]); // T4
   const look = await offMenu(w, "1", "0");
   assert.match(look.out, /Mimo linie: práce na vedlejší větvi/);
-  assert.match(look.out, /Práce mimo linie · 3 otevřené úkoly, z toho ve frontě 3\n +1 {2}Kdy: občas, jednou za čas\n +2 {2}Navrhovat linie u rostoucích větví: zapnuto\n +0 {2}Zpět/);
-  assert.match(look.out, /1 {2}občas, jednou za čas – jeden úkol mimo linie za 10 sezení, nejbližší linii první; jinak až po práci na liniích · 3 úkoly\n/);
-  assert.match(look.out, /2 {2}na konci, až po liniích – úkoly mimo linie až ve chvíli, kdy linie nemají co dělat · 3 úkoly\n/);
-  assert.match(look.out, /3 {2}normálně, jako práce linií – úkoly mimo linie podle priority, stejně jako práce linií · 3 úkoly\n/);
-  assert.match(look.out, /4 {2}nikdy – úkoly mimo linie se neberou; nic se nesmaže · 3 úkoly\n/);
+  assert.match(look.out, /› Práce mimo linie · 3 otevřené úkoly, z toho ve frontě 3\n\n +\[1\] {2}Kdy: občas, jednou za čas\n +\[2\] {2}Navrhovat linie u rostoucích větví: zapnuto\n\n *\[0\] {2}Zpět/);
+  assert.match(look.out, /\[1\] {2}občas, jednou za čas – jeden úkol mimo linie za 10 sezení, nejbližší linii první; jinak až po práci na liniích · 3 úkoly\n/);
+  assert.match(look.out, /\[2\] {2}na konci, až po liniích – úkoly mimo linie až ve chvíli, kdy linie nemají co dělat · 3 úkoly\n/);
+  assert.match(look.out, /\[3\] {2}normálně, jako práce linií – úkoly mimo linie podle priority, stejně jako práce linií · 3 úkoly\n/);
+  assert.match(look.out, /\[4\] {2}nikdy – úkoly mimo linie se neberou; nic se nesmaže · 3 úkoly\n/);
   // the current one suggested
-  assert.match(look.out, /4 {2}nikdy – [^\n]*\n +0 {2}Zpět\nVybrat \[1\]/u);
+  assert.match(look.out, /\[4\] {2}nikdy – [^\n]*\n\n *\[0\] {2}Zpět\n\nVolba \(Enter = 1[^)]*\):/u);
   assert.equal(await offLine(w), "occasional");
   assert.equal((await w.ok(["config", "get", "queue.offLine", "--json"])).json.source, "default", "0: nothing written");
   // each choice, this computer's (the research has no value of its own)
@@ -80,7 +80,7 @@ test("the menu: lines proposed for branches that grow — on and off; with never
   const off = await offMenu(w, "2", "a");
   assert.match(off.out, /Větev mimo linie s 10 otevřenými úkoly nebo 5 lidmi se ukáže v Co čeká/);
   assert.equal((await w.ok(["config", "get", "queue.suggestLines", "--json"])).json.value, "no");
-  assert.match((await offMenu(w)).out, /2 {2}Navrhovat linie u rostoucích větví: vypnuto\n/);
+  assert.match((await offMenu(w)).out, /\[2\] {2}Navrhovat linie u rostoucích větví: vypnuto\n/);
   // no: nothing changed
   await offMenu(w, "2", "n");
   assert.equal((await w.ok(["config", "get", "queue.suggestLines", "--json"])).json.value, "no");
@@ -89,7 +89,7 @@ test("the menu: lines proposed for branches that grow — on and off; with never
   // never: the switch does nothing now, said so
   await w.ok(["config", "set", "queue.offLine", "never", "--for-tree"]);
   const never = await offMenu(w, "2", "n");
-  assert.match(never.out, /2 {2}Navrhovat linie u rostoucích větví: zapnuto \(s volbou nikdy se nic nenavrhuje\)/);
+  assert.match(never.out, /\[2\] {2}Navrhovat linie u rostoucích větví: zapnuto \(s volbou nikdy se nic nenavrhuje\)/);
   assert.match(never.out, /Práce mimo linie je nastavená na nikdy: nic mimo linie se nebere a žádná linie se nenavrhuje/);
   w.cleanup();
 });
@@ -104,18 +104,18 @@ test("the menu: branches with a choice of their own and tasks with their own tur
   await w.ok(["offline", "set", "B-P0004", "--mode", "never"]);
   await w.ok(["task", "order", "T1", "--next"]);
   const both = await offMenu(w, "3", "1", "n");
-  assert.match(both.out, /3 {2}Větve s vlastní volbou: 1\n +4 {2}Úkoly s ručním pořadím: 1\n/);
-  assert.match(both.out, /1 {2}Anna Lhotáková \[P0004\] – nikdy · 2 úkoly\n/);
+  assert.match(both.out, /\[3\] {2}Větve s vlastní volbou: 1\n +\[4\] {2}Úkoly s ručním pořadím: 1\n/);
+  assert.match(both.out, /\[1\] {2}Anna Lhotáková \[P0004\] – nikdy · 2 úkoly\n/);
   assert.match(both.out, /Visí na: Josef Lhoták \[P0002\] – sourozenec/);
   assert.match(both.out, /Vrátit výchozí \(volba stromu: občas, jednou za čas\)\?/);
   assert.equal((await branch(w))!.own, true, "no: nothing changed");
   // yes: back to the tree's choice; the numbers stay — the turns keep 4
   const back = await offMenu(w, "3", "1", "a");
   assert.match(back.out, /✓ Vráceno na výchozí\./);
-  assert.match(back.out, /\n +4 {2}Úkoly s ručním pořadím: 1\n +0 {2}Zpět/);
+  assert.match(back.out, /\n +\[4\] {2}Úkoly s ručním pořadím: 1\n\n *\[0\] {2}Zpět/);
   assert.deepEqual([(await branch(w))!.own, (await branch(w))!.mode], [false, "occasional"]);
   const turn = await offMenu(w, "4", "1", "a");
-  assert.match(turn.out, /1 {2}Křest Josefa \[T0001\] – hned\n/);
+  assert.match(turn.out, /\[1\] {2}Křest Josefa \[T0001\] – hned\n/);
   assert.match(turn.out, /Vrátit výchozí pořadí fronty\?/);
   assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.queueAt, undefined);
   assert.doesNotMatch((await offMenu(w)).out, /Větve s vlastní volbou|Úkoly s ručním pořadím/);
@@ -137,12 +137,12 @@ const answers = (w: World) => JSON.parse(fs.readFileSync(written(w), "utf8")) as
 test("What waits: a branch that grows — its screen, 0 leaves it, left as it is, then added to the nearest line", opts, async () => {
   const w = await grown();
   const look = await w.ok([], { tty: true, answers: ["3", "1", "0", "0", "0"] });
-  assert.match(look.out, /Větve mimo linie · 1 +Větev – Anna Lhotáková – roste mimo linie: 2 úkoly, 4 osoby/);
+  assert.match(look.out, /\[1\] {2}Větve mimo linie {2,}1 {2,}Větev – Anna Lhotáková – roste mimo linie: 2 úkoly, 4 osoby/);
   assert.match(look.out, /B-P0004 · větev/);
   assert.match(look.out, /Visí na: Josef Lhoták \[P0002\] – sourozenec/);
   assert.match(look.out, /Nejbližší linie: Předci Jana/);
   assert.match(look.out, /• Oddavky Anny\n +• Křest Žofie/u);
-  assert.match(look.out, /1 {2}Přidat k linii Předci Jana\n +2 {2}Založit linii\n +3 {2}Nechat, jak je\n +4 {2}Nezkoumat\n +0 {2}Zpět/);
+  assert.match(look.out, /\[1\] {2}Přidat k linii Předci Jana\n +\[2\] {2}Založit linii\n +\[3\] {2}Nechat, jak je\n +\[4\] {2}Nezkoumat\n\n *\[0\] {2}Zpět/);
   assert.ok(!fs.existsSync(written(w)), "0: nothing written");
   // left as it is: kept with its size, no longer waiting
   const keep = await w.ok([], { tty: true, answers: ["3", "1", "3", "0"] });
@@ -171,7 +171,7 @@ test("What waits: a branch that grows — not researched; a line made for it thr
   // create: the descendants of Anna suggested, the title suggested, nothing more known
   const made = await c.ok([], { tty: true, answers: ["3", "1", "2", "", "", "", "0", "0"] });
   assert.match(made.out, /Co zkoumat\?/);
-  assert.match(made.out, /3 {2}Jednu otázku[^\n]*\n +0 {2}Zpět\nVybrat \[2\]/u);
+  assert.match(made.out, /\[3\] {2}Jednu otázku[^\n]*\n\n *\[0\] {2}Zpět\n\nVolba \(Enter = 2[^)]*\):/u);
   const r = (await c.ok(["research", "list", "--json"])).json.researches as { id: string; name: string; direction?: string }[];
   assert.equal(r.length, 3);
   const g = r.find((x) => !["G0001", "G0002"].includes(x.id))!;

@@ -323,8 +323,8 @@ test("the menu: Settings → Archives → the books — from how many tasks, the
     // 8 settings · 4 archives · 3 the books (last, after the consent and the agent's browser) · 1 from how many · 3 ·
     // 2 the same book · yes · 0 · 0 · 0 · 0
     const r = await w.ok([], { tty: true, answers: ["8", "4", "3", "1", "3", "2", "a", "0", "0", "0", "0"] });
-    assert.match(r.out, /Knihy s nejvíc úkoly: nabízet od 5 úkolů, tatáž kniha po sobě vypnuto/u);
-    assert.match(r.out, /Další sezení v téže knize: zapnuto/u);
+    assert.match(r.out, /\[3\] {2}Knihy s nejvíc úkoly {2,}nabízet od 5 úkolů, tatáž kniha po sobě vypnuto\n/u);
+    assert.match(r.out, /\[2\] {2}Další sezení v téže knize {2,}zapnuto {2}→ vypnout/u);
     const own = readTree(w);
     assert.deepEqual([own.booksMinTasks, own.queueSameBook], [3, "yes"]);
   } finally {

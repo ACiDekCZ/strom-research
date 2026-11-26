@@ -52,7 +52,7 @@ test("a person runs strom: the first family tree, straight into the conversation
   assert.match(call, /--permission-mode auto --settings .+\/Novákovi\/\.claude\/settings\.json/);
   assert.match(call, /--no-chrome/, "no archive through the browser: no browser tools");
   assert.match(r.out, /Rodokmen: Novákovi · osob: 0/);
-  assert.match(r.out, /1 {2}Začít výzkum s agentem/);
+  assert.match(r.out, /\[1\] {2}Začít výzkum s agentem/);
   assert.match(r.out, /Na shledanou/);
   // the browser in every session, the user's choice: the conversation gets it
   await w.ok(["config", "set", "agent.browser", "always"], { tty: true, answers: ["a"] });
@@ -118,11 +118,11 @@ test("the menu: results and what waits; unknown choices are asked again", unix, 
   w.historyAsked();
   await w.ok(["init", "Novákovi"]);
   const r = await w.ok([], { tty: true, answers: ["9", "strom help --human", "3", "", "5", "1", "0", "0"] });
-  assert.match(r.out, /Čekám jedno z čísel: 1, 2, .*, 0\./);
+  assert.match(r.out, /! Čekám jednu z voleb: \[1\] \[2\] .*\[0\]\./);
   // a command typed into the menu is said where it goes, in one line; the menu is not printed again
   assert.match(r.out, /Příkazy se píšou mimo menu: nejdřív 0 \(Konec\), pak strom help --human\n/);
   const before = r.out.slice(0, r.out.indexOf("Příkazy se píšou mimo menu"));
-  assert.equal(before.match(/^ {3}0 {2}Konec$/gmu)?.length, 1);
+  assert.equal(before.match(/^ {2}\[0\] {2}Konec$/gmu)?.length, 1);
   assert.match(r.out, /Nic nečeká/);
   assert.match(r.out, /Výsledky zatím nejsou/);
   w.cleanup();
@@ -138,16 +138,16 @@ test("the menu: a person can always change their mind — the current choice sug
   await w.ok(["trees", "use", "Novákovi"]);
   // another agent: Enter stays · working alone: 0 · another tree: Enter stays · a new one: 0 · quit
   const r = await w.ok([], { tty: true, answers: ["9", "", "2", "0", "6", "", "6", "3", "0", "0"] });
-  assert.match(r.out, /Který AI agent a kde s ním mluvit\?\n {3}1 {2}OpenAI Codex CLI – v terminálu \(pro zkušenější\)\n {3}0 {2}Zpět – zůstat u: Claude Code – v terminálu\nVybrat \[0\]/);
+  assert.match(r.out, /Který AI agent a kde s ním mluvit\?\n {2}\[1\] {2}OpenAI Codex CLI – v terminálu \(pro zkušenější\)\n\n {2}\[0\] {2}Zpět – zůstat u: Claude Code – v terminálu\n\nVolba \(Enter = 0[^)]*\):/);
   assert.ok(!fs.existsSync(path.join(w.dir, "codex.calls")), "no other agent started");
   assert.ok(!fs.existsSync(path.join(w.dir, "claude.calls")), "no conversation, no run");
-  assert.match(r.out, /Který rodokmen\?\n {3}1 {2}Novákovi .*\n {3}2 {2}Svobodovi .*\n {3}3 {2}nový rodokmen\n {3}4 {2}zabalit „Novákovi“ a poslat někomu \(soubor ZIP\)\n {3}5 {2}rodokmen, který někdo poslal \(soubor ZIP\)\n {3}6 {2}odebrat rodokmen z tohoto počítače\n {3}0 {2}Zpět – zůstat u: Novákovi\nVybrat \[1\]/);
+  assert.match(r.out, /Který rodokmen\?\n {2}\[1\] {2}Novákovi .*\n {2}\[2\] {2}Svobodovi .*\n {2}\[3\] {2}nový rodokmen\n {2}\[4\] {2}zabalit „Novákovi“ a poslat někomu \(soubor ZIP\)\n {2}\[5\] {2}rodokmen, který někdo poslal \(soubor ZIP\)\n {2}\[6\] {2}odebrat rodokmen z tohoto počítače\n\n {2}\[0\] {2}Zpět – zůstat u: Novákovi\n\nVolba \(Enter = 1[^)]*\):/);
   assert.match(r.out, /Jak se bude jmenovat nový rodokmen\? \(třeba příjmení rodiny; 0 vrátí zpět\)/);
   assert.equal((await w.ok(["trees", "--json"])).json.trees.length, 2, "no tree made");
   assert.match((await w.ok(["status"])).out, /Novákovi/, "still the same tree");
   // handing it over from the menu: packed, then unpacked by someone else (a file dragged in)
   const p = await w.ok([], { tty: true, answers: ["6", "4", "1", "", "0"] });
-  assert.match(p.out, /Které skeny z archivů přibalit\? \(rodinné fotky a originály jdou vždy všechny\)\n {3}1 {2}jen se zápisy – \d+ kB[^\n]*\n {3}2 {2}všechny – \d+ kB\n {3}0 /);
+  assert.match(p.out, /Které skeny z archivů přibalit\? \(rodinné fotky a originály jdou vždy všechny\)\n {2}\[1\] {2}jen se zápisy – \d+ kB[^\n]*\n {2}\[2\] {2}všechny – \d+ kB\n\n {2}\[0\] {2}Zpět\n/);
   assert.match(p.out, /Zabaleno „Novákovi“: (.+\.zip) \(/);
   const zip = path.join(w.env.HOME!, /Zabaleno „Novákovi“: ~\/(.+\.zip) \(/.exec(p.out)![1]!);
   assert.ok(fs.existsSync(zip), zip);
@@ -161,7 +161,7 @@ test("the menu: a person can always change their mind — the current choice sug
   assert.equal((await b.ok(["trees", "--json"])).json.trees.length, 2);
   // taking one off from the menu: Enter goes back, nothing taken off
   const rm = await b.ok([], { tty: true, answers: ["6", "6", "", "0"] });
-  assert.match(rm.out, /Který rodokmen odebrat z tohoto počítače\?\n[\s\S]* {3}0 {2}Zpět\nVybrat \[0\]/);
+  assert.match(rm.out, /Který rodokmen odebrat z tohoto počítače\?\n[\s\S]*\n\n {2}\[0\] {2}Zpět\n\nVolba \(Enter = 0[^)]*\):/);
   assert.equal((await b.ok(["trees", "--json"])).json.trees.length, 2, "nothing taken off");
   b.cleanup();
   w.cleanup();
@@ -177,7 +177,7 @@ test("the menu with several trees and none chosen: choosing a tree goes back by 
   const { currentTree: _, ...config } = readJsonFile(file);
   fs.writeFileSync(file, JSON.stringify(config, null, 2));
   const r = await w.ok([], { tty: true, answers: ["1", "0", "1", "", "0"] });
-  assert.match(r.out, /Který rodokmen\?\n {3}1 {2}Novákovi .*\n {3}2 {2}Svobodovi .*\n {3}3 {2}nový rodokmen\n {3}4 {2}rodokmen, který někdo poslal \(soubor ZIP\)\n {3}5 {2}odebrat rodokmen z tohoto počítače\n {3}0 {2}Zpět\nVybrat \[0\]/);
+  assert.match(r.out, /Který rodokmen\?\n {2}\[1\] {2}Novákovi .*\n {2}\[2\] {2}Svobodovi .*\n {2}\[3\] {2}nový rodokmen\n {2}\[4\] {2}rodokmen, který někdo poslal \(soubor ZIP\)\n {2}\[5\] {2}odebrat rodokmen z tohoto počítače\n\n {2}\[0\] {2}Zpět\n\nVolba \(Enter = 0[^)]*\):/);
   assert.doesNotMatch(r.out, /Čekám jedno z čísel/);
   assert.equal(r.out.match(/Který rodokmen\?/g)?.length, 2, "asked twice, gone back twice");
   assert.equal(readJsonFile(file).currentTree, undefined, "no tree chosen");
@@ -190,7 +190,7 @@ test("setup run again: every choice can be left as it is (0)", unix, async () =>
   await w.ok(["setup", "--yes"]);
   const before = readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   const r = await w.ok(["setup"], { tty: true, answers: ["", "", "0", "0", "0", "0", "n", "0"] });
-  assert.match(r.out, /\n {3}0 {2}Nechat, jak je\n/);
+  assert.match(r.out, /\n\n {2}\[0\] {2}Nechat, jak je\n/);
   const after = readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   for (const k of ["agent", "models", "stromApp"]) assert.deepEqual(after[k], before[k], k);
   assert.equal(after.stories ?? "yes", before.stories ?? "yes", "the stories as they were");
@@ -323,7 +323,7 @@ test("the agent's desktop app: found, chosen once, opened in the tree folder wit
   w.env.STROM_APP_DIRS = appsWith(w, ["Claude.app", "ChatGPT.app"]);
   // language, folder, the agent and where (Enter = Claude's app), model, stories, level, no shortcut
   const r = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "", "n"] });
-  assert.match(r.out, /Který AI agent a kde s ním mluvit\?\n {3}1 {2}Claude – aplikace \(nejjednodušší\)\n {3}2 {2}Claude Code – v terminálu \(pro zkušenější\)\n {3}3 {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\nVybrat \[1\]/);
+  assert.match(r.out, /Který AI agent a kde s ním mluvit\?\n {2}\[1\] {2}Claude – aplikace \(nejjednodušší\)\n {2}\[2\] {2}Claude Code – v terminálu \(pro zkušenější\)\n {2}\[3\] {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\n\nVolba \(Enter = 1[^)]*\):/);
   assert.match(r.out, /✓ AI agent: Claude – aplikace/);
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   assert.equal(cfg().agentWhere, "app");
@@ -360,7 +360,7 @@ test("the app or the terminal: each a line of the agents' list, the app suggeste
   const r = await w.ok(["setup"], { answers: ["cs", "", "", "3", "", "", "", "", "n"] });
   // (its list of models asked for: the CLI started for that alone)
   fs.rmSync(path.join(w.dir, "codex.calls"), { force: true });
-  assert.match(r.out, /Který AI agent a kde s ním mluvit\?\n {3}1 {2}Claude – aplikace \(nejjednodušší\)\n {3}2 {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\n {3}3 {2}OpenAI Codex CLI – v terminálu \(pro zkušenější\)\nVybrat \[1\]/);
+  assert.match(r.out, /Který AI agent a kde s ním mluvit\?\n {2}\[1\] {2}Claude – aplikace \(nejjednodušší\)\n {2}\[2\] {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\n {2}\[3\] {2}OpenAI Codex CLI – v terminálu \(pro zkušenější\)\n\nVolba \(Enter = 1[^)]*\):/);
   assert.match(r.out, /✓ AI agent: OpenAI Codex CLI – v terminálu/);
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   assert.equal(cfg().agent, "codex");
@@ -369,8 +369,8 @@ test("the app or the terminal: each a line of the agents' list, the app suggeste
   assert.ok(Array.isArray((await w.ok(["chat", "--print", "--json"])).json.args), "the terminal");
   // this time elsewhere: the other ways, Enter stays; Codex's app this once — the setting stays
   const m = await w.ok([], { tty: true, answers: ["9", "2", "0"] });
-  assert.match(m.out, /9 {2}Tentokrát mluvit s jiným agentem nebo jinde/);
-  assert.match(m.out, /Který AI agent a kde s ním mluvit\?\n {3}1 {2}Claude – aplikace \(nejjednodušší\)\n {3}2 {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\n {3}0 {2}Zpět – zůstat u: OpenAI Codex CLI – v terminálu\nVybrat \[0\]/);
+  assert.match(m.out, /\[9\] {2}Tentokrát mluvit s jiným agentem nebo jinde/);
+  assert.match(m.out, /Který AI agent a kde s ním mluvit\?\n {2}\[1\] {2}Claude – aplikace \(nejjednodušší\)\n {2}\[2\] {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\n\n {2}\[0\] {2}Zpět – zůstat u: OpenAI Codex CLI – v terminálu\n\nVolba \(Enter = 0[^)]*\):/);
   assert.match(m.out, /Aplikace ChatGPT \(Codex\) se neotevřela/);
   assert.ok(!fs.existsSync(path.join(w.dir, "codex.calls")), "not the CLI");
   assert.equal(cfg().agentWhere, "terminal");
@@ -385,7 +385,7 @@ test("the app or the terminal: each a line of the agents' list, the app suggeste
   kept.agent = "claude";
   fs.writeFileSync(path.join(w.env.STROM_CONFIG_DIR!, "config.json"), JSON.stringify(kept));
   const re = await w.ok([], { tty: true, answers: ["", "n", "0"] });
-  assert.match(re.out, /Který AI agent a kde s ním mluvit\?\n {3}1 {2}Claude – aplikace[^\n]*\n {3}2 [^\n]*\n {3}3 [^\n]*\nVybrat \[1\]/);
+  assert.match(re.out, /Který AI agent a kde s ním mluvit\?\n {2}\[1\] {2}Claude – aplikace[^\n]*\n {2}\[2\] [^\n]*\n {2}\[3\] [^\n]*\n\nVolba \(Enter = 1[^)]*\):/);
   assert.equal(cfg().agentWhere, "app");
   // an agent sets strom up: the way said, the other one named for the person to decide
   delete w.env.STROM_INSTALLER;
@@ -400,8 +400,8 @@ test("the app or the terminal: each a line of the agents' list, the app suggeste
   a.env.PATH = pathWith(a, []);
   a.env.STROM_APP_DIRS = appsWith(a, ["Claude.app", "Codex.app"]);
   const o = await a.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "", "n"] });
-  assert.match(o.out, /\n {3}1 {2}Claude – aplikace \(nejjednodušší\)\n {3}2 {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\nVybrat \[1\]/);
-  assert.doesNotMatch(/mluvit\?\n([^]*?)Vybrat/.exec(o.out)![1]!, /Claude Code|Codex CLI|terminál/, "no CLI here: none named");
+  assert.match(o.out, /\n {2}\[1\] {2}Claude – aplikace \(nejjednodušší\)\n {2}\[2\] {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\n\nVolba \(Enter = 1[^)]*\):/);
+  assert.doesNotMatch(/mluvit\?\n([^]*?)Volba/.exec(o.out)![1]!, /Claude Code|Codex CLI|terminál/, "no CLI here: none named");
   a.cleanup();
   const one = new World();
   one.env.PATH = pathWith(one, ["grok"]);
@@ -839,7 +839,7 @@ test("the Strom app offered gently: the wizard asks once, the menu says what it 
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   // language, folder, model, its effort, stories, who decides the hypotheses, level, history off, no shortcut — then the Strom app: not now
   const s = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "", "", "", "n", "2"] });
-  assert.match(s.out, /Aplikace Strom \(zdarma, v prohlížeči\) ukáže výzkum jako rodokmen[\s\S]*1 {2}Ano – nainstalovat ji teď/);
+  assert.match(s.out, /Aplikace Strom \(zdarma, v prohlížeči\) ukáže výzkum jako rodokmen[\s\S]*\[1\] {2}Ano – nainstalovat ji teď/);
   assert.equal(cfg().stromApp, "yes");
   // Again: the answer pre-filled (the history in the stories asked too, Enter); no — never mentioned after.
   await w.ok(["setup"], { answers: ["", "", "", "", "0", "", "", "", "", "", "", "n", "3"] });
@@ -851,27 +851,27 @@ test("the Strom app offered gently: the wizard asks once, the menu says what it 
   await w.ok(["config", "unset", "strom.app"]);
   const tip = await w.ok([], { tty: true, answers: ["7", "1", "n", "0"] });
   assert.match(tip.out, /Tip: výzkum jde prohlížet jako rodokmen v aplikaci Strom a sledovat ho živě, když agent pracuje – volba 7\./);
-  assert.match(tip.out, /7 {2}Aplikace Strom – výzkum jako rodokmen, sledovaný živě/);
+  assert.match(tip.out, /\[7\] {2}Aplikace Strom {2,}výzkum jako rodokmen, sledovaný živě\n/);
   assert.match(tip.out, /Otevřít ji zde: https:\/\/stromapp\.info\/run\//, "tests open nothing: the address is said");
   assert.match(tip.out, /Až bude nainstalovaná: otevřít v ní výzkum\?/);
   assert.equal(cfg().stromApp, "yes");
   // Wanted: the item opens the research, no tip; while an agent is at work it says so.
   const plain = await w.ok([], { tty: true, answers: ["0"] });
-  assert.match(plain.out, /7 {2}Otevřít výzkum v aplikaci Strom/);
+  assert.match(plain.out, /\[7\] {2}Otevřít výzkum v aplikaci Strom/);
   assert.doesNotMatch(plain.out, /Tip:/);
   const leave = enterWorker(w.treeDir("Novákovi"), "codex-1", "Codex conversation");
   const busy = await w.ok([], { tty: true, answers: ["0"] });
   assert.match(busy.out, /Agent pracuje – živě ho jde sledovat v aplikaci Strom: volba 7\./);
-  assert.match(busy.out, /7 {2}Sledovat práci agenta v aplikaci Strom \(živě\)/);
+  assert.match(busy.out, /\[7\] {2}Sledovat práci agenta v aplikaci Strom · živě\n/);
   leave();
   // Working alone, with a browser that reaches the bridge: watched live meanwhile? The last answer is suggested.
   w.env.STROM_APP_DIRS = appsWith(w, ["Google Chrome.app"]);
   fs.writeFileSync(path.join(w.dir, "Applications", "google-chrome"), "", { mode: 0o755 });
   const run = await w.run([], { tty: true, answers: ["2", "1", "n", "", "0"] });
-  assert.match(run.out, /Sledovat mezitím práci živě v aplikaci Strom\? \(a\/n\) \[a\]/);
+  assert.match(run.out, /Sledovat mezitím práci živě v aplikaci Strom\? \(a\/n, Enter = a\)/);
   assert.equal(cfg().stromAppFollow, "no");
   const again = await w.run([], { tty: true, answers: ["2", "1"] });
-  assert.match(again.out, /Sledovat mezitím práci živě v aplikaci Strom\? \(a\/n\) \[n\]/);
+  assert.match(again.out, /Sledovat mezitím práci živě v aplikaci Strom\? \(a\/n, Enter = n\)/);
   w.cleanup();
 });
 
@@ -939,7 +939,7 @@ function endBridgesIn(dir: string): number[] {
   };
   const ended: number[] = [];
   for (const line of (spawnSync("ps", ["-A", "-o", "pid=,command="], { encoding: "utf8" }).stdout ?? "").split("\n")) {
-    const m = /^\s*(\d+)\s+(.*)$/u.exec(line);
+    const m = /^\s*\[(\d+)\]\s+(.*)$/u.exec(line);
     if (!m || !m[2]!.trimEnd().endsWith(" live serve") || Number(m[1]) === process.pid || cwdOf(Number(m[1])) !== real) continue;
     try {
       process.kill(Number(m[1]), "SIGKILL");

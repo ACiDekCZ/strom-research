@@ -269,7 +269,7 @@ test("the setup run again asks it beside the stories (never the first one): Ente
     fs.mkdirSync(bin, { recursive: true });
     fs.writeFileSync(path.join(bin, "claude"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
     w.env.PATH = [bin, path.dirname(process.execPath), "/usr/bin", "/bin"].join(path.delimiter);
-    const question = /Brát do vyprávění i dějiny míst – události doby v místech předků, každou s jejím zdrojem, jako pozadí života\? Schválené vyprávění zůstane, jak je; dějiny přijdou až s jeho další verzí\.\n {3}1 {2}Ano \(doporučeno\)\n {3}2 {2}Ne – vyprávění jen ze zápisů\n {3}0 {2}Nechat, jak je\nVybrat \[(\d)\]/u;
+    const question = /Brát do vyprávění i dějiny míst – události doby v místech předků, každou s jejím zdrojem, jako pozadí života\? Schválené vyprávění zůstane, jak je; dějiny přijdou až s jeho další verzí\.\n {2}\[1\] {2}Ano \(doporučeno\)\n {2}\[2\] {2}Ne – vyprávění jen ze zápisů\n\n {2}\[0\] {2}Nechat, jak je\n\nVolba \(Enter = (\d) /u;
     const first = await w.ok(["setup"], { tty: true, answers: Array(40).fill("") });
     assert.doesNotMatch(first.out, /dějiny míst – události doby/u, "not in the first setup");
     const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));

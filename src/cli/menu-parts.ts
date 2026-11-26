@@ -17,8 +17,52 @@ export type Run = (argv: string[], quiet?: boolean) => Promise<number>;
 export interface Item {
   key: string;
   label: string;
+  /** Its state or count, in the column of values (cli/screen.ts). */
+  value?: string | undefined;
+  /** What it holds, said faintly after it. */
+  extra?: string | undefined;
+  /** Its part of the way to the screen it opens (else its label up to its first aside). */
+  crumb?: string | undefined;
   /** true: back (a submenu) or quit (the menu); "quit": out of the menu from a submenu too. */
   act: () => Promise<boolean | "quit" | void>;
+}
+
+/** The longest label of an item (spec 144): what it is; the rest goes to its value or after it. */
+export const LABEL_MAX = 40;
+
+/**
+ * An item's text as a screen shows it (spec 144): what it is as the label, the rest beside it — "Hooks: on" → Hooks ·
+ * value "on"; "Settings: agent, archives" → Settings · faint "agent, archives"; "Tune the scans (tuned 3. 11.)" → value
+ * "tuned 3. 11." with `as: "value"`. A label longer than LABEL_MAX gives its aside in brackets to the rest. A switch
+ * says where it switches to (`to`): faint after the state, "→ switch to the browser".
+ */
+export function shaped(text: string, opts: { as?: "value" | "extra"; to?: string | undefined; swap?: boolean } = {}): Pick<Item, "label" | "value" | "extra"> {
+  const as = opts.as ?? "extra";
+  let label = text;
+  let rest: string | undefined;
+  const colon = /^(.+?):\s+(.+)$/su.exec(text);
+  const bracket = /^(.+?) \(([^()]+)\)$/su.exec(text);
+  const dash = /^(.+?) – (.+)$/su.exec(text);
+  if (colon && !/\([^)]*$/u.test(colon[1]!)) [label, rest] = [colon[1]!, colon[2]!];
+  else if (bracket) [label, rest] = [bracket[1]!, bracket[2]!];
+  else if (dash) [label, rest] = [dash[1]!, dash[2]!];
+  // "Language, agent, model… (the setup)": what it is said in brackets, what it holds before them
+  if (opts.swap && rest) {
+    const what = rest.replace(/^(?:the|die|der|das) /iu, "");
+    [label, rest] = [what.charAt(0).toLocaleUpperCase() + what.slice(1), label.replace(/…$/u, "")];
+  }
+  let aside: string | undefined;
+  if ([...label].length > LABEL_MAX) {
+    const m = / \(([^()]+)\)/u.exec(label);
+    if (m) {
+      label = (label.slice(0, m.index) + label.slice(m.index + m[0].length)).trim();
+      aside = m[1];
+    }
+  }
+  const value = as === "value" ? rest : undefined;
+  const said = [as === "extra" ? rest : undefined, aside].filter(Boolean).join(" · ");
+  const extra = [said, opts.to ? `→ ${opts.to}` : ""].filter(Boolean).join("  ") || undefined;
+  return { label, value, extra };
 }
 
 /** The test (or a script) gave all its answers: nothing more is asked. */
@@ -44,16 +88,17 @@ export async function subMenu(ctx: Context, lang: string, build: () => { title?:
     if (outOfAnswers(ctx)) return;
     const { title, items } = build();
     const all = [...(opts.fixed ? [...items].sort((a, b) => Number(a.key) - Number(b.key)) : items), { key: "0", label: ui(lang, "ui.browse.back"), act: async () => true }];
-    ctx.io.stdout("\n");
     let n = 0;
     // Enter goes back: an item here changes or starts something, a person picks it by its number
     const i = await ctx.choose(
       title ?? "",
-      all.map((it) => ({ key: it.key === "0" || opts.fixed ? it.key : String(++n), label: it.label })),
+      all.map((it) => ({ key: it.key === "0" || opts.fixed ? it.key : String(++n), label: it.label, value: it.value, extra: it.extra })),
       all.length - 1,
+      { screen: true },
     );
     if (i === undefined) return;
-    const done = await guarded(ctx, lang, all[i]!.act);
+    const item = all[i]!;
+    const done = item.key === "0" ? true : await ctx.within(item.label, () => guarded(ctx, lang, item.act), item.crumb);
     if (done === "quit") return "quit";
     if (done === true) return;
   }

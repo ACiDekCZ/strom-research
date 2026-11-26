@@ -60,7 +60,7 @@ test("the setup: Claude's app alone said in one line and Claude Code offered —
   const r = await no.ok(["setup"], { answers: ["cs", "", "", "0", "", "", "", "", "", "", "", "n", "3", "n"] });
   assert.match(r.out, /✓ AI agent: Claude – aplikace\n/u);
   assert.match(r.out, LINE);
-  assert.match(r.out, / {3}1 {2}Nainstalovat Claude Code do terminálu hned \(doporučeno; je potřeba předplatné Claude\)\n {3}0 {2}Zatím ne\n/u);
+  assert.match(r.out, / {2}\[1\] {2}Nainstalovat Claude Code do terminálu hned \(doporučeno; je potřeba předplatné Claude\)\n\n {2}\[0\] {2}Zatím ne\n/u);
   assert.doesNotMatch(r.out, /Instalace Claude Code se nepovedla|je nainstalovaný/u);
   assert.equal(readJsonFile(path.join(no.env.STROM_CONFIG_DIR!, "config.json")).agent, "claude");
   assert.doesNotMatch(r.out, /(?<![\p{L}\p{M}\p{N}])(vy|váš|vaše|ty|tvůj)(?![\p{L}\p{M}\p{N}])/iu);
@@ -171,7 +171,7 @@ test("a link of the Strom app that starts strom run: the CLI said before the est
   const id = readJsonFile(path.join(w.cwd, "strom.json")).id;
   const r = await w.run(["link", "open", `strom-research://places?tree=${id}&do=run`], { tty: true, answers: ["2", "", ""] });
   assert.match(r.out, LINE, r.out + r.err);
-  assert.match(r.out, / {3}2 {2}Pokračovat v rozhovoru v aplikaci Claude\n/u);
+  assert.match(r.out, / {2}\[2\] {2}Pokračovat v rozhovoru v aplikaci Claude\n/u);
   assert.doesNotMatch(r.out, /minut|Spustit jedno sezení/u, "no estimate, no question of the run");
   // the conversation chosen: strom chat in the app (claude://), no session of strom run
   assert.ok(!fs.existsSync(path.join(w.cwd, "data", "sessions")) || fs.readdirSync(path.join(w.cwd, "data", "sessions")).length === 0);
@@ -204,7 +204,7 @@ test("the menu: working alone says what it needs and offers only what strom can 
   const m = await w.ok([], { tty: true, answers: ["2", "0", "", "0"] });
   assert.match(m.out, /Samostatná práce potřebuje Claude Code v terminálu \(samotná aplikace to neumí\)\./u);
   assert.doesNotMatch(m.out, /strom setup nabídne/u);
-  assert.match(m.out, / {3}1 {2}Nainstalovat Claude Code do terminálu hned[^\n]*\n {3}2 {2}Pokračovat v rozhovoru v aplikaci Claude\n {3}0 {2}Zatím ne\n/u);
+  assert.match(m.out, / {2}\[1\] {2}Nainstalovat Claude Code do terminálu hned[^\n]*\n {2}\[2\] {2}Pokračovat v rozhovoru v aplikaci Claude\n\n {2}\[0\] {2}Zatím ne\n/u);
   w.cleanup();
 });
 

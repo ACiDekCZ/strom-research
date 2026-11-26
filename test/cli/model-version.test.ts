@@ -72,9 +72,9 @@ function fakeClaude(w: World): void {
 
 const config = (w: World) => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
 
-/** The setup's model question as it was printed: its lines up to "Choose [n]". */
+/** The setup's model question as it was printed: its lines up to "Choice (Enter = n". */
 function modelQuestion(out: string): string {
-  const m = /Which model should do the research\?\n(?:[^\n]*\n)*?(?:Choose|Vybrat) \[\d\]/.exec(out);
+  const m = /Which model should do the research\?\n(?:[^\n]*\n)*?(?:Choice|Volba) \(Enter = \d/.exec(out);
   assert.ok(m, out);
   return m[0];
 }
@@ -89,19 +89,19 @@ test("the setup's model step: Opus and the agent's own with the model they last 
     const root = w.treeDir("Lhotákovi");
     // nothing seen yet: the choice as it was
     const before = await w.ok(["setup"], { answers: ["en", "", "", "1"] });
-    assert.match(modelQuestion(before.out), /\n {3}1 {2}Opus — best at reading old handwriting \(recommended\)\n {3}2 {2}Sonnet — faster; printed documents and everyday work\n {3}3 {2}Leave it to the agent\n/);
+    assert.match(modelQuestion(before.out), /\n {2}\[1\] {2}Opus — best at reading old handwriting \(recommended\)\n {2}\[2\] {2}Sonnet — faster; printed documents and everyday work\n {2}\[3\] {2}Leave it to the agent\n/);
     seen(root, { "claude opus": [["claude claude-opus-5-5", "2026-10-01T00:00:00Z"]], claude: [["claude claude-opus-5-5", "2026-10-02T00:00:00Z"]] });
     const r = await w.ok(["setup"], { answers: ["en", "", "", "1"] });
-    assert.match(modelQuestion(r.out), /\n {3}1 {2}Opus \(now Opus 5\.5\) — best at reading old handwriting \(recommended\)\n {3}2 {2}Sonnet — faster; printed documents and everyday work\n {3}3 {2}Leave it to the agent \(now Opus 5\.5\)\n/);
+    assert.match(modelQuestion(r.out), /\n {2}\[1\] {2}Opus \(now Opus 5\.5\) — best at reading old handwriting \(recommended\)\n {2}\[2\] {2}Sonnet — faster; printed documents and everyday work\n {2}\[3\] {2}Leave it to the agent \(now Opus 5\.5\)\n/);
     assert.equal(config(w).models.claude.lead, "opus", "the alias kept: a newer Opus is taken by itself");
     // Opus seen on a newer model since: the name follows it, what is kept does not change
     seen(root, { "claude opus": [["claude claude-opus-5-5", "2026-10-01T00:00:00Z"], ["claude claude-opus-5-6", "2026-11-01T00:00:00Z"]] });
     const newer = await w.ok(["setup"], { answers: ["en", "", "", ""] });
-    assert.match(modelQuestion(newer.out), /\n {3}1 {2}Opus \(now Opus 5\.6\) — [^\n]*\n {3}2 {2}Sonnet — [^\n]*\n {3}3 {2}Leave it to the agent\n(?: {3}0 [^\n]*\n)?(?:Choose|Vybrat) \[1\]/);
+    assert.match(modelQuestion(newer.out), /\n {2}\[1\] {2}Opus \(now Opus 5\.6\) — [^\n]*\n {2}\[2\] {2}Sonnet — [^\n]*\n {2}\[3\] {2}Leave it to the agent\n(?:\n {2}\[0\] {2}[^\n]*\n)?\n(?:Choice|Volba) \(Enter = 1/);
     assert.equal(config(w).models.claude.lead, "opus");
     // in Czech
     const cs = await w.ok(["setup"], { answers: ["cs", "", "", ""] });
-    assert.match(cs.out, /\n {3}1 {2}Opus \(teď Opus 5\.6\) – nejlépe čte staré rukopisy \(doporučeno\)\n/);
+    assert.match(cs.out, /\n {2}\[1\] {2}Opus \(teď Opus 5\.6\) – nejlépe čte staré rukopisy \(doporučeno\)\n/);
     // nothing written into the research by looking
     assert.deepEqual(loadAliases(root)["claude opus"]!.map((e) => e.key), ["claude claude-opus-5-5", "claude claude-opus-5-6"]);
   } finally {
@@ -118,7 +118,7 @@ test("a model typed by hand stays that model: offered as chosen now, Enter keeps
     await w.ok(["config", "set", "model.lead", "claude-opus-5", "--agent", "claude", "--yes"]);
     assert.equal(config(w).models.claude.lead, "claude-opus-5");
     const r = await w.ok(["setup"], { answers: ["en", "", "", ""] });
-    assert.match(modelQuestion(r.out), /\n {3}2 {2}Sonnet — [^\n]*\n {3}3 {2}Opus 5 · claude-opus-5 \(chosen now\)\n {3}4 {2}Leave it to the agent\n(?: {3}0 [^\n]*\n)?(?:Choose|Vybrat) \[3\]/);
+    assert.match(modelQuestion(r.out), /\n {2}\[2\] {2}Sonnet — [^\n]*\n {2}\[3\] {2}Opus 5 · claude-opus-5 \(chosen now\)\n {2}\[4\] {2}Leave it to the agent\n(?:\n {2}\[0\] {2}[^\n]*\n)?\n(?:Choice|Volba) \(Enter = 3/);
     assert.equal(config(w).models.claude.lead, "claude-opus-5", "Enter keeps the model typed by hand");
     // the alias chosen again: the alias kept
     await w.ok(["setup"], { answers: ["en", "", "", "1"] });
@@ -145,7 +145,7 @@ test("the menu's settings and strom doctor name the model an alias last ran on; 
     assert.match(doc.out, /model +opus \(teď Opus 5\.5\)\n/);
     // the menu (the research's language): 8 settings · 1 the setup · 0 · 0
     const menu = await w.ok([], { tty: true, answers: ["8", "1", "0", "0", "0"] });
-    assert.match(menu.out, /Jen model výzkumu \(Claude Code\): opus \(teď Opus 5\.5\)/);
+    assert.match(menu.out, /Jen model výzkumu \(Claude Code\) {2,}opus \(teď Opus 5\.5\)\n/);
   } finally {
     w.cleanup();
   }

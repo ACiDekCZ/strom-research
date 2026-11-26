@@ -204,7 +204,7 @@ test("K4.3 the menu of an empty archive: Add to the archive is material only; th
   await w.ok(["init", "Archiv", "--mode", "archive"]);
   w.cwd = w.treeDir("Archiv");
   const r = await w.ok([], { tty: true, answers: ["0"] });
-  assert.match(r.out, / 4 {2}Přidat do Archivu Stromu: podklady\n/, r.out);
+  assert.match(r.out, / \[4\] {2}Přidat do Archivu Stromu {2,}podklady\n/, r.out);
   assert.doesNotMatch(r.out, /sledovaný živě/, r.out);
   assert.doesNotMatch(r.out, NO_AI, r.out);
   w.cleanup();

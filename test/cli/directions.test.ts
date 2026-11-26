@@ -48,13 +48,13 @@ test("the menu: Add to the research → the directions — each with how it goes
   const w = await world();
   // 4 add to the research · 5 the directions · 1 the first · 1 pause · 0 back
   const r = await w.ok([], { tty: true, answers: ["4", "5", "1", "1", "0", "0"] });
-  assert.match(r.out, /5 {2}Linie výzkumu: pozastavit, ukončit nebo znovu spustit/);
-  assert.match(r.out, /1 {2}Předci Josefa – běží · úkoly: 1\n +2 {2}Kdo byla Anna\? – běží · úkoly: 1\n +0 {2}Zpět/);
+  assert.match(r.out, /\[5\] {2}Linie výzkumu: pozastavit, ukončit nebo znovu spustit/);
+  assert.match(r.out, /\[1\] {2}Předci Josefa – běží · úkoly: 1\n +\[2\] {2}Kdo byla Anna\? – běží · úkoly: 1\n\n *\[0\] {2}Zpět/);
   assert.match(r.out, /⏸ „Předci Josefa“ je pozastavená: její úkoly \(1\) počkají, dokud se tady znovu nespustí\./);
   // a paused one: taken up again or ended
   const again = await w.ok([], { tty: true, answers: ["4", "5", "1", "1", "0", "0"] });
   assert.match(again.out, /Předci Josefa – pozastavená · úkoly: 1/);
-  assert.match(again.out, /1 {2}Znovu spustit – její úkoly se vrátí do fronty\n +2 {2}Ukončit/);
+  assert.match(again.out, /\[1\] {2}Znovu spustit – její úkoly se vrátí do fronty\n +\[2\] {2}Ukončit/);
   assert.match(again.out, /▶ „Předci Josefa“ zase běží: její úkoly \(1\) jsou zpátky ve frontě\./);
   // Enter goes back with nothing changed
   await w.ok([], { tty: true, answers: ["4", "5", "", "0"] });

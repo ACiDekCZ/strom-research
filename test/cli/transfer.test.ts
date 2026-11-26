@@ -172,14 +172,14 @@ test("a tree from Safari moves to a browser the app reaches strom from — asked
   // no: the tree stays in Safari, nothing made — and the end (Enter)
   const no = await w.run(["link", "open", link], { tty: true, answers: ["0", ""] });
   assert.match(no.out, /Soubor stromu z aplikace Strom: .*strom-prenos-UHJlbm9z 2\.json/);
-  assert.match(no.out, /Do kterého prohlížeče se strom „Novákovi \{domov\}“ \(osob: 2\) přenese\?\n\s+1\s+Google Chrome\n\s+2\s+Microsoft Edge\n\s+0\s+Nepřenášet/);
+  assert.match(no.out, /Do kterého prohlížeče se strom „Novákovi \{domov\}“ \(osob: 2\) přenese\?\n\s+\[1\]\s+Google Chrome\n\s+\[2\]\s+Microsoft Edge\n\s+\[0\]\s+Nepřenášet/);
   assert.match(no.out, /Strom zůstává v Safari, nic se nezaložilo\.\nSoubor stromu zůstává na místě: .*strom-prenos-UHJlbm9z 2\.json/);
   assert.equal(fs.existsSync(w.treeDir("Novákovi {domov}")), false, "nothing set up");
   assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).appBrowser, undefined);
   assert.ok(fs.existsSync(file), "the file stays where it is");
   // the system's default browser suggested first (Windows: Edge)
   const edgeFirst = await w.run(["link", "open", link], { tty: true, answers: ["0", ""], env: { STROM_DEFAULT_BROWSER: "edge" } });
-  assert.match(edgeFirst.out, /přenese\?\n\s+1\s+Microsoft Edge\n\s+2\s+Google Chrome\n\s+0\s+Nepřenášet/);
+  assert.match(edgeFirst.out, /přenese\?\n\s+\[1\]\s+Microsoft Edge\n\s+\[2\]\s+Google Chrome\n\s+\[0\]\s+Nepřenášet/);
   // yes, to Edge: the research named as the tree, the bridge waits with the tree's file
   const root = w.treeDir("Novákovi {domov}");
   const flow = w.run(["link", "open", link], { tty: true, answers: ["2", "", "", "n", ""] });
@@ -231,7 +231,7 @@ test("a tree from Safari with no browser here the app reaches strom from: a down
   transferFile(w, "strom-prenos-UHJlbm9z.json");
   const r = await w.run(["link", "open", `strom-research://new?app=${TOKEN}`], { tty: true, answers: ["1", "", "3", "", "", "n", ""] });
   assert.match(r.out, /Na tomto počítači není prohlížeč, ze kterého se aplikace Strom k výzkumu připojí\./);
-  assert.match(r.out, /1\s+Otevřít stránku ke stažení Google Chrome \(nic se neinstaluje samo\)\n\s+2\s+Otevřít stránku ke stažení Microsoft Edge/);
+  assert.match(r.out, /\[1\]\s+Otevřít stránku ke stažení Google Chrome \(nic se neinstaluje samo\)\n\s+\[2\]\s+Otevřít stránku ke stažení Microsoft Edge/);
   // the page (not opened in a test: its address), then looked for again — still none
   assert.match(r.out, /https:\/\/www\.google\.com\/chrome\//);
   assert.match(r.out, /Po instalaci prohlížeče \(toto okno zatím nechat otevřené\): Enter pokračuje/);
@@ -310,7 +310,7 @@ test("a tree from Safari into a research an older strom made for it (its handove
     const ged = ["0 HEAD", "1 SOUR STROM", "1 CHAR UTF-8", "0 @I1@ INDI", "1 NAME Karel /Novák/", "1 SEX M", "0 @I2@ INDI", "1 NAME Marie /Nováková/", "1 SEX F", "0 @F1@ FAM", "1 HUSB @I1@", "1 WIFE @I2@", "0 TRLR", ""].join("\n");
     assert.equal((await fetch(`${url}/adopt`, { method: "POST", body: ged, headers: { ...ORIGIN, "Content-Type": "text/plain; charset=utf-8" } })).status, 200);
     const r = await flow;
-    assert.match(r.out, /Výzkum „Novákovi“ \(založený [^)]+\) strom z aplikace Strom zatím nedostal\. Přidat strom do něj\?\n\s+1\s+Do výzkumu „Novákovi“\n\s+2\s+Založit nový výzkum\n\s+0\s+Zrušit/);
+    assert.match(r.out, /Výzkum „Novákovi“ \(založený [^)]+\) strom z aplikace Strom zatím nedostal\. Přidat strom do něj\?\n\s+\[1\]\s+Do výzkumu „Novákovi“\n\s+\[2\]\s+Založit nový výzkum\n\s+\[0\]\s+Zrušit/);
     assert.doesNotMatch(r.out, /Název výzkumu/, "nothing set up again");
     assert.doesNotMatch(r.out, /zablokoval přístup/, "the app asked: no word of a permission");
     assert.match(r.out, /✓ Rodokmen je ve výzkumu „Novákovi“: osob 2, rodin 1/);
@@ -463,7 +463,7 @@ test("installed from the app with an agent here: the research with it suggested,
   assert.notEqual(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).mode, "archive", "an agent here: research");
   // the name, the language, then 0 at the question: back to the language — then an archive
   const r = await w.run(["link", "open", `strom-research://new?app=${TOKEN}`], { tty: true, answers: ["Dvořákovi", "", "0", "", "1", ""] });
-  const asked = r.out.match(/Spuštěno z aplikace Strom\. Jak má výzkum tento rodokmen vést\?\n\s+1\s+Jako Archiv Stromu: .*\n\s+2\s+Jako výzkum s agentem OpenAI Codex CLI: .*\(doporučeno\)\n\s+0\s+Zpět/g) ?? [];
+  const asked = r.out.match(/Spuštěno z aplikace Strom\. Jak má výzkum tento rodokmen vést\?\n\s+\[1\]\s+Jako Archiv Stromu: .*\n\s+\[2\]\s+Jako výzkum s agentem OpenAI Codex CLI: .*\(doporučeno\)\n\s+\[0\]\s+Zpět/g) ?? [];
   assert.equal(asked.length, 2, "asked again after the step back");
   assert.equal((r.out.match(/Jazyk \(cs, en, de, pl, …\)/g) ?? []).length, 2, "0 went back to the language");
   const root = w.treeDir("Dvořákovi");
@@ -544,7 +544,7 @@ test("installed by the app's line in one variable (STROM_FROM): the tree's name 
   w.env.STROM_APP_DIRS = browsers(w, "Google Chrome.app", "Microsoft Edge.app");
   w.env.STROM_FROM = `1|${TOKEN}|edge||beta|Dvořákovi O'Neill`;
   const r = await w.run([], { tty: true, answers: ["n", "n", "", "", ""] });
-  assert.match(r.out, /Název výzkumu \(rodina, např\. Novákovi\) \[Dvořákovi O'Neill\]/);
+  assert.match(r.out, /Název výzkumu \(rodina, např\. Novákovi\) \(Enter = Dvořákovi O'Neill\)/);
   assert.match(r.out, /https:\/\/beta\.stromapp\.info\/run\/\?adopt=/);
   const cfg = readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   assert.equal(cfg.appBrowser, "edge");
@@ -595,7 +595,7 @@ test("a tree with no people yet is handed over (C1: installed from the app's sta
   const other = w.treeDir("Novákovi");
   w.env.STROM_ADOPT_WAIT_MS = "1500";
   const offered = await w.run(["link", "open", `strom-research://new?app=${TOKEN.replace(/.$/, "3")}`], { tty: true, answers: ["2", "Novákovi", "", "n", ""] });
-  assert.match(offered.out, /1\s+„Dvořákovi“ v aplikaci Strom \(Archiv Stromu\)\n\s+2\s+Nový výzkum se stromem z aplikace\n/);
+  assert.match(offered.out, /\[1\]\s+„Dvořákovi“ v aplikaci Strom \(Archiv Stromu\)\n\s+\[2\]\s+Nový výzkum se stromem z aplikace\n/);
   await w.run(["live", "stop"], { cwd: other });
   w.env.STROM_ADOPT_WAIT_MS = "60000";
   const flow = w.run(["link", "open", `strom-research://new?app=${TOKEN.replace(/.$/, "2")}`], { tty: true, answers: ["2", "", "n", ""] });

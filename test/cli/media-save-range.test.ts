@@ -330,14 +330,14 @@ test("the menu (a link of the app to an archive's question): the range offered o
     const open = (host: string, answers: string[], o: { tty?: boolean; env?: Record<string, string> } = {}) =>
       w.run(["link", "open", `strom-research://archive?tree=${id}&host=${host}`], { tty: o.tty ?? true, answers, env: { ...env, ...o.env } });
     const kept = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "archives.json")).archives as Record<string, { way?: string; range?: { by: string } }>;
-    const question = (out: string) => /jak získávat snímky\?\n((?: {3}\d {2}[^\n]*\n)+)/u.exec(out)?.[1] ?? "";
+    const question = (out: string) => /[Jj]ak získávat snímky\?\n\n?((?: {2}\[\w+\] {2}[^\n]*\n|\n(?= {2}\[0\]))+)/u.exec(out)?.[1] ?? "";
     const RANGE_ON = /Navíc rozsah snímků přes prohlížeč \(nejvýš 5 najednou, jen tento archiv\)/u;
     const RANGE_OFF = /Rozsah snímků přes prohlížeč: vzít zpět – zase po jednom/u;
 
     // no way chosen yet: no range offered; through the browser chosen
     const first = await open(RANGE, ["1", ""]);
     assert.equal(first.code, 0, first.out + first.err);
-    assert.match(question(first.out), / 1 {2}Přes prohlížeč na tomto počítači[^\n]*\n {3}2 {2}Jen ručně[^\n]*\n {3}0 {2}Zpět/u);
+    assert.match(question(first.out), / \[1\] {2}Přes prohlížeč na tomto počítači[^\n]*\n {2}\[2\] {2}Jen ručně[^\n]*\n\n {2}\[0\] {2}Zpět/u);
     assert.doesNotMatch(first.out, RANGE_ON);
     assert.equal(kept()[RANGE]!.way, "browser");
     assert.equal(kept()[RANGE]!.range, undefined, "the way alone gives no range");
@@ -345,13 +345,13 @@ test("the menu (a link of the app to an archive's question): the range offered o
     // through the browser at an archive strom's list gives a range: offered after the ways, chosen
     const on = await open(RANGE, ["4", ""]);
     assert.equal(on.code, 0, on.out + on.err);
-    assert.match(question(on.out), / 3 {2}Zapomenout rozhodnutí[^\n]*\n {3}4 {2}Navíc rozsah snímků přes prohlížeč \(nejvýš 5 najednou, jen tento archiv\)\n {3}0 {2}Zpět/u);
+    assert.match(question(on.out), / \[3\] {2}Zapomenout rozhodnutí[^\n]*\n {2}\[4\] {2}Navíc rozsah snímků přes prohlížeč \(nejvýš 5 najednou, jen tento archiv\)\n\n {2}\[0\] {2}Zpět/u);
     assert.match(on.out, /✓ Archiv Lhota: rozsah snímků přes prohlížeč, nejvýš 5 najednou\. Vzít zpět: strom allow archive archive\.example --range --revoke\./u);
     assert.equal(kept()[RANGE]!.range!.by, "terminal", "the person's, in the terminal");
 
     // the consent valid: taken back offered in its place, and taken back — the way kept
     const look = await open(RANGE, ["0", ""]);
-    assert.match(question(look.out), / 4 {2}Rozsah snímků přes prohlížeč: vzít zpět – zase po jednom\n/u);
+    assert.match(question(look.out), / \[4\] {2}Rozsah snímků přes prohlížeč: vzít zpět – zase po jednom\n/u);
     assert.doesNotMatch(look.out, RANGE_ON);
     assert.equal(kept()[RANGE]!.range!.by, "terminal", "0: nothing changed");
     const off = await open(RANGE, ["4", ""]);
@@ -372,13 +372,13 @@ test("the menu (a link of the app to an archive's question): the range offered o
     await open(PLAIN, ["1", ""]);
     assert.equal(kept()[PLAIN]!.way, "browser");
     const plain = await open(PLAIN, ["0", ""]);
-    assert.match(question(plain.out), / 1 {2}Přes prohlížeč[^\n]*\n {3}2 {2}Jen ručně[^\n]*\n {3}3 {2}Zapomenout rozhodnutí[^\n]*\n {3}0 {2}Zpět/u);
+    assert.match(question(plain.out), / \[1\] {2}Přes prohlížeč[^\n]*\n {2}\[2\] {2}Jen ručně[^\n]*\n {2}\[3\] {2}Zapomenout rozhodnutí[^\n]*\n\n {2}\[0\] {2}Zpět/u);
     assert.doesNotMatch(plain.out, /rozsah snímků/iu);
 
     // the link opened with no terminal (an agent's shell): no question asked there, no consent
     await open(RANGE, ["1", ""]);
     const agent = await open(RANGE, ["4", ""], { tty: false, env: CLAUDE });
-    assert.doesNotMatch(agent.out + agent.err, /jak získávat snímky/u);
+    assert.doesNotMatch(agent.out + agent.err, /[Jj]ak získávat snímky/u);
     assert.equal(kept()[RANGE]!.range, undefined, "no consent from the agent");
     assert.deepEqual(out, [], "nothing left this computer");
   } finally {

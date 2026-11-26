@@ -20,7 +20,7 @@ function installAgent(w: World): void {
 const NAMES = [
   {
     lang: "cs",
-    choice: /^\s+2\s+Jen Archiv Stromu – ukládat data z aplikace Strom$/m,
+    choice: /^\s+\[2\]\s+Jen Archiv Stromu – ukládat data z aplikace Strom$/m,
     now: /^Výzkum je teď Archiv Stromu\. /m,
     is: /^Tento výzkum je Archiv Stromu: data přicházejí z aplikace Strom\./m,
     research: /Jen Archiv Stromu s daty z aplikace Strom: strom mode archive$/m,
@@ -28,7 +28,7 @@ const NAMES = [
   },
   {
     lang: "en",
-    choice: /^\s+2\s+Only a Strom archive — keeping the data from the Strom app$/m,
+    choice: /^\s+\[2\]\s+Only a Strom archive — keeping the data from the Strom app$/m,
     now: /^The research is a Strom archive now\. /m,
     is: /^This research is a Strom archive: the data come from the Strom app\./m,
     research: /Only a Strom archive of the data from the Strom app: strom mode archive$/m,
@@ -36,7 +36,7 @@ const NAMES = [
   },
   {
     lang: "de",
-    choice: /^\s+2\s+Nur ein Strom-Archiv – die Daten aus der Strom-App speichern$/m,
+    choice: /^\s+\[2\]\s+Nur ein Strom-Archiv – die Daten aus der Strom-App speichern$/m,
     now: /^Die Forschung ist jetzt ein Strom-Archiv\. /m,
     is: /^Diese Forschung ist ein Strom-Archiv: die Daten kommen aus der Strom-App\./m,
     research: /Nur ein Strom-Archiv der Daten aus der Strom-App: strom mode archive$/m,

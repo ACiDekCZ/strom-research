@@ -67,10 +67,10 @@ test("the menu: how many of what waits are only here in the terminal and wait fo
   // the menu, What waits (Enter: back), 0 quit
   const r = await w.ok([], { tty: true, answers: ["3", "", "0"] });
   assert.match(r.out, /^Čeká: 4 \(z toho 1 jen tady v terminálu, 1 čeká na odpověď\)$/mu);
-  const screen = r.out.slice(r.out.search(/^Co čeká · /mu));
-  assert.match(screen, /^Co čeká · k vyřízení 3 · čeká na odpověď 1\n/u);
+  const screen = r.out.slice(r.out.search(/^Strom › Co čeká\n/mu));
+  assert.match(screen, /^Strom › Co čeká\n {2}k vyřízení 3 · čeká na odpověď 1\n/u);
   // the terminal's own first, under its heading; the app's after it, under theirs — the numbers go on
-  assert.match(screen, /\n {2}Jen tady v terminálu \(v aplikaci Strom nejsou\) · 1\n 1 {2}K rozhodnutí – rozpory[^\n]*\n {2}I v aplikaci Strom · 2\n 2 {2}MěÚ Třeboň[^\n]*\n 3 {2}Rodina/u);
+  assert.match(screen, /\nJen tady v terminálu \(v aplikaci Strom nejsou\) {2,}1\n *\[1\] {2}K rozhodnutí – rozpory[^\n]*\n\nI v aplikaci Strom {2,}2\n *\[2\] {2}MěÚ Třeboň[^\n]*\n *\[3\] {2}Rodina/u);
   // the plan: the same split
   assert.match((await w.ok(["plan"])).out, /^Čeká: 4 \(z toho 1 jen tady v terminálu, 1 čeká na odpověď\) · v menu: Co čeká$/mu);
   w.cleanup();
@@ -82,9 +82,9 @@ test("the menu: everything that waits the app shows too — the line says what w
   const r = await w.ok([], { tty: true, answers: ["3", "", "0"] });
   // nothing only here, one letter sent: said on its own, so 3 − 1 is the app's number
   assert.match(r.out, /^Čeká: 3 \(z toho 1 čeká na odpověď\)$/mu);
-  const screen = r.out.slice(r.out.search(/^Co čeká · /mu));
+  const screen = r.out.slice(r.out.search(/^Strom › Co čeká\n/mu));
   assert.doesNotMatch(screen, /Jen tady v terminálu|I v aplikaci Strom/u);
-  assert.match(screen, /^ 1 {2}MěÚ Třeboň/mu);
+  assert.match(screen, /^ {2}\[1\] {2}MěÚ Třeboň/mu);
   assert.match((await w.ok(["plan"])).out, /^Čeká: 3 \(z toho 1 čeká na odpověď\) · v menu: Co čeká$/mu);
   w.cleanup();
 });

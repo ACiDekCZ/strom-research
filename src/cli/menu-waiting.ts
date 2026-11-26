@@ -25,6 +25,7 @@ import { decideSent, startDirection } from "./menu-research.ts";
 import { decideArchive, decideFloor, decideMilder, decideTakeover } from "./menu-archives.ts";
 import { askWhy, changeWarning, decisionOnTree, pickClaim, waitingDo } from "./menu-links.ts";
 import { runs, truncate } from "./format.ts";
+import { crumbLine, keyed, line, listLines, shown, type ListRow, type Span } from "./screen.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { Tree } from "../core/tree.ts";
 import type { Conflict, Family, Hypothesis, HypothesisVariant, Media, Person, RecordSet, Research, Source, Task } from "../core/model.ts";
@@ -234,48 +235,55 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
     const present = SECTIONS.filter((s) => counts.get(s));
     const sectionName = (s: WaitSection) => t(`ui.wait.sec.${s}` as UIKey);
 
-    // the heading: how many to do and how many wait for a reply (the app's numbers), the sections with their letters
-    const head =
-      phase === "todo"
-        ? [t("ui.menu.waitlist"), t("ui.wait.todo.n", { n: todo.length }), ...(sent.length ? [t("ui.wait.sent.n", { n: sent.length })] : [])]
-        : [t("ui.wait.sent.title"), String(sent.length), ...(todo.length ? [t("ui.wait.todo.n", { n: todo.length })] : [])];
-    if (filter) head.push(t("ui.wait.filter", { section: sectionName(filter) }));
-    const screen = ["", head.join(" · ")];
-    if (present.length) screen.push(`  ${present.map((s) => `${keys.section[s]} ${sectionName(s)} ${counts.get(s)}`).join(" · ")}`);
-    if (!here.length) screen.push(` ${t("ui.wait.none.todo")}`);
-    const shown = places.slice(from, to);
-    const names = shown.map((p) => `${truncate(p.name, 34)} · ${p.items.length}`);
-    const width = Math.max(0, ...names.map((n) => [...n].length));
-    for (const [k, p] of shown.entries()) {
-      const name = names[k]!;
-      if (split && (k === 0 || shown[k - 1]!.only !== p.only)) {
+    // the way here (the filter its last part), how many to do and how many wait for a reply (the app's numbers), the
+    // kinds with their keys; the places in their parts with their counts in one column; the keys of the page under them
+    const style = ctx.style;
+    const way = [...(ctx.crumbs.length ? ctx.crumbs : ["Strom", t("ui.menu.waitlist")]), ...(phase === "sent" ? [t("ui.wait.sent.title")] : []), ...(filter ? [sectionName(filter)] : [])];
+    const counts2 = phase === "todo" ? [t("ui.wait.todo.n", { n: todo.length }), ...(sent.length ? [t("ui.wait.sent.n", { n: sent.length })] : [])] : [t("ui.wait.sent.n", { n: sent.length }), ...(todo.length ? [t("ui.wait.todo.n", { n: todo.length })] : [])];
+    const screen = ["", crumbLine(way, style), line([{ text: `  ${counts2.join(" · ")}`, role: "text" }], style, 2)];
+    if (present.length) {
+      const label = `  ${t("ui.wait.kinds")}  `;
+      const spans: Span[] = [{ text: label, role: "text" }];
+      for (const [i, sec] of present.entries()) spans.push(...(i ? [{ text: "  ", role: "text" as const }] : []), { text: `[${keys.section[sec]}]`, role: "key" }, { text: ` ${sectionName(sec)} `, role: "text" }, { text: String(counts.get(sec)), role: "value" });
+      screen.push(line(spans, style, shown(label)));
+    }
+    if (!here.length) screen.push(`  ${t("ui.wait.none.todo")}`);
+    screen.push("");
+    const shownPlaces = places.slice(from, to);
+    const parts: { heading?: { text: string; aside?: string; count: string }; rows: ListRow[] }[] = [];
+    for (const [k, p] of shownPlaces.entries()) {
+      if (!parts.length || (split && shownPlaces[k - 1]!.only !== p.only)) {
         const n = places.filter((x) => x.only === p.only).reduce((a, x) => a + x.items.length, 0);
-        screen.push(`  ${t(p.only ? "ui.wait.only.head" : "ui.wait.app.head", { n })}`);
+        parts.push({ ...(split ? { heading: { text: t(p.only ? "ui.wait.only.part" : "ui.wait.app.part"), ...(p.only ? { aside: t("ui.wait.only.aside") } : {}), count: String(n) } } : {}), rows: [] });
       }
-      screen.push(`${String(from + k + 1).padStart(2)}  ${name}${" ".repeat(width - [...name].length)}   ${placeDetail(t, lang, tree, p, phase)}`);
+      parts[parts.length - 1]!.rows.push({ key: String(from + k + 1), name: p.name, count: String(p.items.length), detail: placeDetail(t, lang, tree, p, phase) });
     }
-    // what can be typed here, only what does something now
-    const controls: string[] = [];
+    screen.push(...listLines(parts, style));
+    // what can be typed here, only what does something now: the pages in one line, the rest in another
+    const nav: string[] = [];
     if (places.length > PAGE) {
-      controls.push(view === undefined ? t("ui.wait.c.page", { page: page + 1, pages }) : t("ui.wait.c.shown", { from: from + 1, to, n: places.length }));
+      nav.push(view === undefined ? t("ui.wait.c.page", { page: page + 1, pages }) : t("ui.wait.c.shown", { from: from + 1, to, n: places.length }));
+      nav.push(t("ui.wait.c.next", { key: `[${keys.next}]` }), t("ui.wait.c.prev", { key: `[${keys.prev}]` }), t("ui.wait.c.all", { key: `[${keys.all}]` }));
     }
-    if (places.length) controls.push(t("ui.wait.c.number"));
-    if (places.length > PAGE) controls.push(t("ui.wait.c.next", { key: keys.next }), t("ui.wait.c.prev", { key: keys.prev }), "10-20", t("ui.wait.c.all", { key: keys.all }));
-    if (present.length > 1 || filter) controls.push(t("ui.wait.c.filter", { keys: present.map((s) => keys.section[s]).join("/") }));
+    const more: string[] = [];
     // the books most tasks need: an offer to download them by hand, never counted in what waits
     const books = booksHere(ctx, tree);
-    if (books.length) controls.push(t("ui.wait.c.books", { key: keys.books, n: books.length }));
-    if (phase === "todo" && sent.length) controls.push(t("ui.wait.c.sent"));
-    if (phase === "sent" && todo.length) controls.push(t("ui.wait.c.todo"));
-    controls.push(t(filter ? "ui.wait.c.unfilter" : "ui.wait.c.back"));
-    const controlLine = ` ${controls.join(" · ")}`;
-    screen.push(controlLine);
+    if (books.length) more.push(t("ui.wait.c.books", { key: `[${keys.books}]`, n: books.length }));
+    if (phase === "todo" && sent.length) more.push(t("ui.wait.f.sent", { n: sent.length }));
+    if (phase === "sent" && todo.length) more.push(t("ui.wait.f.todo", { n: todo.length }));
+    more.push(t(filter ? "ui.wait.f.unfilter" : "ui.wait.f.back"));
+    const footer = [
+      ...(nav.length ? [line([...keyed(`  ${nav.join("  ")}`), { text: `  ${t("ui.wait.f.range", { range: "10-20" })}`, role: "dim" }], style, 2)] : []),
+      line(keyed(`  ${more.join("  ")}`), style, 2),
+    ];
+    screen.push("", ...footer, "");
     out(screen.join("\n"));
+    const prompt = t(places.length ? "ui.wait.prompt" : "ui.wait.prompt.none");
 
     // the answer: Enter goes back; anything unknown shows what can be typed again, nothing happens
     for (;;) {
       if (outOfAnswers(ctx)) return;
-      const a = (await ctx.ask(t("ui.choose"))).trim().toLocaleLowerCase(lang);
+      const a = (await ctx.ask(prompt)).trim().toLocaleLowerCase(lang);
       if (a === "") {
         if (phase === "sent") {
           phase = "todo";
@@ -335,7 +343,7 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
         await guarded(ctx, lang, async () => (p.items.length === 1 ? thing(ctx, run, lang, root, p.items[0]!) : place(ctx, run, lang, root, p.key, phase, filter, split ? p.only : undefined)));
         break;
       }
-      out(controlLine);
+      out(footer.join("\n"));
     }
   }
 }

@@ -1,0 +1,80 @@
+Strom výzkum X.Y.Z
+Rodokmen: Lhotákovi · osob: 0
+Tip: výzkum jde prohlížet jako rodokmen v aplikaci Strom a sledovat ho živě, když agent pracuje –
+volba 7.
+
+  [1]  Začít výzkum s agentem
+  [2]  Nechat agenta pracovat samotného
+  [3]  Co čeká
+  [4]  Rozšířit výzkum     podklady, nová linie, revize osoby, úpravy z aplikace Strom
+  [5]  Prohlížet rodokmen  přehled, osoby, předkové, co je nového
+  [6]  Založit rodokmen · poslat nebo přijmout
+  [7]  Aplikace Strom      výzkum jako rodokmen, sledovaný živě
+  [8]  Nastavení           agent, samostatná práce, zprávy, archivy, údržba
+
+  [0]  Konec
+
+Volba (Enter = 1 Začít výzkum s agentem): 
+
+-----
+
+Strom › Nastavení (na tomto počítači)
+
+  [1]  Průvodce nastavením                Jazyk, agent, model, co smí agent sám, příběhy
+  [2]  Samostatná práce agenta            60 min na úkol · podmínka: žádná
+  [3]  Zprávy o tom, co se uloží (hooky)  žádné
+  [4]  Archivy                            přihlášení, souhlas se stahováním
+  [5]  Výzkum, nebo jen Archiv Stromu     výzkum: hledání v matrikách a archivech
+  [6]  Vyladit čtení snímků               výchozí velikosti
+  [7]  Remote Control v aplikaci Claude   vypnuto  rozhovor s agentem i z mobilu  → zapnout
+  [8]  Údržba                             kontrola instalace, místo na disku, opravy, zálohy
+  [9]  Nápověda                           příkazy pro člověka
+
+  [0]  Zpět
+
+Volba (Enter = 0 Zpět): 
+
+-----
+
+Strom › Nastavení › Údržba
+
+  [1]  Kontrola instalace
+  [2]  Místo na disku    strom si vedle výzkumu drží 1 kB
+  [3]  Opravy stromu
+  [5]  Co zálohovat      celou složku výzkumu, nebo zabalit
+  [6]  Nahlásit problém  jeden soubor ZIP k odeslání (nic o lidech z rodokmenu)
+
+  [0]  Zpět
+
+Volba (Enter = 0 Zpět): 
+
+-----
+
+Strom › Nastavení › Archivy
+
+Stahovače archivů na tomto počítači:
+  • Testovací archiv — snímky přímo, strom hlídá tempo; podmínky automatické stahování omezují –
+    snímky jen se svolením
+
+Žádný z nich přihlášení nepotřebuje – archivy jsou volně přístupné. Přihlášení se tu objeví jen u
+stahovače portálu s účtem (třeba placeným).
+  [1]  Stahovače se ptají, než začnou      vypnuto  → zapnout
+  [2]  Prohlížeč pro agenta (Claude in Chrome) · jen pro archivy přes prohlížeč  → v každém sezení
+  [3]  Svolení ke stahování z archivů
+  [4]  Knihy s nejvíc úkoly                nabízet od 5 úkolů, tatáž kniha po sobě vypnuto
+
+  [0]  Zpět
+
+Volba (Enter = 0 Zpět): 
+
+-----
+
+Strom › Nastavení › Archivy › Svolení ke stahování z…
+
+Archivy stahovačů na tomto počítači – co platí pro jejich snímky:
+  [1]  Testovací archiv  podmínky automatické stahování omezují – snímky jen se svolením
+                         archive.example.org
+
+  [0]  Zpět
+
+Volba (Enter = 0 Zpět): 

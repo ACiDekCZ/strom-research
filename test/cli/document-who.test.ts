@@ -233,7 +233,7 @@ test("read.sourceTask: ask — the person at their terminal asked at once (keep:
     // ask (the default), at the person's terminal: asked at once — just keep: kept, asked no more
     const kept = await read("Войтех Лготак, сын Иржи", { tty: true, answers: ["3", ""] });
     assert.match(kept.out, /S0001 přečtený znovu \(D\S+\) se od přepisu liší ve věcných údajích, na kterých se čtenáři shodnou \(1\)/u, kept.out);
-    assert.match(kept.out, / 1  Projít to s agentem teď/u);
+    assert.match(kept.out, /\[1\]  Projít to s agentem teď/u);
     assert.match(kept.out, /✓ Čtení uložené u pramene; už se na něj nebude ptát\./u);
     assert.equal((await readAgain()).state, "saved");
     assert.deepEqual(tasks(), []);

@@ -186,13 +186,13 @@ test("strom fixes run: a few first, their summary and the rest with the estimate
     const olds = Object.fromEntries(stems.map((s) => [s, fs.readFileSync(path.join(w.cwd, "notes", "readings", `${s}-1.md`), "utf8")]));
     // try on 3, then the rest
     const r = await w.ok(["fixes", "run", "blind-reduced", "--agent", "script", "--lang", "en"], { tty: true, answers: ["1", "1"] });
-    assert.match(r.out, /1\s+Try it on the most promising first: 3 readings \(3 places\)/);
+    assert.match(r.out, /\[1\]\s+Try it on the most promising first\s+3 readings \(3 places\)/);
     const results = [...r.out.matchAll(/^Read again: (\d+) readings? \(\d+ places?\) — places the same (\d+), refined (\d+), different (\d+) · \d+ min/gm)];
     assert.equal(results.length, 2, r.out);
     assert.equal(results[0]![1], "3");
     assert.equal(results[1]![1], "1");
     // the rest estimated again by the real time of the first few, each choice with what it would take
-    assert.match(r.out, /^What it would take: cheap · 1 reader call · about 1 min \(by the real time of the readings just done\)\n\nAnd the rest\?\n {3}1 {2}The remaining: 1 reading \(1 place\) — cheap, about 1 min\n/m);
+    assert.match(r.out, /^What it would take: cheap · 1 reader call · about 1 min \(by the real time of the readings just done\)\n\nAnd the rest\?\n {2}\[1\] {2}The remaining {2}1 reading \(1 place\) · cheap, about 1 min\n/m);
     assert.match(r.out, /Set right: nothing of it waits\./);
     // nothing overwritten: the earlier reports as they were, the new ones beside them
     for (const s of stems) assert.equal(fs.readFileSync(path.join(w.cwd, "notes", "readings", `${s}-1.md`), "utf8"), olds[s]);
@@ -239,12 +239,12 @@ test("strom fixes run: places left open read first; nothing disputed nor of the 
     w.env.STROM_RUNNER_SCRIPT = path.join(w.dir, "reader.mjs");
     fs.writeFileSync(w.env.STROM_RUNNER_SCRIPT, READER);
     const r = await w.ok(["fixes", "run", "blind-reduced", "--agent", "script", "--lang", "en"], { tty: true, answers: ["1", "0"] });
-    assert.match(r.out, /1\s+Try it on the most promising first: 3 readings \(3 places\) — cheap, about \d+ min\n\s+2\s+All: 6 readings \(6 places\) — medium, about \d+ min\n\s+3\s+No:/);
+    assert.match(r.out, /\[1\]\s+Try it on the most promising first\s+3 readings \(3 places\) · cheap, about \d+ min\n\s+\[2\]\s+All\s+6 readings \(6 places\) · medium, about \d+ min\n\s+\[3\]\s+No:/);
     assert.match(r.out, /^Read again: 3 readings \(3 places\) — /m);
     // three of the four with places not read were read again; the rest waits
     const fresh = fs.readdirSync(path.join(w.cwd, "notes", "readings")).filter((f) => ![...open, ...whole].some((s) => f.startsWith(s)));
     assert.equal(fresh.length, 3);
-    assert.match(r.out, /1\s+The remaining: 3 readings \(3 places\) — cheap, about \d+ min/);
+    assert.match(r.out, /\[1\]\s+The remaining\s+3 readings \(3 places\) · cheap, about \d+ min/);
     const left = (await w.ok(["fixes", "--json"])).json.checks[0];
     assert.deepEqual(left.items.map((i: { reading: string }) => i.reading).sort(), [open[3], ...whole].sort());
   } finally {

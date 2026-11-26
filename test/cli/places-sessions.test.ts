@@ -111,9 +111,9 @@ test("the link places with more batches: how many sessions now, each with its es
     await w.ok(["place", "queue", "--all"]);
     const none = await w.run(["link", "open", link], { tty: true, answers: ["a", "0"] });
     assert.match(none.out, /Kolik sezení spustit teď\? Celá fronta je 2 sezení; zbylá místa zůstanou ve frontě první pro další běhy\./u, none.out);
-    assert.match(none.out, /^ {3}1 {2}1 sezení – zhruba 8–15 minut$/mu, none.out);
-    assert.match(none.out, /^ {3}2 {2}celá fronta, 2 sezení – zhruba 16–30 minut$/mu, none.out);
-    assert.match(none.out, /^ {3}0 {2}teď žádné – ztotožnění zůstane ve frontě první$/mu, none.out);
+    assert.match(none.out, /^ {2}\[1\] {2}1 sezení – zhruba 8–15 minut$/mu, none.out);
+    assert.match(none.out, /^ {2}\[2\] {2}celá fronta, 2 sezení – zhruba 16–30 minut$/mu, none.out);
+    assert.match(none.out, /^ {2}\[0\] {2}teď žádné – ztotožnění zůstane ve frontě první$/mu, none.out);
     assert.match(none.out, /Sezení nespuštěná teď přijdou s dalšími běhy výzkumu/u);
     assert.doesNotMatch(none.out, /Spustit jedno sezení hned\?/u, "more batches: how many, not yes or no");
     assert.doesNotMatch(none.out, /\b(vy|váš|vaše|ty|tvůj)\b/iu);
@@ -154,7 +154,7 @@ test("the link places under run.confirm no (spec 123): one batch started at once
     await one.ok(["place", "queue", "--all"]);
     // ask (the default): both questions as before, Enter at the second starts nothing
     const asked = await one.run(["link", "open", link], { tty: true, answers: ["a", ""] });
-    assert.match(asked.out, /Pokračovat\? \(a\/n\) \[n\][\s\S]*Spustit jedno sezení hned\? \(a\/n\) \[n\]/u, asked.out);
+    assert.match(asked.out, /Pokračovat\? \(a\/n, Enter = n\)[\s\S]*Spustit jedno sezení hned\? \(a\/n, Enter = n\)/u, asked.out);
     assert.doesNotMatch(asked.out, /bez potvrzení/u);
     assert.equal(sessions(one), 0);
     // the person's run.confirm no: the line says it starts, and it does — no question at all

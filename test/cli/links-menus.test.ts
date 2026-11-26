@@ -39,7 +39,7 @@ test("the second wave in the research's terminal: a task put aside, given up and
   await w.ok(["source", "add", "Úmrtí Jana", "--kind", "death"]);
   await w.ok(["conflict", "add", "Rok narození Jana", "--about", "P0001", "--fact", "BIRT", "--claim", "S0001: 1865", "--claim", "S0002: 70 let při úmrtí 1937"]);
   const decided = await open("conflict", "&id=X0001", ["a", "1", "Křest je zapsán hned po narození", ""]);
-  assert.match(decided.out, /1 {2}1865 — Křest Jana/);
+  assert.match(decided.out, /\[1\] {2}1865 — Křest Jana/);
   const x = (await w.ok(["conflict", "show", "X0001", "--json"])).json.conflict;
   assert.equal(x.state, "resolved");
   assert.equal(x.resolution, "1865 (S0001)");
@@ -95,7 +95,7 @@ test("the second wave in the research's terminal: a task put aside, given up and
   const sent = (await w.ok(["sync", file, "--apply", "--force", "--json"])).json.input as string;
   const asked = await open("sync-undo", `&intake=${sent}`, [""]);
   assert.match(asked.out, /vrátit, co výzkum převzal z aplikace Strom \d+\. \d+\. \d{2}:\d{2}:\nVýzkum: Novákovi\n {2}.*Bohumil Dvořák/, asked.out);
-  assert.match(asked.out, /Pokračovat\? \(a\/n\) \[n\]/, asked.out);
+  assert.match(asked.out, /Pokračovat\? \(a\/n, Enter = n\)/, asked.out);
   assert.ok((await w.ok(["person", "list", "--json"])).json.persons.some((p: { name: string }) => /Bohumil/.test(p.name)), "Enter takes nothing back");
   await open("sync-undo", `&intake=${sent}`, ["a", ""]);
   assert.ok(!(await w.ok(["person", "list", "--json"])).json.persons.some((p: { name: string }) => /Bohumil/.test(p.name)));
@@ -297,7 +297,7 @@ test("installed from the Strom app where strom was set up long ago (its settings
     const r = await flow;
     assert.match(r.out, /zástupce|shortcut/i, "the shortcut offered");
     assert.match(r.out, /Dovolit aplikaci Strom spouštět výzkum na tomto počítači\?/, "the links offered: none lead here");
-    assert.match(r.out, /Název výzkumu \(rodina, např\. Novákovi\) \[Test Win\]/);
+    assert.match(r.out, /Název výzkumu \(rodina, např\. Novákovi\) \(Enter = Test Win\)/);
     const config = readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
     assert.equal(config.stromAppUrl, "https://beta.stromapp.info/run/", "the beta: the copy strom opens from now on");
     assert.equal(config.stromApp, "yes");
@@ -415,14 +415,14 @@ test("strom-research://new with family trees here already (an empty Strom app): 
   // 0: nothing set up, nothing opened
   const no = await w.run(["link", "open", link], { tty: true, answers: ["0", ""] });
   assert.match(no.out, /Aplikace Strom chce začít výzkum s jedním svým rodokmenem\.\n\nNa tomto počítači už rodokmeny jsou\. Otevřít některý z nich v aplikaci Strom, nebo začít nový výzkum se stromem z aplikace\?\n/);
-  assert.match(no.out, /\d\s+„Archiv“ v aplikaci Strom \(Archiv Stromu\)\n/);
-  assert.match(no.out, /\d\s+„Svobodovi“ v aplikaci Strom \(Archiv Stromu\)\n/, "a research waiting for its agent: an archive");
-  assert.match(no.out, /\d\s+„Novákovi“ v aplikaci Strom \(výzkum\)\n/);
-  assert.match(no.out, /4\s+Nový výzkum se stromem z aplikace\n\s+0\s+Zrušit/);
+  assert.match(no.out, /\[\d\]\s+„Archiv“ v aplikaci Strom \(Archiv Stromu\)\n/);
+  assert.match(no.out, /\[\d\]\s+„Svobodovi“ v aplikaci Strom \(Archiv Stromu\)\n/, "a research waiting for its agent: an archive");
+  assert.match(no.out, /\[\d\]\s+„Novákovi“ v aplikaci Strom \(výzkum\)\n/);
+  assert.match(no.out, /\[4\]\s+Nový výzkum se stromem z aplikace\n\s+\[0\]\s+Zrušit/);
   assert.doesNotMatch(no.out, /„Dvořákovi“ v aplikaci/, "nobody in it: not offered");
   assert.doesNotMatch(no.out, /Název výzkumu/);
   assert.deepEqual(await names(), ["Archiv", "Dvořákovi", "Novákovi", "Svobodovi"]);
-  const key = (name: string) => new RegExp(`(\\d)\\s+„${name}“ v aplikaci Strom`, "u").exec(no.out)![1]!;
+  const key = (name: string) => new RegExp(`\\[(\\d)\\]\\s+„${name}“ v aplikaci Strom`, "u").exec(no.out)![1]!;
   // a new research: the handover goes on as before (its name asked; 0 there ends it)
   const fresh = await w.run(["link", "open", link], { tty: true, answers: ["4", "0", ""] });
   assert.match(fresh.out, /Název výzkumu/);

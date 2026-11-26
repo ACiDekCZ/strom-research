@@ -7,6 +7,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.38.0
 
+- **Ein übersichtlicheres Menü im Terminal:** jeder Bildschirm sagt, wo er ist (Strom › Einstellungen › Wartung), die
+  Auswahlen als `[1]  Bezeichnung   Stand`, ein Schalter mit seinem jetzigen Stand und wohin er umschaltet, zurück immer zuletzt als `[0]`, die Eingabezeile sagt, was Enter tut, und
+  ein Befehl zum Abschreiben steht in einer eigenen Zeile; in einem Terminal, das es kann, sind Tasten und Befehle
+  hervorgehoben.
 - **Einstellungen der Forschung im Verlauf in Worten:** eine in der App oder im Menü geänderte Einstellung erscheint
   in den letzten Änderungen mit Namen und Wert in der Sprache der Forschung („In der Forschung ausgeschaltet: Rückfrage
   vor dem Sortieren des Materials“), nicht mehr als Schlüssel (`sort.confirm`).

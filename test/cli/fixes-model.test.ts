@@ -174,8 +174,8 @@ test("strom fixes run new-model: a reading read again with the model now beside 
     // a person: all of it (one)
     // who reads: the one now first, said to have read them before; another agent here recommended
     const r = await w.ok(["fixes", "run", "new-model", "--lang", "en"], { tty: true, answers: ["1", "1"] });
-    assert.match(r.out, /^Read with\?\n {3}1 {2}script · m-new — cheap, about 1 min · read these before\n {3}2 {2}Claude Code · [^\n]* · recommended: another than read before\n/m);
-    assert.match(r.out, /^Choose \[2\]/m);
+    assert.match(r.out, /^Read with\?\n {2}\[1\] {2}script · m-new +cheap, about 1 min {2}read these before\n {2}\[2\] {2}Claude Code · [^\n]* {2}recommended: another than read before\n/m);
+    assert.match(r.out, /^Choice \(Enter = 2[^)]*\):/m);
     assert.match(r.out, /^Earlier readings were made by .*m-old \(1 reading\); now .*m-new reads\. /m);
     assert.match(r.out, /^Read again: 1 reading \(1 place\) — places the same 0, refined 1, different 0 · \d+ min/m);
     assert.match(r.out, /Set right: nothing of it waits\./);
@@ -372,14 +372,14 @@ test("strom fixes run: a trial and --first take whole readings — all the image
     const fresh = () => fs.readdirSync(dir).filter((f) => f.endsWith(".md") && !f.startsWith(three) && !f.startsWith(one));
     // --first 1: the most promising reading whole, nothing else offered
     const first = await w.ok(["fixes", "run", "new-model", "--agent", "script", "--first", "1", "--lang", "en"], { tty: true, answers: [""] });
-    assert.match(first.out, /1\s+All: 1 reading \(3 places\) — cheap, about \d+ min\n\s+2\s+No:/);
+    assert.match(first.out, /\[1\]\s+All\s+1 reading \(3 places\) · cheap, about \d+ min\n\s+\[2\]\s+No:/);
     assert.equal(fresh().length, 0);
     // a trial of one: the reading of three images whole, as one reading again
     const r = await w.ok(["fixes", "run", "new-model", "--agent", "script", "--try", "1", "--lang", "en"], { tty: true, answers: ["1", "0"] });
-    assert.match(r.out, /1\s+Try it on the most promising first: 1 reading \(3 places\) — cheap, about \d+ min\n\s+2\s+All: 2 readings \(4 places\) — cheap, about \d+ min/);
+    assert.match(r.out, /\[1\]\s+Try it on the most promising first\s+1 reading \(3 places\) · cheap, about \d+ min\n\s+\[2\]\s+All\s+2 readings \(4 places\) · cheap, about \d+ min/);
     assert.match(r.out, /^Reading again 1\/1: M0001 \(B0001:1\), M0002 \(B0001:2\) … \(3\)/m);
     assert.match(r.out, /^Read again: 1 reading \(3 places\) — places the same 0, refined \d, different \d · /m);
-    assert.match(r.out, /1\s+The remaining: 1 reading \(1 place\) — cheap/);
+    assert.match(r.out, /\[1\]\s+The remaining\s+1 reading \(1 place\) · cheap/);
     assert.equal(fresh().length, 1, fresh().join(", "));
     assert.equal(fs.readFileSync(path.join(dir, fresh()[0]!), "utf8").match(/^## Image /gm)?.length, 3);
     // nothing of the reading read again waits (its M0001 now read by the model now, so the other one neither)
@@ -410,9 +410,9 @@ test("strom fixes new-model: by stage — the disputed alone offered first, said
     w.env.STROM_RUNNER_SCRIPT = path.join(w.dir, "reader.mjs");
     fs.writeFileSync(w.env.STROM_RUNNER_SCRIPT, READER);
     const r = await w.ok(["fixes", "run", "new-model", "--agent", "script", "--try", "1", "--lang", "en"], { tty: true, answers: ["2", "0"] });
-    assert.match(r.out, /1\s+Try it on the most promising first: 1 reading \(1 place\)[^\n]*\n\s+2\s+The disputed alone: 2 readings \(2 places\)[^\n]*\n\s+3\s+All: 4 readings \(4 places\)[^\n]*\n\s+4\s+No:/);
+    assert.match(r.out, /\[1\]\s+Try it on the most promising first\s+1 reading \(1 place\)[^\n]*\n\s+\[2\]\s+The disputed alone\s+2 readings \(2 places\)[^\n]*\n\s+\[3\]\s+All\s+4 readings \(4 places\)[^\n]*\n\s+\[4\]\s+No:/);
     assert.match(r.out, /^Read again: 2 readings \(2 places\) — /m);
-    assert.match(r.out, /1\s+More first: 1 reading \(1 place\)[^\n]*\n\s+2\s+The remaining: 2 readings \(2 places\)/);
+    assert.match(r.out, /\[1\]\s+More first\s+1 reading \(1 place\)[^\n]*\n\s+\[2\]\s+The remaining\s+2 readings \(2 places\)/);
     const left = (await w.ok(["fixes", "--json"])).json.checks.find((x: { id: string }) => x.id === "new-model");
     assert.deepEqual(left.items.map((i: { reading: string }) => i.reading).sort(), [o1, o2].sort());
   } finally {

@@ -8,7 +8,8 @@
 import type { Context } from "./context.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { secondsIn } from "./format.ts";
-import { claudeHere, pause, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
+import { claudeHere, LABEL_MAX, pause, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
+import { shortLabel } from "./screen.ts";
 import { humanDay } from "./human.ts";
 import { Tree } from "../core/tree.ts";
 import { isArchive } from "../core/mode.ts";
@@ -285,7 +286,10 @@ export async function archivePermissions(ctx: Context, run: Run, lang: string, r
       const title = c.manifest.title ?? c.name;
       return {
         key: String(k + 1),
-        label: `${title} (${hosts.join(", ")}) – ${same ? (states[0]?.text ?? "") : states.map((x) => `${x.host}: ${x.text}`).join(" · ")}`,
+        // the archive's name in its column, what holds for its images as its value, its hosts faintly after it
+        label: shortLabel(title, LABEL_MAX),
+        value: same ? (states[0]?.text ?? "") : states.map((x) => `${x.host}: ${x.text}`).join(" · "),
+        extra: same ? hosts.join(", ") : undefined,
         act: async () => {
           // the same on every host: decided for the archive at once; else for the host the person picks
           if (same || hosts.length === 1) {

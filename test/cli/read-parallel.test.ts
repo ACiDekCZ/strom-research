@@ -52,7 +52,7 @@ test("read.parallel: 5 by default, the user's, the tree's over it, --parallel ov
 
   // shown where settings are looked for, with its default
   assert.equal((await w.ok(["config", "get", "read.parallel", "--json"])).json.value, 5);
-  assert.match((await w.ok(["config", "where"])).out, /^read\.parallel\s+5\s+default/m);
+  assert.match((await w.ok(["config", "where"])).out, /^read\.parallel\s+\[5\]\s+default/m);
   assert.match((await w.ok(["help", "read"])).out, /--parallel <n>\s+readers at the same time, 1 to 10 \(default 5, or the setting read\.parallel/);
   assert.equal(await read(), 4, "four images, five readers at most: all four at once");
 

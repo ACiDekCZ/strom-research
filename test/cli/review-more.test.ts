@@ -258,7 +258,7 @@ test("the menu, working alone: the next tasks listed, the time limit said; the q
   const other = enterWorker(w.cwd, "run-elsewhere", "Claude Code on its own");
   const warned = await w.ok([], { tty: true, answers: ["2", "", "0"] });
   other();
-  assert.match(warned.out, /⚠ Agent už tu pracuje sám \(běhy: 1\)\. Další vedle něj si vezme jiné úkoly – čerpání předplatného se sčítá\.\nSpustit další vedle něj\? \(a\/n\) \[n\]/);
+  assert.match(warned.out, /⚠ Agent už tu pracuje sám \(běhy: 1\)\. Další vedle něj si vezme jiné úkoly – čerpání předplatného se sčítá\.\nSpustit další vedle něj\? \(a\/n, Enter = n\)/);
   assert.doesNotMatch(warned.out, /Na řadě jsou tyto úkoly/, "no further questions");
   assert.ok(!fs.existsSync(path.join(w.cwd, "data", "sessions", "N0003.json")));
   w.cleanup();

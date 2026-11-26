@@ -263,8 +263,8 @@ test("P2 in the terminal (What waits): both sides by their devices, the later on
     assert.match(r.out, /^ úprava z Chrome · Mac × úprava z Edge · Windows$/m, r.out);
     assert.match(r.out, /^ {4}úprava z Edge · Windows: 1904, Lhota$/m, r.out);
     assert.match(r.out, /^ {4}úprava z Chrome · Mac: 1906, Lhota$/m, r.out);
-    assert.match(r.out, /^ {3}1 {2}Ponechat úpravu z Edge · Windows$/m, r.out);
-    assert.match(r.out, /^ {3}2 {2}Ponechat úpravu z Chrome · Mac$/m, r.out);
+    assert.match(r.out, /^ {2}\[1\] {2}Ponechat úpravu z Edge · Windows$/m, r.out);
+    assert.match(r.out, /^ {2}\[2\] {2}Ponechat úpravu z Chrome · Mac$/m, r.out);
     assert.deepEqual(await birth(w), { date: "1904", place: "Lhota" });
   } finally {
     w.cleanup();

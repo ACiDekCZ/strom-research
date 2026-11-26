@@ -193,7 +193,7 @@ test("at a person's terminal each question is asked in turn: Enter takes the rec
   assert.equal((await w.ok(["--json"], { env: { CLAUDECODE: "1" } })).json.tune.questions, 2);
   // the menu: What waits counts them and answers one (its place · the first · Enter: the recommended), then back
   const menu = await w.ok(["menu"], { tty: true, answers: ["3", "1", "1", "", "0", "0", "0"] });
-  assert.match(menu.out, /Co čeká \(2\)/, menu.out);
+  assert.match(menu.out, /Co čeká +2/, menu.out);
   assert.match(menu.out, /Otázka ke čtení snímků: /, menu.out);
   assert.match(menu.out, /✓ Odpověď uložena: /, menu.out);
   const kept = readJsonFile(path.join(w.cwd, ".strom", "tune", "answers.json"))[KEY];

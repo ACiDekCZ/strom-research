@@ -7,6 +7,9 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.38.0
 
+- **Přehlednější menu v terminálu:** každá obrazovka říká, kde je (Strom › Nastavení › Údržba), volby jako
+  `[1]  Popisek   stav`, přepínač s tím, jak je teď a na co přepne, zpět vždy poslední jako `[0]`, výzva říká, co udělá Enter, a příkaz k opsání stojí na
+  vlastním řádku; v terminálu, který to umí, jsou klávesy a příkazy zvýrazněné.
 - **Nastavení výzkumu v historii slovy:** nastavení změněné z aplikace nebo z menu se v posledních změnách ukáže
   názvem a hodnotou v jazyce výzkumu („Vypnuto ve výzkumu: Dotaz před tříděním materiálu“), už ne jako klíč
   (`sort.confirm`).

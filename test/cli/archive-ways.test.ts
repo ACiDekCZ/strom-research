@@ -38,10 +38,10 @@ async function offered(w: World, env: Record<string, string>): Promise<{ fetch: 
   const list = (await w.ok(["allow", "archive"], { env })).out;
   const waits = await w.run([], { tty: true, answers: ["3", "1", "0", "0", "0"], env });
   const look = await w.run([], { tty: true, answers: ["8", "4", "0", "0", "0"], env });
-  const key = /(\d) {2}Svolení ke stahování z archivů/.exec(look.out)?.[1];
+  const key = /\[(\d+)\] {2}Svolení ke stahování z archivů/.exec(look.out)?.[1];
   assert.ok(key, look.out);
   const settings = await w.run([], { tty: true, answers: ["8", "4", key!, "1", "0", "0", "0", "0", "0"], env });
-  const question = (out: string) => /jak získávat snímky\?\n((?: {3}\d {2}[^\n]*\n)+)/.exec(out)?.[1] ?? "";
+  const question = (out: string) => /[Jj]ak získávat snímky\?\n\n?((?: {2}\[\d\] {2}[^\n]*\n)+)/.exec(out)?.[1] ?? "";
   return { fetch: question(r.out), hint: /--way \S+/.exec(r.err)?.[0] ?? "", list: /--way \S+/.exec(list)?.[0] ?? "", waits: question(waits.out), settings: question(settings.out) };
 }
 
@@ -67,7 +67,7 @@ test("a downloader that can go through the browser: the browser offered everywhe
   try {
     const o = await offered(w, env);
     for (const [where, text] of Object.entries({ fetch: o.fetch, waits: o.waits, settings: o.settings })) {
-      assert.match(text, / 1 {2}Pomalu, lidským tempem[^\n]*\n {3}2 {2}Přes prohlížeč na tomto počítači[^\n]*\n {3}3 {2}Jen ručně/, where);
+      assert.match(text, / \[1\] {2}Pomalu, lidským tempem[^\n]*\n {2}\[2\] {2}Přes prohlížeč na tomto počítači[^\n]*\n {2}\[3\] {2}Jen ručně/, where);
     }
     assert.equal(o.hint, "--way slow|browser|manual");
     assert.equal(o.list, o.hint, "strom allow archive's list offers what the fetch offers");

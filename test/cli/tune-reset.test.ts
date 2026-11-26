@@ -140,7 +140,7 @@ test("listed first, returned only on a person's yes; --only, --recordset, --host
   // the person's terminal, Enter: no
   const enter = await w.run(["media", "calibrate", "--reset", "--only", "fetch"], { tty: true, answers: [""] });
   assert.equal(enter.code, 0, enter.err);
-  assert.match(enter.out, /Vrátit výchozí nastavení čtení snímků\? Vrátí se: žádné výřezy \(B0001\), napřed celé snímky \(archiv\.příklad\.example\) \(a\/n\) \[n\]/);
+  assert.match(enter.out, /Vrátit výchozí nastavení čtení snímků\? Vrátí se: žádné výřezy \(B0001\), napřed celé snímky \(archiv\.příklad\.example\) \(a\/n, Enter = n\)/);
   assert.match(enter.out, /Nic se nevrátilo; nastavení zůstává, jak bylo\./);
   unchanged();
 

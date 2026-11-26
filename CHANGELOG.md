@@ -7,6 +7,9 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.38.0
 
+- **A clearer menu in the terminal:** every screen says where it is (Strom › Settings › Maintenance), its options as
+  `[1]  Label   state`, a switch with how it is now and what it switches to, back last as `[0]`, the prompt says what Enter does, and a command to type stands on a line of
+  its own; on a terminal that can, keys and commands are highlighted.
 - **A research's settings said in words in its history:** a setting changed from the app or the menu shows in the
   recent changes by its name and value in the research's language ("Turned off in the research: Question before the
   material is sorted"), no longer as its key (`sort.confirm`).

@@ -7,6 +7,9 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.38.0
 
+- **Bardziej przejrzyste menu w terminalu:** każdy ekran mówi, gdzie jest (Strom › Ustawienia › Konserwacja),
+  opcje jako `[1]  Etykieta   stan`, przełącznik z tym, jak jest teraz i na co przełącza, powrót zawsze na końcu jako `[0]`, wiersz wyboru mówi, co robi Enter, a
+  polecenie do przepisania stoi w osobnym wierszu; w terminalu, który to potrafi, klawisze i polecenia są wyróżnione.
 - **Ustawienia badania w historii słowami:** ustawienie zmienione w aplikacji lub w menu pokazuje się w ostatnich
   zmianach nazwą i wartością w języku badania („Wyłączono w badaniu: Pytanie przed sortowaniem materiałów”), już nie
   jako klucz (`sort.confirm`).

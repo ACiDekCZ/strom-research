@@ -197,7 +197,7 @@ test("the menu: the directions numbered in the order of work; one moved up, one 
   try {
     // 4 add to the research · 5 the directions · 2 the second · 3 up · 0 back · 0 the end
     const up = await w.ok([], { tty: true, answers: ["4", "5", "2", "3", "0", "0"] });
-    assert.match(up.out, /1 {2}Předci Žofie – běží · úkoly: 1\n +2 {2}Předci Václava/);
+    assert.match(up.out, /\[1\] {2}Předci Žofie – běží · úkoly: 1\n +\[2\] {2}Předci Václava/);
     assert.match(up.out, /„Předci Václava“ je teď 1\. z 3 v pořadí práce\./);
     assert.deepEqual(await listed(w), [["G0002", 1], ["G0001", 2], ["G0003", 3]]);
     // 6 edit · 1 the name (decomposed, kept composed)

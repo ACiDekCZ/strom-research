@@ -379,15 +379,15 @@ test("the menu's What waits: return to the agent — one thing with its images a
   try {
     // What waits (3) → the archive's place (1) → its first thing, T1 (1) → return to the agent (5) → back, back, end
     const one = (await w.ok([], { tty: true, answers: ["3", "1", "1", "5", "0", "0", "0"] })).out;
-    assert.match(one, /\n {3}5 {2}Vrátit agentovi vše \(3 úkoly, 4 snímky\)\n {3}0 {2}Zpět/u, "the place: all at once, last");
+    assert.match(one, /\n {2}\[5\] {2}Vrátit agentovi vše \(3 úkoly, 4 snímky\)\n\n {2}\[0\] {2}Zpět/u, "the place: all at once, last");
     assert.match(one, /teď: prohlížeč agenta k Archiv Lhota teď dosáhne – snímky uloží sám\n/u);
-    assert.match(one, /\n {3}4 {2}Rozhovor s agentem\n {3}5 {2}Vrátit agentovi \(3 snímky\)\n {3}0 {2}Zpět/u, "the thing: last");
+    assert.match(one, /\n {2}\[4\] {2}Rozhovor s agentem\n {2}\[5\] {2}Vrátit agentovi \(3 snímky\)\n\n {2}\[0\] {2}Zpět/u, "the thing: last");
     assert.match(one, /✓ Vráceno agentovi, na řadě hned: vezme si ho běžící výzkum, jinak příští spuštění\./u);
     const t1 = await task(w, "T1");
     assert.deepEqual([t1.state, t1.retried?.by, t1.retried?.givenIn, t1.queueAt?.do], ["open", "user", undefined, "next"]);
     // the place's two left, at once: T3 (the screen) and T4 (held back) — one command, in What waits' order
     const all = (await w.ok([], { tty: true, answers: ["3", "1", "4", "0", "0"] })).out;
-    assert.match(all, /\n {3}4 {2}Vrátit agentovi vše \(2 úkoly, 1 snímek\)\n/u);
+    assert.match(all, /\n {2}\[4\] {2}Vrátit agentovi vše \(2 úkoly, 1 snímek\)\n/u);
     assert.match(all, /✓ Vráceno agentovi, na řadě hned: T0003, T0004/u);
     for (const id of ["T3", "T4"]) assert.equal((await task(w, id)).state, "open");
     assert.equal((await task(w, "T5")).state, "waiting", "never one not offered");

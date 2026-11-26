@@ -381,10 +381,10 @@ test("Settings → Archives: an archive whose server refused strom's client says
     assert.equal(state(w).refusedKind, "client");
     const look = await w.run([], { tty: true, answers: ["8", "4", "0", "0", "0"] });
     assert.match(look.out, /• Testovací archiv — [^\n]*server odmítl automatický přístup stromu – snímky ručně/);
-    const key = /(\d) {2}Svolení ke stahování z archivů/.exec(look.out)?.[1];
+    const key = /\[(\d+)\] {2}Svolení ke stahování z archivů/.exec(look.out)?.[1];
     assert.ok(key, look.out);
     const one = await w.run([], { tty: true, answers: ["8", "4", key!, "1", "", "0", "0", "0", "0"] });
-    assert.match(one.out, /1 {2}Testovací archiv \(127\.0\.0\.1\) – server odmítl automatický přístup stromu – snímky ručně/);
+    assert.match(one.out, /\[1\] {2}Testovací archiv {2}server odmítl automatický přístup stromu – snímky ručně {2}127\.0\.0\.1/);
     assert.match(one.out, /Testovací archiv: server 127\.0\.0\.1 odmítl automatický přístup stromu \(od [^)]+\) – je to odpověď serveru, ne podmínky archivu\. Snímky ručně; odmítnutí zruší jen člověk: strom allow host 127\.0\.0\.1 --unblock/);
     assert.doesNotMatch(one.out, /\(podmínky\)|--level restricted/);
     // strom consents says it too: the server's answer, how it is lifted

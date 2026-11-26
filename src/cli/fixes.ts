@@ -72,7 +72,7 @@ export async function offerAgent(ctx: Context, out: (line: string) => void): Pro
     out(ui(lang, "ui.setup.agent.manual", { url: researchUrl(lang, "agents") }));
     return;
   }
-  const how = await ctx.choose(ui(lang, "ui.choose"), [{ label: ui(lang, "ui.setup.agent.install") }, { label: ui(lang, "ui.setup.agent.guide") }, { label: ui(lang, "ui.setup.agent.archive") }], 0);
+  const how = await ctx.choose("", [{ label: ui(lang, "ui.setup.agent.install") }, { label: ui(lang, "ui.setup.agent.guide") }, { label: ui(lang, "ui.setup.agent.archive") }], 0);
   if (how === 0) {
     runInstaller(claudeInstaller(), ctx.env);
     if (agentsHere(ctx.env).some((a) => a.id === "claude")) out(ui(lang, "ui.setup.agent.login"));
@@ -109,7 +109,7 @@ export async function offerAgentCli(ctx: Context, out: (line: string) => void, a
     how();
     return false;
   }
-  const i = await ctx.choose(ui(lang, "ui.choose"), choices, 0, { back: ui(lang, "ui.setup.cli.later") });
+  const i = await ctx.choose("", choices, 0, { back: ui(lang, "ui.setup.cli.later") });
   if (i === undefined) return false;
   if (!ours || i > 0) {
     await opts.chat!();

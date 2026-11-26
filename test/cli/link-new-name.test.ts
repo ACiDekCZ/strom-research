@@ -52,10 +52,10 @@ test("strom-research://new&name= in the terminal: the app's name suggested (Ente
   await w.ok(["setup", "--yes"]);
   // the name: Enter (suggested), the language: 0 back, the name: 0 — nothing made
   const named = await w.run(["link", "open", `strom-research://new?app=${token}&name=Rodina%20Lhot%C3%A1k%C5%AF%20(kopie)`], { tty: true, answers: ["", "0", "0", ""] });
-  assert.match(named.out, /Název výzkumu \(rodina, např\. Novákovi\) \[Rodina Lhotáků \(kopie\)\]/u);
+  assert.match(named.out, /Název výzkumu \(rodina, např\. Novákovi\) \(Enter = Rodina Lhotáků \(kopie\)\)/u);
   assert.equal(fs.existsSync(w.treeDir("Rodina Lhotáků (kopie)")), false, "nothing made before the person goes on");
   const plain = await w.run(["link", "open", `strom-research://new?app=${token}`], { tty: true, answers: ["0", ""] });
   assert.doesNotMatch(plain.out, /Lhotáků/u);
-  assert.match(plain.out, /Název výzkumu \(rodina, např\. Novákovi\) \[/u);
+  assert.match(plain.out, /Název výzkumu \(rodina, např\. Novákovi\) \(Enter = /u);
   w.cleanup();
 });

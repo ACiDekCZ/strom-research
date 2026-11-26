@@ -390,7 +390,7 @@ test("the link house?do=search under the person's run.confirm no (spec 030 K6.3a
   await w.ok(["config", "unset", "run.confirm"]);
   const tasks = houseTasks().length;
   const asked = await link("bělokamen|16".normalize("NFD"), ["", ""]);
-  assert.match(asked.out, /Pokračovat\? \(a\/n\) \[n\]/u, asked.out);
+  assert.match(asked.out, /Pokračovat\? \(a\/n, Enter = n\)/u, asked.out);
   assert.doesNotMatch(asked.out, /bez potvrzení/u, asked.out);
   assert.equal(houseTasks().length, tasks, "nothing queued");
   w.cleanup();

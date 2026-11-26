@@ -45,7 +45,8 @@ import { askStromApp, settleInstall, shortcutName } from "./wizard.ts";
 import { openForUser } from "../core/open.ts";
 import type { Person, Research } from "../core/model.ts";
 import { displayName } from "../core/people.ts";
-import { agentReady, droppedPaths, guarded, pause as partsPause, pickPerson, subMenu, type Item, type Run } from "./menu-parts.ts";
+import { line } from "./screen.ts";
+import { agentReady, droppedPaths, guarded, pause as partsPause, pickPerson, shaped, subMenu, type Item, type Run } from "./menu-parts.ts";
 import { packPlan } from "../core/pack.ts";
 import { expandHome, isolated, ownCommand } from "../core/paths.ts";
 import { pathOf, startAgain } from "../core/userpath.ts";
@@ -430,7 +431,8 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
         },
         {
           key: "3",
-          label: `${t("ui.menu.waitlist")}${waiting ? ` (${waiting})` : ""}`,
+          label: t("ui.menu.waitlist"),
+          ...(waiting ? { value: String(waiting) } : {}),
           act: async () => {
             if (waiting) return waitingForYou(ctx, run, lang, root!);
             out(t("ui.waiting.none"));
@@ -517,8 +519,10 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
 
     // One quiet line on the Strom app: what it can do while the person has not said, or that the agent can be watched now.
     const numbered = items.filter((it) => it.key !== "0");
-    if (appItem && appTip) out(t(appTip, { key: numbered.indexOf(appItem) + 1 }));
-    if (newer) out(t("ui.menu.update.where", { version: newer, key: numbered.indexOf(settings) + 1 }));
+    // wrapped to the terminal, the rest under its text
+    const said = (l: string) => out(line([{ text: l, role: "text" }], ctx.style));
+    if (appItem && appTip) said(t(appTip, { key: numbered.indexOf(appItem) + 1 }));
+    if (newer) said(t("ui.menu.update.where", { version: newer, key: numbered.indexOf(settings) + 1 }));
 
     // measured (strom --timing): the line to send, each time the menu is shown (what its return took too)
     if (timingOn()) {
@@ -529,9 +533,10 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
     // Numbered in the order shown; 0 always quits.
     let n = 0;
     // Enter: the conversation — in an archive what came in lately (switching research on is a step taken on purpose)
-    const i = await ctx.choose("", items.map((it) => ({ key: it.key === "0" ? "0" : String(++n), label: it.label })), root && ctx.archiveHere() ? 1 : 0);
+    const i = await ctx.choose("", items.map((it) => ({ key: it.key === "0" ? "0" : String(++n), ...(it.value || it.extra ? { label: it.label, value: it.value, extra: it.extra } : shaped(it.label)) })), root && ctx.archiveHere() ? 1 : 0);
     if (i === undefined) return;
-    const quit = await guarded(ctx, lang, items[i]!.act);
+    const chosen = items[i]!;
+    const quit = chosen.key === "0" ? await guarded(ctx, lang, chosen.act) : await ctx.within(chosen.label, () => guarded(ctx, lang, chosen.act), chosen.crumb);
     if (quit === true || quit === "quit") {
       out(byeLine(ctx, t));
       // the Strom app's bridge goes on in the background after the menu: said only while it runs (nothing started to ask)

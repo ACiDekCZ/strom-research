@@ -180,13 +180,13 @@ test("the menu's settings → the setup: the terminal for the research's windows
   const env = { STROM_APP_DIRS: appsWith(w, "iTerm.app", "Terminal.app") };
   // 8 settings · 1 the setup · 3 the terminal · 3 iTerm2 · 0 · 0
   const r = await w.ok([], { tty: true, answers: ["8", "1", "3", "3", "0", "0"], env });
-  assert.match(r.out, / 3 {2}Terminál pro okna výzkumu \(z aplikace Strom, předaný rozhovor\): výchozí systému\n/u);
-  assert.match(r.out, /Ve kterém terminálu otevírat okna výzkumu\?\n {3}1 {2}výchozí systému\n {3}2 {2}Terminál\n {3}3 {2}iTerm2\n {3}0 {2}Zpět\nVybrat \[1\]/u);
+  assert.match(r.out, / \[3\] {2}Terminál pro okna výzkumu {2,}výchozí systému {2,}z aplikace Strom, předaný rozhovor\n/u);
+  assert.match(r.out, /Ve kterém terminálu otevírat okna výzkumu\?\n {2}\[1\] {2}výchozí systému\n {2}\[2\] {2}Terminál\n {2}\[3\] {2}iTerm2\n\n {2}\[0\] {2}Zpět\n\nVolba \(Enter = 1[^)]*\):/u);
   assert.equal(JSON.parse(fs.readFileSync(path.join(w.env.STROM_CONFIG_DIR!, "config.json"), "utf8")).terminal, "iterm2");
   // its state on the line; 0 changes nothing; the system's default picked: unset
   const again = await w.ok([], { tty: true, answers: ["8", "1", "3", "0", "1", "3", "1", "0", "0"], env });
-  assert.match(again.out, /Terminál pro okna výzkumu \(z aplikace Strom, předaný rozhovor\): iTerm2\n/u);
-  assert.match(again.out, /Vybrat \[3\]/u, "the one chosen suggested");
+  assert.match(again.out, /Terminál pro okna výzkumu {2,}iTerm2 {2,}z aplikace Strom, předaný rozhovor\n/u);
+  assert.match(again.out, /Volba \(Enter = 3[^)]*\):/u, "the one chosen suggested");
   assert.equal(JSON.parse(fs.readFileSync(path.join(w.env.STROM_CONFIG_DIR!, "config.json"), "utf8")).terminal, undefined);
   // only Terminal here: iTerm2 not offered
   const one = await w.ok([], { tty: true, answers: ["8", "1", "3", "0", "0", "0"], env: { STROM_APP_DIRS: path.join(w.dir, "none") } });
@@ -199,7 +199,7 @@ test("an archive's settings: the terminal line says nothing of a conversation", 
   await w.withTree();
   await w.ok(["mode", "archive"], { tty: true, answers: ["a"] });
   const r = await w.ok([], { tty: true, answers: ["8", "1", "0", "0", "0"], env: { STROM_APP_DIRS: appsWith(w, "iTerm.app") } });
-  assert.match(r.out, /Terminál pro okna výzkumu \(z aplikace Strom\): výchozí systému\n/u);
+  assert.match(r.out, /Terminál pro okna výzkumu {2,}výchozí systému {2,}z aplikace Strom\n/u);
   assert.doesNotMatch(r.out, /předaný rozhovor/u);
   w.cleanup();
 });
@@ -208,7 +208,7 @@ test("the setup asks for the terminal only on a Mac with more than one — the o
   const w = new World();
   const env = { STROM_APP_DIRS: appsWith(w, "iTerm.app", "Terminal.app"), TERM_PROGRAM: "iTerm.app" };
   const r = await w.ok(["setup"], { tty: true, answers: Array(30).fill(""), env });
-  assert.match(r.out, /Ve kterém terminálu otevírat okna výzkumu\?\n {3}1 {2}výchozí systému\n {3}2 {2}Terminál\n {3}3 {2}iTerm2\nVybrat \[3\]/u);
+  assert.match(r.out, /Ve kterém terminálu otevírat okna výzkumu\?\n {2}\[1\] {2}výchozí systému\n {2}\[2\] {2}Terminál\n {2}\[3\] {2}iTerm2\n\nVolba \(Enter = 3[^)]*\):/u);
   assert.equal(JSON.parse(fs.readFileSync(path.join(w.env.STROM_CONFIG_DIR!, "config.json"), "utf8")).terminal, "iterm2");
   w.cleanup();
   const one = new World();
@@ -304,7 +304,7 @@ test("a terminal unknown here: the menu's settings show the system's, a link ope
   for (const v of STRANGE) {
     storeTerminal(w, v);
     const menu = await w.ok([], { tty: true, answers: ["8", "1", "0", "0", "0"], env: { STROM_APP_DIRS: appsWith(w, "iTerm.app") } });
-    assert.match(menu.out, /Terminál pro okna výzkumu \(z aplikace Strom, předaný rozhovor\): výchozí systému\n/u, v);
+    assert.match(menu.out, /Terminál pro okna výzkumu {2,}výchozí systému {2,}z aplikace Strom, předaný rozhovor\n/u, v);
     if (fs.existsSync(open)) for (const x of fs.readdirSync(open)) fs.rmSync(path.join(open, x));
     const before = f.calls().length;
     const r = await w.run(["link", "open", `strom-research://open?tree=${id}`, "--json"], { env: f.env });

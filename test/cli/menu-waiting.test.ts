@@ -124,10 +124,10 @@ const T = {
   byHand: id(52),
 };
 
-/** Each screen of What waits as printed, from its heading to the question after it. */
-function screens(out: string, heading = /^(?:Co čeká|Čeká na odpověď|What waits|Waiting for a reply) · /mu): string[] {
+/** Each overview screen of What waits as printed, from its breadcrumbs (and the counts under them) to the question after it. */
+function screens(out: string, heading = /^Strom › (?:Co čeká|What waits)(?: › [^\n]+)?\n {2}(?:k vyřízení|čeká na odpověď|to do|waiting for a reply) \d/mu): string[] {
   return out
-    .split(/\n(?:Vybrat|Choose)[^\n]*\n/u)
+    .split(/\n(?:Volba|Choice)[^\n]*\n/u)
     .map((chunk) => {
       const at = chunk.search(heading);
       return at < 0 ? "" : chunk.slice(at);
@@ -135,8 +135,8 @@ function screens(out: string, heading = /^(?:Co čeká|Čeká na odpověď|What 
     .filter(Boolean);
 }
 
-/** A place's line: its number, its name and count, what is there. */
-const placeLine = (n: number, name: string, count: number, detail: string) => new RegExp(`^${String(n).padStart(2)} {2}${name} · ${count} +${detail}$`, "mu");
+/** A place's line: its number (its key aligned to the right), its name, its count in a column, what is there. */
+const placeLine = (n: number, name: string, count: number, detail: string) => new RegExp(`^ {2,3}\\[${n}\\] {2}${name} +${count} {2}${detail}$`, "mu");
 
 const task = async (w: World, t: string) => (await w.ok(["task", "show", t, "--json"])).json as { task: Task & { answers?: { answer: string; by: string }[] }; phase?: string };
 
@@ -161,48 +161,48 @@ test("What waits with dozens of things: the places of what is to do, counted as 
   // 3 what waits · next page · previous · all · a range · the images · again (off) · the family · 0 (off) · something
   // unknown · ? what waits for a reply · Enter (back to what is to do) · Enter (back to the menu) · 0 quit
   const r = await w.ok([], { tty: true, answers: ["3", "d", "p", "v", "10-12", "s", "s", "o", "0", "x", "?", "", "", "0"] });
-  assert.match(r.out, /^ {3}3 {2}Co čeká \(52\)$/mu, "the menu counts what the overview shows");
+  assert.match(r.out, /^ {2}\[3\] {2}Co čeká +52$/mu, "the menu counts what the overview shows");
   const s = screens(r.out);
   // the first page: 15 places of what is to do, in the order of What waits; the sections with their letters
   const first = s[0]!;
-  assert.match(first, /^Co čeká · k vyřízení 45 · čeká na odpověď 7\n {2}r rozhodnutí 1 · s snímky 11 · a archivy a úřady 7 · o rodina 8 · w web 16 · j jiné 2\n/u);
+  assert.match(first, /^Strom › Co čeká\n {2}k vyřízení 45 · čeká na odpověď 7\n {2}Druh: {2}\[r\] rozhodnutí 1 {2}\[s\] snímky 11 {2}\[a\] archivy a úřady 7 {2}\[o\] rodina 8 {2}\[w\] web 16 {2}\[j\] jiné 2\n/u);
   assert.match(first, placeLine(1, "Digitální archiv Horní Ves", 2, "svolení archivu 1 · snímky 1"));
   assert.match(first, placeLine(2, "DigiArchiv Třeboň", 9, "snímky 7 · web 2"));
   assert.match(first, placeLine(3, "Archiv Jih", 3, "snímky 3"));
   assert.match(first, placeLine(6, "hrbitov1\\.example\\.com", 1, "Hřbitov 1"), "a place of one: the thing itself");
   assert.match(first, placeLine(14, "MěÚ Havlíčkův Brod", 4, "dopis k odeslání"));
   assert.match(first, placeLine(15, "Matriční úřad Žďár", 3, "dopis k odeslání"), "an office named in NFD: one place, in NFC");
-  assert.doesNotMatch(first, /^16 /mu);
-  assert.match(first, /^ Stránka 1\/2 · číslo = skupina · d další · p předchozí · 10-20 · v vše · r\/s\/a\/o\/w\/j filtr · \? čeká na odpověď · 0 zpět$/mu);
+  assert.doesNotMatch(first, /^ *\[16\] /mu);
+  assert.match(first, /^ {2}Stránka 1\/2 {2}\[d\] další {2}\[p\] předchozí {2}\[v\] vše {2}nebo rozsah 10-20\n {2}\[\?\] čeká na odpověď 7 {2}\[0\] zpět$/mu);
   // the next page, the previous, all, a range
   assert.match(s[1]!, placeLine(16, "Rodina", 8, "dotaz k odeslání"));
   assert.match(s[1]!, placeLine(17, "Ostatní", 2, "jiné 2"));
-  assert.match(s[1]!, /^ Stránka 2\/2 · /mu);
-  assert.doesNotMatch(s[1]!, /^ 1 {2}/mu);
-  assert.match(s[2]!, /^ Stránka 1\/2 · /mu);
-  assert.match(s[3]!, /^ 1 {2}Digitální archiv/mu);
-  assert.match(s[3]!, /^17 {2}Ostatní/mu);
-  assert.match(s[3]!, /^ 1–17 z 17 · /mu);
-  assert.deepEqual([...s[4]!.matchAll(/^(\d\d) {2}/gmu)].map((m) => m[1]), ["10", "11", "12"]);
-  assert.match(s[4]!, /^ 10–12 z 17 · /mu);
+  assert.match(s[1]!, /^ {2}Stránka 2\/2 {2}/mu);
+  assert.doesNotMatch(s[1]!, /^ *\[1\] {2}/mu);
+  assert.match(s[2]!, /^ {2}Stránka 1\/2 {2}/mu);
+  assert.match(s[3]!, /^ {3}\[1\] {2}Digitální archiv/mu);
+  assert.match(s[3]!, /^ {2}\[17\] {2}Ostatní/mu);
+  assert.match(s[3]!, /^ {2}1–17 z 17 {2}/mu);
+  assert.deepEqual([...s[4]!.matchAll(/^ *\[(\d+)\] {2}/gmu)].map((m) => m[1]), ["10", "11", "12"]);
+  assert.match(s[4]!, /^ {2}10–12 z 17 {2}/mu);
   // a section: its places with only its things, said in the heading; the same letter again clears it
-  assert.match(s[5]!, /^Co čeká · k vyřízení 45 · čeká na odpověď 7 · filtr: snímky\n/u);
-  assert.deepEqual([...s[5]!.matchAll(/^ ?\d+ {2}(.+?) · (\d+) /gmu)].map((m) => `${m[1]} ${m[2]}`), ["Digitální archiv Horní Ves 1", "DigiArchiv Třeboň 7", "Archiv Jih 3"]);
-  assert.match(s[5]!, /· 0 zrušit filtr$/mu);
-  assert.doesNotMatch(s[6]!, /filtr: /u);
-  assert.match(s[7]!, /filtr: rodina/u);
+  assert.match(s[5]!, /^Strom › Co čeká › snímky\n {2}k vyřízení 45 · čeká na odpověď 7\n/u);
+  assert.deepEqual([...s[5]!.matchAll(/^ *\[\d+\] {2}(.+?) +(\d+) {2}/gmu)].map((m) => `${m[1]} ${m[2]}`), ["Digitální archiv Horní Ves 1", "DigiArchiv Třeboň 7", "Archiv Jih 3"]);
+  assert.match(s[5]!, / {2}\[0\] zrušit filtr$/mu);
+  assert.doesNotMatch(s[6]!, /^Strom › Co čeká › |zrušit filtr/mu);
+  assert.match(s[7]!, /^Strom › Co čeká › rodina\n/u);
   // 0 clears the filter (the overview stays); something unknown: the control line again, nothing else
-  assert.doesNotMatch(s[8]!, /filtr: /u);
-  assert.match(r.out, /\nVybrat \n Stránka 1\/2 · číslo = skupina[^\n]*\nVybrat \n/u);
+  assert.doesNotMatch(s[8]!, /^Strom › Co čeká › |zrušit filtr/mu);
+  assert.match(r.out, /\nVolba \(číslo skupiny, Enter = zpět\): \n {2}Stránka 1\/2 {2}\[d\] další[^\n]*\n {2}\[\?\] čeká na odpověď 7 {2}\[0\] zpět\nVolba \(číslo skupiny, Enter = zpět\): \n/u);
   // what waits for a reply: its places, when sent, how long ago — a request with no reply for over 30 days marked
-  const replies = s.find((x) => x.startsWith("Čeká na odpověď"))!;
-  assert.match(replies, /^Čeká na odpověď · 7 · k vyřízení 45\n {2}a archivy a úřady 5 · o rodina 2\n/u);
+  const replies = s.find((x) => x.startsWith("Strom › Co čeká › Čeká na odpověď\n"))!;
+  assert.match(replies, /^Strom › Co čeká › Čeká na odpověď\n {2}čeká na odpověď 7 · k vyřízení 45\n {2}Druh: {2}\[a\] archivy a úřady 5 {2}\[o\] rodina 2\n/u);
   assert.match(replies, placeLine(1, "SOA Praha", 5, "odesláno \\d+\\. \\d+\\.(?: \\d{4})? · před 40 dny · bez odpovědi přes 30 dní"));
   assert.match(replies, placeLine(2, "Rodina", 2, "odesláno \\d+\\. \\d+\\.(?: \\d{4})? · dnes"));
-  assert.match(replies, /^ číslo = skupina · a\/o filtr · \? k vyřízení · 0 zpět$/mu);
+  assert.match(replies, /^ {2}\[\?\] k vyřízení 45 {2}\[0\] zpět$/mu);
   // Enter there: back to what is to do; Enter again: the menu
   const after = r.out.slice(r.out.indexOf(replies));
-  assert.match(after, /\nVybrat \n\nCo čeká · k vyřízení 45[^]*?\nVybrat \n\nStrom/u);
+  assert.match(after, /\nVolba \(číslo skupiny, Enter = zpět\): \n\nStrom › Co čeká\n {2}k vyřízení 45[^]*?\nVolba \(číslo skupiny, Enter = zpět\): \n\nStrom výzkum/u);
   w.cleanup();
 });
 
@@ -212,7 +212,7 @@ test("a place of What waits: its things, the request texts of them all for one e
   const r = await w.ok([], { tty: true, answers: ["3", "14", "5", "", "6", "", "6", "a", "0", "0"] });
   assert.match(
     r.out,
-    /\nMěÚ Havlíčkův Brod · k vyřízení 4\n {3}1 {2}Opis zápisu Brod 1 · dopis · priorita 3\n {3}2 {2}Opis zápisu Brod 2 · dopis · priorita 3\n {3}3 {2}Opis zápisu Brod 3 · dopis · priorita 3\n {3}4 {2}Opis zápisu Brod 4 · dopis · priorita 3\n {3}5 {2}Text všech dotazů najednou\n {3}6 {2}Odesláno za celou skupinu\n {3}7 {2}Rozhovor s agentem k celé skupině\n {3}0 {2}Zpět\nVybrat \[0\]/u,
+    /\nMěÚ Havlíčkův Brod · k vyřízení 4\n {2}\[1\] {2}Opis zápisu Brod 1 · dopis · priorita 3\n {2}\[2\] {2}Opis zápisu Brod 2 · dopis · priorita 3\n {2}\[3\] {2}Opis zápisu Brod 3 · dopis · priorita 3\n {2}\[4\] {2}Opis zápisu Brod 4 · dopis · priorita 3\n {2}\[5\] {2}Text všech dotazů najednou\n {2}\[6\] {2}Odesláno za celou skupinu\n {2}\[7\] {2}Rozhovor s agentem k celé skupině\n\n {2}\[0\] {2}Zpět\n\nVolba \(Enter = 0[^)]*\):/u,
   );
   // the texts: each file once, as GET /group/<key>/note gives them
   assert.match(r.out, /Text dotazu ke zkopírování \(notes\/dotaz-brod\.md, notes\/dotaz-brod-2\.md\):\n\nŽádost o opis křestních zápisů rodiny Žďárských\.\n\n-----\n\nŽádost o opis oddacího zápisu\.\n\n/u);
@@ -224,14 +224,14 @@ test("a place of What waits: its things, the request texts of them all for one e
     await w.ok(["live", "stop"]);
   }
   // sent for all: which, asked (Enter: no — nothing written), then marked; the place has nothing to do any more
-  assert.match(r.out, /Dotazy k zapsání jako odeslané \(MěÚ Havlíčkův Brod\):\n {2}• T0013 Opis zápisu Brod 1\n {2}• T0014 Opis zápisu Brod 2\n {2}• T0015 Opis zápisu Brod 3\n {2}• T0016 Opis zápisu Brod 4\nZapsat je jako odeslané\? Dál budou čekat na odpověď\. \(a\/n\) \[n\]/u);
+  assert.match(r.out, /Dotazy k zapsání jako odeslané \(MěÚ Havlíčkův Brod\):\n {2}• T0013 Opis zápisu Brod 1\n {2}• T0014 Opis zápisu Brod 2\n {2}• T0015 Opis zápisu Brod 3\n {2}• T0016 Opis zápisu Brod 4\nZapsat je jako odeslané\? Dál budou čekat na odpověď\. \(a\/n, Enter = n\)/u);
   assert.match(r.out, /✓ Zapsáno jako odeslané: T0013, T0014, T0015, T0016 – dál čekají na odpověď\./u);
   for (const t of T.brod) {
     const x = await task(w, t);
     assert.deepEqual([x.task.state, x.phase], ["waiting", "sent"], t);
   }
   assert.equal(r.out.match(/✓ Zapsáno jako odeslané/gu)?.length, 1, "Enter wrote nothing");
-  assert.match(screens(r.out).at(-1)!, /^Co čeká · k vyřízení 41 · čeká na odpověď 11\n/u, "back to the overview: the place has nothing to do");
+  assert.match(screens(r.out).at(-1)!, /^Strom › Co čeká\n {2}k vyřízení 41 · čeká na odpověď 11\n/u, "back to the overview: the place has nothing to do");
   // a conversation about the place: its first task, the others with it (the fake agent says what it was given)
   // (the office of Brod has nothing to do now: Žďár is the 14th place) 3 · 14 · 5 the conversation · 0 · 0
   await w.ok([], { tty: true, answers: ["3", "14", "5", "0", "0"] });
@@ -249,9 +249,9 @@ test("a thing of What waits: what it is and waits for, then only what makes sens
   fs.writeFileSync(path.join(shared, "inbox", folder, "10.jpg"), "x");
   // 3 · 2 DigiArchiv Třeboň · 1 its first · 1 the archive · 2 the folder · 3 it does not work · why · 0 · 0 · 0
   const images = await w.ok([], { tty: true, answers: ["3", "2", "1", "1", "2", "3", "Kniha se na webu nenačte.", "0", "0", "0"] });
-  assert.match(images.out, /\nDigiArchiv Třeboň · k vyřízení 9\n {3}1 {2}Snímky Lhota 1 · snímky · priorita 3\n/u);
+  assert.match(images.out, /\nDigiArchiv Třeboň · k vyřízení 9\n {3}\[1\] {2}Snímky Lhota 1 · snímky · priorita 3\n/u);
   assert.match(images.out, /\n T0001 · snímky · priorita 3\n Snímky Lhota 1\n {4}Čeká na: Snímky 10–11 k uložení ručně\.\n {4}Kde: DigiArchiv Třeboň\n {4}Čeká od [^\n]+\n {4}Uložit ručně: snímky 10–11 z Lhota N 1890–1910 · https:\/\/digi\.example\.cz\/book\/1\n {4}uložit je do [^\n]+\n/u);
-  assert.match(images.out, /\n {3}1 {2}Otevřít archiv\n {3}2 {2}Otevřít složku \(uloženo 1\/2\)\n {3}3 {2}Nejde to – napsat proč\n {3}4 {2}Rozhovor s agentem\n {3}0 {2}Zpět\n/u);
+  assert.match(images.out, /\n {2}\[1\] {2}Otevřít archiv\n {2}\[2\] {2}Otevřít složku \(uloženo 1\/2\)\n {2}\[3\] {2}Nejde to – napsat proč\n {2}\[4\] {2}Rozhovor s agentem\n\n {2}\[0\] {2}Zpět\n/u);
   assert.match(images.out, /Odkaz: https:\/\/digi\.example\.cz\/book\/1/u);
   assert.match(images.out, /Složka: [^\n]*inbox/u);
   assert.match(images.out, /Co nejde, krátce \(Enter nebo 0 zpět\)/u);
@@ -266,9 +266,9 @@ test("a thing of What waits: what it is and waits for, then only what makes sens
   // 3 · 14 · 1 · 1 the text · Enter · 2 sent · Enter (no) · 2 · a — back at the place · 1 (the next one) · 3 answer ·
   // the words · 1 · 4 a file · the file · a note · 0 · 0 · 0
   const r = await w.ok([], { tty: true, answers: ["3", "14", "1", "1", "", "2", "", "2", "a", "1", "3", "Matrika odpověděla, opis přijde poštou.", "1", "4", `"${letter}"`, "Opis od matriky", "0", "0", "0"] });
-  assert.match(r.out, /\n T0013 · dopis · priorita 3\n Opis zápisu Brod 1\n {4}Čeká na: Odpověď matriky na žádost\.\n {4}Kde: MěÚ Havlíčkův Brod\n {4}Čeká od [^\n]+\n\n {3}1 {2}Text dotazu\n {3}2 {2}Odesláno\n {3}3 {2}Odpovědět textem\n {3}4 {2}Přidat soubor\n {3}5 {2}Rozhovor s agentem\n {3}0 {2}Zpět\n/u);
+  assert.match(r.out, /\n T0013 · dopis · priorita 3\n Opis zápisu Brod 1\n {4}Čeká na: Odpověď matriky na žádost\.\n {4}Kde: MěÚ Havlíčkův Brod\n {4}Čeká od [^\n]+\n\n {2}\[1\] {2}Text dotazu\n {2}\[2\] {2}Odesláno\n {2}\[3\] {2}Odpovědět textem\n {2}\[4\] {2}Přidat soubor\n {2}\[5\] {2}Rozhovor s agentem\n\n {2}\[0\] {2}Zpět\n/u);
   assert.match(r.out, /Text dotazu ke zkopírování \(notes\/dotaz-brod\.md\):\n\nŽádost o opis křestních zápisů rodiny Žďárských\.\n/u);
-  assert.match(r.out, /Zapsat dotaz jako odeslaný \(MěÚ Havlíčkův Brod\)\? Úkol dál čeká na odpověď\. \(a\/n\) \[n\]/u);
+  assert.match(r.out, /Zapsat dotaz jako odeslaný \(MěÚ Havlíčkův Brod\)\? Úkol dál čeká na odpověď\. \(a\/n, Enter = n\)/u);
   assert.match(r.out, /✓ Zapsáno jako odeslané – úkol dál čeká na odpověď\./u);
   t = await task(w, T.brod[0]!);
   assert.deepEqual([t.task.state, t.phase], ["waiting", "sent"]);
@@ -281,17 +281,17 @@ test("a thing of What waits: what it is and waits for, then only what makes sens
   assert.equal((t.task as Task & { files?: unknown[] }).files?.length, 1);
   // a site: open it, answer, a conversation — nothing else
   const web = await w.ok([], { tty: true, answers: ["3", "4", "1", "0", "0", "0", "0"] });
-  assert.match(web.out, /\n T0028 · web · priorita 3\n[^]*?\n {3}1 {2}Otevřít web\n {3}2 {2}Odpovědět textem\n {3}3 {2}Rozhovor s agentem\n {3}0 {2}Zpět\n/u);
+  assert.match(web.out, /\n T0028 · web · priorita 3\n[^]*?\n {2}\[1\] {2}Otevřít web\n {2}\[2\] {2}Odpovědět textem\n {2}\[3\] {2}Rozhovor s agentem\n\n {2}\[0\] {2}Zpět\n/u);
   // waiting for a reply: an answer, a file, back among what is to do, a conversation
   // ? · 1 SOA Praha · 2 its second · 3 back among what is to do · 0 · Enter · 0 · 0
   const back = await w.ok([], { tty: true, answers: ["3", "?", "1", "2", "3", "0", "", "", "0"] });
-  assert.match(back.out, /\n T0045 · dopis · priorita 3\n[^]*?Čeká od [^\n]+ · odesláno [^\n]+ · dnes\n\n {3}1 {2}Odpovědět textem\n {3}2 {2}Přidat soubor\n {3}3 {2}Vrátit mezi k vyřízení\n {3}4 {2}Rozhovor s agentem\n {3}0 {2}Zpět\n/u);
+  assert.match(back.out, /\n T0045 · dopis · priorita 3\n[^]*?Čeká od [^\n]+ · odesláno [^\n]+ · dnes\n\n {2}\[1\] {2}Odpovědět textem\n {2}\[2\] {2}Přidat soubor\n {2}\[3\] {2}Vrátit mezi k vyřízení\n {2}\[4\] {2}Rozhovor s agentem\n\n {2}\[0\] {2}Zpět\n/u);
   assert.match(back.out, /✓ Vráceno mezi k vyřízení\./u);
   t = await task(w, T.soa[1]!);
   assert.deepEqual([t.task.state, t.phase], ["waiting", "todo"]);
   // the archive's question at its place, beside the images of that archive; Enter goes back from anywhere
   const asked = await w.ok([], { tty: true, answers: ["3", "1", "", "", "0"] });
-  assert.match(asked.out, /\nDigitální archiv Horní Ves · k vyřízení 2\n {3}1 {2}Stahování snímků z archivu Digitální archiv Horní Ves \(digi… · svolení archivu · od [^\n]+\n {3}2 {2}Snímky Horní Ves · snímky · priorita 3\n {3}3 {2}Rozhovor s agentem k celé skupině\n/u);
+  assert.match(asked.out, /\nDigitální archiv Horní Ves · k vyřízení 2\n {2}\[1\] {2}Stahování snímků z archivu Digitální archiv Horní Ves \(digi… · svolení archivu · od [^\n]+\n {2}\[2\] {2}Snímky Horní Ves · snímky · priorita 3\n {2}\[3\] {2}Rozhovor s agentem k celé skupině\n/u);
   assert.doesNotMatch(asked.out, /Oddavky Horní Ves/u, "the task that waits for the question is not listed");
   w.cleanup();
 });
@@ -322,11 +322,11 @@ test("a place: sent for the whole group only where a request goes out (an office
   // 3 · 2 the archive's site · 0 · 1 the office · 0 · 0 · 0
   const r = await w.ok([], { tty: true, answers: ["3", "2", "0", "1", "0", "0", "0"] });
   const site = r.out.slice(r.out.indexOf("\nDigitální archiv Lhota · k vyřízení 2\n"));
-  assert.match(site, /^\nDigitální archiv Lhota · k vyřízení 2\n {3}1 {2}Rejstřík 1 · jiné · priorita 3\n {3}2 {2}Rejstřík 2 · jiné · priorita 3\n {3}3 {2}Rozhovor s agentem k celé skupině\n {3}0 {2}Zpět\n/u, "no sent for the whole group");
+  assert.match(site, /^\nDigitální archiv Lhota · k vyřízení 2\n {2}\[1\] {2}Rejstřík 1 · jiné · priorita 3\n {2}\[2\] {2}Rejstřík 2 · jiné · priorita 3\n {2}\[3\] {2}Rozhovor s agentem k celé skupině\n\n {2}\[0\] {2}Zpět\n/u, "no sent for the whole group");
   assert.match(r.out, placeLine(1, "MěÚ Lhota", 2, "dopis k odeslání"));
   assert.match(
     r.out,
-    /\nMěÚ Lhota · k vyřízení 2\n {3}1 {2}Svatba Václava Schaniela \[P0001\] a Doroty \[P0002\] v Lhotě · dopis · priorita 3\n {3}2 {2}Křest Václav Schaniel \[P0001\] · dopis · priorita 3\n {3}3 {2}Odesláno za celou skupinu\n/u,
+    /\nMěÚ Lhota · k vyřízení 2\n {2}\[1\] {2}Svatba Václava Schaniela \[P0001\] a Doroty \[P0002\] v Lhotě · dopis · priorita 3\n {2}\[2\] {2}Křest Václav Schaniel \[P0001\] · dopis · priorita 3\n {2}\[3\] {2}Odesláno za celou skupinu\n/u,
   );
   w.cleanup();
 });
@@ -341,10 +341,10 @@ test("What waits in English, and the keys of every language: none twice, none a 
   const { w } = await world();
   const r = await w.ok([], { tty: true, answers: ["3", "14", "", "", "0"], env: { STROM_LANG: "en" } });
   const s = screens(r.out)[0]!;
-  assert.match(s, /^What waits · to do 45 · waiting for a reply 7\n {2}d decisions 1 · i images 11 · o archives and offices 7 · f family 8 · w web 16 · x other 2\n/u);
+  assert.match(s, /^Strom › What waits\n {2}to do 45 · waiting for a reply 7\n {2}Kind: {2}\[d\] decisions 1 {2}\[i\] images 11 {2}\[o\] archives and offices 7 {2}\[f\] family 8 {2}\[w\] web 16 {2}\[x\] other 2\n/u);
   assert.match(s, placeLine(14, "MěÚ Havlíčkův Brod", 4, "a letter to send"));
-  assert.match(s, /^ Page 1\/2 · number = group · n next · p previous · 10-20 · a all · d\/i\/o\/f\/w\/x filter · \? waiting for a reply · 0 back$/mu);
-  assert.match(r.out, /\nMěÚ Havlíčkův Brod · to do 4\n {3}1 {2}Opis zápisu Brod 1 · letter · priority 3\n[^]*? {3}5 {2}The text of all requests at once\n {3}6 {2}Sent for the whole group\n {3}7 {2}A conversation with the agent about the whole group\n/u);
+  assert.match(s, /^ {2}Page 1\/2 {2}\[n\] next {2}\[p\] previous {2}\[a\] all {2}or a range 10-20\n {2}\[\?\] waiting for a reply 7 {2}\[0\] back$/mu);
+  assert.match(r.out, /\nMěÚ Havlíčkův Brod · to do 4\n {2}\[1\] {2}Opis zápisu Brod 1 · letter · priority 3\n[^]*? {2}\[5\] {2}The text of all requests at once\n {2}\[6\] {2}Sent for the whole group\n {2}\[7\] {2}A conversation with the agent about the whole group\n/u);
   w.cleanup();
 });
 
@@ -362,8 +362,8 @@ test("an archive: only what an archive has — its decisions at their place, not
   await w.ok(["mode", "archive"], { tty: true });
   // 3 · 1 the stories' place · Enter · Enter · 0
   const r = await w.ok([], { tty: true, answers: ["3", "1", "", "", "0"] });
-  assert.match(r.out, /\nCo čeká · k vyřízení 2\n {2}r rozhodnutí 2\n 1 {2}Příběhy · 2 {3}vyprávění 2\n číslo = skupina · 0 zpět\n/u);
-  assert.match(r.out, /\nPříběhy · k vyřízení 2\n {3}1 {2}Nová verze vyprávění o Jan Novák[^\n]* · vyprávění · od [^\n]+\n {3}2 {2}Nová verze vyprávění o Marie Nováková[^\n]* · vyprávění · od [^\n]+\n {3}0 {2}Zpět\n/u);
+  assert.match(r.out, /\nStrom › Co čeká\n {2}k vyřízení 2\n {2}Druh: {2}\[r\] rozhodnutí 2\n\n {2}\[1\] {2}Příběhy {2}2 {2}vyprávění 2\n\n {2}\[0\] zpět\n\nVolba \(číslo skupiny, Enter = zpět\):/u);
+  assert.match(r.out, /\nPříběhy · k vyřízení 2\n {2}\[1\] {2}Nová verze vyprávění o Jan Novák[^\n]* · vyprávění · od [^\n]+\n {2}\[2\] {2}Nová verze vyprávění o Marie Nováková[^\n]* · vyprávění · od [^\n]+\n\n {2}\[0\] {2}Zpět\n/u);
   assert.doesNotMatch(r.out, /agent|Rozhovor|Opis zápisu/iu);
   w.cleanup();
 });

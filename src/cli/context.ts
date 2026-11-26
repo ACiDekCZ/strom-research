@@ -27,6 +27,7 @@ import { stateOf, treeAgentHere } from "../core/state.ts";
 import { canShowDialog, systemDialog, WAIT_SECONDS, type ChoiceText, type DialogText } from "../core/dialog.ts";
 import { UI, ui, type UIKey } from "./ui.ts";
 import { DEFAULT_LIMIT } from "./format.ts";
+import { crumbLine, line, optionLines, PLAIN, shortLabel, type Option, type Style } from "./screen.ts";
 
 export interface IO {
   stdout: (s: string) => void;
@@ -42,6 +43,35 @@ export interface IO {
   dialog?: (text: DialogText) => boolean | undefined;
   /** Test hook: the answer of a window with choices (the key chosen, null none — later, Esc, no answer —, undefined no window). */
   choice?: (text: ChoiceText) => string | null | undefined;
+  /** How a person's terminal shows the menu (cli/screen.ts): colours, width; none — plain text, never wrapped. */
+  style?: Style;
+}
+
+/** An option of ctx.choose: its label, and on the same line its state (value) and what it holds (extra). */
+export interface Choice {
+  key?: string;
+  label: string;
+  value?: string | undefined;
+  extra?: string | undefined;
+  /** The part of the way to the screen it opens (subMenu): else its label up to its first aside. */
+  crumb?: string | undefined;
+}
+
+export interface ChooseOptions {
+  /** "0" with this label added last: nothing changes. */
+  back?: string;
+  /** Said faintly after the back option ("nothing changes", "the rest waits"). */
+  backExtra?: string;
+  /** What Enter does in the prompt (else the suggested option's label up to its first aside). */
+  enter?: string;
+  /** At most two lines above the options: what happens, how many, free or paid. */
+  summary?: string[];
+  /** The longer text behind [?] Details: said on ? and the same question asked again. */
+  details?: () => string;
+  /** Under the options (more than the options can be done here). */
+  footer?: string[];
+  /** A screen of its own (a submenu): the way to it shown each time, not only when it changed. */
+  screen?: boolean;
 }
 
 export interface KnownTree {
@@ -87,6 +117,10 @@ export class Context {
   devicePreview = false;
   /** The device whose yes this terminal took instead of its question before the agent starts (spec 094 K3.15). */
   deviceYes: AppClient | undefined;
+  /** The way to the screen shown now (Strom › Settings › Maintenance): pushed by within(). */
+  crumbs: string[] = [];
+  /** The way last shown above a question: said again only when it changed (or a submenu draws its screen). */
+  private crumbSaid: string | undefined;
 
   constructor(opts: {
     env: Env;
@@ -143,6 +177,25 @@ export class Context {
     });
   }
 
+  /** How the person's terminal shows the menu (colours, width): plain text off a terminal. */
+  get style(): Style {
+    return this.io.style ?? PLAIN;
+  }
+
+  /** What `act` shows is a step further on the way to it (`label`: the option chosen, up to its first aside). */
+  async within<T>(label: string, act: () => Promise<T>, crumb?: string): Promise<T> {
+    const before = this.crumbs.length;
+    // the menu's own screen is Strom's (the first step from it starts the way)
+    if (!before) this.crumbs.push("Strom");
+    this.crumbs.push(crumb ?? shortLabel(label));
+    try {
+      return await act();
+    } finally {
+      this.crumbs.length = before;
+      this.crumbSaid = undefined;
+    }
+  }
+
   /** Can we ask the user a question right now? */
   get interactive(): boolean {
     return (this.io.tty || this.io.answers !== undefined) && !this.yes && !this.json && this.env.STROM_NONINTERACTIVE !== "1";
@@ -153,7 +206,7 @@ export class Context {
     // a terminal a device opened (spec 094 K3.15): its question marked as waiting at the computer while it waits
     const marked = fromDevice(this.env) && this.interactive && !isAgent(this.env) ? markAsking(this.askingRoot(), "question", this.env) : undefined;
     try {
-      return await this.asked(question, suggested);
+      return await this.asked(suggested ? `${question} (Enter = ${suggested})` : question, suggested);
     } finally {
       marked?.();
     }
@@ -164,8 +217,9 @@ export class Context {
     return this.opened?.root ?? findTreeUpwards(this.cwd);
   }
 
-  private async asked(question: string, suggested?: string): Promise<string> {
-    const prompt = suggested ? `${question} [${suggested}] ` : `${question} `;
+  /** The prompt as it is said (what Enter does in it), the answer Enter gives. */
+  private async asked(said: string, suggested?: string): Promise<string> {
+    const prompt = `${said} `;
     let answer: string;
     if (this.io.answers) {
       this.io.stdout(prompt + "\n");
@@ -382,17 +436,62 @@ export class Context {
    * One of numbered options (1…n, or keys of their own like "0"); Enter takes
    * the suggested one. Asks again on anything else. `back` adds "0" with that
    * label: the person changes their mind, nothing changes — undefined, as when
-   * a test ran out of answers.
+   * a test ran out of answers. Drawn as cli/screen.ts says (spec 144): the way
+   * to it, the question, `  [1]  Label   value  extra`, [0] last, the prompt
+   * saying what Enter does; `details` adds [?] Details.
    */
-  async choose(question: string, choices: { key?: string; label: string }[], suggested: number, opts: { back?: string } = {}): Promise<number | undefined> {
+  async choose(question: string, choices: Choice[], suggested: number, opts: ChooseOptions = {}): Promise<number | undefined> {
     if (this.devicePreview) throw new DevicePreview({ kind: "computer", why: "question" });
-    const options = opts.back ? [...choices, { key: "0", label: opts.back }] : choices;
+    const options: Choice[] = opts.back ? [...choices, { key: "0", label: opts.back, extra: opts.backExtra }] : choices;
     const keys = options.map((o, i) => o.key ?? String(i + 1));
     const lang = this.uiLang();
-    this.io.stdout(`\n${question ? `${question}\n` : ""}${options.map((o, i) => `  ${keys[i]!.padStart(2)}  ${o.label}`).join("\n")}\n`);
+    const style = this.style;
+    const said: string[] = [""];
+    // the way here, when it is new above a question (a submenu: each time)
+    const way = this.crumbs.join(" › ");
+    let lines = question ? question.split("\n") : [];
+    if (this.crumbs.length && (opts.screen || this.crumbSaid !== way)) {
+      // a title that only says the last part again is the way's (its aside faint after it)
+      const last = foldText(this.crumbs[this.crumbs.length - 1]!);
+      const first = lines[0] ?? "";
+      let aside: string | undefined;
+      if (first && foldText(first).startsWith(last)) {
+        aside = first.slice(this.crumbs[this.crumbs.length - 1]!.length).trim().replace(/^[:–—-]\s*/u, "") || undefined;
+        lines = lines.slice(1);
+        // what it asks stays the question under the way ("Archive – how to get the images?")
+        if (aside && /[?？]$/u.test(aside)) {
+          lines = [aside.charAt(0).toLocaleUpperCase() + aside.slice(1), ...lines];
+          aside = undefined;
+        }
+      }
+      said.push(crumbLine(this.crumbs, style, aside), "");
+      this.crumbSaid = way;
+    }
+    for (const [i, l] of lines.entries()) {
+      const hang = (/^\s*/u.exec(l)?.[0].length ?? 0) + (/^\s*[•·-] /u.test(l) ? 2 : 0);
+      said.push(line([{ text: l, role: i === 0 && !/^\s/u.test(l) ? "heading" : "text" }], style, hang));
+    }
+    for (const s of opts.summary ?? []) said.push(line([{ text: `  ${s}`, role: "text" }], style, 2));
+    // [?] Details before the back option
+    const shownOptions: Option[] = options.map((o, i) => ({ key: keys[i]!, label: o.label, value: o.value, extra: o.extra }));
+    if (opts.details) {
+      const at = keys[keys.length - 1] === "0" ? shownOptions.length - 1 : shownOptions.length;
+      shownOptions.splice(at, 0, { key: "?", label: ui(lang, "ui.details"), extra: undefined });
+    }
+    said.push(...optionLines(shownOptions, style));
+    for (const f of opts.footer ?? []) said.push(line([{ text: `  ${f}`, role: "dim" }], style, 2));
+    said.push("");
+    this.io.stdout(said.join("\n") + "\n");
+    const fallback = keys[suggested];
+    const prompt = fallback !== undefined ? ui(lang, "ui.choose.enter", { key: fallback, label: opts.enter ?? shortLabel(options[suggested]!.label, 24, true) }) : ui(lang, "ui.choose");
     for (;;) {
       if (this.io.answers && this.io.answers.length === 0) return undefined;
-      const a = (await this.ask(`${ui(lang, "ui.choose")}`, keys[suggested])).trim();
+      const a = (await this.choiceAnswer(prompt, fallback)).trim();
+      if (a === "?" && opts.details && !keys.includes("?")) {
+        // the longer text, then the same question again (its options stay above)
+        this.io.stdout(`\n${opts.details().split("\n").map((l) => line([{ text: l ? `  ${l}` : "", role: "text" }], style, 2)).join("\n")}\n\n`);
+        continue;
+      }
       const i = keys.indexOf(a);
       if (i >= 0) return i < choices.length ? i : undefined;
       // asked again in one line, the options stay above it; a command typed here is said where it goes
@@ -403,15 +502,27 @@ export class Context {
           ? ui(lang, "ui.bad.command", { key: "0", label: out.label, command: a })
           : command
             ? ui(lang, "ui.bad.command.only", { command: a })
-            : ui(lang, "ui.bad.choice", { keys: keys.join(", ") })) + "\n",
+            : ui(lang, "ui.bad.choice", { keys: [...keys, ...(opts.details ? ["?"] : [])].map((k) => `[${k}]`).join(" ") })) + "\n",
       );
+    }
+  }
+
+  /** The answer to a prompt that says what Enter does itself (choose): asked as ask() asks. */
+  private async choiceAnswer(prompt: string, fallback: string | undefined): Promise<string> {
+    if (this.devicePreview) throw new DevicePreview({ kind: "computer", why: "question" });
+    const marked = fromDevice(this.env) && this.interactive && !isAgent(this.env) ? markAsking(this.askingRoot(), "question", this.env) : undefined;
+    try {
+      return await this.asked(prompt, fallback);
+    } finally {
+      marked?.();
     }
   }
 
   async confirm(question: string, suggested = true): Promise<boolean> {
     const lang = this.uiLang();
     const [yes, no] = [ui(lang, "ui.yes"), ui(lang, "ui.no")];
-    const a = (await this.ask(`${question} (${yes}/${no})`, suggested ? yes : no)).toLowerCase();
+    const fallback = suggested ? yes : no;
+    const a = (await this.choiceAnswer(`${question} (${yes}/${no}, Enter = ${fallback})`, fallback)).toLowerCase();
     return [yes, "y", "yes", "a", "ano", "j", "ja", "t", "tak", "o", "oui", "s", "si"].includes(a);
   }
 

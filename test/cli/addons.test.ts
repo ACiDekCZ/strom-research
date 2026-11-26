@@ -245,7 +245,7 @@ test("the menu's settings: the agent working alone — without the personal add-
   const w = await world();
   // 8 settings · 2 working alone · 4 the add-ons · Enter keeps · 0 · 0 · 0
   const keep = await w.ok([], { tty: true, answers: ["8", "2", "3", "", "0", "0", "0"] });
-  assert.match(keep.out, /3 {2}Bez osobních doplňků agenta \(skilly, pluginy, MCP servery\): zapnuto/);
+  assert.match(keep.out, /\[3\] {2}Bez osobních doplňků agenta \(skilly, pluginy, MCP servery\): zapnuto/);
   assert.match(keep.out, /Agent při samostatné práci načte jen nástroje výzkumu\. Spojení s aplikací Strom a prohlížeč fungují dál\. Chat s agentem doplňky načítá vždy\./);
   assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).agentAddons, undefined);
   const off = await w.ok([], { tty: true, answers: ["8", "2", "3", "ano", "0", "0", "0"] });
@@ -263,11 +263,11 @@ test("the setup wizard asks it for Claude Code and Codex, the suggested answer w
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   // run again: language, folder, model, its effort (0), stories, who decides the hypotheses, level kept (Enter) · the add-ons: 2 (with them) · no shortcut
   const r = await w.ok(["setup"], { tty: true, answers: ["", "", "", "", "0", "", "", "", "2", "n"] });
-  assert.match(r.out, /Bez osobních doplňků agenta \(skilly, pluginy, MCP servery\)\?\nAgent při samostatné práci načte jen nástroje výzkumu\.[^\n]*\n {3}1 {2}Ano \(doporučeno\)\n {3}2 {2}Ne – i při samostatné práci s doplňky\n {3}0 {2}Nechat, jak je\nVybrat \[1\]/);
+  assert.match(r.out, /Bez osobních doplňků agenta \(skilly, pluginy, MCP servery\)\?\nAgent při samostatné práci načte jen nástroje výzkumu\.[^\n]*\n {2}\[1\] {2}Ano \(doporučeno\)\n {2}\[2\] {2}Ne – i při samostatné práci s doplňky\n\n {2}\[0\] {2}Nechat, jak je\n\nVolba \(Enter = 1[^)]*\):/);
   assert.equal(cfg().agentAddons, "on");
   // again: what is now suggested; Enter keeps it
   const again = await w.ok(["setup"], { tty: true, answers: ["", "", "", "", "0", "", "", "", "", "n"] });
-  assert.match(again.out, /Nechat, jak je\nVybrat \[2\]/);
+  assert.match(again.out, /Nechat, jak je\n\nVolba \(Enter = 2[^)]*\):/);
   assert.equal(cfg().agentAddons, "on");
   w.cleanup();
 });

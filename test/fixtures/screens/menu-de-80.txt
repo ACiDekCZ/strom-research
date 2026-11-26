@@ -1,0 +1,70 @@
+Strom › Einstellungen (auf diesem Computer)
+
+  [1]  Einrichtung                         Sprache, Agent, Modell, was der Agent
+                                           allein darf, Geschichten
+  [2]  Der Agent allein                    60 Min. je Aufgabe · Bedingung: keine
+  [3]  Nachrichten über das Gespeicherte   keine  Hooks
+  [4]  Archive                             Anmeldungen, Zustimmung zum
+                                           Herunterladen
+  [5]  Forschung oder nur ein Strom-Archiv · Forschung: Suche in Kirchenbüchern
+       und Archiven
+  [6]  Das Lesen der Scans abstimmen       die vorgegebenen Größen
+  [7]  Remote Control in der Claude-App    aus  das Gespräch mit dem Agenten
+                                           auch vom Handy  → einschalten
+  [8]  Wartung                             Prüfung der Installation,
+                                           Speicherplatz, Korrekturen, Sicherung
+  [9]  Hilfe                               die Befehle für Menschen
+
+  [0]  Zurück
+
+Auswahl (Enter = 0 Zurück): 
+
+-----
+
+Strom › Einstellungen › Wartung
+
+  [1]  Installation prüfen
+  [2]  Speicherplatz       strom hält 1 kB neben der Forschung
+  [3]  Korrekturen von strom
+  [5]  Was sichern         den ganzen Forschungsordner, oder packen
+  [6]  Ein Problem melden  eine ZIP-Datei zum Versenden (nichts über die
+                           Menschen des Stammbaums)
+
+  [0]  Zurück
+
+Auswahl (Enter = 0 Zurück): 
+
+-----
+
+Strom › Einstellungen › Archive
+
+Downloader der Archive auf diesem Computer:
+  • Testovací archiv — Bilder direkt, strom achtet aufs Tempo; die Bedingungen
+    schränken das automatische Herunterladen ein – Bilder nur mit Erlaubnis
+
+Keiner braucht eine Anmeldung – die Archive sind frei zugänglich. Eine Anmeldung
+erscheint hier nur bei einem Downloader eines Portals mit Konto (etwa einem
+bezahlten).
+  [1]  Downloader fragen nach, bevor sie laufen · aus  → einschalten
+  [2]  Der Browser für den Agenten         nur für Archive über den Browser
+                                           Claude in Chrome  → in jeder Sitzung
+  [3]  Erlaubnis zum Herunterladen aus Archiven
+  [4]  Bücher mit den meisten Aufgaben     angeboten ab 5 Aufgaben, dasselbe
+                                           Buch nacheinander aus
+
+  [0]  Zurück
+
+Auswahl (Enter = 0 Zurück): 
+
+-----
+
+Strom › Einstellungen › Archive › Erlaubnis zum Herunterladen…
+
+Die Archive der Downloader auf diesem Computer – was für ihre Bilder gilt:
+  [1]  Testovací archiv  die Bedingungen schränken das automatische
+                         Herunterladen ein – Bilder nur mit Erlaubnis
+                         archive.example.org
+
+  [0]  Zurück
+
+Auswahl (Enter = 0 Zurück): 

@@ -136,7 +136,7 @@ test("What waits and the Strom app ask once; an agent cannot answer (exit 4, not
     // the app's "Answer": its link opens the question in the person's terminal; 0 changes nothing
     const id = Tree.open(w.cwd, w.env).config.id;
     const link = await w.run(["link", "open", `strom-research://archive?tree=${id}&host=www.mza.cz`], { tty: true, answers: ["0", ""] });
-    assert.match(link.out, /Moravský zemský archiv \(Acta Publica\) – co platí\?\n {3}1 {2}Ponechat „snímky jen ručně“ – už se neptat\n {3}2 {2}Podle podmínek archivu: archiv pouští automatické nástroje jen přes prohlížeč člověka[^\n]*\n {3}0 {2}Zpět – nic se nemění/);
+    assert.match(link.out, /Moravský zemský archiv \(Acta Publica\) – co platí\?\n {2}\[1\] {2}Ponechat „snímky jen ručně“ – už se neptat\n {2}\[2\] {2}Podle podmínek archivu: archiv pouští automatické nástroje jen přes prohlížeč člověka[^\n]*\n\n {2}\[0\] {2}Zpět – nic se nemění/);
     assert.equal(fs.readFileSync(archivesFile(w.env), "utf8"), before, "0: nothing changed");
     // the person in What waits: 3 · 1 the archive · 1 the question · 2 as its terms
     const menu = await w.run([], { tty: true, answers: ["3", "1", "1", "2", "0", "0", "0", "0"] });
@@ -171,7 +171,7 @@ test("\"keep\": the person's level then — not asked again, still by hand; said
     assert.match((await w.ok(["allow", "archive"])).out, /www\.mza\.cz: strom keeps manual since \d{4}-\d\d-\d\d \(the person\)[^\n]*milder only by the person: strom allow archive www\.mza\.cz --level restricted/);
     // the menu's answer the same way: nothing waits
     const menu = await w.run([], { tty: true, answers: ["0"] });
-    assert.doesNotMatch(menu.out, /Co čeká \(2\)/);
+    assert.doesNotMatch(menu.out, /Co čeká +2/);
   } finally {
     w.cleanup();
   }

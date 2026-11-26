@@ -305,14 +305,14 @@ test("the menu's settings: the history of the houses with its tasks held, what i
   const w = new World();
   try {
     await village(w);
-    const pick = (text: string) => text.split("\n").find((l) => /Historie domů v tomto výzkumu/u.test(l))?.match(/^\s*(\d+)/u)?.[1];
+    const pick = (text: string) => text.split("\n").find((l) => /Historie domů v tomto výzkumu/u.test(l))?.match(/^\s*\[(\d+)\]/u)?.[1];
     const look = await w.run([], { tty: true, answers: ["8", "1", "0", "0", "0"] });
-    assert.match(look.out, /Historie domů v tomto výzkumu: vypnuto/u, look.out);
+    assert.match(look.out, /\[\d+\] {2}Historie domů v tomto výzkumu {2,}vypnuto\n/u, look.out);
     const n = pick(look.out);
     assert.ok(n, look.out);
     // the line beside census records: nine items at most
     const what = look.out.slice(look.out.indexOf("Co nastavit?"));
-    const parts = what.slice(0, what.indexOf("Vybrat")).split("\n").filter((l) => /^\s+\d\s{2}/u.test(l));
+    const parts = what.slice(0, what.indexOf("\nVolba (")).split("\n").filter((l) => /^\s+\[\w+\]\s{2}/u.test(l));
     assert.ok(parts.length <= 10, look.out);
     // before it is on: what it is, how many houses in how many municipalities, the minutes (no price measured); Enter: nothing
     const no = await w.run([], { tty: true, answers: ["8", "1", n!, "", "0", "0"] });
@@ -343,7 +343,7 @@ test("the menu's settings: the history of the houses with its tasks held, what i
     assert.match(off.out, new RegExp(`Odloženo: ${held} úkol\\S* domů\\. Po zapnutí se vrátí\\.`, "u"), off.out);
     assert.equal(open(w).config.houses, "off");
     const again = await w.run([], { tty: true, answers: ["8", "1", "0", "0", "0"] });
-    assert.match(again.out, new RegExp(`Historie domů v tomto výzkumu: vypnuto, odložen\\S* ${held} úkol\\S* domů`, "u"), again.out);
+    assert.match(again.out, new RegExp(`\\[\\d+\\] {2}Historie domů v tomto výzkumu {2,}vypnuto, odložen\\S* ${held} úkol\\S* domů`, "u"), again.out);
     // an archive: nothing of it
     await w.ok(["mode", "archive"], { tty: true });
     const archive = await w.run([], { tty: true, answers: ["8", "1", "0", "0", "0"] });

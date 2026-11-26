@@ -119,6 +119,9 @@ const estimateText = (t: T, e: FixEstimate, agent: string, trial = false) =>
   });
 
 /** " — cheap, about 3 min": what a choice would take, beside it. */
+/** A text said after another (" — expensive…", " · read before") said on its own, in a column of a menu. */
+const bare = (text: string) => text.replace(/^\s*[—–·]\s*/u, "");
+
 const costText = (t: T, e: FixEstimate) => t("ui.fixes.cost", { level: t(`ui.fixes.level.${e.level}` as UIKey), minutes: e.minutes });
 
 const stateText = (t: T, s: FixState) =>
@@ -846,13 +849,11 @@ async function chooseReader(ctx: Context, tree: Tree, t: T, s: FixState, model: 
   const before = new Set([...readBefore(tree, s.found.items)].map((k) => splitKey(k).agent));
   const readBy = (r: Reader) => before.has(r.agent);
   const pick = readBy(now) ? Math.max(0, readers.findIndex((r) => !readBy(r))) : 0;
+  // the reader in its column, what it costs as its value, whether it read them before faintly after it
   const choices = readers.map((r, i) => ({
-    label: [
-      calibrationLabel(readerKey(tree, r), t("ui.settings.model.own")),
-      costText(t, estimateOf(ctx, tree, readersOf(s.found.items), { reader: r })),
-      readBy(r) ? t("ui.fixes.reader.before") : "",
-      i === pick && pick > 0 ? t("ui.fixes.reader.other") : "",
-    ].join(""),
+    label: calibrationLabel(readerKey(tree, r), t("ui.settings.model.own")),
+    value: bare(costText(t, estimateOf(ctx, tree, readersOf(s.found.items), { reader: r }))),
+    extra: [readBy(r) ? t("ui.fixes.reader.before") : "", i === pick && pick > 0 ? t("ui.fixes.reader.other") : ""].map(bare).filter(Boolean).join(" · ") || undefined,
   }));
   const i = await ctx.choose(t("ui.fixes.reader.ask"), choices, pick, { back: t("ui.fixes.later") });
   return i === undefined ? undefined : readers[i];
@@ -889,7 +890,13 @@ async function runCheck(ctx: Context, tree: Tree, t: T, s: FixState, opts: { fir
   while (left.length) {
     const perReading = spent.readings ? spent.secs / spent.readings : undefined;
     const est = (groups: FixItem[][]) => estimateOf(ctx, tree, readersOf(groups.flat()), { reader, ...(perReading !== undefined ? { perReading } : {}) });
-    const offer = (key: UIKey, n: number) => ({ label: t(key, { part: partText(t, left.slice(0, n).flat()) }) + costText(t, est(left.slice(0, n))), n });
+    // what is read in its column, how much and what it costs as its value
+    const offer = (key: UIKey, n: number) => {
+      const said = t(key, { part: partText(t, left.slice(0, n).flat()) });
+      const at = said.indexOf(": ");
+      const part = at > 0 ? said.slice(at + 2) : "";
+      return { label: at > 0 ? said.slice(0, at) : said, value: [part, bare(costText(t, est(left.slice(0, n))))].filter(Boolean).join(" · "), n };
+    };
     // a trial from the narrowest stage that holds any; then the disputed alone, with the direct line, all — each
     // offered where it is more than the one before and less than all
     const st = stagesOf(left);
