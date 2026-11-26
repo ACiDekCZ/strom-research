@@ -4031,6 +4031,7 @@
   "ui.link.what.history.kinds": "in dieser Forschung diese Arten der Geschichte suchen: {kinds}",
   "ui.link.what.history.kinds.default": "in den Forschungen auf diesem Computer diese Arten der Geschichte suchen: {kinds}",
   "ui.link.what.history.align": "die Geschichte mit den gesuchten Arten abgleichen",
+  "ui.link.what.house.import": "eine eigene Recherche zu einem Haus übernehmen (eine Datei oder einen Ordner davon; zu welchem Haus sie gehört, wird hier gefragt, wenn es unklar ist)",
   "ui.link.history.kinds.added": "Hinzu kommt: {kinds} – jede Sitzung der Geschichte sucht sie mit.",
   "ui.link.history.kinds.removed": "Weg fällt: {kinds} – nicht mehr gesucht; was gefunden wurde, bleibt bis zum Abgleich der Geschichte.",
   "ui.link.history.kinds.estimate": "Nachsuche dort, wo die Geschichte schon durchgesehen wurde: {n} Aufgaben, etwa {sessions} Sitzungen des Agenten (erst nach dem Abgleich).",

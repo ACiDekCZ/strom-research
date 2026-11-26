@@ -452,6 +452,9 @@ export function closeBatchBy(r: Receiver, id: string, extra: string[], reply: (c
     // a queued file another program held (an antivirus; found on Windows: EBUSY and its path): closed again in a while
     if (isHeld(data)) return reply(503, { ...heldSaid(langOf(r.root, r.env)), batch: id });
     if (data.code === DISK_FULL || isDiskFull(why)) return reply(507, { ...diskFullSaid(langOf(r.root, r.env), fullWhere(data, r.root)), batch: id });
+    // the house its files were for (spec 030): gone meanwhile, or none the research can hold — the batch stays open
+    if (typeof data.code === "string" && data.code.startsWith("house."))
+      return reply(data.code === "house.unknown" ? 404 : 400, { ...refusal(why, data.code === "house.unknown" ? "house.unknown" : "house.body"), reasonCode: data.code, batch: id });
     reply(/no batch/.test(why) ? 404 : 400, { ...refusalOf(why, data, /no batch/.test(why) ? "batch.none" : "media.refused"), batch: id });
   });
 }

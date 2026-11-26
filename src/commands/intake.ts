@@ -18,6 +18,7 @@ import { notFound, UsageError } from "../core/errors.ts";
 import type { Family, Input, MediaLink, Name, Person, Research, Task } from "../core/model.ts";
 import { collectFiles, fileSha256, inputPath, MAX_IN_TREE, mimeOf, storeShared } from "../core/media.ts";
 import { create, normId, requireRecord, update } from "../core/records.ts";
+import { findHouse, recordOf } from "../core/houses.ts";
 import { phrase } from "../core/phrases.ts";
 import { addMarriedNames, importedTree, importGedcom, importStromJson, isStromJson, marriedNamesPlan, undoMarriedNames, type ImportResult } from "../core/import.ts";
 import { pendingIds } from "../core/originfix.ts";
@@ -862,6 +863,7 @@ register(
       { name: "note", type: "string", value: "<text>", description: "the user's note to the whole batch (told in its tasks)" },
       { name: "sort", type: "boolean", description: "sorting tasks for this batch although intake.auto is off (a batch closed unsorted: made now)" },
       { name: "no-sort", type: "boolean", description: "no sorting task for this batch although intake.auto is on" },
+      { name: "house", type: "string", value: "<house>", description: "the house its files are material of (A…, its key town|number): no sorting task unless --sort (spec 030)" },
     ],
     examples: ["strom input batch done 4f1c2a9e-0b7d-4c55-9a7e-3d2c1b0a9f88 --name \"Krabice od babičky\"", "strom input batch done 4f1c2a9e-0b7d-4c55-9a7e-3d2c1b0a9f88 --sort"],
     run(ctx, { args, opts }) {
@@ -873,13 +875,29 @@ register(
       if (opts.sort && opts["no-sort"]) throw new UsageError("give --sort or --no-sort, not both", { code: "batch.sort-both" });
       // the batch's own choice (the app's), else the research's setting (spec 130: off unless the person turned it on)
       const auto = ctx.settings.intakeAuto(tree.config);
-      const sort = opts.sort ? true : opts["no-sort"] ? false : auto;
+      const houseRef = typeof opts.house === "string" && opts.house.trim() ? opts.house : undefined;
+      // a house's files wait for the house's research: no sorting task unless asked
+      const sort = opts.sort ? true : opts["no-sort"] || houseRef ? false : auto;
+      let house: string | undefined;
       const b = tree.withTreeLock(() => {
+        // the house known before anything is closed: a house the research cannot hold refuses the batch whole
+        const row = houseRef ? findHouse(tree, houseRef) : undefined;
+        if (row && !row.record && !row.tree?.place)
+          throw new UsageError(`the municipality of the house "${row.key}" is no place record yet`, { code: "house.town", hint: `strom place add "${row.place.name}", then again` });
         if (batchQueued(tree.root, id)) takeQueued(tree, ctx.settings.shared()!.value, ctx.env, { batch: id });
-        return closeBatch(tree, id, { name: typeof opts.name === "string" ? opts.name : undefined, persons, expected: Number(opts.expected) || undefined, note: typeof opts.note === "string" ? opts.note : undefined, why: opts.idle ? "idle" : "app", sort });
+        const closed = closeBatch(tree, id, { name: typeof opts.name === "string" ? opts.name : undefined, persons, expected: Number(opts.expected) || undefined, note: typeof opts.note === "string" ? opts.note : undefined, why: opts.idle ? "idle" : "app", sort });
+        if (row) {
+          const h = recordOf(tree, row);
+          house = h.id;
+          for (const iid of [...closed.inputs, ...closed.known]) {
+            const i = tree.get<Input>(iid);
+            if (i?.type === "input" && !(i.houses ?? []).includes(h.id)) update<Input>(tree, iid, "input", (x) => ({ ...x, houses: [...(x.houses ?? []), h.id] }), { op: "input.houses", summary: `${iid} of ${h.id}`, targets: [h.id] });
+          }
+        }
+        return closed;
       });
       // files: what became of each file queued for it, by its hash and path (none queued: empty)
-      const data = { batch: b.id, name: b.name, inputs: b.inputs.length, known: b.known.length, refused: b.refused.length, nested: b.nested, tasks: b.tasks, auto, sort: b.sort !== false, files: b.taken ?? [] };
+      const data = { batch: b.id, name: b.name, inputs: b.inputs.length, known: b.known.length, refused: b.refused.length, nested: b.nested, tasks: b.tasks, auto, sort: b.sort !== false, files: b.taken ?? [], ...(house ? { house } : {}) };
       const sorting = b.sort === false ? `not sorted: the files wait in the material (strom input batch done ${b.id} --sort sorts them)` : `${counted(b.tasks.length, "task")} to sort them`;
       return { text: lines(...tree.written.map((o) => o.summary), `${counted(b.inputs.length, "file")} taken, ${b.known.length} known already, ${b.refused.length} refused — ${sorting}`), data };
     },

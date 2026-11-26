@@ -3734,6 +3734,7 @@ export const UI = {
   "ui.link.what.history.kinds": "look for these kinds of history in this research: {kinds}",
   "ui.link.what.history.kinds.default": "look for these kinds of history in the researches on this computer: {kinds}",
   "ui.link.what.history.align": "align the history with the kinds looked for",
+  "ui.link.what.house.import": "take in a research of a house of one's own (a file or a folder of them; the house of each is asked here when unclear)",
   "ui.link.history.kinds.added": "Added: {kinds} — each session of the history looks for them too.",
   "ui.link.history.kinds.removed": "Left out: {kinds} — no longer looked for; what was found stays until the history is aligned.",
   "ui.link.history.kinds.estimate": "To look for them where the history was looked through already: {n} tasks, about {sessions} sessions of the agent (only after aligning).",

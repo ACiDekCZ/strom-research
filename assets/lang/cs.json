@@ -4031,6 +4031,7 @@
   "ui.link.what.history.kinds": "hledat v tomto výzkumu tyto druhy dějin: {kinds}",
   "ui.link.what.history.kinds.default": "hledat ve výzkumech na tomto počítači tyto druhy dějin: {kinds}",
   "ui.link.what.history.align": "srovnat dějiny s hledanými druhy",
+  "ui.link.what.house.import": "převzít vlastní rešerši domu (soubor nebo složku s nimi; ke kterému domu patří, se tu zeptá, když to není jasné)",
   "ui.link.history.kinds.added": "Přibude: {kinds} – každé sezení dějin je bude hledat taky.",
   "ui.link.history.kinds.removed": "Ubude: {kinds} – už se nebudou hledat; co se našlo, zůstane do srovnání dějin.",
   "ui.link.history.kinds.estimate": "Dohledat je tam, kde se dějiny už prošly: úkolů {n}, asi {sessions} sezení agenta (až po srovnání).",

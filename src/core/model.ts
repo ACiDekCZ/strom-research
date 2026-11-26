@@ -1298,6 +1298,8 @@ export interface Input extends BaseRecord {
   links?: MediaLink[];
   /** The houses it is material of (A…, spec 030): a research of a house taken in, a photo of it (strom house import). */
   houses?: string[];
+  /** Who told a memory of a house (spec 030 §2.7), kept only when they agreed to be named. */
+  witness?: string;
   /** A research of a house the person made themselves, taken in by strom house import (its text kept as it came). */
   ownResearch?: true;
   notes: Note[];

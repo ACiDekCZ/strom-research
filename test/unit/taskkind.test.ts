@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { kindCounts, parseTaskKind, TASK_KINDS, taskKind } from "../../src/core/taskkind.ts";
+import { KINDS_065, kindCounts, kindMatches, parseTaskKind, TASK_KINDS, taskKind } from "../../src/core/taskkind.ts";
 import type { Task } from "../../src/core/model.ts";
 
 const kind = (level: Task["level"], origin?: string) => taskKind({ level, origin } as Pick<Task, "level" | "origin">);
@@ -20,6 +20,10 @@ test("taskKind: every verification one kind; the history and the stories before 
   assert.equal(kind("enrich"), "enrich");
   for (const level of ["locate", "link", "verify"] as const) assert.equal(kind(level), "records", level);
   assert.equal(kind("analyze" as Task["level"]), "other");
+  // a house's research (spec 030): its takeover, the house, a municipality's houses — whatever the level
+  for (const origin of ["house:import:A0001", "house:A0001", "house:lhota|9", "house:town:L0001"]) assert.equal(kind("enrich", origin), "house", origin);
+  assert.ok(!KINDS_065.includes("house"), "counted apart: an older app finds it under other");
+  assert.ok(kindMatches("house", "other") && !kindMatches("house", "other", ["house"]) && kindMatches("house", "house"));
 });
 
 test("parseTaskKind: the kinds alone, any case; kindCounts: only the kinds that have one", () => {

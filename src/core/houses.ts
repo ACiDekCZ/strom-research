@@ -33,6 +33,7 @@ import {
 } from "./model.ts";
 import { appHouseKey, appPlaceKey, compareHouses, houseRowKey, splitStreet } from "./streets.ts";
 import { foldText } from "./text.ts";
+import crypto from "node:crypto";
 import { now, type Tree } from "./tree.ts";
 import { create, normId, update } from "./records.ts";
 import { recordIndex } from "./placeid.ts";
@@ -570,6 +571,73 @@ export function houseSummary(row: HouseRow): { events: number; holders: number; 
     materials: row.materials.length,
     passed: h?.passed.length ?? 0,
   };
+}
+
+/** A house as a list gives it (strom house list --json, GET <token>/houses): spec 030 §4.2. */
+export function listRow(row: HouseRow): Record<string, unknown> {
+  return {
+    ...(row.id ? { id: row.id } : {}),
+    key: row.key,
+    place: row.place,
+    house: row.house,
+    ...(row.name ? { name: row.name } : {}),
+    ...(row.record?.numbers.length ? { numbers: row.record.numbers.filter((n) => !n.notSame).map((n) => ({ number: n.number, ...(n.from ? { from: n.from } : {}), ...(n.to ? { to: n.to } : {}), certainty: n.certainty })) } : {}),
+    persons: row.persons,
+    ...(row.years ? { years: row.years } : {}),
+    state: row.state,
+    ...(row.at ? { at: row.at } : {}),
+    ...(row.task ? { task: row.task } : {}),
+    ...(row.work ? { work: row.work } : {}),
+    ...(row.question ? { question: row.question } : {}),
+    summary: houseSummary(row),
+  };
+}
+
+// ── what the bridge tells the Strom app (spec 030 §4.2) ─────────────────────────────────────────────────────────
+
+/** The houses of the research the app lists: a record, a task or a material — a house only of the tree's facts not. */
+export const researchHouses = (rows: HouseRow[]): HouseRow[] => rows.filter((r) => r.id || r.task || r.materials.length);
+
+/**
+ * The fingerprint of the houses (/status houses.rev, GET /houses): every house record, every task of a house and every
+ * material of one, as they are now — any change of them changes it.
+ */
+export function housesRev(tree: Tree, rows: HouseRow[] = houseRows(tree)): string {
+  const hash = crypto.createHash("sha256");
+  for (const r of researchHouses(rows)) hash.update(`${r.key}\u0000${r.id ?? ""}\u0000${r.state}\u0000${r.task ?? ""}\u0000${r.at ?? ""}\u0000${r.question?.text ?? ""}\u0000${r.record?.updated ?? ""}\u0000${r.materials.join(",")}\n`);
+  for (const t of tree.list<Task>("task").filter(forHouse).sort((a, b) => a.id.localeCompare(b.id))) hash.update(`${t.id}\u0000${t.updated}\u0000${t.state}\n`);
+  for (const i of tree.list<Input>("input")) if (i.houses?.length) hash.update(`${i.id}\u0000${i.updated}\n`);
+  return hash.digest("hex").slice(0, 16);
+}
+
+/** /status houses (feature house): on — the research of houses by itself, off in part 1; how many houses in each state. */
+export function housesStatus(tree: Tree, archive: boolean): { on: false; rev: string; counts: Record<Exclude<HouseState, "none">, number> } {
+  const rows = houseRows(tree);
+  const counts = { done: 0, running: 0, queued: 0, waiting: 0, held: 0 };
+  // an archive: nothing researched, nothing counted (its tasks put aside say nothing of a research)
+  if (!archive) for (const r of rows) if (r.state !== "none") counts[r.state]++;
+  return { on: false, rev: housesRev(tree, rows), counts };
+}
+
+/** A house as an archive shows it: nobody researches there — no state of a research, no task, no question. */
+export function archiveRow(row: HouseRow): HouseRow {
+  const { at: _at, task: _task, work: _work, question: _question, ...rest } = row;
+  return { ...rest, state: "none" };
+}
+
+/** A house as the app names it in a path (GET /houses/<key|A…>): its key as the list gives it, else as typed. */
+export function houseByRef(tree: Tree, ref: string, rows: HouseRow[] = houseRows(tree)): HouseRow {
+  const r = ref.normalize("NFC").trim();
+  return rows.find((x) => x.key === r || x.id === r) ?? findHouse(tree, r, rows);
+}
+
+/** The key of the house a task is of (a queue's row: house), else undefined (a municipality's task, no house). */
+export function houseKeyOfTask(tree: Tree, t: Pick<Task, "origin">, index: () => HouseIndex): string | undefined {
+  const of = houseOfTask(t);
+  if (!of) return undefined;
+  if (!/^A\d+$/u.test(of)) return of;
+  const h = tree.get<House>(of);
+  return h ? keyOfHouse(tree, h, index()) : undefined;
 }
 
 /** The codes an agent may give an item: for help and checks. */

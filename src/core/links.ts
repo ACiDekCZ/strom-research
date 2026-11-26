@@ -86,7 +86,9 @@ export const LINK_STORY_DOS = ["final", "keep"] as const;
 /** The research followed live: start: only its bridge started (at its last address), no window of the app opened. */
 export const LINK_LIVE_DOS = ["start"] as const;
 
-export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history", "fixes", "back", "places", "history-kinds", "history-align", "hypothesis", "hypotheses", "work", "book"] as const;
+export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history", "fixes", "back", "places", "history-kinds", "history-align", "hypothesis", "hypotheses", "work", "book", "house"] as const;
+/** A house (spec 030): import — a research of the person's own taken in, in the terminal (strom house import). */
+export const LINK_HOUSE_DOS = ["import"] as const;
 /** A person's review: the person, with the family, with the ancestors (strom review --scope). */
 export const LINK_SCOPES = ["person", "family", "line"] as const;
 /** A new direction from a person (strom research new --direction). */
@@ -266,6 +268,7 @@ export type Link =
   | { action: "work"; tree: string; do: (typeof LINK_WORK_DOS)[number]; n?: string; task?: string; research?: string; agent?: string }
   | { action: "fixes"; tree: string; id?: (typeof LINK_FIX_IDS)[number]; do?: (typeof LINK_FIX_DOS)[number] }
   | { action: "back"; tree: string; change?: string }
+  | { action: "house"; tree: string; do: (typeof LINK_HOUSE_DOS)[number] }
   | { action: "history-kinds"; tree: string; scope: (typeof LINK_KINDS_SCOPES)[number]; kinds?: string; inherit?: "1" }
   | { action: "history-align"; tree: string; prune?: "1" }
   | { action: "new"; app: string; browser?: BrowserKind; file?: string; name?: string }
@@ -509,6 +512,9 @@ function linkParts(text: string | undefined, scheme: string): Link {
       if (q.has("prune") && q.get("prune") !== "1") throw new LinkError("prune=1 only");
       return { action, tree: id, ...(q.get("prune") === "1" ? { prune: "1" as const } : {}) };
     }
+    case "house":
+      // a research of a house of the person's own taken in: the path asked in the terminal, never in the link
+      return { action, tree: id, do: oneOf(q, "do", LINK_HOUSE_DOS) };
     case "back": {
       // back in time: the change by its hash only (never a day or a text); none: the earlier changes to pick from
       if (!q.has("change")) return { action, tree: id };

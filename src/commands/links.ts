@@ -168,6 +168,8 @@ function refusedHere(ctx: Context, root: string, link: TreeLink): { key: UIKey; 
     link.action === "history" ||
     link.action === "places" ||
     link.action === "work" ||
+    // a research of a house taken over by the agent (spec 030): nobody researches in an archive
+    link.action === "house" ||
     (link.action === "conflict" && link.do === "agent") ||
     // the agent deciding the hypotheses: nobody researches in an archive (back to the person: anywhere)
     (link.action === "hypotheses" && "decide" in link && link.decide === "agent") ||
@@ -371,6 +373,11 @@ async function inTerminal(ctx: Context, link: TreeLink, at?: string) {
       // back in time: the change named (or one picked here) — strom history back shows what returns, the person decides
       const { backDo } = await import("../cli/menu-links.ts");
       return end((await backDo(ctx, run, treeLang, root, link.change)) === 0);
+    }
+    case "house": {
+      // a research of a house of the person's own: its path asked here, then strom house import (its questions here too)
+      const { houseImportDo } = await import("../cli/menu-links.ts");
+      return end(await houseImportDo(ctx, run, treeLang, root));
     }
   }
   const named = "person" in link ? link.person : undefined;

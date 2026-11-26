@@ -388,6 +388,19 @@ export async function historyAlignDo(ctx: Context, run: Run, lang: string, root:
   return (await run(["history", "align", ...(prune ? ["--prune-shared"] : [])])) === 0;
 }
 
+/**
+ * A research of a house of the person's own taken in, asked from the Strom app (strom-research://house?do=import): the
+ * file or the folder asked here (dragged in), then strom house import — the house of a file asked here when it is not
+ * clear. Enter or 0 at the path: nothing taken in.
+ */
+export async function houseImportDo(ctx: Context, run: Run, lang: string, root: string): Promise<boolean> {
+  const t = translator(lang);
+  out(ctx, t("ui.link.asks", { what: t("ui.link.what.house.import"), name: Tree.open(root, ctx.env).config.name }));
+  const paths = await askPaths(ctx, lang, root);
+  if (!paths?.length) return false;
+  return (await run(["house", "import", ...paths])) === 0;
+}
+
 /** The places of this tree that follow its regions' switch written first as they hold (core/pastevents.ts placesPinned). */
 export async function pinPlaces(run: Run, tree: Tree, ctx: Context): Promise<boolean> {
   const pin = placesPinned(tree, ctx.settings);

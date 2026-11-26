@@ -4031,6 +4031,7 @@
   "ui.link.what.history.kinds": "szukać w tym badaniu tych rodzajów historii: {kinds}",
   "ui.link.what.history.kinds.default": "szukać w badaniach na tym komputerze tych rodzajów historii: {kinds}",
   "ui.link.what.history.align": "dostosować historię do szukanych rodzajów",
+  "ui.link.what.house.import": "przejąć własną kwerendę domu (plik lub folder z nimi; do którego domu należy, pyta się tutaj, gdy nie jest to jasne)",
   "ui.link.history.kinds.added": "Dojdzie: {kinds} – każda sesja historii będzie ich także szukać.",
   "ui.link.history.kinds.removed": "Odpadnie: {kinds} – nie będzie się ich już szukać; to, co znaleziono, zostaje do dostosowania historii.",
   "ui.link.history.kinds.estimate": "Uzupełnić je tam, gdzie historię już przejrzano: zadań {n}, około {sessions} sesji agenta (dopiero po dostosowaniu).",

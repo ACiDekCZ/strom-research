@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { register, type CommandDef, type OptionDef } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, table } from "../cli/format.ts";
+import { lines, table, truncate } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
 import { UsageError } from "../core/errors.ts";
 import {
@@ -30,15 +30,15 @@ import {
   findTown,
   houseRows,
   houseSources,
-  houseSummary,
   houseView,
+  listRow,
   recordOf,
   setHouse,
   type HouseConfirm,
   type HouseRow,
 } from "../core/houses.ts";
 import { ImportQuestions, planImport, writeImport, type ImportQuestion } from "../core/houseimport.ts";
-import { listOpt, normId, update } from "../core/records.ts";
+import { create, listOpt, normId, update } from "../core/records.ts";
 import { isAgent } from "../core/which.ts";
 import type { Tree } from "../core/tree.ts";
 
@@ -59,25 +59,6 @@ const opt = (v: unknown): string | undefined => (typeof v === "string" && v.trim
 const stateWord = (lang: string, s: HouseRow["state"]) => ui(lang, `ui.house.state.${s}`);
 
 // ── list and show ───────────────────────────────────────────────────────────────────────────────────────────────
-
-function listRow(row: HouseRow): Record<string, unknown> {
-  return {
-    ...(row.id ? { id: row.id } : {}),
-    key: row.key,
-    place: row.place,
-    house: row.house,
-    ...(row.name ? { name: row.name } : {}),
-    ...(row.record?.numbers.length ? { numbers: row.record.numbers.filter((n) => !n.notSame).map((n) => ({ number: n.number, ...(n.from ? { from: n.from } : {}), ...(n.to ? { to: n.to } : {}), certainty: n.certainty })) } : {}),
-    persons: row.persons,
-    ...(row.years ? { years: row.years } : {}),
-    state: row.state,
-    ...(row.at ? { at: row.at } : {}),
-    ...(row.task ? { task: row.task } : {}),
-    ...(row.work ? { work: row.work } : {}),
-    ...(row.question ? { question: row.question } : {}),
-    summary: houseSummary(row),
-  };
-}
 
 function showText(tree: Tree, row: HouseRow, v: Record<string, unknown>): string {
   const lang = tree.lang;
@@ -510,18 +491,34 @@ register(
   ),
   itemCommand(
     "material",
-    "Make a material of the research (I…) one of the house's: a photo of it, a document of it",
-    [{ name: "input", type: "string", multiple: true, value: "<I…>", description: "the material (repeatable)" }],
-    ["strom house add material A0001 --input I0003"],
-    (_ctx, tree, h, opts) => {
+    "Make a material of the research (I…) one of the house's — a photo of it, a document of it — or write down a memory of it the person told; no task",
+    [
+      { name: "input", type: "string", multiple: true, value: "<I…>", description: "the material (repeatable)" },
+      { name: "memory", type: "string", value: "<text>", description: "a memory of the house as told (a material of its own)", max: 20000 },
+      { name: "witness", type: "string", value: "<name>", description: "who told the memory (kept only with --witness-consent)", max: 200 },
+      { name: "witness-consent", type: "boolean", description: "the witness agreed to be named" },
+    ],
+    ["strom house add material A0001 --input I0003", 'strom house add material A0001 --memory "<what the family remembers of the house>"'],
+    (ctx, tree, h, opts) => {
       const ids = listOpt(opts.input).map((x) => normId(x, "input"));
-      if (!ids.length) throw new UsageError("missing --input <I…>", { code: "house.body", hint: "strom input list" });
+      const memory = opt(opts.memory);
+      if (!ids.length && !memory) throw new UsageError("missing --input <I…> or --memory <text>", { code: "house.body", hint: "strom input list" });
       for (const id of ids) {
         const i = tree.get<Input>(id);
-        if (!i) throw new UsageError(`no material ${id}`, { code: "house.body" });
+        if (!i || i.type !== "input") throw new UsageError(`no material ${id}`, { code: "house.body" });
         if (!(i.houses ?? []).includes(h.id)) update<Input>(tree, id, "input", (x) => ({ ...x, houses: [...(x.houses ?? []), h.id] }), { op: "input.houses", summary: `${id} of ${h.id}`, targets: [h.id] });
       }
-      return { what: `material ${ids.join(", ")}` };
+      if (!memory) return { what: `material ${ids.join(", ")}` };
+      if (memory.length > 20000) throw new UsageError("--memory is longer than 20000 characters", { code: "house.body" });
+      // the witness's name only with their consent (spec 030 §2.7)
+      const witness = opts["witness-consent"] === true ? opt(opts.witness) : undefined;
+      const i = create<Input>(
+        tree,
+        "input",
+        { name: truncate(memory, 60), text: memory, kind: "text", state: "new", from: isAgent(ctx.env) ? "research" : "user", houses: [h.id], ...(witness ? { witness } : {}) },
+        (iid) => `+${iid} input text, a memory of ${h.id}`,
+      );
+      return { id: i.id, what: `material ${[...ids, i.id].join(", ")}` };
     },
   ),
   itemCommand(
@@ -577,8 +574,9 @@ register({
     const what = CONFIRM_WORDS[args[1] ?? ""];
     if (!what) throw new UsageError(`"${args[1] ?? ""}" is none of renumber, location, not-same`, { code: "house.body" });
     const set = ["strom", "house", "confirm", ...args].join(" ");
-    // the person's, at their terminal: nobody to ask here — exit 4, never decided for them
-    ctx.requireHuman("Confirming a house's renumbering or point is the person's own judgment", set, "house", undefined, { window: false });
+    // the person's, at their terminal or in the Strom app (the bridge, POST /houses/confirm): nobody to ask anywhere
+    // else — exit 4, never decided for them
+    if (ctx.env.STROM_FOR_APP !== "1" || isAgent(ctx.env)) ctx.requireHuman("Confirming a house's renumbering or point is the person's own judgment", set, "house", undefined, { window: false });
     const row = findHouse(tree, args[0]!);
     if (!row.id) throw new UsageError(`nothing to confirm of "${row.key}": the research has no record of it yet`, { code: "house.unknown" });
     const lat = opts.lat === undefined ? undefined : Number(opts.lat);
