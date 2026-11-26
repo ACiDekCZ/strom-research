@@ -115,7 +115,7 @@ test("note edit, retract, restore — a person's, a task's, a fact's: the old te
   assert.match(history, /note retracted \S+ \([^)]+\): o jmenovkyni z čp\. 37 — Žila v čp\. 37 \(jmenovkyně\)/);
   assert.match(history, /note corrected \S+ \([^)]+\): příjmení doplněno — before: Kmotra Marie z Vsi/);
   assert.match(history, new RegExp(`${fact} note corrected \\S+ \\([^)]+\\): čp\\. přečteno špatně — before: u sedláka v čp\\. 5`));
-  assert.match((await w.ok(["note", "list", "T1", "--history"])).out, /\[1\] {2}.*Kniha 12 prohledána 1801–1820\n {5}before \S+ \([^)]+\): roky špatně — Kniha 12 prohledána 1801–1830/);
+  assert.match((await w.ok(["note", "list", "T1", "--history"])).out, /1 {2}.*Kniha 12 prohledána 1801–1820\n {5}before \S+ \([^)]+\): roky špatně — Kniha 12 prohledána 1801–1830/);
   const brief = (await w.ok(["brief", "T1"])).out;
   assert.doesNotMatch(brief, /jmenovkyně|Kmotra Marie z Vsi|1801–1830/, "the agent is given only what holds");
   assert.match(brief, /1801–1820/);

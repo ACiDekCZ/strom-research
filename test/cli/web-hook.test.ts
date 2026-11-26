@@ -374,7 +374,7 @@ test("the brief, the guide and AGENTS.md say it for every agent, with the number
   await w.ok(["config", "set", "web.perHost", "8", "--for-tree"]);
   said(8);
   assert.match((await w.ok(["guide"])).out, /More than 8 pages or items of one site/);
-  assert.match((await w.ok(["guide"])).out, /past\s+\[8\]\s+the\s+web\s+tool\s+is\s+refused/);
+  assert.match((await w.ok(["guide"])).out, /past\s+8\s+the\s+web\s+tool\s+is\s+refused/);
   syncAgentFiles(Tree.open(w.cwd, w.env));
   assert.match(agents(), /Search the web freely\. More than 8 pages or items of one site/);
   w.cleanup();
