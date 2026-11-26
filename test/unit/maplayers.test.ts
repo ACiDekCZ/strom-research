@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { assetPath } from "../../src/core/assets.ts";
-import { inBox, layerOk, layerView, mapLayers } from "../../src/core/maplayers.ts";
+import { inBox, layerOk, layerView, mapLayer, mapLayers } from "../../src/core/maplayers.ts";
 
 const raw = JSON.parse(fs.readFileSync(assetPath("maplayers.json"), "utf8")) as { layers: Record<string, unknown>[] };
 const archives = (JSON.parse(fs.readFileSync(assetPath("archives.json"), "utf8")) as { archives: Record<string, unknown>[] }).archives;
@@ -44,4 +44,16 @@ test("a layer's box: a point inside, one outside; its view in the research langu
   assert.ok(!layerOk({ ...l, bbox: [19, 48, 12, 51] }), "west past east");
   assert.ok(!layerOk({ ...l, url: "http://example.org/wms" }), "only https");
   assert.ok(!layerOk({ ...l, label: { cs: "Dnes" } }), "English at least");
+});
+
+test("a layer drawn in one coordinate system alone says so; the app is told it, a layer without it tells nothing", () => {
+  const l = mapLayers()[0]!;
+  assert.ok(layerOk({ ...l, crs: "EPSG:5514" }));
+  for (const crs of ["5514", "epsg:5514", "EPSG:", "EPSG:5514 ", ""]) assert.ok(!layerOk({ ...l, crs }), crs);
+  assert.equal(layerView({ ...l, crs: "EPSG:5514" }, "cs").crs, "EPSG:5514");
+  assert.ok(!("crs" in layerView({ ...l, crs: undefined }, "cs")));
+  const fifties = mapLayer("cz-ortho-1950");
+  assert.ok(fifties, "the aerial photos of the 1950s ship");
+  assert.equal(fifties!.kind, "ortho-1950");
+  assert.equal(fifties!.crs, "EPSG:5514", "its service draws in S-JTSK alone");
 });

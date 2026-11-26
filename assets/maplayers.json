@@ -1,5 +1,5 @@
 {
-  "about": "Map layers the Strom app may draw over a house's place (GET /status houses.layers, spec 030 part 2): only open services whose host is in archives.json as allowed for automated use, outside its disallowed paths (test/unit/maplayers.test.ts). A layer is offered to a research only when its bbox [west, south, east, north] holds a place of a house of the tree. kind: as a house's maps[] item names it (core/model.ts HOUSE_MAP_KINDS). checked: the day its GetCapabilities was read.",
+  "about": "Map layers the Strom app may draw over a house's place (GET /status houses.layers, spec 030 part 2): only open services whose host is in archives.json as allowed for automated use, outside its disallowed paths (test/unit/maplayers.test.ts). A layer is offered to a research only when its bbox [west, south, east, north] holds a place of a house of the tree. kind: as a house's maps[] item names it (core/model.ts HOUSE_MAP_KINDS). crs: the one coordinate system a service draws in when it draws in no other (left out: Web Mercator and WGS 84 too). checked: the day its GetCapabilities was read.",
   "layers": [
     {
       "id": "cz-ortho",
@@ -10,6 +10,20 @@
       "layers": "0",
       "format": "image/jpeg",
       "attribution": "© ČÚZK",
+      "license": "CC BY 4.0",
+      "bbox": [11.885448, 48.196887, 19.164528, 51.393486],
+      "checked": "2026-11-26"
+    },
+    {
+      "id": "cz-ortho-1950",
+      "kind": "ortho-1950",
+      "label": { "cs": "Letecké snímky ČR (50. léta)", "en": "Aerial photos of Czechia (1950s)", "de": "Luftbilder Tschechiens (1950er Jahre)", "pl": "Zdjęcia lotnicze Czech (lata 50.)" },
+      "type": "wms",
+      "url": "https://gis.cenia.cz/mapcache/ortofotomapa_historicka/wms",
+      "layers": "orto",
+      "format": "image/jpeg",
+      "crs": "EPSG:5514",
+      "attribution": "Historická ortofotomapa ©CENIA 2010 a ©GEODIS BRNO, spol. s r.o. 2010, Podkladové letecké snímky poskytl VGHMÚř Dobruška, ©MO ČR 2009",
       "license": "CC BY 4.0",
       "bbox": [11.885448, 48.196887, 19.164528, 51.393486],
       "checked": "2026-11-26"

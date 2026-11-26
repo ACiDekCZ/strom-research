@@ -633,6 +633,18 @@
       "checked": "2026-11-03"
     },
     {
+      "host": "gis.cenia.cz",
+      "name": "CENIA – Historická ortofotomapa (50. léta)",
+      "level": "allowed",
+      "terms": "https://cenia.gov.cz/2022/02/17/historicka-ortofotomapa-z-50-let-se-otevira/",
+      "quote": "Datová sada je nyní dostupná široké veřejnosti pod licencí CC-BY 4.0",
+      "license": "https://creativecommons.org/licenses/by/4.0/legalcode.cs",
+      "automatedUse": true,
+      "robots": "none (403 — an unavailable robots.txt, RFC 9309 §2.3.1.3: no rule)",
+      "scope": "only the viewing service of the historical orthophoto (/mapcache/ortofotomapa_historicka/wms, S-JTSK EPSG:5514 alone; its GetCapabilities read and a GetMap answered 2026-11-26): a map layer the Strom app draws over a house's place, assets/maplayers.json, credited in the form the terms give (\"Historická ortofotomapa ©CENIA 2010 a ©GEODIS BRNO, spol. s r.o. 2010, Podkladové letecké snímky poskytl VGHMÚř Dobruška, ©MO ČR 2009\") with the licence; one view of the place at a time, never a municipality's or the country's tiles downloaded, never the downloadable data set (whole regions)",
+      "checked": "2026-11-26"
+    },
+    {
       "host": "vdp.cuzk.gov.cz",
       "name": "RÚIAN – Veřejný dálkový přístup (VDP)",
       "level": "allowed",

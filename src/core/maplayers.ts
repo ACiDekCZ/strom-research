@@ -20,6 +20,11 @@ export interface MapLayer {
   /** The WMS layers to ask for. */
   layers: string;
   format?: string;
+  /**
+   * The one coordinate system the service draws in, when it draws in no other (a service of S-JTSK alone: "EPSG:5514");
+   * left out: it draws in Web Mercator (EPSG:3857) and WGS 84 (EPSG:4326) too. An app that cannot draw in it leaves the layer out.
+   */
+  crs?: string;
   attribution: string;
   license: string;
   minZoom?: number;
@@ -31,6 +36,9 @@ export interface MapLayer {
 
 /** A layer id: lowercase letters, digits and hyphens. */
 export const LAYER_ID = /^[a-z0-9][a-z0-9-]{0,39}$/u;
+
+/** A layer's coordinate system: an EPSG code. */
+export const LAYER_CRS = /^EPSG:[0-9]{4,6}$/u;
 
 const okBox = (b: unknown): b is [number, number, number, number] =>
   Array.isArray(b) && b.length === 4 && b.every((n) => typeof n === "number" && Number.isFinite(n)) && b[0] < b[2] && b[1] < b[3];
@@ -46,6 +54,7 @@ export function layerOk(v: unknown): v is MapLayer {
     !!label && typeof label === "object" && typeof label.en === "string" && Object.values(label).every((x) => typeof x === "string" && !!x.trim()) &&
     l.type === "wms" && typeof l.url === "string" && /^https:\/\//u.test(l.url) &&
     typeof l.layers === "string" && !!l.layers && (l.format === undefined || typeof l.format === "string") &&
+    (l.crs === undefined || (typeof l.crs === "string" && LAYER_CRS.test(l.crs))) &&
     typeof l.attribution === "string" && !!l.attribution.trim() && typeof l.license === "string" && !!l.license.trim() &&
     (l.minZoom === undefined || (typeof l.minZoom === "number" && Number.isInteger(l.minZoom) && l.minZoom >= 0 && l.minZoom <= 22)) &&
     okBox(l.bbox)
@@ -83,6 +92,7 @@ export function layerView(l: MapLayer, lang: string): Record<string, unknown> {
     url: l.url,
     layers: l.layers,
     ...(l.format ? { format: l.format } : {}),
+    ...(l.crs ? { crs: l.crs } : {}),
     attribution: l.attribution,
     license: l.license,
     ...(l.minZoom !== undefined ? { minZoom: l.minZoom } : {}),
