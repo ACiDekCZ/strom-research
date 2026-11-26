@@ -874,8 +874,12 @@ export interface Task extends BaseRecord {
   /** What it was when the archive put it aside, when it was not open: waiting for the user — waiting again after. */
   heldFrom?: "waiting";
   waitingOn?: string;
-  /** The images it waits for, which the user saves by hand: of this record set, into this folder of the shared inbox. */
-  awaits?: { recordset: string; images: string; folder: string; since?: string };
+  /**
+   * The images it waits for, which the user saves by hand: of this record set, into this folder of the shared inbox.
+   * `again`: those of them saved once more (strom media save --again; as `images`, "23–25") — registered already, what
+   * it waits for is their new copy; each leaves the list as its new copy is taken. Optional: an older strom ignores it.
+   */
+  awaits?: { recordset: string; images: string; folder: string; since?: string; again?: string };
   /**
    * The person's check of a site it waits for (strom task wait --check): the address, and what to check there — a
    * site that keeps automated tools off, the source still necessary. Only the person answers it.

@@ -10,6 +10,8 @@
 // inside its session. Agents without model-selectable subagents read scans
 // themselves in small batches (a reader started by strom is planned).
 
+import { SAVE_PAGES_MAX } from "../core/browser.ts";
+
 /** More images than this to save through the agent's browser: the image saver saves them (agents/imagesaver.ts, 1124). */
 export const IMAGE_SAVER_FROM = 3;
 
@@ -167,9 +169,11 @@ file reader only, so it starts small). Call it without \`model\`: strom set its
 model (the user's choice for handwriting), and a call naming another is refused.
 
 More than ${IMAGE_SAVER_FROM} images to save through your browser (\`strom media save\`): this tree's
-subagent type \`strom-image-saver\`, without \`model\` — give it the task, the book, the
-numbers, each image's page (or one address with {n}) and --again when saved once
-more; it saves them a page at a time and says which came. Never the pages yourself.
+subagent type \`strom-image-saver\`, without \`model\` — give it the task, the book,
+EVERY number the task needs at once, each image's page (or one address with {n}) and
+--again when saved once more; it saves them a page at a time and says which came.
+Never the pages yourself. Saving them yourself: every image in one \`strom media save\`
+(more than ${SAVE_PAGES_MAX}: the next call right after, before any page).
 
 ${delegationRules(n)}
 - Send independent batches in ONE message so they run in parallel.

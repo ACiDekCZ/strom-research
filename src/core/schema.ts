@@ -212,7 +212,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     parkedFor: S({ max: 40 }),
     heldFrom: S({ enum: ["waiting"] }),
     waitingOn: S(),
-    awaits: { t: "object", of: { recordset: R("recordset", true), images: S({ req: true, max: 200 }), folder: S({ req: true, max: 200 }) } },
+    awaits: { t: "object", of: { recordset: R("recordset", true), images: S({ req: true, max: 200 }), folder: S({ req: true, max: 200 }), again: S({ max: 200 }) } },
     awaitsCheck: { t: "object", of: { url: S({ req: true, max: 2000 }), ask: S({ req: true }) } },
     awaitsPermission: { t: "object", of: { hosts: { t: "strings", req: true, min: 1 }, since: S({ req: true }), title: S({ max: 300 }) } },
     wait: { t: "object", of: { kind: S({ enum: WAIT_KINDS }), to: S({ max: 300 }), note: S({ max: 500 }), url: S({ max: 2000 }), book: R("recordset") } },

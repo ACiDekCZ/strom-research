@@ -10,7 +10,7 @@ import path from "node:path";
 import type { Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { findDownload, loadSaves, type SaveRecord } from "./browser.ts";
-import { folderFiles, registeredImages } from "./inboxwait.ts";
+import { againPending, awaitedMissing, folderFiles, registeredImages } from "./inboxwait.ts";
 import { parseImageList } from "./media.ts";
 import { siteRefusedSince, webDomain } from "./metrics.ts";
 
@@ -22,10 +22,10 @@ import { siteRefusedSince, webDomain } from "./metrics.ts";
 export function unsavedOwnWait(tree: Tree, t: Task, o: { shared: string | undefined; downloads: string | undefined }): SaveRecord[] | undefined {
   if (t.state !== "waiting" || !t.awaits?.recordset) return undefined;
   const b = t.awaits.recordset;
-  const saves = loadSaves(tree.root).filter((r) => r.task === t.id && r.recordset === b && r.taken === undefined);
+  const all = loadSaves(tree.root);
+  const saves = all.filter((r) => r.task === t.id && r.recordset === b && r.taken === undefined);
   if (!saves.length) return undefined;
-  const have = registeredImages(tree, b);
-  const missing = (parseImageList(t.awaits.images) ?? []).filter((n) => !have.has(n) || saves.some((r) => r.n === n && r.again));
+  const missing = awaitedMissing(tree, t, parseImageList(t.awaits.images) ?? [], { have: registeredImages(tree, b), pending: againPending(tree, all) });
   const mine = saves.filter((r) => missing.includes(r.n));
   // an image it waits for that no save of the agent's browser is for (the person's hand): the wait is theirs
   if (!missing.length || missing.some((n) => !mine.some((r) => r.n === n))) return undefined;
@@ -57,10 +57,10 @@ export interface AgentSaveWait {
 export function agentSaveWait(tree: Tree, t: Task, all?: SaveRecord[]): AgentSaveWait | undefined {
   if (t.state !== "waiting" || !t.awaits?.recordset || t.proposal) return undefined;
   const b = t.awaits.recordset;
-  const saves = (all ?? loadSaves(tree.root)).filter((r) => r.task === t.id && r.recordset === b && r.taken === undefined);
+  const every = all ?? loadSaves(tree.root);
+  const saves = every.filter((r) => r.task === t.id && r.recordset === b && r.taken === undefined);
   if (!saves.length) return undefined;
-  const have = registeredImages(tree, b);
-  const missing = (parseImageList(t.awaits.images) ?? []).filter((n) => !have.has(n) || saves.some((r) => r.n === n && r.again));
+  const missing = awaitedMissing(tree, t, parseImageList(t.awaits.images) ?? [], { have: registeredImages(tree, b), pending: againPending(tree, every) });
   if (!missing.length || missing.some((n) => !saves.some((r) => r.n === n))) return undefined;
   const mine = saves.filter((r) => missing.includes(r.n));
   return { recordset: b, missing: [...new Set(missing)].sort((x, y) => x - y), saves: mine, held: mine.filter((r) => r.held) };
