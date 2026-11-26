@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.38.0
 
-*Připravuje se: bety do 1.38.0-beta.2. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.38.0-beta.3. Oddíl bude úplný s vydáním.*
 
 - **Přehlednější menu v terminálu:** každá obrazovka říká, kde je (Strom › Nastavení › Údržba), volby jako
   `[1]  Popisek   stav`, přepínač s tím, jak je teď a na co přepne, zpět vždy poslední jako `[0]` (i cesta stahovače v Nastavení → Archivy), výzva říká, co udělá Enter, a příkaz k opsání stojí na

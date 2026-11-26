@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.38.0
 
-*In preparation: the betas up to 1.38.0-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.38.0-beta.3. The section is complete with the release.*
 
 - **A clearer menu in the terminal:** every screen says where it is (Strom › Settings › Maintenance), its options as
   `[1]  Label   state`, a switch with how it is now and what it switches to, back last as `[0]` (also the way a downloader takes in Settings → Archives), the prompt says what Enter does, and a command to type stands on a line of

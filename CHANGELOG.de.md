@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.38.0
 
-*In Vorbereitung: die Betas bis 1.38.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.38.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein übersichtlicheres Menü im Terminal:** jeder Bildschirm sagt, wo er ist (Strom › Einstellungen › Wartung), die
   Auswahlen als `[1]  Bezeichnung   Stand`, ein Schalter mit seinem jetzigen Stand und wohin er umschaltet, zurück immer zuletzt als `[0]` (auch der Weg eines Herunterladers in Einstellungen → Archive), die Eingabezeile sagt, was Enter tut, und

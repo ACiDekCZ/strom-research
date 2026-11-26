@@ -186,20 +186,28 @@ function standIn(env: Env, inst: Installation): { platform: NodeJS.Platform; exe
 
 /**
  * The bridges running on this computer for this user, each with its research (`known`: the researches strom knows) and
- * its memory. Never throws: a table not readable is `read: false`.
+ * its memory. Never throws: a table not readable is `read: false`. `self`: the process left out of the table (this one;
+ * a stand-in table's made-up PIDs are none of this process's, so none is left out of it).
  */
-export function bridgesHere(known: { name: string; root: string }[], o: { env: Env; platform?: NodeJS.Platform; exec?: Run; inst?: Installation }): BridgesHere {
+export function bridgesHere(
+  known: { name: string; root: string }[],
+  o: { env: Env; platform?: NodeJS.Platform; exec?: Run; inst?: Installation; self?: number },
+): BridgesHere {
   let platform = o.platform ?? process.platform;
   let exec = o.exec ?? run;
+  let self: number | undefined = o.self ?? process.pid;
   try {
     const stand = standIn(o.env, o.inst ?? installation());
-    if (stand) ({ platform, exec } = stand);
+    if (stand) {
+      ({ platform, exec } = stand);
+      self = o.self;
+    }
   } catch {
     // a stand-in not readable: the system's own table
   }
   const rows = bridgeRows(platform, exec);
   if (!rows) return { read: false, list: [], rss: 0, unmeasured: 0 };
-  const own = rows.filter((r) => r.pid !== process.pid);
+  const own = rows.filter((r) => r.pid !== self);
   const byPid = new Map<number, { name: string; root: string }>();
   for (const k of known) {
     const pid = notedPid(k.root);

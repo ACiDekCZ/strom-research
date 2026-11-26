@@ -84,7 +84,7 @@ test("each bridge with its research: known by its note, by the folder it runs in
       // the folders the bridges run in: one of a known research without its note, another, one removed since, none said
       return { status: 0, stdout: [`p4343\nfcwd\nn${known[1]!.root}`, `p4444\nfcwd\nn${other}`, `p4545\nfcwd\nn${path.join(dir, "Lhota smazaná")}`].join("\n") };
     };
-    const b = bridgesHere(known, { env: {}, platform: "darwin", exec });
+    const b = bridgesHere(known, { env: {}, platform: "darwin", exec, self: 1 });
     assert.equal(b.read, true);
     assert.deepEqual(
       b.list.map((x) => [x.pid, x.state, x.name, x.rss]),
@@ -139,7 +139,7 @@ test("Windows: a bridge runs in the settings' folder — known by its note, any 
       assert.match(args.join(" "), /Win32_Process.*node\.exe.*WorkingSetSize/u);
       return { status: 0, stdout: cim };
     };
-    const b = bridgesHere(known, { env: {}, platform: "win32", exec });
+    const b = bridgesHere(known, { env: {}, platform: "win32", exec, self: 1 });
     assert.deepEqual(b.list.map((x) => [x.pid, x.state, x.name]), [[4242, "known", "Lhotákovi"], [5151, "unknown", undefined]]);
     assert.equal(bridgesText(b, "en"), "2 running: Lhotákovi (PID 4242, 300 MB) · research not told (PID 5151, 120 MB) · 420 MB in all");
     assert.equal(bridgesText(b, "de"), "2 laufen: Lhotákovi (PID 4242, 300 MB) · Forschung nicht ermittelt (PID 5151, 120 MB) · insgesamt 420 MB");
@@ -157,4 +157,16 @@ test("measuring that fails: the table not read is said as not found out; none ru
   assert.equal(bridgesText(none, "cs"), "žádný neběží");
   const blind = bridgesHere([], { env: {}, platform: "win32", exec: () => ({ status: 0, stdout: JSON.stringify({ ProcessId: 9, CommandLine: "node C:\\S\\dist\\cli.js live serve" }) }) });
   assert.equal(bridgesText(blind, "en"), "1 running: research not told (PID 9, memory not measured)");
+});
+
+test("this process left out of the table, whatever its PID — a fixture's PID never taken for it (the runner's process was 4242 once)", () => {
+  const cim = JSON.stringify([
+    { ProcessId: 4242, WorkingSetSize: 100, CommandLine: '"C:\\S\\node\\node.exe" "C:\\S\\app\\dist\\cli.js" live serve' },
+    { ProcessId: 5151, WorkingSetSize: 200, CommandLine: '"C:\\S\\node\\node.exe" "C:\\S\\app\\dist\\cli.js" live serve' },
+  ]);
+  const exec: Run = () => ({ status: 0, stdout: cim });
+  assert.deepEqual(bridgesHere([], { env: {}, platform: "win32", exec, self: 4242 }).list.map((x) => x.pid), [5151]);
+  assert.deepEqual(bridgesHere([], { env: {}, platform: "win32", exec, self: 1 }).list.map((x) => x.pid), [5151, 4242]);
+  const others = bridgesHere([], { env: {}, platform: "win32", exec }).list.map((x) => x.pid);
+  assert.ok(!others.includes(process.pid), "by default this process");
 });

@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.38.0
 
-*W przygotowaniu: bety do 1.38.0-beta.2. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.38.0-beta.3. Sekcja będzie kompletna z wydaniem.*
 
 - **Bardziej przejrzyste menu w terminalu:** każdy ekran mówi, gdzie jest (Strom › Ustawienia › Konserwacja),
   opcje jako `[1]  Etykieta   stan`, przełącznik z tym, jak jest teraz i na co przełącza, powrót zawsze na końcu jako `[0]` (także sposób pobierania w Ustawienia → Archiwa), wiersz wyboru mówi, co robi Enter, a
