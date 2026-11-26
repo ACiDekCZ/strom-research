@@ -408,7 +408,8 @@ export async function houseImportDo(ctx: Context, run: Run, lang: string, root: 
  * most two neighbouring houses of the same family): the house only looked up among the tree's — none of them, nobody of
  * the tree in it, its municipality no place yet: one sentence, nothing done. The estimate said and asked here, its task
  * on top of the queue (strom house request: its municipality's skeleton before it when it has none), then started now if
- * wanted — the skeleton first.
+ * wanted — the skeleton first. The person's run.confirm no: the estimate one line (its price too), queued and started at
+ * once (spec 030 K6.3a).
  */
 export async function houseSearch(ctx: Context, run: Run, lang: string, root: string, ref: string, withRefs: string[] = []): Promise<boolean> {
   const t = translator(lang);
@@ -433,12 +434,21 @@ export async function houseSearch(ctx: Context, run: Run, lang: string, root: st
   // a price in money stays the terminal's question; the yes of a device that opened it (no price): queued and started
   // now, both questions answered (spec 094 K3.15)
   const priced = est.usd !== undefined;
+  // the person's run.confirm no in their terminal (spec 123): neither question, the estimate one line — its price too,
+  // the person's word for a house asked for (spec 030 K6.3a, an exception to spec 123's decision 2)
+  const unasked = !ctx.deviceYes && startsUnasked(ctx);
+  if (ctx.devicePreview && unasked) throw new DevicePreview({ kind: "started" });
   if (ctx.devicePreview && priced) throw new DevicePreview({ kind: "computer", why: "price" });
   const yes = !!ctx.deviceYes && !priced;
   const what = t("ui.link.what.house.search", { house });
-  const cost = lines(t("ui.house.minutes", { minutes: est.minutes }), priced ? t("ui.house.usd", { usd: humanCost(est.usd!, lang) }) : undefined);
-  if (yes) out(ctx, deviceYesLine(ctx.deviceYes!, lang, what.trim().replace(/[.:]$/u, ""), tree.config.name));
-  else if (!(await asks(ctx, lang, root, what, cost, false))) return false;
+  const minutes = t("ui.house.minutes", { minutes: est.minutes });
+  const usd = priced ? t("ui.house.usd", { usd: humanCost(est.usd!, lang) }) : undefined;
+  const said = what.trim().replace(/[.:]$/u, "");
+  if (yes) out(ctx, deviceYesLine(ctx.deviceYes!, lang, said, tree.config.name));
+  else if (unasked) {
+    out(ctx, [minutes, usd].filter(Boolean).join(" "));
+    out(ctx, t("ui.link.noconfirm", { what: said, name: tree.config.name }));
+  } else if (!(await asks(ctx, lang, root, what, lines(minutes, usd), false))) return false;
   const ids = [row, ...more].map((r) => r!.id ?? r!.key);
   if ((await run(["house", "request", ids[0]!, ...ids.slice(1).flatMap((x) => ["--with", x]), "--yes"], true)) !== 0) return false;
   // its tasks now: the municipality's skeleton (when alive) before the house
@@ -448,7 +458,7 @@ export async function houseSearch(ctx: Context, run: Run, lang: string, root: st
   const town = live.find((x) => houseWork(x) === "town" && townOfTask(x) === row.place.id);
   const task = live.find((x) => houseWork(x) === "house" && !!id && housesOfTask(x).includes(id));
   out(ctx, t("ui.link.house.done", { house }));
-  if (!task || (!yes && !(await ctx.confirm(t("ui.link.house.now"), false)))) return true;
+  if (!task || (!yes && !unasked && !(await ctx.confirm(t("ui.link.house.now"), false)))) return true;
   return (await run(["run", "--task", [...(town ? [town.id] : []), task.id].join(",")])) === 0;
 }
 

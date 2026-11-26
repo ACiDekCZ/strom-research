@@ -22,7 +22,7 @@ import { mapLayers } from "../../src/core/maplayers.ts";
 import { Settings } from "../../src/core/config.ts";
 import { taskKind } from "../../src/core/taskkind.ts";
 import { LinkError, linkText, parseLink, type TakenLink } from "../../src/core/links.ts";
-import type { House, Input, Task } from "../../src/core/model.ts";
+import type { House, Input, Session, Task } from "../../src/core/model.ts";
 
 const opts = { skip: !hasGit || process.platform === "win32", timeout: 240_000 };
 const APP = "https://beta.stromapp.info";
@@ -340,6 +340,59 @@ test("the link house?do=search: a house of the tree by its record or key (at mos
   assert.doesNotMatch(archive.out, /Asi \d+ minut/u, archive.out);
   assert.doesNotMatch(archive.out, AI, archive.out);
   assert.equal(houseTasks().length, 2);
+  w.cleanup();
+});
+
+test("the link house?do=search under the person's run.confirm no (spec 030 K6.3a): the estimate one line, the house's task and its skeleton queued and started at once — a price in money too; ask: asked as before", opts, async () => {
+  const w = new World();
+  await village(w);
+  const id = open(w).config.id;
+  const link = (house: string, answers: string[] = []) =>
+    w.run(["link", "open", `strom-research://house?tree=${id}&do=search&house=${encodeURIComponent(house)}`], { tty: true, answers });
+  const houseTasks = () => open(w).list<Task>("task").filter((t) => forHouse(t));
+  const sessions = () => open(w).list<Session>("session");
+  await w.ok(["config", "set", "run.confirm", "no"], { tty: true, answers: ["a"] });
+
+  // no price yet: the minutes one line, the line that it starts, queued and started — no question at all
+  const first = await link("lhota|9");
+  assert.equal(first.code, 0, first.out + first.err);
+  assert.match(first.out, /^Asi \d+ minut práce agenta; bere čas agenta a čerpá předplatné\.$/mu, first.out);
+  assert.match(first.out, /▶ Spouští se bez potvrzení \(výzkum Lhotákovi\): hledat historii domu Lhota 9/u, first.out);
+  assert.match(first.out, /Historie domu Lhota 9 je ve frontě první/u, first.out);
+  assert.doesNotMatch(first.out, /Pokračovat\?|Spustit práci agenta hned\?/u, first.out);
+  const made = houseTasks();
+  assert.ok(made.find((t) => t.origin === "house:town:L0001") && made.find((t) => t.origin.startsWith("house:A")), JSON.stringify(made));
+  assert.ok(sessions().length >= 1, "started at once");
+
+  // three sessions on houses measured: the price in money said in the same line — and still not asked (Milan's word)
+  for (const s of sessions()) if (s.state === "open") await w.ok(["session", "close", "--continue", "--summary", "nic", "--next", "dál"]);
+  const house = houseTasks().find((t) => t.origin.startsWith("house:A"))!;
+  for (let i = 0; i < 3; i++) {
+    await w.ok(["session", "start", house.id]);
+    await w.ok(["session", "close", "--continue", "--summary", "nic", "--next", "dál"]);
+  }
+  const tree = open(w);
+  tree.withTreeLock(() => {
+    for (const s of tree.list<Session>("session").filter((x) => x.task === house.id))
+      tree.put({ ...s, metrics: { ...s.metrics, costUsd: 0.5 } }, { op: "session.update", targets: [s.id], summary: `${s.id} measured` });
+    tree.commit("Sessions measured");
+  });
+  const before = sessions().length;
+  const priced = await link("lhota|30");
+  assert.equal(priced.code, 0, priced.out + priced.err);
+  assert.match(priced.out, /^Asi \d+ minut práce agenta; bere čas agenta a čerpá předplatné\. Taková sezení tu zatím stojí asi .+\.$/mu, priced.out);
+  assert.match(priced.out, /▶ Spouští se bez potvrzení \(výzkum Lhotákovi\): hledat historii domu Lhota 30/u, priced.out);
+  assert.doesNotMatch(priced.out, /Pokračovat\?|Spustit práci agenta hned\?/u, priced.out);
+  assert.ok(sessions().length > before, "started at once");
+
+  // ask again: the estimate and the question as before, Enter is no
+  for (const s of sessions()) if (s.state === "open") await w.ok(["session", "close", "--continue", "--summary", "nic", "--next", "dál"]);
+  await w.ok(["config", "unset", "run.confirm"]);
+  const tasks = houseTasks().length;
+  const asked = await link("bělokamen|16".normalize("NFD"), ["", ""]);
+  assert.match(asked.out, /Pokračovat\? \(a\/n\) \[n\]/u, asked.out);
+  assert.doesNotMatch(asked.out, /bez potvrzení/u, asked.out);
+  assert.equal(houseTasks().length, tasks, "nothing queued");
   w.cleanup();
 });
 

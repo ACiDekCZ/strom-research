@@ -375,7 +375,7 @@ async function inTerminal(ctx: Context, link: TreeLink, at?: string) {
       return end((await backDo(ctx, run, treeLang, root, link.change)) === 0);
     }
     case "house": {
-      // the history of a house asked for: the estimate and the person's question here, its task on top, started now if wanted
+      // the history of a house asked for: the estimate and the person's question here, its task on top, started now if wanted (run.confirm no: neither asked, spec 030 K6.3a)
       if (link.do === "search") {
         const { houseSearch } = await import("../cli/menu-links.ts");
         return end(await houseSearch(ctx, run, treeLang, root, link.house, link.with ? link.with.split(",") : []));
@@ -825,7 +825,8 @@ register(
       "opening one of them in the app (strom app) is offered first; with no terminal the result lists them (trees).\n" +
       "What writes tasks or starts the agent is said and asked in the terminal first; with run.confirm no (the person's,\n" +
       "this computer's) what only starts the agent on the subscription or AI credit starts at once, one line says so — a\n" +
-      "price in money, a consent, a deletion, a request sent, the gate and an agent's own command still ask. Any page can open such a link:\n" +
+      "price in money (save the history of a house asked for, its estimate one line), a consent, a deletion, a request sent, the gate\n" +
+      "and an agent's own command still ask. Any page can open such a link:\n" +
       "each part is checked (only IDs and fixed values, never text but new's suggested name), an unknown research, person, task or excerpt is\n" +
       "only said. No link: the menu.\n" +
       "&handoff=<uuid> (any link of a research): the app's id of it — written when the link was taken (the terminal it\n" +
