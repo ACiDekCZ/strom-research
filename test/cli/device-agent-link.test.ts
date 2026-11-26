@@ -100,7 +100,7 @@ test("link open with the device's yes: taken once instead of the question, one l
     assert.ok(!fs.existsSync(path.join(root, ".strom", "device-yes", `${yes}.json`)), "taken");
     // the same yes again: taken already — asked as ever (Enter: no)
     const again = await w.run(["link", "open", link], { tty: true, answers: [""], env });
-    assert.match(again.out, /Pokračovat\? \(a\/n\) \[a\]|Pokračovat\? \(a\/n\) \[n\]/u, again.out);
+    assert.match(again.out, /Pokračovat\? \(a\/n, Enter = a\)|Pokračovat\? \(a\/n, Enter = n\)/u, again.out);
     assert.doesNotMatch(again.out, /Spuštěno ze zařízení/u);
     // a token of no yes: asked too
     const bad = await w.run(["link", "open", link], { tty: true, answers: [""], env: { ...DEVICE, STROM_DEVICE_YES: "AAAAAAAAAAAAAAAAAAAAAA" } });

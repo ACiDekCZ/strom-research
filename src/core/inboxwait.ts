@@ -37,6 +37,7 @@ import { imagesIndex } from "./mediaindex.ts";
 import { runs } from "../cli/format.ts";
 import { entriesOf, sheetNamed, type Entries } from "./scannames.ts";
 import { settlesAt } from "./inboxsettle.ts";
+import { loadSaves, type SaveRecord } from "./browser.ts";
 
 /** A file not written for this long has settled: it may be taken. */
 export const SETTLE_MS = 3_000;
@@ -92,6 +93,31 @@ export function inboxWaits(tree: Tree): InboxWait[] {
  */
 export function registeredImages(tree: Tree, recordset: string): Set<number> {
   return new Set(imagesIndex(tree).sets.get(recordset)?.images ?? []);
+}
+
+/**
+ * The images saved once more (strom media save --again) whose new copy was not taken yet, as "T0007:40": registered,
+ * yet what their task waits for.
+ */
+export function againPending(tree: Tree, saves: readonly SaveRecord[] = loadSaves(tree.root)): Set<string> {
+  return new Set(saves.filter((r) => r.again && r.taken === undefined).map((r) => `${r.task}:${r.n}`));
+}
+
+/**
+ * Of the images `want` a task waits for (its awaits), those still missing — the one test of it everywhere (the bridge's
+ * /status, What waits, the wake, the take, the return after quiet, the agent's own saves): an image is missing when it
+ * is not registered, or it is saved once more for the task (awaits.again, or a save --again not taken yet) and its new
+ * copy did not come — the old copy registered is not what it waits for. `have`: the images of its book registered
+ * (default from the index), `pending`: againPending (default read now).
+ */
+export function awaitedMissing(tree: Tree, task: Task | string, want: readonly number[], o: { have?: ReadonlySet<number>; pending?: ReadonlySet<string> } = {}): number[] {
+  const t = typeof task === "string" ? tree.get<Task>(task) : task;
+  const id = typeof task === "string" ? task : task.id;
+  if (!want.length) return [];
+  const have = o.have ?? (t?.awaits ? registeredImages(tree, t.awaits.recordset) : new Set<number>());
+  const again = new Set(t?.awaits?.again ? (parseImageList(t.awaits.again) ?? []) : []);
+  let pending = o.pending;
+  return want.filter((n) => !have.has(n) || again.has(n) || (pending ??= againPending(tree)).has(`${id}:${n}`));
 }
 
 /** The image files lying in a folder of the inbox, in their order (as a person sorts them: 2 before 10). */
@@ -437,7 +463,8 @@ export function inboxState(tree: Tree, shared: string | undefined, t: Task): Inb
   const until = numbered && "later" in numbered ? settlesAt(tree, dir, files, inboxWaits(tree).filter((x) => x.folder.normalize("NFC") === w.folder.normalize("NFC"))) : undefined;
   const left = numbered && "left" in numbered ? (numbered.left ?? []).map((l) => path.basename(l.file).normalize("NFC")) : [];
   const lyingNums = numbered && "numbers" in numbered ? new Set(numbered.numbers) : new Set<number>();
-  const missing = want.filter((n) => !reg.has(n) && !lyingNums.has(n));
+  // an image saved once more counts once its new copy came (awaitedMissing), never by the old one registered
+  const missing = awaitedMissing(tree, t, want, { have: reg }).filter((n) => !lyingNums.has(n));
   // which ones not known: the files lying there and the images the Strom app handed to it for this wait
   const have = want.length ? want.length - missing.length : files.length + handedImages(tree, t, w.recordset).length;
   return { dir, folder: w.folder, recordset: w.recordset, have, want: want.length, missing, lying: files.length, next: nextImage(reg, files), ...(numbered && "problem" in numbered ? { problem: numbered.problem, problemCode: numbered.code, ...(numbered.params.ambiguous ? { ambiguous: numbered.params.ambiguous, ambiguousNumber: Number(numbered.params.n) } : {}) } : {}), ...(until ? { waitsUntil: new Date(until).toISOString() } : {}), ...(left.length ? { left } : {}) };

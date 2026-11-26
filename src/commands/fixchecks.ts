@@ -10,7 +10,7 @@ import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { Conflict, Family, Media, Person, Region, Source, TreeConfig } from "../core/model.ts";
+import type { Conflict, Family, Media, Person, Region, Source, Task, TreeConfig } from "../core/model.ts";
 import type { Tree } from "../core/tree.ts";
 import { VERSION } from "../core/tree.ts";
 import { sharperCover } from "../core/media.ts";
@@ -49,6 +49,9 @@ import { ORIGINS_SINCE, originFixes, originsDone, type OriginMark } from "../cor
 import { VERIFY_SINCE, verifyDone, verifyFixes, verifyQueued, type VerifyItem } from "../core/verify.ts";
 import { NAME_STATUS_SINCE, nameStatusDone, nameStatusFixes, type NameStatusFix } from "../core/namestatusfix.ts";
 import { CONTACT_RESIDENCES_SINCE, contactResidenceFixes, contactResidencesDone, type ContactFix, type ContactLeft } from "../core/contactfix.ts";
+import { HOUSE_NUMBERS_SINCE, houseNumberFixes, houseNumbersDone, type HouseNumberFix, type HouseNumberLeft } from "../core/housenumberfix.ts";
+import { BOOK_COUNTS_SINCE, bookCountFixes, bookCountsDone, type BookCountFix } from "../core/bookcountfix.ts";
+import { AGAIN_WAITS_SINCE, againWaitFixes, againWaitsDone, type AgainWaitFix } from "../core/againwaitfix.ts";
 
 /** One earlier reading of one place, to be read again. */
 export interface FixItem {
@@ -101,11 +104,11 @@ export interface FixFindings {
   readings: number;
   /** A check that rewrites (participant-names, app-shapes, street-places, edit-decisions, woken-waits): what it would set
    * right, and how many it found it cannot. */
-  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[] | ReaderFix[] | ProvenFix[] | OriginMark[] | VerifyItem[] | NameStatusFix[] | ContactFix[];
+  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[] | ReaderFix[] | ProvenFix[] | OriginMark[] | VerifyItem[] | NameStatusFix[] | ContactFix[] | HouseNumberFix[] | BookCountFix[] | AgainWaitFix[];
   unsplit?: number;
   /** What it found and leaves as it is, each with why (street-places: a fact whose house says another thing; edit-decisions:
    * the user's value taken, decided again on a new source; woken-waits: taken up since). */
-  left?: StreetLeft[] | EditDecisionLeft[] | WokenWaitLeft[] | ReaderKept[] | ProvenLeft[] | ContactLeft[];
+  left?: StreetLeft[] | EditDecisionLeft[] | WokenWaitLeft[] | ReaderKept[] | ProvenLeft[] | ContactLeft[] | HouseNumberLeft[];
   /**
    * Municipalities with numbers alone after the name ("Lhota 16"), set right only once a person says for the whole
    * municipality that they are houses (street-places): counted in what waits.
@@ -152,7 +155,7 @@ export interface FixCheck {
   /** What it counts: places on images, readings (each read again whole: all its images, a document), participants,
    * what a sync wrote (app-shapes: conflicts, facts, dates), facts (street-places), conflicts (edit-decisions) or tasks
    * (woken-waits). */
-  unit: "place" | "reading" | "participant" | "finding" | "fact" | "conflict" | "task" | "source" | "name";
+  unit: "place" | "reading" | "participant" | "finding" | "fact" | "conflict" | "task" | "source" | "name" | "book";
   /**
    * What it sets right is of an agent's work (edit-decisions, woken-waits): never offered where nobody researches (an
    * archive, a research waiting for its agent — nothing of an agent said there), though it rewrites by rules.
@@ -257,6 +260,43 @@ function addedTimes(root: string): Map<string, number> {
   for (const line of r.stdout.split("\n")) {
     if (line.startsWith("@")) t = Date.parse(line.slice(1));
     else if (line.trim() && Number.isFinite(t)) out.set(path.basename(line.trim(), ".md"), t);
+  }
+  return out;
+}
+
+/**
+ * The question a place is read again with where its earlier reading kept none (a report of an older tool brought in, a
+ * report a reader wrote whole in its own words): the whole of what is there, as a document is read — strom read asks
+ * a question always, an empty one is refused.
+ */
+export const AGAIN_QUESTION = "Transcribe every entry here completely, as written: names, dates, houses, relations, witnesses; mark what is uncertain with [?]";
+
+/** The question an earlier reading is read again with: its own, else the whole of what is there (AGAIN_QUESTION). */
+const againQuestion = (r: Pick<Reading, "question">): string => r.question?.trim() || AGAIN_QUESTION;
+
+/**
+ * The readings a fix itself made — each a reading again of an earlier one, held against it (a task where they differ):
+ * said in its head or its result ("Again:", since 1.38.0), else, of an older strom, the newer reading a fix's task holds
+ * against an earlier one. Never offered by a fix again: the task compares them, and a fix reading it once more would feed
+ * the next one.
+ */
+export function fixReadings(tree: Tree, readings: Reading[]): Set<string> {
+  const out = new Set<string>(readings.filter((r) => r.again).map((r) => r.stem));
+  // when each was read: its day (in its name — a file's time is the clone's on another computer), then its file's time
+  const when = new Map<string, [string, number]>(readings.map((r) => [r.stem, [r.stem.slice(0, 10), r.mtime]]));
+  for (const d of listReadings(tree.root)) {
+    const r = loadDocResult(tree.root, d.id);
+    if (r?.again) out.add(d.id);
+    when.set(d.id, [`${d.id.slice(1, 5)}-${d.id.slice(5, 7)}-${d.id.slice(7, 9)}`, Number(d.id.slice(9, 15))]);
+  }
+  const later = (x: string, y: string) => when.get(y)![0].localeCompare(when.get(x)![0]) || when.get(y)![1] - when.get(x)![1];
+  const word = /[\p{L}\p{N}-]+/gu;
+  for (const t of tree.list<Task>("task")) {
+    if (!(t as Task & { origin?: string }).origin?.startsWith("fix:")) continue;
+    // the readings it names (the earlier one and the new one): the newer is the fix's
+    const named = [...new Set(`${t.what ?? ""} ${t.doneWhen ?? ""}`.match(word) ?? [])].filter((w) => when.has(w));
+    if (named.length < 2) continue;
+    out.add(named.sort(later)[0]!);
   }
   return out;
 }
@@ -395,7 +435,7 @@ function blindReducedDetect(tree: Tree, env: FixEnv): FixFindings {
           media: id,
           ...(m.recordset !== undefined && m.image !== undefined ? { ref: `${m.recordset}:${m.image}` } : {}),
           crop,
-          question: r.question ?? "",
+          question: againQuestion(r),
           ...(r.context ? { context: r.context } : {}),
           blind: !!r.blind,
           from: use.part.id,
@@ -411,9 +451,13 @@ function blindReducedDetect(tree: Tree, env: FixEnv): FixFindings {
     }
   }
   // read again from a sharper copy since: set right already
+  const readSince = (i: (typeof raw)[number]) => (readSharper.get(i.media) ?? []).some((s) => s.t > i.t && covered(i.fileRegion, s.r) >= COVERED);
+  // an estimate knows the entries on the image, not which one the reading asked of: one of its places read again
+  // sets the reading of that image right — never its next entry offered after it, as though the reading were new
+  const estimatedDone = new Set(raw.filter((i) => i.estimated && readSince(i)).map((i) => `${i.reading}|${i.media}`));
   const seen = new Set<string>();
   const items = raw
-    .filter((i) => !(readSharper.get(i.media) ?? []).some((s) => s.t > i.t && covered(i.fileRegion, s.r) >= COVERED))
+    .filter((i) => !readSince(i) && !(i.estimated && estimatedDone.has(`${i.reading}|${i.media}`)))
     .filter((i) => !seen.has(i.key) && seen.add(i.key))
     .map((i) => withUse(i, use))
     .sort(byUse)
@@ -676,6 +720,8 @@ function newModelDetect(tree: Tree, env: FixEnv): FixFindings {
 
   // strom read: each image of each reading
   const readings = loadReadings(tree);
+  // a fix's own readings again: held against the earlier ones by its task, never offered again
+  const byFix = fixReadings(tree, readings);
   const imagesOf = new Map<string, { r: Reading; t: number; blocks: Block[]; key: string }[]>();
   for (const r of readings) {
     // when it was read: its reader's record, else its file (by its day at the latest)
@@ -703,6 +749,7 @@ function newModelDetect(tree: Tree, env: FixEnv): FixFindings {
         noteNow(`${id}|`, t);
         continue;
       }
+      if (byFix.has(r.stem)) continue;
       if (key !== UNKNOWN_KEY) known.add(key);
       const unclear = blocks.reduce((n, b) => n + Math.max(unclearOf(b), b.result === "unclear" ? 1 : 0), 0);
       // a blind reading that reads otherwise than the researcher's reading of the image before it
@@ -719,7 +766,7 @@ function newModelDetect(tree: Tree, env: FixEnv): FixFindings {
         media: id,
         ...(m.recordset !== undefined && m.image !== undefined ? { ref: `${m.recordset}:${m.image}` } : {}),
         ...(crop ? { crop } : {}),
-        question: r.question ?? "",
+        question: againQuestion(r),
         ...(r.context ? { context: r.context } : {}),
         blind: !!r.blind,
         estimated: false,
@@ -757,6 +804,7 @@ function newModelDetect(tree: Tree, env: FixEnv): FixFindings {
       noteNow(`doc|${pagesKey(r)}`, t);
       continue;
     }
+    if (byFix.has(d.id)) continue;
     if (key !== UNKNOWN_KEY) known.add(key);
     const { unclear, facts: atStake } = docText(r);
     const src = sources.filter((s) => s.reading === d.id).map((s) => s.id).sort();
@@ -1077,8 +1125,67 @@ export const CONTACT_RESIDENCES: FixCheck = {
   applied: (tree) => contactResidencesDone(tree).length,
 };
 
+/**
+ * Until 1.38.0 one house of a municipality could be two: "16" beside "čp. 16", a house number left in a fact's note
+ * ("Adresa: čp. 13"), a marker before a street ("čp. Dlouhá 12"). Since then a house is a record of its own, keyed by
+ * its number as the Strom app reads it (spec 030 K1.5); the houses of the facts are set right by rules
+ * (core/housenumberfix.ts), on a person's word alone — a note naming more numbers than one left and said why.
+ */
+export const HOUSE_NUMBERS: FixCheck = {
+  id: "house-numbers",
+  since: HOUSE_NUMBERS_SINCE,
+  paid: false,
+  remedy: "rewrite",
+  unit: "fact",
+  detect: (tree) => {
+    const f = houseNumberFixes(tree);
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: f.left.length, left: f.left };
+  },
+  applied: (tree) => houseNumbersDone(tree).length,
+};
+
+/**
+ * Until 1.38.0 a book downloaded whole had no count of its images written (1126): what is missing of it never known, it
+ * stayed offered to download by hand for ever. Since then its count is written from the archive's catalogue (a
+ * connector's report) or after a whole book is on disk; the books found so (core/bookcountfix.ts: their tasks need
+ * them, no count, their images 1…N on disk) have it written on a person's word alone — one who knows another count from
+ * the archive's page writes that one (strom recordset edit B… --images <n>). The person's book data: in an archive too.
+ */
+export const BOOK_COUNTS: FixCheck = {
+  id: "book-counts",
+  since: BOOK_COUNTS_SINCE,
+  paid: false,
+  remedy: "rewrite",
+  unit: "book",
+  detect: (tree) => {
+    const fixes = bookCountFixes(tree);
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: fixes, unsplit: 0, left: [] };
+  },
+  applied: (tree) => bookCountsDone(tree).length,
+};
+
+/**
+ * Until 1.38.0 a task saving images once more (strom media save --again) waited for the first of them alone and counted
+ * the copy registered before as saved (1126): it looked done while the rest had not come. Since then its wait holds every
+ * image and those saved once more until their new copy comes (awaits.again); the tasks waiting so before are set right by
+ * rules (core/againwaitfix.ts) from their own text — an agent's work: never in an archive.
+ */
+export const AGAIN_WAITS: FixCheck = {
+  id: "again-waits",
+  since: AGAIN_WAITS_SINCE,
+  paid: false,
+  remedy: "rewrite",
+  unit: "task",
+  agentWork: true,
+  detect: (tree) => {
+    const fixes = againWaitFixes(tree);
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: fixes, unsplit: 0, left: [] };
+  },
+  applied: (tree) => againWaitsDone(tree).length,
+};
+
 /** Every check strom knows, the oldest fix first. */
-export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS, READERS, PROVEN_ORIGINALS, ORIGINS, VERIFY_ORIGINALS, NAME_STATUS, CONTACT_RESIDENCES];
+export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS, READERS, PROVEN_ORIGINALS, ORIGINS, VERIFY_ORIGINALS, NAME_STATUS, CONTACT_RESIDENCES, HOUSE_NUMBERS, BOOK_COUNTS, AGAIN_WAITS];
 
 
 /**
@@ -1392,7 +1499,7 @@ function pendingFile(root: string): string {
 /**
  * What the checks are found by, told by the files alone (nothing of them read, no git started): the research's last
  * commit, strom.json, its readings' folder, this computer's records of its readers and views and of its documents
- * read, the shared folder, the agent and model reading now, this strom. The same stamp: what waits is what was found then.
+ * read, the saves of the agent's browser, the shared folder, the agent and model reading now, this strom. The same stamp: what waits is what was found then.
  */
 export function fixesStamp(tree: Tree, env: FixEnv): string {
   const stat = fileStamp;
@@ -1405,6 +1512,8 @@ export function fixesStamp(tree: Tree, env: FixEnv): string {
     stat(path.join(tree.root, ".strom", "views", "views.jsonl")),
     stat(path.join(tree.root, ".strom", "reads")),
     stat(path.join(tree.root, "notes", "readings")),
+    // the saves once more of the agent's browser (again-waits)
+    stat(path.join(tree.root, ".strom", "browser-saves.json")),
     JSON.stringify(tree.config.fixes ?? {}),
   ];
   return crypto.createHash("sha256").update(parts.join("|")).digest("hex").slice(0, 32);

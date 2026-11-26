@@ -11,7 +11,7 @@ import type { Tree } from "./tree.ts";
 import { loadSaves } from "./browser.ts";
 import { imagesIndex } from "./mediaindex.ts";
 import { parseImageList } from "./media.ts";
-import { bookTimes, folderBusy, folderFiles, inboxWaits, numberFiles, registeredImages, type InboxWait } from "./inboxwait.ts";
+import { againPending, awaitedMissing, bookTimes, folderBusy, folderFiles, inboxWaits, numberFiles, registeredImages, type InboxWait } from "./inboxwait.ts";
 
 /**
  * How long a folder lies untouched before it counts as settled: far longer than a slow scan saved by hand (half a
@@ -84,15 +84,17 @@ export function settled(tree: Tree, dir: string, files: string[], ws: InboxWait[
 export function backAfterQuiet(tree: Tree, ws: InboxWait[], have: ReadonlySet<number>): { task: string; want: number[]; came: number[]; missing: number[] }[] {
   const last = Date.parse(imagesIndex(tree).sets.get(ws[0]!.recordset)?.last ?? "");
   const out: { task: string; want: number[]; came: number[]; missing: number[] }[] = [];
+  let pending: Set<string> | undefined;
   for (const w of ws) {
     const t = tree.get<Task>(w.task);
     if (!t || t.state !== "waiting" || !t.awaits) continue;
     const want = parseImageList(t.awaits.images) ?? [];
-    const missing = want.filter((n) => !have.has(n));
+    // an image saved once more is missing till its new copy came (awaitedMissing)
+    const missing = awaitedMissing(tree, t, want, { have, pending: (pending ??= againPending(tree)) });
     if (!want.length || !missing.length) continue;
     const since = Date.parse(t.awaits.since ?? t.updated);
     if (!Number.isFinite(last) || !(last >= since)) continue;
-    out.push({ task: t.id, want, came: want.filter((n) => have.has(n)), missing });
+    out.push({ task: t.id, want, came: want.filter((n) => !missing.includes(n)), missing });
   }
   return out;
 }

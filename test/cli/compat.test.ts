@@ -44,6 +44,7 @@ for (const archive of fs.existsSync(releases) ? fs.readdirSync(releases).filter(
     const steps: Record<number, RegExp> = {
       2: /^Data rodokmenu jsou převedená pro tuto verzi stromu \(operace každého uložení ve vlastním malém souboru; ve výzkumu se nic nezměnilo\)\.$/m,
       3: /^Data rodokmenu jsou převedená pro tuto verzi stromu \(soubory stromu aplikace Strom lze uchovat u materiálu; ve výzkumu se nic nezměnilo\)\.$/m,
+      4: /^Data rodokmenu jsou převedená pro tuto verzi stromu \(domy rodokmenu se ukládají jako vlastní záznamy; ve výzkumu se nic nezměnilo\)\.$/m,
     };
     assert.equal(Object.keys(steps).length, SCHEMA_VERSION - 1, "a sentence for each step");
     for (const [to, brought] of Object.entries(steps))

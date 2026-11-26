@@ -328,13 +328,15 @@ export function settingsKeptFrom(dir: string, research: string[], platform: Node
 }
 
 /**
- * What of strom's settings is kept from the agents: of today's folder, of each it was kept in before (oldsettings.ts),
+ * What of strom's settings is kept from the agents: of today's folder (and the person's own, for the sample research), of each it was kept in before (oldsettings.ts),
  * and every packaged app's copy whole, one made after these rules too.
  */
 function keptSettings(tree: Tree, settings: Settings): { path: string; folder: boolean }[] {
   const research = researchFolders(tree, settings);
   const packaged = packagedSettingsPattern(tree.env);
-  return [...[configDir(tree.env), ...oldSettingsDirs(tree.env)].flatMap((d) => settingsKeptFrom(d, research)), ...(packaged ? [{ path: packaged, folder: true }] : [])];
+  // the sample research (strom demo) has settings of its own: the person's own settings folder kept from its agent too
+  const demoOf = (tree.env.STROM_DEMO_OF ?? "").trim();
+  return [...[configDir(tree.env), ...(demoOf ? [path.resolve(demoOf)] : []), ...oldSettingsDirs(tree.env)].flatMap((d) => settingsKeptFrom(d, research)), ...(packaged ? [{ path: packaged, folder: true }] : [])];
 }
 
 /** The folders of the research the agent works in: its home, the shared folder, the tree. */
@@ -755,6 +757,14 @@ export const CLAUDE_IMAGE_SAVER = path.join(".claude", "agents", `${IMAGE_SAVER}
 // (~/.gemini/antigravity-cli/settings.json, strom's `command(strom)` there: agents/global.ts) and knows no rules file of a
 // folder strom could write — it reads AGENTS.md, and in a run alone what its settings do not allow is refused (strom doc R12.7)
 export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), CLAUDE_SCAN_READER, CLAUDE_IMAGE_SAVER, "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md"), GROK_HOOKS, CODEX_RULES, CODEX_HOOKS];
+
+/**
+ * strom's files of the agents that name this computer's folders (the tree's own permissions, hooks, the strom they
+ * start), as git names them (forward slashes) — the old .codex/config.toml too. strom pack leaves them out of the tree
+ * and of its whole history (core/historyfilter.ts): unpacking writes them again for the computer it goes to. The
+ * instructions (.md) stay: a person's notes below the mark go along, and they name no folder of a computer.
+ */
+export const MACHINE_AGENT_FILES = [path.join(".claude", "settings.json"), "opencode.json", path.join(".grok", "config.toml"), GROK_HOOKS, CODEX_RULES, CODEX_HOOKS, CODEX_CONFIG].map((p) => p.split(path.sep).join("/"));
 
 /**
  * strom's files of the agents written for the tree (only what changed: the files written, to commit). `said.shim`: the

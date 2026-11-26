@@ -96,6 +96,10 @@ never open again a view cleared from your context — your notes hold it.
   (the brief's record set gives the exact `strom fetch`) — only the images you
   need, never a whole book "just in case".
 <!-- end -->
+- **A whole book on disk** (every image of it, saved or fetched): its count
+  is written — its connector's list of the book writes it by itself (the
+  fetch's `--list --recordset B…`), else `strom recordset edit B… --images
+  <n>` from the archive's page; never the highest number saved.
 <!-- for link verify enrich no-connector -->
 - **The archive has no connector yet: build one — now, you.** The user does
   not know connectors exist and will not ask for one. Tell them in a sentence

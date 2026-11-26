@@ -36,7 +36,7 @@ test("run.confirm: asked by default (K1.1); no — the agent from the app's link
   assert.equal(config().runConfirm, undefined);
   const asked = await link("task?task=T0001", ["1", ""]);
   assert.match(asked.out, /Aplikace Strom žádá: rozhovor s agentem \(Claude Code\) o úkolu, teď: Porovnat čtení křtu/u);
-  assert.match(asked.out, /předplatné nebo kredit AI\.[\s\S]*Pokračovat\? \(a\/n\) \[n\]/u);
+  assert.match(asked.out, /předplatné nebo kredit AI\.[\s\S]*Pokračovat\? \(a\/n, Enter = n\)/u);
   assert.doesNotMatch(asked.out, /Pojďme teď projít úkol/u);
   assert.doesNotMatch(asked.out, /bez potvrzení/u);
 
@@ -55,7 +55,7 @@ test("run.confirm: asked by default (K1.1); no — the agent from the app's link
   assert.equal(config().runConfirm, undefined, "nothing turned off");
   // the person: their own yes in the terminal too — Enter is no
   const enter = await w.run(["config", "set", "run.confirm", "no"], { tty: true, answers: [""] });
-  assert.match(enter.out, /Povolit\? \(a\/n\) \[n\][\s\S]*Nic se nezměnilo/u);
+  assert.match(enter.out, /Povolit\? \(a\/n, Enter = n\)[\s\S]*Nic se nezměnilo/u);
   assert.equal(config().runConfirm, undefined);
   const yes = await w.ok(["config", "set", "run.confirm", "no"], { tty: true, answers: ["a"] });
   assert.match(yes.out, /Spouštět agenta z odkazů aplikace Strom bez dotazu\?/u);
@@ -83,14 +83,14 @@ test("run.confirm: asked by default (K1.1); no — the agent from the app's link
   // K1.4 an agent's own command is never let through: asked as before
   w.env.CLAUDECODE = "1";
   const byAgent = await link("task?task=T0001", ["1", "n"]);
-  assert.match(byAgent.out, /Pokračovat\? \(a\/n\) \[n\]/u);
+  assert.match(byAgent.out, /Pokračovat\? \(a\/n, Enter = n\)/u);
   assert.doesNotMatch(byAgent.out, /bez potvrzení|Pojďme teď/u);
   delete w.env.CLAUDECODE;
 
   // asked again: anyone's, at once
   await w.ok(["config", "unset", "run.confirm"]);
   assert.equal(config().runConfirm, undefined);
-  assert.match((await link("chat", ["n"])).out, /Pokračovat\? \(a\/n\)/u);
+  assert.match((await link("chat", ["n"])).out, /Pokračovat\? \(a\/n,/u);
   w.cleanup();
 });
 
@@ -110,13 +110,13 @@ test("run.confirm no: still asked — a price in money said, a request sent, a c
   });
   const priced = await link("task?task=T0001", ["1", ""]);
   assert.match(priced.out, /Dřívější sezení nad podobnými úkoly tady stála asi/u);
-  assert.match(priced.out, /Pokračovat\? \(a\/n\) \[n\]/u);
+  assert.match(priced.out, /Pokračovat\? \(a\/n, Enter = n\)/u);
   assert.doesNotMatch(priced.out, /bez potvrzení|Pojďme teď/u);
 
   // a request marked sent: the person's word, asked
   await w.ok(["task", "wait", "T2", "--on", "Odpověď farního úřadu Lhota.", "--kind", "letter", "--to", "Farní úřad Lhota"]);
   const sent = await link("task?task=T0002&do=sent", [""]);
-  assert.match(sent.out, /Pokračovat\? \(a\/n\) \[n\]/u);
+  assert.match(sent.out, /Pokračovat\? \(a\/n, Enter = n\)/u);
   assert.equal(Tree.open(w.cwd, w.env).get<Task>("T0002")!.state, "waiting", "Enter: not marked sent");
   // …while a conversation about it starts at once (only the agent on the subscription)
   assert.match((await link("task?task=T0002&do=chat", [])).out, /▶ Spouští se bez potvrzení/u);
@@ -145,14 +145,14 @@ test("the menu's settings: the question before the agent starts from the app, tu
   // 8 settings · 1 what to set · the step · 2 without the question · the person's yes · 0 back — the step's number as
   // shown: the parts of the setup differ by the system (the terminal's part on macOS and Windows alone)
   const look = await w.ok([], { tty: true, answers: ["8", "1", "0", "0", "0"] });
-  const n = look.out.split("\n").find((l) => /Spouštění agenta z aplikace Strom/u.test(l))?.match(/^\s*(\d+)/u)?.[1];
+  const n = look.out.split("\n").find((l) => /Spouštění agenta z aplikace Strom/u.test(l))?.match(/^\s*\[(\d+)\]/u)?.[1];
   assert.ok(n, look.out);
   const off = await w.ok([], { tty: true, answers: ["8", "1", n, "2", "a", "0", "0"] });
-  assert.match(off.out, /Spouštění agenta z aplikace Strom: s potvrzením/u);
+  assert.match(off.out, /Spouštění agenta z aplikace Strom {2,}s potvrzením\n/u);
   assert.match(off.out, /Ptá se dál: dotaz s cenou v penězích/u);
   assert.equal(config().runConfirm, "no");
   const on = await w.ok([], { tty: true, answers: ["8", "1", n, "1", "0", "0"] });
-  assert.match(on.out, /Spouštění agenta z aplikace Strom: bez potvrzení/u);
+  assert.match(on.out, /Spouštění agenta z aplikace Strom {2,}bez potvrzení\n/u);
   assert.equal(config().runConfirm, undefined);
   // strom config says it, with what it is
   assert.match((await w.ok(["config", "--help"])).out + (await w.ok(["config", "set", "--help"])).out, /run\.confirm\s+ask \| no/);

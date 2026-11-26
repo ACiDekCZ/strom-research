@@ -152,8 +152,8 @@ test("the menu: take in the edits from a file — shown, then written on the per
   const file = edited(ged, path.join(w.dir, "z-aplikace.ged"));
   // 4 add to the research · 4 edits from the Strom app · 2 from a file · the file · 1 all · Enter · 0 · 0
   const menu = await w.run(["menu"], { tty: true, answers: ["4", "4", "2", file, "1", "", "0", "0"] });
-  assert.match(menu.out, /Odkud\?\n   1  Přímo z aplikace Strom \(pošle strom sama\)\n   2  Ze souboru \(\.ged, \.json\)/);
-  assert.match(menu.out, /Načíst úpravy z aplikace Strom nebo z jiného rodokmenu \(\.ged, \.json\)/);
+  assert.match(menu.out, /Odkud\?\n {2}\[1\] {2}Přímo z aplikace Strom \(pošle strom sama\)\n {2}\[2\] {2}Ze souboru \(\.ged, \.json\)/);
+  assert.match(menu.out, /Načíst úpravy z aplikace Strom nebo z jiného rodokmenu · \.ged, \.json/);
   assert.match(menu.out, /z-aplikace\.ged: 8 změn proti výzkumu/);
   assert.match(menu.out, /Zapsáno 7 změn z z-aplikace\.ged/);
   assert.match(menu.out, /Otevřít výzkum znovu v aplikaci Strom/);

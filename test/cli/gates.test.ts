@@ -52,7 +52,7 @@ test("tasks the user starts themselves: the gate is asked once, and when it woul
   const no = await w.ok(["run", "--agent", "script", "--max", "2"], { tty: true, answers: ["n"] });
   // what the condition answered and how it is asked: one line, and the question below it asks only
   assert.equal(no.out.match(/podmínk/g)?.length, 2, "the condition's line and the closing line — no line of its own before");
-  assert.match(no.out, /· podmínka Zkouška \(ruční spuštění: ptá se jednou\): počkat do [^\n]* — sezení je plné \(kód 1; \.strom\/gate\.log\)\n[^\n]*Spustit přesto\? \(a\/n\)/);
+  assert.match(no.out, /· podmínka Zkouška \(ruční spuštění: ptá se jednou\): počkat do [^\n]* — sezení je plné \(kód 1; \.strom\/gate\.log\)\n[^\n]*Spustit přesto\? \(a\/n,/);
   assert.equal(no.out.match(/sezení je plné/g)?.length, 2, "the condition's line and the closing line — not again in the question");
   assert.doesNotMatch(no.out, /by teď nespouštěla/);
   assert.match(no.out, /nespuštěno — podmínka „Zkouška“: sezení je plné/);
@@ -64,7 +64,7 @@ test("tasks the user starts themselves: the gate is asked once, and when it woul
   assert.equal(fs.readFileSync(path.join(w.gate, "asked.txt"), "utf8").trim().split("\n").length, 2, "asked once per run");
   // a gate that says stop: the same question, no says no
   const stop = await w.ok(["run", "--agent", "script"], { tty: true, answers: [""] });
-  assert.match(stop.out, /Spustit přesto\? \(a\/n\) \[n\]/, "no is suggested");
+  assert.match(stop.out, /Spustit přesto\? \(a\/n, Enter = n\)/, "no is suggested");
   assert.match(stop.out, /nespuštěno — podmínka „Zkouška“: ne/);
   w.cleanup();
 });
@@ -110,7 +110,7 @@ test("run.confirm no (spec 123) leaves the gate as it is: a run the person start
   await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true, answers: ["y"] });
   await w.ok(["config", "set", "run.confirm", "no"], { tty: true, answers: ["a"] });
   const asked = await w.ok(["run", "--agent", "script"], { tty: true, answers: ["n"] });
-  assert.match(asked.out, /Spustit přesto\? \(a\/n\) \[n\]/);
+  assert.match(asked.out, /Spustit přesto\? \(a\/n, Enter = n\)/);
   assert.match(asked.out, /nespuštěno — podmínka „Zkouška“: sezení je plné/);
   const loop = await w.ok(["run", "--agent", "script", "--loop", "--json"]);
   assert.equal(loop.json.stop, "gate");

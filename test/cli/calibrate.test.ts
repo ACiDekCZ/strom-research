@@ -126,7 +126,7 @@ test("only a person starts it: the cost said first and no suggested yes; no term
   assert.equal(JSON.parse(none.out.trim() || none.err.trim()).status, "needs-consent", none.out + none.err);
   // the person's terminal: the cost in the question, Enter (no answer) says no
   const no = await w.run(["media", "calibrate", "--agent", "script"], { tty: true, answers: [""] });
-  assert.match(no.out, /Vyladit čtení snímků pro script · vlastní model agenta: \d+ placených čtení 6 snímků tohoto výzkumu ve velikostech 1400 \/ 1568 px, asi \$\d+\.\d\d .*Spustit\? \(a\/n\) \[n\]/s);
+  assert.match(no.out, /Vyladit čtení snímků pro script · vlastní model agenta: \d+ placených čtení 6 snímků tohoto výzkumu ve velikostech 1400 \/ 1568 px, asi \$\d+\.\d\d .*Spustit\? \(a\/n, Enter = n\)/s);
   assert.match(no.out, /Nic se nespustilo/);
   assert.ok(!fs.existsSync(path.join(w.cwd, ".strom", "calibrate")), "no reader started");
   // an agent asks: the window answers; no in the window: nothing
@@ -219,13 +219,13 @@ test("tuned before for another model: offered again in the orientation, the menu
   const menu = await w.ok([], { tty: true, answers: ["8", "0", "0"] });
   assert.match(menu.out, /Čtení snímků bylo vyladěno pro Claude Code · sonnet/);
   // at its own number (6), Remote Control 7 after it
-  assert.match(menu.out, / 5 {2}Výzkum, nebo jen Archiv Stromu[^\n]*\n {3}6 {2}Vyladit čtení snímků \(zatím vyladěno pro jiný model\)\n {3}7 {2}Remote Control v aplikaci Claude[^\n]*\n/);
+  assert.match(menu.out, / \[5\] {2}Výzkum, nebo jen Archiv Stromu[^\n]*\n {2}\[6\] {2}Vyladit čtení snímků {2,}zatím vyladěno pro jiný model\n {2}\[7\] {2}Remote Control v aplikaci Claude[^\n]*\n/);
   assert.ok(!fs.existsSync(path.join(w.cwd, ".strom", "calibrate")), "offered, never run");
   // once tuned for the model of the research: no offer, the date said
   cfg.viewSizes["claude opus"] = { find: 1400, read: 2000, at: "2026-10-09", sample: 6, sizes: [1400, 1568, 2000], clear: { find: true, read: true } };
   fs.writeFileSync(path.join(w.env.STROM_CONFIG_DIR!, "config.json"), JSON.stringify(cfg));
   assert.doesNotMatch((await w.ok([])).out, offer);
-  assert.match((await w.ok([], { tty: true, answers: ["8", "0", "0"] })).out, /Vyladit čtení snímků \(vyladěno 2026-10-09\)/);
+  assert.match((await w.ok([], { tty: true, answers: ["8", "0", "0"] })).out, /Vyladit čtení snímků {2,}vyladěno 2026-10-09\n/);
   assert.match((await w.run(["doctor"])).out, /✓ +čtení snímků +vyladěno 2026-10-09: hledání 1400 px · čtení 2000 px/);
   // an archive: nothing of it anywhere
   delete cfg.viewSizes["claude opus"];

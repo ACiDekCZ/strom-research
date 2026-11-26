@@ -97,7 +97,7 @@ test("the menu lists the people without a record and takes the ones picked by nu
   await w.ok(["lang", "cs"]);
   // 4 add to the research · 5 the people without a record · 2 pick · a number not in the list · an ID · not now · Enter · 0 · 0
   const menu = await w.run(["menu"], { tty: true, answers: ["4", "5", "2", "1 9", "p0005", "n", "", "0", "0"] });
-  assert.match(menu.out, /Osoby bez vlastního záznamu \(3\)/);
+  assert.match(menu.out, /Osoby bez vlastního záznamu {2,}3/);
   assert.match(menu.out, /Tyto osoby zatím nedokládá žádný jejich vlastní záznam:\n +1\. P0002 Jan Novák — jmenuje je jiný záznam\n +2\. P0003 Marie Horáková \(\*1910\) — bez záznamu\n +3\. P0005 Karel Dvořák/);
   assert.match(menu.out, /Nejspíš žijící \(narození před méně než 100 lety\) — to ví rodina, bez úkolů: P0004 Petr Malý/);
   assert.match(menu.out, /V seznamu není: 9/);

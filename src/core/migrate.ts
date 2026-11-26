@@ -40,6 +40,14 @@ export const MIGRATIONS: Migration[] = [
     what: "the material's records may carry the Strom app's places in the tree",
     run() {},
   },
+  {
+    // 1.39: a house of the tree is a record of its own (data/houses/A…, spec 030), and the material may name the houses
+    // it is of (houses) — an older strom would take data/houses for files changed outside it and a task of a house for
+    // one of no subject it knows. Nothing is rewritten: the records written before mean what they meant.
+    to: 4,
+    what: "houses of the tree are records of their own, the material may name them",
+    run() {},
+  },
 ];
 
 /** Bring the tree to the target schema; returns what was done, one line a step. */

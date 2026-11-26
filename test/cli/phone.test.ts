@@ -156,7 +156,7 @@ test("strom phone on in a terminal: the person's own yes, Enter says no (a termi
     const isOn = () => fs.existsSync(cfg) && (JSON.parse(fs.readFileSync(cfg, "utf8")) as { on: boolean }).on;
     for (const answer of ["", "n", "ne"]) {
       const r = await w.ok(["phone", "on"], { tty: true, answers: [answer], env: { STROM_LANG: "cs" } });
-      assert.match(r.out, /v místní síti 127\.0\.0\.1 přehled výzkumu[^\n]*\nZapnout propojení s telefonem\? \(a\/n\) \[n\]/);
+      assert.match(r.out, /v místní síti 127\.0\.0\.1 přehled výzkumu[^\n]*\nZapnout propojení s telefonem\? \(a\/n, Enter = n\)/);
       assert.match(r.out, /nezapnuto, nic se nezměnilo/);
       assert.equal(isOn(), false, `answered ${JSON.stringify(answer)}`);
     }

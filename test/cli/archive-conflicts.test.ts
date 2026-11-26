@@ -61,14 +61,14 @@ test("an archive's menu: What waits lists the open conflicts; one of the app's e
   const w = await world("archive");
   // 3 What waits · 1 the conflicts · 1 X0001 · 1 the app's value holds · why · (none of it left: X0002) 0 · 0 · 0
   const r = await w.ok([], { tty: true, answers: ["3", "1", "1", "1", "Křestní list to tak uvádí", "0", "0", "0"] });
-  assert.match(r.out, / 3 {2}Co čeká \(2\)\n/, r.out);
-  assert.match(r.out, /K rozhodnutí – rozpory · 2/, r.out);
+  assert.match(r.out, / \[3\] {2}Co čeká +2\n/, r.out);
+  assert.match(r.out, /K rozhodnutí – rozpory {2,}2 {2}rozpor 2\n/, r.out);
   assert.match(r.out, /^ X0001 · rozpor · od /m, r.out);
   assert.match(r.out, /^ {4}v aplikaci Strom: 4\. 3\. 1885, Kamenice$/m, r.out);
   assert.match(r.out, /^ {4}v Archivu Stromu: 3\. 3\. 1885, Kamenice$/m, r.out);
-  assert.match(r.out, /^ {3}1 {2}Ponechat hodnotu z aplikace$/m, r.out);
-  assert.match(r.out, /^ {3}2 {2}Převzít hodnotu Archivu Stromu$/m, r.out);
-  assert.match(r.out, /^ {3}0 {2}Nechat otevřený$/m, r.out);
+  assert.match(r.out, /^ {2}\[1\] {2}Ponechat hodnotu z aplikace$/m, r.out);
+  assert.match(r.out, /^ {2}\[2\] {2}Převzít hodnotu Archivu Stromu$/m, r.out);
+  assert.match(r.out, /^ {2}\[0\] {2}Nechat otevřený$/m, r.out);
   assert.match(r.out, /✓ Rozpor je rozhodnutý\./, r.out);
   assert.doesNotMatch(r.out, NO_AI, r.out);
   const c = await conflict(w, "X0001");
@@ -87,7 +87,7 @@ test("an archive's menu: a conflict of two records decided by which claim holds;
   // 3 What waits · 1 the conflicts · 2 X0002 · Enter: left open · 2 X0002 · 1 the first claim · why · 0 · 0 · 0
   const r = await w.ok([], { tty: true, answers: ["3", "1", "2", "", "2", "1", "Starší záznam", "0", "0", "0"] });
   assert.match(r.out, /Rok narození Josefa/, r.out);
-  assert.match(r.out, /^ {3}0 {2}Nechat otevřený$/m, r.out);
+  assert.match(r.out, /^ {2}\[0\] {2}Nechat otevřený$/m, r.out);
   const c = await conflict(w, "X0002");
   assert.equal(c.state, "resolved");
   assert.match(c.resolution ?? "", /^1885/);
@@ -122,7 +122,7 @@ test("the app's link decides a conflict in an archive and in a research waiting 
     // a waiting research says its conflicts too, and lists them in What waits
     if (how === "waiting") {
       assert.match((await w.ok([])).out, /rozpory k rozhodnutí: 2 \(X0001 X0002\)/);
-      assert.match((await w.ok([], { tty: true, answers: ["0"] })).out, /Co čeká \(2\)/);
+      assert.match((await w.ok([], { tty: true, answers: ["0"] })).out, /Co čeká +2/);
     }
     const link = `strom-research://conflict?tree=${treeId(w.cwd)}&id=X0001&do=decide&take=${take}`;
     const r = await w.ok(["link", "open", link], { tty: true, answers: ["", "Podle matriky"] });

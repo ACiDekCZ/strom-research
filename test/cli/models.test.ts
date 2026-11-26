@@ -82,8 +82,8 @@ test("the setup wizard: Antigravity's own list — the strong ones offered (Gemi
   fakes(w, { agy: listing(w, "agy", AGY, "models") });
   // language, folder, model (Enter: the suggested one), its effort (Enter: high, recommended), stories, level, no shortcut
   const r = await w.ok(["setup"], { answers: ["en", "", "", "", "", "", "", "n"] });
-  assert.match(r.out, /How deeply should Antigravity CLI reason before it answers \(its reasoning effort\)\?\n {3}1 {2}high — recommended: old handwriting read with the best setting; the plan's limit runs out sooner \(in a test it ran out after 18 minutes even on low\)\n {3}2 {2}xhigh[^\n]*\n {3}3 {2}medium\n {3}4 {2}low[^\n]*\n {3}5 {2}Leave it to Antigravity CLI's own setting\nChoose \[1\]/);
-  assert.match(r.out, /Which model should do the research in Antigravity CLI\? The strongest read old handwriting best — they use up a subscription sooner or cost more\.\n {3}1 {2}Gemini 3\.1 Pro \(High\) · gemini-3\.1-pro-high \(recommended\)\n {3}2 {2}Claude Opus 4\.6 \(Thinking\) · claude-opus-4-6-thinking\n {3}3 {2}Claude Sonnet 4\.6 \(Thinking\) · claude-sonnet-4-6\n {3}4 {2}Leave it to the agent\nChoose \[1\]/);
+  assert.match(r.out, /How deeply should Antigravity CLI reason before it answers \(its reasoning effort\)\?\n {2}\[1\] {2}high — recommended: old handwriting read with the best setting; the plan's limit runs out sooner \(in a test it ran out after 18 minutes even on low\)\n {2}\[2\] {2}xhigh[^\n]*\n {2}\[3\] {2}medium\n {2}\[4\] {2}low[^\n]*\n {2}\[5\] {2}Leave it to Antigravity CLI's own setting\n\nChoice \(Enter = 1[^)]*\):/);
+  assert.match(r.out, /Which model should do the research in Antigravity CLI\? The strongest read old handwriting best — they use up a subscription sooner or cost more\.\n {2}\[1\] {2}Gemini 3\.1 Pro \(High\) · gemini-3\.1-pro-high \(recommended\)\n {2}\[2\] {2}Claude Opus 4\.6 \(Thinking\) · claude-opus-4-6-thinking\n {2}\[3\] {2}Claude Sonnet 4\.6 \(Thinking\) · claude-sonnet-4-6\n {2}\[4\] {2}Leave it to the agent\n\nChoice \(Enter = 1[^)]*\):/);
   assert.doesNotMatch(r.out, /Flash|GPT-OSS/);
   assert.doesNotMatch(r.out, /choose its best model, not a fast or mini one/, "a model chosen: no word to choose one in the agent");
   assert.deepEqual(config(w).models, { antigravity: { lead: "gemini-3.1-pro-high", effort: "high" } });
@@ -91,7 +91,7 @@ test("the setup wizard: Antigravity's own list — the strong ones offered (Gemi
   await w.ok(["setup"], { answers: ["", "", "", "2", "0", "", "", "n"] });
   assert.equal(config(w).models.antigravity.lead, "claude-opus-4-6-thinking");
   const again = await w.ok(["setup"], { answers: ["", "", "", "0", "0", "", "", "n"] });
-  assert.match(again.out, /Leave it to the agent\n {3}0 {2}Keep it as it is\nChoose \[2\]/);
+  assert.match(again.out, /Leave it to the agent\n\n {2}\[0\] {2}Keep it as it is\n\nChoice \(Enter = 2[^)]*\):/);
   assert.equal(config(w).models.antigravity.lead, "claude-opus-4-6-thinking");
   // the agent's own, its own effort too: nothing kept, the word to choose a strong one in the agent
   const own = await w.ok(["setup"], { answers: ["", "", "", "4", "5", "", "", "n"] });
@@ -107,8 +107,8 @@ test("the setup wizard: an agent that gives no list (a failure, or one that hang
   fs.writeFileSync(path.join(w.env.HOME!, ".codex", "config.toml"), 'model = "gpt-6.1-sol"\nmodel_reasoning_effort = "low"\n\n[features]\nmodel = "no"\n');
   const r = await w.ok(["setup"], { answers: ["en", "", "", "2", "", "", "", "", "n"] });
   // its effort: what its config.toml says now named beside the agent's own
-  assert.match(r.out, / 5 {2}Leave it to Codex's own setting \(now low — from [^\n]*config\.toml\)\n/);
-  assert.match(r.out, /Which model should do the research in OpenAI Codex CLI\?[^\n]*\n {3}1 {2}gpt-6-astra \(recommended\)\n {3}2 {2}gpt-6-sol\n {3}3 {2}Leave it to the agent \(now gpt-6\.1-sol\)\n/);
+  assert.match(r.out, / \[5\] {2}Leave it to Codex's own setting \(now low — from [^\n]*config\.toml\)\n/);
+  assert.match(r.out, /Which model should do the research in OpenAI Codex CLI\?[^\n]*\n {2}\[1\] {2}gpt-6-astra \(recommended\)\n {2}\[2\] {2}gpt-6-sol\n {2}\[3\] {2}Leave it to the agent \(now gpt-6\.1-sol\)\n/);
   assert.equal(config(w).models.codex.lead, "gpt-6-sol");
   w.cleanup();
 
@@ -118,7 +118,7 @@ test("the setup wizard: an agent that gives no list (a failure, or one that hang
   const started = Date.now();
   const o = await h.ok(["setup"], { answers: ["en", "", "", "", "", "", "n"] });
   assert.ok(Date.now() - started < 15_000, "not held by the agent");
-  assert.match(o.out, / 1 {2}openai\/gpt-6-astra \(recommended\)/);
+  assert.match(o.out, / \[1\] {2}openai\/gpt-6-astra \(recommended\)/);
   assert.equal(config(h).models.opencode.lead, "openai/gpt-6-astra");
   h.cleanup();
 });
@@ -127,7 +127,7 @@ test("Claude Code's choice as it was: Opus, Sonnet or the agent's own — no lis
   const w = new World();
   fakes(w, { claude: `echo "$*" >> "${path.join(w.dir, "claude.calls")}"\nexit 0` });
   const r = await w.ok(["setup"], { answers: ["en", "", "", "2", "", "", "", "", "n"] });
-  assert.match(r.out, /Which model should do the research\?\n {3}1 {2}Opus — best at reading old handwriting \(recommended\)\n {3}2 {2}Sonnet — faster; printed documents and everyday work\n {3}3 {2}Leave it to the agent\n/);
+  assert.match(r.out, /Which model should do the research\?\n {2}\[1\] {2}Opus — best at reading old handwriting \(recommended\)\n {2}\[2\] {2}Sonnet — faster; printed documents and everyday work\n {2}\[3\] {2}Leave it to the agent\n/);
   assert.deepEqual(config(w).models, { claude: { lead: "sonnet", effort: "high" } });
   assert.ok(!fs.existsSync(path.join(w.dir, "claude.calls")), "Claude Code not started to list anything");
   w.cleanup();
@@ -142,16 +142,16 @@ test("the menu's settings: the setup's model step alone — the agent's strong o
   w.cwd = w.treeDir("Novákovi");
   // 8 settings · 1 the setup: 2 only the model · 2 grok-4.6 · 0 · 0
   const r = await w.ok([], { tty: true, answers: ["8", "1", "2", "2", "0", "0"] });
-  assert.match(r.out, / 1 {2}Jazyk, agent, model[^\n]*\n/);
+  assert.match(r.out, / \[1\] {2}Průvodce nastavením {2,}Jazyk, agent, model[^\n]*\n/);
   // (macOS: the terminal for the research's windows beside it — a step of the setup, the settings have nine items; the phone connection, who decides the hypotheses, then starting the agent from the app last)
-  assert.match(r.out, new RegExp(String.raw`Co nastavit\?\n {3}1 {2}Všechno, krok za krokem \(průvodce nastavením\)\n {3}2 {2}Jen model výzkumu \(Grok Build\): vlastní model agenta\n${process.platform === "darwin" ? " {3}3 {2}Terminál pro okna výzkumu \\(z aplikace Strom, předaný rozhovor\\): výchozí systému\\n" : ""} {3}\d {2}Propojení s telefonem [^\n]*: vypnuto\n {3}\d {2}Kdo rozhoduje hypotézy: Rozhoduje AI\n {3}\d {2}Spouštění agenta z aplikace Strom: s potvrzením\n {3}\d {2}Sčítání lidu v tomto výzkumu: vypnuto\n {3}\d {2}Soubory poslané do výzkumu projde agent sám: vypnuto\n {3}0 {2}Zpět\nVybrat \[1\]`, "u"));
-  assert.match(r.out, /Který model má v Grok Build dělat výzkum\?[^\n]*\n {3}1 {2}grok-4\.7 \(doporučeno\)\n {3}2 {2}grok-4\.6\n {3}3 {2}Nechat na agentovi \(teď grok-4\.7\)\n {3}0 {2}Zpět\nVybrat \[3\]/);
+  assert.match(r.out, new RegExp(String.raw`Co nastavit\?\n {2}\[1\] {2}Všechno, krok za krokem {2,}průvodce nastavením\n {2}\[2\] {2}Jen model výzkumu \(Grok Build\) {2,}vlastní model agenta\n${process.platform === "darwin" ? " {2}\\[3\\] {2}Terminál pro okna výzkumu {2,}výchozí systému {2,}z aplikace Strom, předaný rozhovor\\n" : ""} {2}\[\d\] {2}Propojení s telefonem {2,}vypnuto {2,}[^\n]+\n {2}\[\d\] {2}Kdo rozhoduje hypotézy {2,}Rozhoduje AI\n {2}\[\d\] {2}Spouštění agenta z aplikace Strom {2,}s potvrzením\n {2}\[\d\] {2}Sčítání lidu v tomto výzkumu {2,}vypnuto\n {2}\[\d\] {2}Historie domů v tomto výzkumu {2,}vypnuto\n {2}\[\d\] {2}Soubory poslané do výzkumu projde agent sám · vypnuto\n\n {2}\[0\] {2}Zpět\n\nVolba \(Enter = 1[^)]*\):`, "u"));
+  assert.match(r.out, /Který model má v Grok Build dělat výzkum\?[^\n]*\n {2}\[1\] {2}grok-4\.7 \(doporučeno\)\n {2}\[2\] {2}grok-4\.6\n {2}\[3\] {2}Nechat na agentovi \(teď grok-4\.7\)\n\n {2}\[0\] {2}Zpět\n\nVolba \(Enter = 3[^)]*\):/);
   assert.doesNotMatch(r.out, /Jazyk \(|V jakém jazyce/, "only the model: no other step of the setup");
   assert.equal(config(w).models.grok.lead, "grok-4.6");
   // 0 at the model: nothing changed; 0 at "what to set up": back in the settings, nothing started
   const back = await w.ok([], { tty: true, answers: ["8", "1", "2", "0", "1", "0", "0", "0"] });
-  assert.match(back.out, /Jen model výzkumu \(Grok Build\): grok-4\.6/);
-  assert.match(back.out, /Vybrat \[2\]/);
+  assert.match(back.out, /Jen model výzkumu \(Grok Build\) {2,}grok-4\.6\n/);
+  assert.match(back.out, /Volba \(Enter = 2[^)]*\):/);
   assert.equal(config(w).models.grok.lead, "grok-4.6");
   // the tree's own model: changed there, this computer's stays
   await w.ok(["config", "set", "model.lead", "grok-4.5", "--for-tree"]);

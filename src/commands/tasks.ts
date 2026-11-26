@@ -58,6 +58,8 @@ import { takeWaiting } from "./media.ts";
 import { BOOKS_MIN_TASKS, bookOfTask, bookRows, booksOfTask, liveBook, minTasksOf, needsBooks, sameBookLine, tasksOfBook, type BookRow } from "../core/books.ts";
 import { parseTaskKind, TASK_KINDS, taskKind } from "../core/taskkind.ts";
 import { CENSUS_PREFIX, censusHeld, censusProposal } from "../core/census.ts";
+import { houseHidden } from "../core/houses.ts";
+import { markTownDone } from "../core/houseauto.ts";
 import { closeCoverage, coverageLine } from "../core/coverage.ts";
 import { loadSaves, storeSaves } from "../core/browser.ts";
 import { RETRY_KEPT, RETRY_MAX, retryOf, type RetryCache } from "../core/retry.ts";
@@ -965,6 +967,11 @@ register(
       const censusNow = ctx.settings.census(tree.config);
       const censusHeldNow = censusNow ? [] : tree.list<Task>("task").filter((t) => censusHeld(t, false) && (!opts.level || t.level === opts.level) && (!research || t.research === research));
       if (!opts.state && !opts["off-tree"] && !book && kind === "census") all = [...all, ...censusHeldNow.filter((t) => !all.includes(t))];
+      // the history of the houses off (spec 030 part 2): its tasks raised by themselves held the same way
+      const housesNow = ctx.settings.houses(tree.config);
+      const houseHide = houseHidden(tree, housesNow);
+      const houseHeldNow = housesNow ? [] : tree.list<Task>("task").filter((t) => houseHide(t) && (!opts.level || t.level === opts.level) && (!research || t.research === research));
+      if (!opts.state && !opts["off-tree"] && !book && kind === "house") all = [...all, ...houseHeldNow.filter((t) => !all.includes(t))];
       if (kind) all = all.filter((t) => taskKind(t) === kind);
       // the gain of each waiting task: its own item's, else (a task only one of an archive question's tasks) the question's
       const gains = new Map<string, Gain>();
@@ -977,9 +984,10 @@ register(
         all = [...all].sort((a, b) => (gains.get(b.id)?.score ?? 0) - (gains.get(a.id)?.score ?? 0));
       }
       const censusMark = (t: Task) => !censusNow && censusHeld(t, false);
+      const houseMark = (t: Task) => !housesNow && houseHeldNow.includes(t);
       const row = (t: Task) => {
         const r = taskLine(t);
-        const shown = censusMark(t) ? [...r.slice(0, -1), `${r[r.length - 1]} · held: census off`] : r;
+        const shown = censusMark(t) ? [...r.slice(0, -1), `${r[r.length - 1]} · held: census off`] : houseMark(t) ? [...r.slice(0, -1), `${r[r.length - 1]} · held: houses off`] : r;
         if (!byGain) return shown;
         const g = gains.get(t.id);
         return [...shown, g ? `+${g.score}${g.says ? ` ${g.says}` : ""}` : ""];
@@ -1007,6 +1015,9 @@ register(
           !opts.state && !opts["off-tree"] && !opts.about && !book && kind !== "census" && censusHeldNow.length
             ? `${censusHeldNow.length} census task${censusHeldNow.length === 1 ? "" : "s"} held: census records are off for this research — back by themselves once the person turns them on (strom task list --kind census)`
             : undefined,
+          !opts.state && !opts["off-tree"] && !opts.about && !book && kind !== "house" && houseHeldNow.length
+            ? `${houseHeldNow.length} task${houseHeldNow.length === 1 ? "" : "s"} of the houses held: the history of the houses is off for this research — back by themselves once the person turns it on (strom task list --kind house)`
+            : undefined,
           !opts.state && !opts["off-tree"] && !opts.about ? decisionLines(tree, (t) => (!opts.level || t.level === opts.level) && (!research || t.research === research)) : undefined,
           !opts.state && !opts["off-tree"] && !opts.about && !research ? neverLine(tree, ctx.settings.offLine(tree.config)) : undefined,
           !opts.state && !opts["off-tree"] && !opts.about ? asleepLines(tree, (t) => (!opts.level || t.level === opts.level) && (!research || t.research === research)) : undefined,
@@ -1018,10 +1029,11 @@ register(
             ...(why.has(t.id) ? { why: why.get(t.id) } : {}),
             ...(ranks.get(t.id) ? rankData(ranks.get(t.id)!) : {}),
             ...waitState(tree, t),
-            ...(censusMark(t) ? { held: "census off" } : {}),
+            ...(censusMark(t) ? { held: "census off" } : houseMark(t) ? { held: "houses off" } : {}),
             ...(gains.has(t.id) ? { gain: gains.get(t.id) } : {}),
           })),
           ...(censusHeldNow.length ? { censusHeld: censusHeldNow.length } : {}),
+          ...(houseHeldNow.length ? { housesHeld: houseHeldNow.length } : {}),
         },
       };
     },
@@ -1067,6 +1079,7 @@ register(
           `  ${[r.archive?.name, r.years, r.access].filter(Boolean).join(" · ")}`,
           `  ${r.tasks} task${r.tasks > 1 ? "s" : ""}${states.length ? ` (${states.join(", ")})` : ""} · ${images}${r.need ? ` · needed, not on disk ${r.need}` : ""}`,
           `  folder ${dir ? ctx.display(dir) : `inbox/${r.folder}`}`,
+          r.countUnknown ? `  count not known (images 1–${r.countUnknown.from1to} on disk) — offered until it is: strom recordset edit ${r.id} --images <n> (from the archive's page / strom fetch <connector> <book> --list --recordset ${r.id}); never the highest number saved` : undefined,
           r.url ? `  ${r.url}` : undefined,
           `  strom task list --book ${r.id}`,
         ];
@@ -1231,6 +1244,8 @@ register(
       const tree = ctx.tree();
       if (!opts.result) throw new UsageError("--result is required", { hint: "say what was found — or where it was searched without success" });
       const { task, said } = finishTask(tree, args[0]!, String(opts.result), csvOpt(opts.produced));
+      // a municipality's skeleton done: its record keeps the day (spec 030 part 2)
+      markTownDone(tree, task);
       // the years its people's estimated dates ask for, not all searched (spec 131): said once a session and book, never refused
       const coverage = closeCoverage(tree, task.id, currentSession(tree, ctx.env, ctx.refs)?.id, ctx.settings.ageMargin(tree.config));
       return { text: lines(written(tree), ...said, ...coverage.map(coverageLine)), data: { task, ...(coverage.length ? { coverage } : {}) } };

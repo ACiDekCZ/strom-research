@@ -20,7 +20,7 @@ import { StromError, UsageError } from "./errors.ts";
 import { now, TREE_FILE, type Tree } from "./tree.ts";
 
 /** The records a return takes back to their state then: the tree and its evidence. */
-export const RETURNED_TYPES: RecordType[] = ["person", "family", "source", "repository", "recordset", "place", "search", "conflict", "hypothesis", "input", "media"];
+export const RETURNED_TYPES: RecordType[] = ["person", "family", "source", "repository", "recordset", "place", "search", "conflict", "hypothesis", "input", "media", "house"];
 
 /** The folder of the person's decisions on the tree's quality, written whole by strom (core/integrity.ts). */
 const QUALITY_DIR = "quality";

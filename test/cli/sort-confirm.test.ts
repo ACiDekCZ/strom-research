@@ -106,7 +106,7 @@ test("sort.confirm: ask by default; no only by the person in their terminal or t
 
   // the person: their own yes in the terminal — Enter is no
   const enter = await w.run(["config", "set", "sort.confirm", "no", "--for-tree"], { tty: true, answers: [""] });
-  assert.match(enter.out, /Třídit soubory materiálu čtenáři výzkumu hned, jak se o to požádá, bez dotazu na placená čtení\?[\s\S]*Povolit\? \(a\/n\) \[n\][\s\S]*Nic se nezměnilo/u);
+  assert.match(enter.out, /Třídit soubory materiálu čtenáři výzkumu hned, jak se o to požádá, bez dotazu na placená čtení\?[\s\S]*Povolit\? \(a\/n, Enter = n\)[\s\S]*Nic se nezměnilo/u);
   assert.equal(treeJson(w)["sort.confirm"], undefined);
   await w.ok(["config", "set", "sort.confirm", "no", "--for-tree"], { tty: true, answers: ["a"] });
   assert.equal(treeJson(w)["sort.confirm"], "no");

@@ -204,7 +204,7 @@ test("K4.3 the menu of an empty archive: Add to the archive is material only; th
   await w.ok(["init", "Archiv", "--mode", "archive"]);
   w.cwd = w.treeDir("Archiv");
   const r = await w.ok([], { tty: true, answers: ["0"] });
-  assert.match(r.out, / 4 {2}Přidat do Archivu Stromu: podklady\n/, r.out);
+  assert.match(r.out, / \[4\] {2}Přidat do Archivu Stromu {2,}podklady\n/, r.out);
   assert.doesNotMatch(r.out, /sledovaný živě/, r.out);
   assert.doesNotMatch(r.out, NO_AI, r.out);
   w.cleanup();
@@ -213,8 +213,8 @@ test("K4.3 the menu of an empty archive: Add to the archive is material only; th
 test("K4.4 the setup with no agent: impersonal, install the agent or only an archive for now — never 'start strom again'", opts, async () => {
   const w = new World();
   noAgent(w);
-  // the wizard, every answer suggested: Enter at each question, the agent's question: 3 only an archive
-  const r = await w.run(["setup"], { tty: true, answers: ["", "", "", "3", "", "", "", "", "", "", ""] });
+  // the wizard, every answer suggested: Enter at each question, the agent's question: 0 only an archive
+  const r = await w.run(["setup"], { tty: true, answers: ["", "", "", "0", "", "", "", "", "", "", ""] });
   assert.match(r.out, /Na tomto počítači není AI agent – výzkum v matrikách a archivech se dělá s ním\./, r.out);
   assert.match(r.out, /Nainstalovat Claude Code hned/, r.out);
   assert.match(r.out, /Zatím jen Archiv Stromu/, r.out);

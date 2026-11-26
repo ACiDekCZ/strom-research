@@ -31,6 +31,8 @@ import { agentSettingsSaid, effortInArgs, ownEffort, raisesEffort } from "../age
 import { agentSettingsLine } from "../cli/model-choice.ts";
 import { DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, Settings } from "../core/config.ts";
 import { historyHeld, raiseHistoryTasks, regionOfTask, requireHistoryOn } from "../core/pastevents.ts";
+import { markTownDone, raiseHouseTasks } from "../core/houseauto.ts";
+import { houseHidden } from "../core/houses.ts";
 import { censusHeld, censusProposal, forCensus } from "../core/census.ts";
 import { keepPlacesTask, PLACES_IDENTIFY_ORIGIN } from "../core/placeid.ts";
 import { appendLog, deniedStrom, prependPath, type AgentLimit } from "../runners/runner.ts";
@@ -165,6 +167,15 @@ function censusLine(tree: Tree, t: Task, settings: Settings): string | undefined
 }
 
 /**
+ * What an agent is told of a house's task raised by itself started by its ID while the history of the houses is off
+ * (spec 030 part 2): held, the person's switch. Undefined when it may be worked on (or is no such task).
+ */
+function houseLine(tree: Tree, t: Task, settings: Settings): string | undefined {
+  if (!houseHidden(tree, settings.houses(tree.config))(t)) return undefined;
+  return `⚠ ${t.id} is a task of the houses and the history of the houses is off for this research (the person's switch): it waits held — close the session (strom session close --continue …) and take another task`;
+}
+
+/**
  * The session's summary with the one sentence of a census proposal made in it (spec 106: strom census propose), in the
  * research language — said where the person reads the session's result, unless the summary names the proposal already.
  */
@@ -255,7 +266,7 @@ register(
       // a task the queue holds back, started by its ID: the agent hears why before it begins
       // (the task as it was asked for, read before the claim: claimed, it is "doing" and the queue's tests leave it out)
       const off = asked ? offTreeLine(tree, asked, true) : undefined;
-      const held = asked ? (historyLine(tree, asked, shared, ctx.settings) ?? censusLine(tree, asked, ctx.settings)) : undefined;
+      const held = asked ? (historyLine(tree, asked, shared, ctx.settings) ?? censusLine(tree, asked, ctx.settings) ?? houseLine(tree, asked, ctx.settings)) : undefined;
       const over = claimed.tookOver.map((t) => tookOverLine(t));
       // tasks whose archive (restricted) another session uses now: left for now, said with who and until when (K2.5)
       const archives = archiveHeldLines(claimed.archiveHeld, task?.id);
@@ -400,6 +411,8 @@ register(
         if (t.state !== "done") finished = finishTask(tree, t.id, done, csvOpt(opts.produced));
       }
       const alsoDone = also.map((id) => finishTask(tree, id, `fulfilled in ${s.id}${s.task ? ` (${s.task})` : ""}: ${alsoResult}`, csvOpt(opts.produced)));
+      // a municipality's skeleton done: its record keeps the day, no task of it raised again (spec 030 part 2)
+      for (const t of [finished?.task, ...alsoDone.map((x) => x.task)]) if (t) markTownDone(tree, t);
       const closed = closeSession(tree, s, {
         summary: censusSummary(tree, s, String(opts.summary ?? (done ? (finished?.task.result ?? done) : ""))),
         next: String(opts.next ?? ""),
@@ -415,6 +428,7 @@ register(
       // what was written, said before the tasks of history are raised: those are strom run's, never the conversation's
       const wrote = written(tree);
       raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings);
+      raiseHouseTasks(tree, ctx.settings);
       keepPlacesTask(tree);
       // a session of strom run whose run is at work: the run exports once the agent ends (with what it adds) — not twice
       const byRun = !!s.runner && runAlive(tree.root, s);
@@ -538,6 +552,7 @@ register(
         const text = ids.length ? written(tree) : "nothing to add — every frontier person has a task";
         // the tasks of history too (the experiment): strom run's, not said here
         raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings);
+        raiseHouseTasks(tree, ctx.settings);
         keepPlacesTask(tree);
         return { text, data: { created: ids } };
       }
@@ -1290,6 +1305,7 @@ register(
         // images the person saved for waiting tasks (the bridge not running): registered, the tasks they complete back
         if (takeSaved(tree, ctx.settings.shared()?.value).length && tree.uncommitted().length) commitNow(tree, "Images saved for waiting tasks");
         raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings);
+        raiseHouseTasks(tree, ctx.settings);
         keepPlacesTask(tree);
         if (tree.uncommitted().length) commitNow(tree, "Tasks of the history of the places");
         // Working alone: now and then a story's turn (in a conversation the user leads); the tasks of history after the

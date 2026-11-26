@@ -5,6 +5,15 @@ import {
   ACCESS,
   AUTOMATION,
   CHECK_ANSWERS,
+  HOUSE_CERTAINTIES,
+  HOUSE_EVENT_KINDS,
+  HOUSE_HOLDER_HOWS,
+  HOUSE_LOCATION_HOWS,
+  HOUSE_MAP_KINDS,
+  HOUSE_NAME_BYS,
+  HOUSE_NUMBER_CERTAINTIES,
+  HOUSE_ORIGINS,
+  HOUSE_RESIDENT_ROLES,
   INPUT_KINDS,
   JURISDICTIONS,
   PLACE_BY,
@@ -38,11 +47,66 @@ const RS = (to: RecordType | RecordType[], min = 0): Spec => ({ t: "refs", to, r
 /** A fraction of an image (0–1). */
 const F: Spec = { t: "number", req: true, min: 0, max: 1 };
 
-const ANY_SUBJECT: RecordType[] = ["person", "family", "place", "recordset", "repository", "source", "research", "input"];
+const ANY_SUBJECT: RecordType[] = ["person", "family", "place", "recordset", "repository", "source", "research", "input", "house"];
 /** A task can also be about a conflict or a hypothesis: the work that decides it. */
 const TASK_SUBJECT: RecordType[] = [...ANY_SUBJECT, "conflict", "hypothesis"];
 
+/** A claim's sources in a house: a source of the research with its page, or an address. */
+const HOUSE_SOURCES: Spec = { t: "array", of: { source: R("source"), page: S({ max: 200 }), url: S({ max: 2000 }) } };
+/** What every item of a house has: its short ID, who wrote it, when. */
+const HOUSE_ITEM = { id: S({ req: true, max: 12 }), origin: S({ req: true, enum: HOUSE_ORIGINS }), at: S({ max: 40 }) };
+/** A date of a house as the record gives it: a year, a year and a month, a day ("1781", "1868-05"). */
+const HOUSE_DATE = S({ max: 40 });
+
 export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
+  house: {
+    place: R("place", true),
+    // required of a house, empty in a municipality's record (town: validate.ts checkHouse)
+    house: S({ max: 100 }),
+    name: S({ max: 200 }),
+    nameBy: S({ enum: HOUSE_NAME_BYS }),
+    numbers: {
+      t: "array",
+      req: true,
+      of: { ...HOUSE_ITEM, number: S({ req: true, max: 100 }), from: HOUSE_DATE, to: HOUSE_DATE, certainty: S({ req: true, enum: HOUSE_NUMBER_CERTAINTIES }), sources: HOUSE_SOURCES, proposed: { t: "any" }, text: S({ max: 1000 }), confirmed: S({ max: 40 }), notSame: S({ max: 40 }) },
+    },
+    location: {
+      t: "object",
+      of: {
+        lat: { t: "number", req: true, min: -90, max: 90 },
+        lon: { t: "number", req: true, min: -180, max: 180 },
+        how: S({ req: true, enum: HOUSE_LOCATION_HOWS }),
+        certainty: S({ req: true, enum: HOUSE_CERTAINTIES }),
+        sources: HOUSE_SOURCES,
+        origin: S({ req: true, enum: HOUSE_ORIGINS }),
+        confirmed: S({ max: 40 }),
+      },
+    },
+    timeline: { t: "array", req: true, of: { ...HOUSE_ITEM, date: HOUSE_DATE, kind: S({ req: true, enum: HOUSE_EVENT_KINDS }), text: S({ req: true, max: 1000 }), certainty: S({ req: true, enum: HOUSE_CERTAINTIES }), sources: HOUSE_SOURCES, material: R("input") } },
+    holders: { t: "array", req: true, of: { ...HOUSE_ITEM, name: S({ req: true, max: 200 }), person: R("person"), from: HOUSE_DATE, to: HOUSE_DATE, how: S({ req: true, enum: HOUSE_HOLDER_HOWS }), certainty: S({ req: true, enum: HOUSE_CERTAINTIES }), sources: HOUSE_SOURCES } },
+    residents: { t: "array", req: true, of: { ...HOUSE_ITEM, name: S({ req: true, max: 200 }), person: R("person"), role: S({ req: true, enum: HOUSE_RESIDENT_ROLES }), from: HOUSE_DATE, to: HOUSE_DATE, certainty: S({ enum: HOUSE_CERTAINTIES }), sources: HOUSE_SOURCES } },
+    look: {
+      t: "object",
+      of: {
+        text: S({ req: true, max: 2000 }),
+        certainty: S({ req: true, enum: HOUSE_CERTAINTIES }),
+        images: { t: "array", of: { url: S({ max: 2000 }), license: S({ max: 200 }), credit: S({ max: 300 }), file: R("input") } },
+        origin: S({ req: true, enum: HOUSE_ORIGINS }),
+      },
+    },
+    maps: { t: "array", req: true, of: { ...HOUSE_ITEM, kind: S({ req: true, enum: HOUSE_MAP_KINDS }), url: S({ max: 2000 }), manual: { t: "any" }, sheet: S({ max: 200 }), label: S({ max: 300 }) } },
+    passed: { t: "array", req: true, of: { ...HOUSE_ITEM, what: S({ req: true, max: 1000 }), source: R("source"), url: S({ max: 2000 }), found: { t: "any" } } },
+    manual: { t: "array", req: true, of: { ...HOUSE_ITEM, what: S({ req: true, max: 1000 }), url: S({ max: 2000 }), why: S({ max: 500 }) } },
+    unknown: { t: "array", req: true, of: { ...HOUSE_ITEM, text: S({ req: true, max: 1000 }), question: R("task") } },
+    archiveOnly: { t: "array", req: true, of: { ...HOUSE_ITEM, archive: S({ req: true, max: 300 }), fond: S({ max: 300 }), signature: S({ max: 200 }), what: S({ max: 1000 }), url: S({ max: 2000 }) } },
+    town: { t: "any" },
+    text: S({ max: 2000 }),
+    done: S({ max: 40 }),
+    sensitive: { t: "strings" },
+    byUser: { t: "any" },
+    // other records of the same house the person joined in the app (A…)
+    same: { t: "strings" },
+  },
   source: {
     kind: S({ req: true, enum: SOURCE_KINDS }),
     title: S({ req: true, max: 300 }),
@@ -148,7 +212,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     parkedFor: S({ max: 40 }),
     heldFrom: S({ enum: ["waiting"] }),
     waitingOn: S(),
-    awaits: { t: "object", of: { recordset: R("recordset", true), images: S({ req: true, max: 200 }), folder: S({ req: true, max: 200 }) } },
+    awaits: { t: "object", of: { recordset: R("recordset", true), images: S({ req: true, max: 200 }), folder: S({ req: true, max: 200 }), again: S({ max: 200 }) } },
     awaitsCheck: { t: "object", of: { url: S({ req: true, max: 2000 }), ask: S({ req: true }) } },
     awaitsPermission: { t: "object", of: { hosts: { t: "strings", req: true, min: 1 }, since: S({ req: true }), title: S({ max: 300 }) } },
     wait: { t: "object", of: { kind: S({ enum: WAIT_KINDS }), to: S({ max: 300 }), note: S({ max: 500 }), url: S({ max: 2000 }), book: R("recordset") } },
@@ -163,6 +227,8 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     origin: S({ req: true }),
     helps: S({ max: 500 }),
     queueAt: { t: "object", of: { do: S({ req: true, enum: ["next", "last"] }), at: S({ req: true }) } },
+    houses: { t: "refs", to: "house" },
+    asked: S({ max: 40 }),
     retried: { t: "object", of: { at: S({ req: true }), by: S({ req: true, max: 100 }), givenIn: S({ enum: ["app"] }), times: { t: "strings" } } },
     kinds: { t: "strings" },
     proposal: { t: "object", of: { source: R("source", true), text: S({ req: true }), by: S({ req: true, max: 100 }), at: S({ req: true }), why: S({ max: 1000 }), reading: S({ max: 64 }) } },
@@ -271,6 +337,8 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     title: S({ max: 200 }),
     date: S({ date: true }),
     hidden: { t: "any" },
+    houses: { t: "refs", to: "house" },
+    ownResearch: { t: "any" },
   },
   media: {
     sha: S({ req: true }),

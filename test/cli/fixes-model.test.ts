@@ -11,7 +11,10 @@ import path from "node:path";
 import { World, hasGit } from "../helpers.ts";
 import { encodeImage } from "../../src/image/index.ts";
 import { halves, jpegWithOrientation } from "../image-samples.ts";
-import { byReading, headKey, readingStage, stagesOf, useStage, type FixItem } from "../../src/commands/fixchecks.ts";
+import { AGAIN_QUESTION, byReading, headKey, readingStage, stagesOf, useStage, type FixItem } from "../../src/commands/fixchecks.ts";
+import { Tree } from "../../src/core/tree.ts";
+import { create } from "../../src/core/records.ts";
+import type { Task } from "../../src/core/model.ts";
 import { sameLineNewer } from "../../src/agents/models.ts";
 
 const opts = { skip: !hasGit };
@@ -170,10 +173,14 @@ test("strom fixes run new-model: a reading read again with the model now beside 
     assert.equal((await w.run(["fixes", "run", "new-model"], { env: { CLAUDECODE: "1" }, tty: true, answers: ["1"] })).code, 4);
     // a person: all of it (one)
     // who reads: the one now first, said to have read them before; another agent here recommended
-    const r = await w.ok(["fixes", "run", "new-model", "--lang", "en"], { tty: true, answers: ["1", "1"] });
-    assert.match(r.out, /^Read with\?\n {3}1 {2}script · m-new — cheap, about 1 min · read these before\n {3}2 {2}Claude Code · [^\n]* · recommended: another than read before\n/m);
-    assert.match(r.out, /^Choose \[2\]/m);
-    assert.match(r.out, /^Earlier readings were made by .*m-old \(1 reading\); now .*m-new reads\. /m);
+    // before the question: what, how many, what it costs (spec 144 K6); the rest behind [?] Details, then the question again
+    const r = await w.ok(["fixes", "run", "new-model", "--lang", "en"], { tty: true, answers: ["1", "?", "1"] });
+    assert.match(r.out, /^new-model · [^\n]*\nFound: 1 reading \(1 place\)[^\n]*\nWhat it would take: cheap[^\n]*\n\nRead with\?/m);
+    assert.ok(r.out.indexOf("Earlier readings were made") > r.out.indexOf("Set it right?"), "the longer text behind [?] Details");
+    assert.match(r.out, /\[\?\] {2}Details/);
+    assert.match(r.out, /^Read with\?\n {2}\[1\] {2}script · m-new +cheap, about 1 min {2}read these before\n {2}\[2\] {2}Claude Code · [^\n]* {2}recommended: another than read before\n/m);
+    assert.match(r.out, /^Choice \(Enter = 2[^)]*\):/m);
+    assert.match(r.out, /^ {2}Earlier readings were made by .*m-old \(1 reading\); now .*m-new reads\. /m);
     assert.match(r.out, /^Read again: 1 reading \(1 place\) — places the same 0, refined 1, different 0 · \d+ min/m);
     assert.match(r.out, /Set right: nothing of it waits\./);
     const tasks = (await w.ok(["task", "list", "--json"])).json.tasks.filter((t: { what: string }) => /by another model$/.test(t.what));
@@ -219,10 +226,10 @@ test("strom fixes run new-model: the images of one earlier reading read again to
     // a reader of the batch: each of its images into its report, as it goes
     w.env.STROM_RUNNER_SCRIPT = path.join(w.dir, "reader.mjs");
     fs.writeFileSync(w.env.STROM_RUNNER_SCRIPT, BATCH_READER);
-    const r = await w.ok(["fixes", "run", "new-model", "--agent", "script", "--lang", "en"], { tty: true, answers: ["1"] });
+    const r = await w.ok(["fixes", "run", "new-model", "--agent", "script", "--lang", "en"], { tty: true, answers: ["?", "1"] });
     assert.match(r.out, /^Reading again 1\/1: M0001 \(B0001:1\), M0002 \(B0001:2\) … \(3\)/m);
     assert.match(r.out, /^Found: 1 reading \(3 places\) — 1 with places not read$/m);
-    assert.match(r.out, /^Earlier readings were made by script · m-old \(1 reading\)/m);
+    assert.match(r.out, /^ {2}Earlier readings were made by script · m-old \(1 reading\)/m);
     assert.match(r.out, /^Read again: 1 reading \(3 places\) — places the same 0, refined 0, different 3 · /m);
     const now = fs.readdirSync(dir).filter((f) => f.endsWith(".md") && f !== `${stem}-1.md`);
     assert.equal(now.length, 1, now.join(", "));
@@ -287,7 +294,11 @@ test("strom fixes new-model: a document read by another model with a place not r
 
     // read again: a new reading of its own (never strom document again), the earlier one as it was
     fs.writeFileSync(path.join(dir, "first.md"), docReport("Novák"));
-    const r = await w.ok(["fixes", "run", "new-model", "--lang", "en"], { tty: true, answers: ["1", "1"] });
+    // before the question: what, how many, what it costs (spec 144 K6); the rest behind [?] Details, then the question again
+    const r = await w.ok(["fixes", "run", "new-model", "--lang", "en"], { tty: true, answers: ["1", "?", "1"] });
+    assert.match(r.out, /^new-model · [^\n]*\nFound: 1 reading \(1 place\)[^\n]*\nWhat it would take: cheap[^\n]*\n\nRead with\?/m);
+    assert.ok(r.out.indexOf("Earlier readings were made") > r.out.indexOf("Set it right?"), "the longer text behind [?] Details");
+    assert.match(r.out, /\[\?\] {2}Details/);
     assert.match(r.out, /^Read again: 1 reading \(1 place\) — places the same 0, refined 1, different 0/m);
     assert.equal(fs.readFileSync(path.join(w.cwd, "notes", "readings", `${old.id}.json`), "utf8"), kept);
     const docs = (await w.ok(["document", "list", "--json"])).json;
@@ -369,14 +380,14 @@ test("strom fixes run: a trial and --first take whole readings — all the image
     const fresh = () => fs.readdirSync(dir).filter((f) => f.endsWith(".md") && !f.startsWith(three) && !f.startsWith(one));
     // --first 1: the most promising reading whole, nothing else offered
     const first = await w.ok(["fixes", "run", "new-model", "--agent", "script", "--first", "1", "--lang", "en"], { tty: true, answers: [""] });
-    assert.match(first.out, /1\s+All: 1 reading \(3 places\) — cheap, about \d+ min\n\s+2\s+No:/);
+    assert.match(first.out, /\[1\]\s+All\s+1 reading \(3 places\) · cheap, about \d+ min\n\s+\[2\]\s+No:/);
     assert.equal(fresh().length, 0);
     // a trial of one: the reading of three images whole, as one reading again
     const r = await w.ok(["fixes", "run", "new-model", "--agent", "script", "--try", "1", "--lang", "en"], { tty: true, answers: ["1", "0"] });
-    assert.match(r.out, /1\s+Try it on the most promising first: 1 reading \(3 places\) — cheap, about \d+ min\n\s+2\s+All: 2 readings \(4 places\) — cheap, about \d+ min/);
+    assert.match(r.out, /\[1\]\s+Try it on the most promising first\s+1 reading \(3 places\) · cheap, about \d+ min\n\s+\[2\]\s+All\s+2 readings \(4 places\) · cheap, about \d+ min/);
     assert.match(r.out, /^Reading again 1\/1: M0001 \(B0001:1\), M0002 \(B0001:2\) … \(3\)/m);
     assert.match(r.out, /^Read again: 1 reading \(3 places\) — places the same 0, refined \d, different \d · /m);
-    assert.match(r.out, /1\s+The remaining: 1 reading \(1 place\) — cheap/);
+    assert.match(r.out, /\[1\]\s+The remaining\s+1 reading \(1 place\) · cheap/);
     assert.equal(fresh().length, 1, fresh().join(", "));
     assert.equal(fs.readFileSync(path.join(dir, fresh()[0]!), "utf8").match(/^## Image /gm)?.length, 3);
     // nothing of the reading read again waits (its M0001 now read by the model now, so the other one neither)
@@ -407,9 +418,9 @@ test("strom fixes new-model: by stage — the disputed alone offered first, said
     w.env.STROM_RUNNER_SCRIPT = path.join(w.dir, "reader.mjs");
     fs.writeFileSync(w.env.STROM_RUNNER_SCRIPT, READER);
     const r = await w.ok(["fixes", "run", "new-model", "--agent", "script", "--try", "1", "--lang", "en"], { tty: true, answers: ["2", "0"] });
-    assert.match(r.out, /1\s+Try it on the most promising first: 1 reading \(1 place\)[^\n]*\n\s+2\s+The disputed alone: 2 readings \(2 places\)[^\n]*\n\s+3\s+All: 4 readings \(4 places\)[^\n]*\n\s+4\s+No:/);
+    assert.match(r.out, /\[1\]\s+Try it on the most promising first\s+1 reading \(1 place\)[^\n]*\n\s+\[2\]\s+The disputed alone\s+2 readings \(2 places\)[^\n]*\n\s+\[3\]\s+All\s+4 readings \(4 places\)[^\n]*\n\s+\[4\]\s+No:/);
     assert.match(r.out, /^Read again: 2 readings \(2 places\) — /m);
-    assert.match(r.out, /1\s+More first: 1 reading \(1 place\)[^\n]*\n\s+2\s+The remaining: 2 readings \(2 places\)/);
+    assert.match(r.out, /\[1\]\s+More first\s+1 reading \(1 place\)[^\n]*\n\s+\[2\]\s+The remaining\s+2 readings \(2 places\)/);
     const left = (await w.ok(["fixes", "--json"])).json.checks.find((x: { id: string }) => x.id === "new-model");
     assert.deepEqual(left.items.map((i: { reading: string }) => i.reading).sort(), [o1, o2].sort());
   } finally {
@@ -487,6 +498,93 @@ test("strom fixes new-model: a document's blind reader is never an earlier model
     append(path.join(w.cwd, ".strom", "metrics", "readers.jsonl"), { reader: `document-${old.id}-2`, kind: "document", agent: "script", model: "m-new", reported: "m-new", outcome: "ok", at });
     w.env.STROM_MODEL_VISION = "m-new";
     assert.ok(!(await check())?.items?.length);
+  } finally {
+    w.cleanup();
+  }
+});
+
+/** A reading of one image by m-old as an older tool's report brought in: no "Question:" in its head (1126). */
+function noQuestion(w: World, k: number, media: string, text: string, ago: number): string {
+  const at = new Date(Date.now() - ago * 60_000).toISOString();
+  const stem = `${at.slice(0, 10)}-${media}-q${k}`;
+  const dir = path.join(w.cwd, "notes", "readings");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${stem}-1.md`), `# Reading ${media} · batch 1 of 1\n\n## Image 1 · ${media}\nresult: found\nentries:\n- ${text}\n`);
+  append(path.join(w.cwd, ".strom", "metrics", "readers.jsonl"), { reader: `read-${stem}-1`, kind: "read", agent: "script", model: "m-old", outcome: "ok", images: 1, wallMs: 30_000, ms: 30_000, at });
+  return stem;
+}
+
+test("strom fixes run new-model: an earlier reading that kept no question is read again with the whole of it asked — never refused for --question (1126)", opts, async () => {
+  const w = await world();
+  try {
+    const old = noQuestion(w, 1, "M0001", "Václav Lhoták [?], Lhota [?]", 60);
+    w.env.STROM_MODEL_VISION = "m-new";
+    w.env.STROM_RUNNER_SCRIPT = path.join(w.dir, "reader.mjs");
+    fs.writeFileSync(w.env.STROM_RUNNER_SCRIPT, READER);
+    const r = await w.ok(["fixes", "run", "new-model", "--agent", "script", "--lang", "en"], { tty: true, answers: ["?", "1"] });
+    assert.doesNotMatch(r.out, /--question is required| · not read /, r.out);
+    assert.match(r.out, /^Read again: 1 reading \(1 place\) — /m);
+    // the new reading: the whole of it asked, and the earlier one it reads again said in its head
+    const dir = path.join(w.cwd, "notes", "readings");
+    const now = fs.readdirSync(dir).filter((f) => f.endsWith(".md") && !f.startsWith(old));
+    assert.equal(now.length, 1);
+    const head = fs.readFileSync(path.join(dir, now[0]!), "utf8").split(/^## /m)[0]!;
+    assert.match(head, new RegExp(`^Question: ${AGAIN_QUESTION.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
+    assert.match(head, new RegExp(`^Again: ${old}$`, "m"));
+    assert.equal((await w.ok(["fixes", "--json"])).json.checks.find((x: { id: string }) => x.id === "new-model").state, "fixed");
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("strom fixes run: most places not read — said why, nothing more offered or paid for, all of it waits again as it was (1126)", opts, async () => {
+  const w = await world();
+  try {
+    const stems = [1, 2, 3].map((k) => reading(w, { k, media: `M000${k}`, text: `Václav Lhoták [?], Lhota ${k}`, ago: 60 - k, model: "m-old" }));
+    stems.push(reading(w, { k: 4, media: "M0001", text: "Anna Lhotáková [?]", ago: 50, model: "m-old" }));
+    w.env.STROM_MODEL_VISION = "m-new";
+    // a reader that reads nothing
+    w.env.STROM_RUNNER_SCRIPT = path.join(w.dir, "reader.mjs");
+    fs.writeFileSync(w.env.STROM_RUNNER_SCRIPT, "");
+    const r = await w.ok(["fixes", "run", "new-model", "--agent", "script", "--lang", "en"], { tty: true, answers: ["1", "1"] });
+    assert.match(r.out, /^Read again: 3 readings \(3 places\) — places the same 0, refined 0, different 0 · \d+ min · not read 3/m, r.out);
+    assert.match(r.out, /^Most of these places were not read \(why: above\) — nothing more is offered now, nothing more paid for; what is not read waits as it was: strom fixes run new-model\.$/m);
+    assert.doesNotMatch(r.out, /And the rest\?/);
+    // nothing set right: every reading offered again
+    const c = (await w.ok(["fixes", "--json"])).json.checks.find((x: { id: string }) => x.id === "new-model");
+    assert.equal(c.state, "pending");
+    assert.equal(c.found.readings, 4);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")).fixes?.["new-model:script m-new"], undefined);
+    // the research language too
+    fs.writeFileSync(w.env.STROM_RUNNER_SCRIPT, "");
+    const cs = await w.ok(["fixes", "run", "new-model", "--agent", "script", "--lang", "cs"], { tty: true, answers: ["1"] });
+    assert.match(cs.out, /^Většina těchto míst se nepřečetla \(proč: výše\)/m);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("strom fixes new-model: a reading a fix made (read again beside an earlier one) is never offered by a fix again — said in its head, or of an older strom by its task (1126)", opts, async () => {
+  const w = await world();
+  try {
+    const old = reading(w, { k: 1, media: "M0001", text: "Václav Lhoták [?]", ago: 90, model: "m-old" });
+    // read again by a fix with m-mid since 1.38.0: "Again:" in its head
+    const dir = path.join(w.cwd, "notes", "readings");
+    const at = new Date(Date.now() - 60 * 60_000).toISOString();
+    const again = `${at.slice(0, 10)}-M0001-a1`;
+    fs.writeFileSync(path.join(dir, `${again}-1.md`), `# Reading M0001 · batch 1 of 1\nQuestion: Přepsat zápis celý; nejisté označit [?]\nAgain: ${old}\nStrom: 1.38.0\nAgent: script\nModel: m-mid\nImages: M0001\n\n## Image 1 · M0001\nresult: found\nentries:\n- Václav Lhoták [?], Lhota\n`);
+    // read again by a fix of an older strom (nothing in its head): its task holds it against the earlier one
+    const older = reading(w, { k: 2, media: "M0002", text: "Josef Lhoták [?]", ago: 80, model: "m-old" });
+    const by = reading(w, { k: 3, media: "M0002", text: "Josef Lhoták [?], Lhota", ago: 70, model: "m-mid" });
+    const tree = Tree.open(w.cwd, w.env);
+    tree.withTreeLock(() => {
+      create<Task>(tree, "task", { level: "verify", priority: 2, what: `Hold the two readings of M0002 against each other: ${older} and the new ${by}`, where: ["M0002"], why: "read again", doneWhen: `${older} and ${by} compared`, subject: [], state: "open", origin: "fix:blind-reduced" } as never, (id) => `+${id} task`);
+      tree.commit("A fix's task of an older strom");
+    });
+    w.env.STROM_MODEL_VISION = "m-new";
+    const c = (await w.ok(["fixes", "--json"])).json.checks.find((x: { id: string }) => x.id === "new-model");
+    assert.deepEqual(c.items.map((i: { reading: string }) => i.reading).sort(), [old, older].sort());
+    assert.deepEqual(c.models.before, [{ key: "script m-old", readings: 2 }]);
   } finally {
     w.cleanup();
   }

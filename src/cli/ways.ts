@@ -6,6 +6,7 @@ import type { Context } from "./context.ts";
 import { ui } from "./ui.ts";
 import { DESKTOP_APPS, type Way } from "../core/apps.ts";
 import { PROFILES } from "../agents/profiles.ts";
+import { shaped } from "./menu-parts.ts";
 
 /** A way as the list shows it: the app the easiest, the terminal for experienced users. */
 export function wayLabel(lang: string, w: Way): string {
@@ -19,5 +20,6 @@ export function wayName(lang: string, w: Way): string {
 
 /** The person picks one of `ways` (Enter: `suggested`); undefined: back (or no answer left). */
 export async function chooseWay(ctx: Context, lang: string, ways: Way[], suggested: number, opts: { back?: string } = {}): Promise<number | undefined> {
-  return ctx.choose(ui(lang, "ui.setup.way.pick"), ways.map((w) => ({ label: wayLabel(lang, w) })), suggested, opts);
+  // the app or the agent as the label, where and for whom after it
+  return ctx.choose(ui(lang, "ui.setup.way.pick"), ways.map((w) => shaped(wayLabel(lang, w))), suggested, opts);
 }

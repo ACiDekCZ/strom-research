@@ -3,6 +3,8 @@
 // the first that fits in this order:
 // - census — a task of census records (origin census:…, core/census.ts forCensus — spec 106); the agent's proposal to
 //   turn them on (census:propose) is other;
+// - house — a task of the research of a house (origin house:…, core/houses.ts forHouse — spec 030: the takeover of the
+//   person's own research, a house's research, a town's houses);
 // - history — a task of the history of the places (core/pastevents.ts forHistory);
 // - story — a story to write, or the sources looked for before it (core/stories.ts forStory);
 // - verify — a verification against the originals (spec 065: the sweep's, a bulk one's, the person's "verify" and its
@@ -16,8 +18,8 @@
 // Computed from the task alone, nothing written: an older strom's tasks have their kind too.
 //
 // The kinds of spec 065 (KINDS_065) are those every Strom app with the feature queue.kind knows; a kind added since
-// (census) is counted apart in /status queueCounts.kind, and GET /queue?kind=other gives it with other unless the app
-// says it knows it (known=census) — an older app finds under "Other" every task it counted there.
+// (census, house) is counted apart in /status queueCounts.kind, and GET /queue?kind=other gives it with other unless the
+// app says it knows it (known=census, known=house) — an older app finds under "Other" every task it counted there.
 
 import type { Task } from "./model.ts";
 import { forHistory } from "./pastevents.ts";
@@ -25,8 +27,9 @@ import { forStory } from "./stories.ts";
 import { isVerifyTask } from "./verifyfacts.ts";
 import { PLACES_IDENTIFY_ORIGIN } from "./placeid.ts";
 import { CENSUS_PROPOSE_ORIGIN, forCensus } from "./census.ts";
+import { forHouse } from "./houses.ts";
 
-export const TASK_KINDS = ["verify", "records", "material", "places", "enrich", "request", "story", "history", "census", "other"] as const;
+export const TASK_KINDS = ["verify", "records", "material", "places", "enrich", "request", "story", "history", "census", "house", "other"] as const;
 export type TaskKind = (typeof TASK_KINDS)[number];
 
 /** The kinds of spec 065: those every Strom app with the feature queue.kind knows (a kind past them is "other" there). */
@@ -36,6 +39,7 @@ export const KINDS_065: readonly TaskKind[] = ["verify", "records", "material", 
 export function taskKind(t: Pick<Task, "level" | "origin">): TaskKind {
   if (t.origin === CENSUS_PROPOSE_ORIGIN) return "other";
   if (forCensus(t)) return "census";
+  if (forHouse(t)) return "house";
   if (forHistory(t)) return "history";
   if (forStory(t)) return "story";
   if (isVerifyTask(t)) return "verify";

@@ -737,7 +737,7 @@ function cancelQueued(ctx: Context, tree: Tree, s: ReadState): ReadState {
 }
 
 /** The options a queued reading was asked with: never given again when it is read. */
-const ASKED_OPTIONS = ["readers", "into", "region", "note", "person", "queue", "effort", "blind-agent", "blind-model", "blind-effort", "source", "clip"];
+const ASKED_OPTIONS = ["readers", "into", "region", "note", "again", "person", "queue", "effort", "blind-agent", "blind-model", "blind-effort", "source", "clip"];
 
 /** A reading queued (--queue) read now, as it was asked: its readers, language, pages; only the blind one when so queued. */
 async function readQueued(ctx: Context, tree: Tree, id: string, opts: Record<string, unknown>) {
@@ -798,6 +798,7 @@ register({
     { name: "into", type: "string", value: "<code>", description: "the language of the translation and the explanations (default: the research's)" },
     { name: "region", type: "string", multiple: true, value: "[<page>:]x,y,w,h", description: "read only this part of a page: fractions of it from its top left (repeatable, one per page)" },
     { name: "note", type: "string", value: "<text>", description: "what the person says the document is (\"the back of a photo\") — a description only, never names to find" },
+    { name: "again", type: "string", value: "<reading>", hidden: true, description: "the earlier reading this one reads again (strom fixes run): kept with it, never offered by a fix again" },
     { name: "person", type: "string", multiple: true, value: "<P…>", description: "a person it is of, as the person says (repeatable)" },
     { name: "name", type: "string", multiple: true, value: "[<file>:]<name>", description: "the name a file is shown under in the reading (default: its input's name, an image's original file name; repeatable, 2:<name> for the second file)" },
     ...WITH_OPTIONS,
@@ -825,6 +826,8 @@ register({
     if (!isValidLang(into)) throw new UsageError(`invalid --into "${String(opts.into)}"`, { hint: "a language code: cs, de, en, pl …" });
     const regions = regionsOf(opts.region);
     const note = typeof opts.note === "string" ? opts.note.replace(/[\p{Cc}]/gu, " ").trim().slice(0, 500) || undefined : undefined;
+    // a reading again of an earlier one (strom fixes run): its id, kept with the result
+    const again = typeof opts.again === "string" && READ_ID.test(opts.again.trim()) ? opts.again.trim() : undefined;
     const persons = checkOriginalMeta(tree, { persons: (Array.isArray(opts.person) ? opts.person : opts.person ? [opts.person] : []).map((p) => String(p).trim().toUpperCase()) }).persons;
     const id = givenId(tree, opts) ?? newReadId();
     // the files first (a new one kept as an input), each input saying it was read — committed before a reader starts
@@ -858,7 +861,7 @@ register({
     // whoever asked: the Strom app (its bridge runs this as the person's), else the agent's worker
     const from = ctx.env.STROM_FOR_APP ? APP_READ_FROM : ctx.env.STROM_WORKER;
     // queued to be read later: no process of its own until it is read; read now: this one's (never taken for gone)
-    let s: ReadState = { id, state: "queued", version: 1, readers: asked, lang: into, pages, groups: [], reports: [], with: readWho, ...(source ? { source: { id: source, ...(clip ? { clip } : {}), ...(taskWith ? { taskWith: taskWith as SourceTaskWith } : {}) } } : {}), ...(persons.length ? { persons } : {}), ...(note ? { note } : {}), at, since: at, ...(from ? { from } : {}), ...(opts.queue ? {} : { pid: process.pid }) };
+    let s: ReadState = { id, state: "queued", version: 1, readers: asked, lang: into, pages, groups: [], reports: [], with: readWho, ...(source ? { source: { id: source, ...(clip ? { clip } : {}), ...(taskWith ? { taskWith: taskWith as SourceTaskWith } : {}) } } : {}), ...(persons.length ? { persons } : {}), ...(note ? { note } : {}), ...(again ? { again } : {}), at, since: at, ...(from ? { from } : {}), ...(opts.queue ? {} : { pid: process.pid }) };
     saveState(tree.root, s);
     if (opts.queue) return queuedSaid(ctx, tree, s);
     s = await readNow(ctx, tree, s, opts);

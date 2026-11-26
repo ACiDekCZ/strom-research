@@ -31,6 +31,7 @@ import { receivedPending, type Received } from "./sync.ts";
 import { tuneQuestions, type Question } from "./tuneask.ts";
 import { Settings } from "./config.ts";
 import { censusHidden } from "./census.ts";
+import { houseHidden } from "./houses.ts";
 import { aboutPeople, hypothesisPeople, scopes, type Scope } from "./directions.ts";
 import { pickableInApp } from "./hypolinks.ts";
 import { lineOf, offLineView, type BranchView } from "./offline.ts";
@@ -38,6 +39,7 @@ import { conflictTitle, displayName } from "./people.ts";
 import { conflictsToDecide } from "./conflicts.ts";
 import { phrase } from "./phrases.ts";
 import { actsAsArchive } from "./state.ts";
+import { isDemo } from "./mode.ts";
 import { placeQuestions, type PlaceAsked } from "./placesview.ts";
 import { provenReviewSince, provenToReview, type ProvenLeft } from "./provenfix.ts";
 import { proposalJson } from "./proposal.ts";
@@ -453,7 +455,9 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
   // waits for images saved by hand stays an item
   // census records off: their tasks held, none of them waits for the person; on: the proposal to turn them on is done (spec 106)
   const censusHide = censusHidden(new Settings(tree.env, {}).census(tree.config));
-  const tasks = actsAsArchive(tree) ? [] : tree.list<Task>("task").filter((t) => t.state === "waiting" && !(t.awaitsPermission && !t.awaits && standing.has(t.id)) && !censusHide(t));
+  // the history of the houses off: its tasks raised by themselves held, none of them waits for the person (spec 030 part 2)
+  const houseHide = houseHidden(tree, new Settings(tree.env, {}).houses(tree.config));
+  const tasks = actsAsArchive(tree) ? [] : tree.list<Task>("task").filter((t) => t.state === "waiting" && !(t.awaitsPermission && !t.awaits && standing.has(t.id)) && !censusHide(t) && !houseHide(t));
   let all = o.scopes;
   let line: ((t: Task) => string | undefined) | undefined;
   // the books of the research, read once for every wait checked
@@ -463,6 +467,9 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
   let holders: Map<string, unknown> | undefined;
   // what returning a task to the agent reads (spec 089), once for all
   const rc: RetryCache = { shared: o.shared };
+  // the sample research (strom demo, spec 143 K2.2): an agent may work on it, but nothing offers one — no chat with the
+  // agent on an item, no return to the agent (an app that knows nothing of a sample shows no such button either)
+  const demo = isDemo(tree.config);
   for (const t of tasks) {
     // a new wording proposed for a transcript the person read: the proposal and the transcript now, taken or kept in
     // the app (POST <token>/sources/proposal) or at the terminal its link opens
@@ -504,7 +511,7 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
     // its book (spec 105: the app's groups by book): the one it waits for, else the one its where names
     const book = bookOfTask(tree, t);
     const audit = o.audit && audited(t) ? auditOf(tree, t, { shared: o.shared, index: (books ??= bookIndex(tree)) }) : undefined;
-    const retry = retryOf(tree, t, rc, { group, url });
+    const retry = demo ? undefined : retryOf(tree, t, rc, { group, url });
     out.push({
       task: t,
       item: {
@@ -525,7 +532,7 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
         ...(note ? { note } : {}),
         ...(to ? { to } : {}),
         ...(inbox ? { inbox: inboxJson(tree, t, inbox) } : {}),
-        actions: actionsOf(kind, phase, !!note, !!inbox),
+        actions: actionsOf(kind, phase, !!note, !!inbox).filter((a) => !demo || a !== "chat"),
         ...personOf(t),
         ...(research ? { research } : {}),
         ...(book ? { book } : {}),

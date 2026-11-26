@@ -427,8 +427,24 @@ export function imageOfRef(all: Media[], recordset: string, image: number): Medi
   if (parts.length < 2) return m;
   throw new UsageError(`image ${image} of ${recordset} is registered only in parts: ${parts.map((p) => `${p.id} (part ${regionText(p.part!)})`).join(", ")}`, {
     // to look at it: the parts whole, or a half or a crop of the whole image (shown from the part that covers it)
-    hint: `name the part the record is on: ${parts.map((p) => p.id).join(" or ")} — to look at them: strom media view ${parts.map((p) => p.id).join(" ")}; a half or a crop of the whole image: strom media view ${recordset}:${image} --half left`,
+    hint: `name the part the record is on: ${parts.map((p) => p.id).join(" or ")} — to look at them: strom media view ${parts.map((p) => p.id).join(" ")}; ${partsLook(parts.map((p) => p.part!), `strom media view ${recordset}:${image}`)}`,
   });
+}
+
+/** Near enough to a half's edge (a half saved with a strip past the gutter). */
+const HALF_SLACK = 0.1;
+
+/**
+ * How to look at a half or a crop of a whole image registered only in parts, as its parts are cut: left and right
+ * halves — --half left|right; top and bottom — --half top|bottom; anything else — a crop.
+ */
+function partsLook(parts: Region[], view: string): string {
+  const near = (a: number, b: number) => Math.abs(a - b) <= HALF_SLACK;
+  const halfAcross = (r: Region) => near(r.y, 0) && near(r.h, 1) && near(r.w, 0.5) && (near(r.x, 0) || near(r.x + r.w, 1));
+  const halfDown = (r: Region) => near(r.x, 0) && near(r.w, 1) && near(r.h, 0.5) && (near(r.y, 0) || near(r.y + r.h, 1));
+  if (parts.every(halfAcross)) return `a half of the whole image: ${view} --half left|right`;
+  if (parts.every(halfDown)) return `a half of the whole image: ${view} --half top|bottom`;
+  return `a crop of the whole image: ${view} --crop x,y,w,h (fractions of it; --grid to find it)`;
 }
 
 /** Image n of a record set registered only in parts (no whole image of it): those parts; else none. */

@@ -151,7 +151,7 @@ test("--keep-tasks moves nothing and says nothing; strom research gather moves t
 test("a person at a terminal is asked in the research's language (yes suggested); an agent at a terminal is not asked", opts, async () => {
   const w = await world();
   const yes = await w.ok(["research", "new", "Předci Václava", "--person", "P0002"], { tty: true, answers: [""] });
-  assert.match(yes.out, /V linii „Předci Ondřeje“ jsou 3 otevřené úkoly o lidech této linie\. Převést je sem\? \(a\/n\) \[a\]/);
+  assert.match(yes.out, /V linii „Předci Ondřeje“ jsou 3 otevřené úkoly o lidech této linie\. Převést je sem\? \(a\/n, Enter = a\)/);
   assert.deepEqual(await lineOf(w, MOVABLE), ["G0002", "G0002", "G0002"]);
   const w2 = await world();
   await w2.ok(["research", "new", "Předci Václava", "--person", "P0002"], { tty: true, answers: ["n"] });

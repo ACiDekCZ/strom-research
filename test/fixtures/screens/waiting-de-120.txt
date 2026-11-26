@@ -1,0 +1,138 @@
+Strom Ahnenforschung X.Y.Z
+Stammbaum: Lhotákovi · Personen: 1
+Wartet: 4 (davon 1 wartet auf Antwort)
+Lesungen zum erneuten Lesen warten auf eine Entscheidung: Frühere Lesungen durch ein anderes Modell
+(1) — Einstellungen → Wartung → Korrekturen
+Tipp: Die Forschung lässt sich in der Strom-App als Stammbaum ansehen und live verfolgen, während
+der Agent arbeitet – Auswahl 7.
+
+  [1]  Die Forschung mit dem Agenten fortsetzen
+  [2]  Den Agenten allein arbeiten lassen
+  [3]  Was wartet               4
+  [4]  Die Forschung erweitern  Unterlagen, eine neue Linie, eine Person prüfen, Änderungen aus der
+                                Strom-App
+  [5]  Den Stammbaum ansehen    Überblick, Personen, Vorfahren, Neues
+  [6]  Stammbaum anlegen · einen schicken oder empfangen
+  [7]  Die Strom-App            die Forschung als Stammbaum, live verfolgt
+  [8]  Einstellungen            Agent, allein arbeiten, Nachrichten, Archive, Wartung
+
+  [0]  Beenden
+
+Auswahl (Enter = 1 Die Forschung): 
+
+-----
+
+Strom › Was wartet
+  zu erledigen 3 · wartet auf Antwort 1
+  Art:  [m] Archive und Ämter 2  [f] Familie 1
+
+  [1]  Matriční úřad Lhota nad Lhotkou u Horní   2  ein Brief zu senden
+       Lhoty
+  [2]  Rodina                                    1  Vzpomínky na Lhotu
+
+  [?]  wartet auf Antwort 1
+
+  [0]  Zurück
+
+Auswahl (Nummer der Gruppe, Enter = 0 Zurück): 
+
+-----
+
+Strom › Was wartet › Matriční úřad Lhota nad Lhotkou…
+
+  zu erledigen 2
+  [1]  Opis zápisu Lhota 1 · Brief · Priorität 3
+  [2]  Opis zápisu Lhota 2 · Brief · Priorität 3
+  [3]  Für die ganze Gruppe gesendet
+  [4]  Mit dem Agenten über die Gruppe sprechen
+
+  [0]  Zurück
+
+Auswahl (Enter = 0 Zurück): 
+
+-----
+
+Strom › Was wartet › Rodina
+
+ T0003 · Familie · Priorität 3
+ Vzpomínky na Lhotu
+    Wartet auf: Vzpomínky rodiny.
+    Wo: Rodina
+    Wartet seit D. M.
+
+  [1]  Gesendet
+  [2]  Mit Text antworten
+  [3]  Eine Datei hinzufügen
+  [4]  Ein Gespräch mit dem Agenten
+
+  [0]  Zurück
+
+Auswahl (Enter = 0 Zurück): 
+
+-----
+
+Strom › Einstellungen (auf diesem Computer)
+
+  [1]  Einrichtung                          Sprache, Agent, Modell, was der Agent allein darf,
+                                            Geschichten
+  [2]  Der Agent allein                     60 Min. je Aufgabe · Bedingung: keine
+  [3]  Nachrichten über das Gespeicherte    keine  Hooks
+  [4]  Archive                              Anmeldungen, Zustimmung zum Herunterladen
+  [5]  Forschung oder nur ein Strom-Archiv  Forschung: Suche in Kirchenbüchern und Archiven
+  [6]  Das Lesen der Scans abstimmen        die vorgegebenen Größen
+  [7]  Remote Control in der Claude-App     aus  das Gespräch mit dem Agenten auch vom Handy  →
+                                            einschalten
+  [8]  Wartung                              Prüfung der Installation, Speicherplatz, Korrekturen,
+                                            Sicherung
+  [9]  Hilfe                                die Befehle für Menschen
+
+  [0]  Zurück
+
+Auswahl (Enter = 0 Zurück): 
+
+-----
+
+Strom › Einstellungen › Wartung
+
+  [1]  Installation prüfen
+  [2]  Speicherplatz          strom hält 1 kB neben der Forschung
+  [3]  Korrekturen von strom  1 wartet
+  [5]  Was sichern            den ganzen Forschungsordner, oder packen
+  [6]  Ein Problem melden     eine ZIP-Datei zum Versenden (nichts über die Menschen des Stammbaums)
+
+  [0]  Zurück
+
+Auswahl (Enter = 0 Zurück): 
+
+-----
+
+Strom › Einstellungen › Wartung › Korrekturen von strom
+
+new-model · Frühere Lesungen durch ein anderes Modell — 1 Lesung wartet auf eine Entscheidung
+Gefunden: 1 Lesung (1 Stelle) — 1 mit ungelesenen Stellen
+Aufwand: günstig · 1 Leseraufruf · etwa 1 Min. (nach der Zahl der Leseraufrufe: hier keine früheren
+Leser als Anhalt)
+
+Beheben?
+  [1]  Alle  1 Lesung (1 Stelle) · günstig, etwa 1 Min.
+  [2]  Nein: so lassen (nicht mehr angeboten)
+  [?]  Details
+
+  [0]  Später
+
+Auswahl (Enter = 0 Später): 
+
+----- [?]
+
+
+  Die früheren Lesungen stammen von Claude Code · m-old (1 Lesung); jetzt liest Claude Code · m-new.
+  Ein anderes Modell kann anders oder mehr lesen: wo in einer früheren Lesung etwas offen blieb,
+  kann sich erneutes Lesen lohnen. Welches besser liest, wird nicht geraten.
+    YYYY-MM-DD-M0001-1 · M0001 (B0001:1) · Claude Code · m-old · zuvor 2 unsichere Stellen
+  Korrektur: jede Lesung wird von Claude Code · m-new erneut gelesen, wie sie fragte (dieselbe
+  Frage, derselbe Bildausschnitt; ein Dokument: dieselben Seiten und Teile als eigene neue Lesung).
+  Die neue Lesung steht neben der früheren; wo sie abweichen oder die neue mehr liest, eine Aufgabe,
+  beide zu vergleichen.
+  Nichts wird überschrieben oder gelöscht: die früheren Lesungen, die Quellen und die Angaben
+  bleiben, wie sie sind. Lesungen, in denen nichts offen blieb, werden nicht erneut gelesen. Einmal
+  gefragt für Claude Code · m-new: liest später ein weiteres Modell, wird erneut gefragt.

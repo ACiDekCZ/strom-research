@@ -23,6 +23,7 @@ import { isAgent } from "../core/which.ts";
 import { RECORD_TYPES, type Media, type RecordSet, type Region, type Repository, type Search, type Session, type Source, type Task } from "../core/model.ts";
 import { normId, requireRecord, update } from "../core/records.ts";
 import { bookRoute, sameBooks, sameBookText } from "../core/samebook.ts";
+import { countUnknownLine, liveBook } from "../core/books.ts";
 import { guardIndexFirst } from "../core/indexfirst.ts";
 import { readable } from "../core/text.ts";
 import { findImage, isWhole, partHere, regionText, SHARPER, type PartHere } from "../core/media.ts";
@@ -2398,6 +2399,42 @@ function sameBookFirst(ctx: Context, c: Connector, request: Extract<ConnectorReq
   );
 }
 
+/**
+ * How many images the archive's catalogue gives a book (a connector's report of list, find or a fetch: its books'
+ * images), written on the record set of it that has no count yet — the one the command names (--recordset: the book
+ * listed or fetched) or the same book in the research (core/samebook.ts: images fetched from it through this
+ * connector, or its link). A count there already is never changed; nothing is guessed from the images saved; nothing
+ * more is asked of the archive. The lines saying what was written.
+ */
+function learnBookCounts(ctx: Context, c: Connector, books: readonly FoundBook[], recordset: string | undefined, requested: string | undefined): string[] {
+  const tree = ctx.tree();
+  if (tree.dryRun || !books.length) return [];
+  const said: string[] = [];
+  for (const fb of books) {
+    const n = fb.images;
+    if (typeof n !== "number" || !Number.isInteger(n) || n <= 0) continue;
+    const id = fb.id !== undefined ? String(fb.id) : undefined;
+    const ids = new Set<string>();
+    // the record set named: the book listed or fetched is this one (its ID, or the one book reported)
+    if (recordset && requested !== undefined && (id === requested || (id === undefined && books.length === 1))) ids.add(recordset);
+    if (id !== undefined || fb.url) for (const x of sameBooks(tree, { ...(fb.url ? { url: fb.url } : {}), connector: c.name, ...(id !== undefined ? { book: id } : {}) })) ids.add(x.book.id);
+    for (const one of ids) {
+      const b = liveBook(tree, one);
+      if (!b || (b.images && b.images > 0)) continue;
+      let wrote = false;
+      tree.withTreeLock(() => {
+        // read afresh under the lock: another strom may have written a count meanwhile
+        const cur = liveBook(tree, b.id);
+        if (!cur || (cur.images && cur.images > 0)) return;
+        update<RecordSet>(tree, cur.id, "recordset", (x) => ({ ...x, images: n }), { op: "recordset.edit", summary: `${cur.id} images ${n} (the archive's catalogue: ${c.name})` });
+        wrote = true;
+      });
+      if (wrote) said.push(`${b.id}: ${counted(n, "image")} — the count the archive's catalogue gives, written`);
+    }
+  }
+  return said;
+}
+
 /** What registering a fetch's images gave, batch after batch. */
 interface Registered {
   added: Media[];
@@ -2994,8 +3031,9 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     if (request.cmd === "find" || request.cmd === "list") {
       fs.rmSync(workDir, { recursive: true, force: true });
       const wait = later(r, "the same command", undefined, { session: !child && !!currentSession(tree, ctx.env), run: deadlineOf(ctx.env) !== undefined });
+      const counts = learnBookCounts(ctx, c, r.books, request.cmd === "list" ? recordset : undefined, request.cmd === "list" ? String(request.book) : undefined);
       return {
-        text: lines(describeRun(r, `${request.cmd} (${took})`), r.books.length ? [`books (${r.books.length}):`, ...bookLines(r, c, `strom fetch ${c.name} <id> --list`, tree)].join("\n") : advice ?? (r.stopped ? "no books — the run stopped before any came" : "no books found"), r.books.length ? advice : undefined, wait.line, near),
+        text: lines(describeRun(r, `${request.cmd} (${took})`), r.books.length ? [`books (${r.books.length}):`, ...bookLines(r, c, `strom fetch ${c.name} <id> --list`, tree)].join("\n") : advice ?? (r.stopped ? "no books — the run stopped before any came" : "no books found"), ...counts, r.books.length ? advice : undefined, wait.line, near),
         data: { ...r, ...wait.data },
         ...(wait.exitCode ? { exitCode: wait.exitCode } : r.stopped && !r.books.length ? { exitCode: 1 } : {}),
       };
@@ -3077,7 +3115,11 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     // the connector stopped with images left: no success — the output says which and how to go on (a refusal: its own advice, as before)
     const code = wait.exitCode ? wait.exitCode : batches?.stopped() ? 0 : batches?.interrupted() ? EXIT.cancelled : r.stopped && (!r.images.length || (missed.length && !r.refused)) ? EXIT.error : after?.exitCode;
     endCode = code ?? 0;
-    return { text: lines(describeRun(r, request.cmd), text, advice, wait.line, near, after?.text), data: { ...data, ...wait.data, ...(after ? { joined: after.data } : {}), ...(found ? { heavy: found } : {}) }, ...(code ? { exitCode: code } : {}) };
+    // the count of the book: from the archive's catalogue when the connector said it, else how it is written
+    const counts = request.cmd === "fetch" || request.cmd === "part" ? learnBookCounts(ctx, c, r.books, recordset, String(request.book)) : [];
+    if (recordset && !tree.dryRun) tree.reread();
+    const unknown = recordset && request.cmd === "fetch" ? countUnknownLine(tree, recordset, { connector: c.name, book: String(request.book) }) : undefined;
+    return { text: lines(describeRun(r, request.cmd), text, ...counts, unknown, advice, wait.line, near, after?.text), data: { ...data, ...wait.data, ...(after ? { joined: after.data } : {}), ...(found ? { heavy: found } : {}) }, ...(code ? { exitCode: code } : {}) };
   } finally {
     // a fetch in the background says how it ended (strom fetch --status, the next brief) before its mark goes; one in
     // the foreground the connector stopped with images left says so too (its output may be lost to the agent)

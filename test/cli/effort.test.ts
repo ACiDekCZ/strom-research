@@ -136,7 +136,7 @@ test("the model chosen in a terminal: its effort offered with high first, Enter 
   const asked = await w.run(["config", "set", "model.lead", "gpt-model-x", "--agent", "codex"], { tty: true, answers: [""] });
   assert.equal(asked.code, 0, asked.err);
   assert.match(asked.out, /Jak hluboce má Codex uvažovat, než odpoví/);
-  assert.match(asked.out, /^ {3}1 {2}high – doporučeno: staré rukopisy se čtou s nejlepším nastavením; limit předplatného dojde dřív \(v testu došel po 18 minutách i na low\)$/m);
+  assert.match(asked.out, /^ {2}\[1\] {2}high – doporučeno: staré rukopisy se čtou s nejlepším nastavením; limit předplatného dojde dřív \(v testu došel po 18 minutách i na low\)$/m);
   assert.match(asked.out, /Nechat na vlastním nastavení agenta Codex/);
   assert.equal((await w.ok(["config", "get", "model.effort", "--agent", "codex", "--json"])).json.value, "high");
   // 0: what is stays

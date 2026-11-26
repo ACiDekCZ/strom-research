@@ -956,6 +956,10 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
 
   if (placeOf) placeRecordsOut();
 
+  // The houses (spec 030): no `0 @Hn@ _HOUSE` is written yet. strom sync reads the app's (core/housesync.ts: the
+  // name after the family, the numbers in time, two houses joined), but the app keeps them only from its data version
+  // 27 — written back here only behind a gate of that version of the app (core/stromapp.ts), never before.
+
   w.record("@U1@", "SUBM");
   w.line(1, "NAME", "Strom Research");
   w.line(0, "TRLR");

@@ -483,6 +483,7 @@ export const SHOW_OF: Record<string, string[]> = {
   I: ["input", "show"],
   N: ["session", "show"],
   M: ["media", "show"],
+  A: ["house", "show"],
 };
 
 const RECORD_SHOWS = new Set(Object.values(SHOW_OF).map((p) => p.join(" ")));

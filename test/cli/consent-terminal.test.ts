@@ -35,13 +35,13 @@ test("the settings that open the computer or spend: the person's yes in the term
   const w = new World();
   try {
     await w.ok(["setup", "--yes"]);
-    await asks(w, ["config", "set", "agent.remote", "on"], () => config(w).agentRemote === "on", /Remote Control[^\n]*\? \(a\/n\) \[n\]/, "a", { STROM_LANG: "cs" });
+    await asks(w, ["config", "set", "agent.remote", "on"], () => config(w).agentRemote === "on", /Remote Control[^\n]*\? \(a\/n, Enter = n\)/, "a", { STROM_LANG: "cs" });
     // the question in the person's language, and its answer: German j
     await w.ok(["config", "set", "connectors.consent", "on"]);
     const consentOff = () => config(w).connectorsConsent !== "on";
-    await asks(w, ["config", "set", "connectors.consent", "off"], consentOff, /ohne vorher zu fragen\? \(j\/n\) \[n\]/, "j", { STROM_LANG: "de" });
+    await asks(w, ["config", "set", "connectors.consent", "off"], consentOff, /ohne vorher zu fragen\? \(j\/n, Enter = n\)/, "j", { STROM_LANG: "de" });
     const gate = () => config(w).runGate === "claude-usage 10";
-    await asks(w, ["config", "set", "run.gate", "claude-usage 10"], gate, /„claude-usage 10“[^\n]*\? \(a\/n\) \[n\]/, "a", { STROM_LANG: "cs" });
+    await asks(w, ["config", "set", "run.gate", "claude-usage 10"], gate, /„claude-usage 10“[^\n]*\? \(a\/n, Enter = n\)/, "a", { STROM_LANG: "cs" });
     // taken away: the person's yes too
     const r = await w.run(["config", "unset", "run.gate"], { tty: true, answers: [""], env: { STROM_LANG: "cs" } });
     assert.equal(r.code, 1);
@@ -50,7 +50,7 @@ test("the settings that open the computer or spend: the person's yes in the term
     await w.ok(["config", "unset", "run.gate"], { tty: true, answers: ["y"] });
     assert.ok(!gate());
     // more readings the Strom app may ask: the person's yes; fewer asks nothing; a day under its hour refused
-    await asks(w, ["config", "set", "read.app", "30 90"], () => config(w).readApp === "30 90", /Povolit aplikaci Strom až 30 čtení[^\n]*\n[^\n]*Povolit\? \(a\/n\) \[n\]/, "a", { STROM_LANG: "cs" });
+    await asks(w, ["config", "set", "read.app", "30 90"], () => config(w).readApp === "30 90", /Povolit aplikaci Strom až 30 čtení[^\n]*\n[^\n]*Povolit\? \(a\/n, Enter = n\)/, "a", { STROM_LANG: "cs" });
     await w.ok(["config", "set", "read.app", "5 20"]);
     assert.equal(config(w).readApp, "5 20");
     const odd = await w.run(["config", "set", "read.app", "30 10"]);
@@ -70,7 +70,7 @@ test("a hook turned on and a host's own pace: the person's yes in the terminal; 
     fs.writeFileSync(path.join(hook, "hook.json"), JSON.stringify({ interface: 1, title: "Zápis", command: ["node", "hook.ts"] }));
     fs.writeFileSync(path.join(hook, "hook.ts"), "");
     const on = () => (config(w).hooks ?? []).includes("zapis");
-    await asks(w, ["hook", "on", "zapis"], on, /hook „Zápis“[^\n]*\n[^\n]*Povolit\? \(a\/n\) \[n\]|hook „Zápis“[^\n]*\? \(a\/n\) \[n\]/, "a", { STROM_LANG: "cs" });
+    await asks(w, ["hook", "on", "zapis"], on, /hook „Zápis“[^\n]*\n[^\n]*Povolit\? \(a\/n, Enter = n\)|hook „Zápis“[^\n]*\? \(a\/n, Enter = n\)/, "a", { STROM_LANG: "cs" });
     // off: anybody's in a terminal, no question (an empty list of answers would say no)
     await w.ok(["hook", "off", "zapis"], { tty: true, answers: [] });
     assert.ok(!on());
@@ -88,7 +88,7 @@ test("a hook turned on and a host's own pace: the person's yes in the terminal; 
       walk(w.env.STROM_CONFIG_DIR!);
       return found.length > 0;
     };
-    await asks(w, ["allow", "host", "example.org", "--pace", "30"], own, /example\.org[^\n]*\? \(a\/n\) \[n\]/, "a", { STROM_LANG: "cs" });
+    await asks(w, ["allow", "host", "example.org", "--pace", "30"], own, /example\.org[^\n]*\? \(a\/n, Enter = n\)/, "a", { STROM_LANG: "cs" });
   } finally {
     w.cleanup();
   }
@@ -102,7 +102,7 @@ test("strom run round the gate in the person's terminal: their yes first (Enter 
     for (const args of [["run", "--no-gate"], ["run", "--gate", "claude-usage 5"]]) {
       const r = await w.run(args, { tty: true, answers: [""], env: { STROM_LANG: "cs" } });
       assert.equal(r.code, 1, r.out + r.err);
-      assert.match(r.out, /claude-usage[^\n]*\? \(a\/n\) \[n\]/);
+      assert.match(r.out, /claude-usage[^\n]*\? \(a\/n, Enter = n\)/);
       assert.match(r.err, /nepovoleno/i);
       assert.equal(fs.readdirSync(path.join(w.cwd, ".strom")).filter((f) => f.startsWith("session-")).length, 0, "no session started");
       // an agent: needs-input, as before

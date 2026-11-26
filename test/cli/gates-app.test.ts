@@ -48,7 +48,7 @@ test("the menu offers working on while the gate allows it — only with a gate s
   assert.doesNotMatch(without.out, /dovolí to podmínka/);
   await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true, answers: ["y"] });
   const r = await w.ok([], { tty: true, answers: ["2", "3", "", "0"] });
-  assert.match(r.out, /3 {2}Nechat ho pracovat, dokud je co dělat a dovolí to podmínka „Zkouška“/);
+  assert.match(r.out, /\[3\] {2}Nechat ho pracovat, dokud je co dělat a dovolí to podmínka „Zkouška“/);
   assert.match(r.out, /podmínka „Zkouška“ řekla dost — stačí/);
   assert.ok(fs.existsSync(path.join(w.cwd, "data", "sessions", "N0001.json")));
   assert.ok(!fs.existsSync(path.join(w.cwd, "data", "sessions", "N0002.json")));

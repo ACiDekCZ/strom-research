@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Context } from "./context.ts";
-import { agentReady, droppedPaths, outOfAnswers, pause, pickPerson, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
+import { agentReady, droppedPaths, outOfAnswers, pause, pickPerson, shaped, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
 import { Tree } from "../core/tree.ts";
 import { cliMissing } from "../core/agentcli.ts";
 import { PROFILES } from "../agents/profiles.ts";
@@ -535,7 +535,7 @@ async function personHypotheses(ctx: Context, run: Run, lang: string, root: stri
   const t = translator(lang);
   const n = hypothesesAbout(Tree.open(root, ctx.env), person).length;
   if (!n) return;
-  if ((await ctx.choose("", [{ label: t("ui.review.hypotheses", { n }) }], 1, { back: t("ui.review.hypotheses.on") })) === undefined) return;
+  if ((await ctx.choose("", [shaped(t("ui.review.hypotheses", { n }), { as: "value" })], 1, { back: t("ui.review.hypotheses.on") })) === undefined) return;
   const { decideHypothesis } = await import("./menu-waiting.ts");
   for (;;) {
     const tree = Tree.open(root, ctx.env);

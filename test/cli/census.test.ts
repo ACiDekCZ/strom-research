@@ -265,17 +265,17 @@ test("the menu's settings: census records of this research with the tasks held, 
     const pick = (text: string) => {
       const lines = text.split("\n");
       const row = lines.find((l) => /Sčítání lidu v tomto výzkumu/u.test(l));
-      return row?.match(/^\s*(\d+)/u)?.[1];
+      return row?.match(/^\s*\[(\d+)\]/u)?.[1];
     };
     const look = await w.run([], { tty: true, answers: ["8", "1", "0", "0", "0"] });
-    assert.match(look.out, /Sčítání lidu v tomto výzkumu: zapnuto/u, look.out);
+    assert.match(look.out, /\[\d+\] {2}Sčítání lidu v tomto výzkumu {2,}zapnuto\n/u, look.out);
     const n = pick(look.out);
     assert.ok(n, look.out);
     const off = await w.run([], { tty: true, answers: ["8", "1", n!, "a", "0", "0"] });
     assert.match(off.out, /Odloženo: 1 úkol sčítání\. Po zapnutí se vrátí\./u, off.out);
     assert.equal(treeJson(w).census, "off");
     const again = await w.run([], { tty: true, answers: ["8", "1", "0", "0", "0"] });
-    assert.match(again.out, /Sčítání lidu v tomto výzkumu: vypnuto, odložen 1 úkol sčítání/u, again.out);
+    assert.match(again.out, /\[\d+\] {2}Sčítání lidu v tomto výzkumu {2,}vypnuto, odložen 1 úkol sčítání/u, again.out);
     // an archive: nothing of it
     await w.ok(["mode", "archive"], { tty: true });
     const archive = await w.run([], { tty: true, answers: ["8", "1", "0", "0", "0"] });

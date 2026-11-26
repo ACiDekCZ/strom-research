@@ -159,8 +159,8 @@ test("the menu: look through the family tree", { skip: !hasGit || process.platfo
   await family(w);
   // 5 look through · 5 the ancestors (Enter: the main person) · Enter · 1 the overview · Enter · 0 back · 0 quit
   const r = await w.ok([], { tty: true, answers: ["5", "5", "", "", "1", "", "0", "0"] });
-  assert.match(r.out, /Prohlížet rodokmen: přehled, osoby, předkové, co je nového/);
-  assert.match(r.out, /Čí předky\? \(jméno nebo ID jako P0012; 0 vrátí zpět\) \[Jan Novák\]/);
+  assert.match(r.out, /Prohlížet rodokmen {2,}přehled, osoby, předkové, co je nového\n/);
+  assert.match(r.out, /Čí předky\? \(jméno nebo ID jako P0012; 0 vrátí zpět\) \(Enter = Jan Novák\)/);
   assert.match(r.out, /├─ Josef Novák \[P0002\]/);
   assert.match(r.out, /Novákovi – přehled výzkumu/);
   assert.match(r.out, /Na shledanou/);

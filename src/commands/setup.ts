@@ -73,6 +73,7 @@ import { loadAliases } from "../core/modelkey.ts";
 import { ownModel } from "../agents/models.ts";
 import { EXIT, NeedsConsentError, NeedsInputError, StromError, UsageError, type Need } from "../core/errors.ts";
 import { censusProposal } from "../core/census.ts";
+import { raiseHouseTasks } from "../core/houseauto.ts";
 import { update } from "../core/records.ts";
 import { phrase } from "../core/phrases.ts";
 import { worsenings, type Worsening } from "../core/tunereset.ts";
@@ -1310,6 +1311,7 @@ function effective(ctx: Context, def: SettingDef, recordset?: string): { value: 
   if (def.key === "agent.addons") return { value: "off", source: "default" };
   if (def.key === "experiments.history") return { value: "off", source: "default" };
   if (def.key === "census") return { value: "off", source: "default" };
+  if (def.key === "houses") return { value: "off", source: "default" };
   if (def.key === "intake.auto") return { value: "off", source: "default" };
   if (def.key === "experiments.historyPace") return { value: ctx.settings.historyPace(tree), source: "default" };
   if (def.key === "experiments.historyPlaces") return { value: "off", source: "default" };
@@ -1674,6 +1676,26 @@ function censusDecision(ctx: Context, key: string, value: string | number | unde
 }
 
 /**
+ * The history of the tree's houses by itself (spec 030 part 2): turned on by the person alone — in their terminal, the
+ * menu, a window of the system the agent can neither see nor click, or the Strom app (the bridge writes in the app's
+ * environment: the person's decision there, no window); an agent never turns it on (it spends the plan). Off is
+ * anyone's.
+ */
+function housesDecision(ctx: Context, key: string, value: string | number | undefined, scope: "tree" | "user"): void {
+  if (key !== "houses") return;
+  const { now, next } = layerChange(ctx, key, value, scope);
+  if (next !== "on" || now === "on") return;
+  if (ctx.env.STROM_FOR_APP === "1" && !isAgent(ctx.env)) return;
+  const forTree = scope === "tree" ? " --for-tree" : "";
+  ctx.requireHuman(
+    scope === "tree" ? "Look for the history of the tree's houses by itself in this research?" : "Look for the history of the tree's houses by itself in every research on this computer?",
+    `strom config set houses on${forTree}`,
+    "houses",
+    ui(ctx.uiLang(), scope === "tree" ? "ui.consent.houses.tree" : "ui.consent.houses"),
+  );
+}
+
+/**
  * The batches from the Strom app sorted by the agent by themselves (spec 130): turned on by the person alone — in their
  * terminal, the menu, a window of the system the agent can neither see nor click, or the Strom app (the bridge writes in
  * the app's environment: the person's decision there, no window); an agent never turns it on (it spends the plan and
@@ -1737,6 +1759,7 @@ function closeCensusProposal(tree: Tree): string[] {
 export function setTreeSetting(ctx: Context, key: string, value: string | number | undefined): Tree {
   syncDecisions(ctx, key, value, "tree");
   censusDecision(ctx, key, value, "tree");
+  housesDecision(ctx, key, value, "tree");
   intakeDecision(ctx, key, value, "tree");
   addonsDecision(ctx, key, value, "tree");
   experimentsDecision(ctx, key, value, "tree");
@@ -1756,7 +1779,9 @@ export function setTreeSetting(ctx: Context, key: string, value: string | number
   const files = syncAgentFiles(tree);
   // census records on here: the proposal to turn them on is done, in the same commit
   const closed = key === "census" && ctx.settings.census(tree.config) ? closeCensusProposal(tree) : [];
-  tree.withTreeLock(() => tree.commit(`Setting ${key}${value === undefined ? " removed" : `: ${value}`}`, [...new Set(["strom.json", ...tree.opsFilesTouched(), ...files, ...closed])]));
+  // the houses on here: the first of their tasks raised now, in the same commit (the queue shows them at once)
+  const raised = key === "houses" && ctx.settings.houses(tree.config) && raiseHouseTasks(tree, ctx.settings).length ? tree.touchedFiles() : [];
+  tree.withTreeLock(() => tree.commit(`Setting ${key}${value === undefined ? " removed" : `: ${value}`}`, [...new Set(["strom.json", ...tree.opsFilesTouched(), ...files, ...closed, ...raised])]));
   tree.settle();
   return tree;
 }
@@ -1879,6 +1904,7 @@ async function setUserSetting(ctx: Context, key: string, value: string | number 
   addonsDecision(ctx, key, value, "user");
   experimentsDecision(ctx, key, value, "user");
   censusDecision(ctx, key, value, "user");
+  housesDecision(ctx, key, value, "user");
   intakeDecision(ctx, key, value, "user");
   if (!(await sortDecision(ctx, key, value, "user"))) return false;
   const pace = await askPace(ctx, key, value);

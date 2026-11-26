@@ -10,7 +10,7 @@
 
 import { agentDecided } from "./hypolinks.ts";
 import type { Op, Tree } from "./tree.ts";
-import type { AnyRecord, Conflict, Family, Hypothesis, Input, Lesson, Media, Person, Place, RecordSet, Repository, Research, Search, Session, Source, Task } from "./model.ts";
+import type { AnyRecord, Conflict, Family, House, Hypothesis, Input, Lesson, Media, Person, Place, RecordSet, Repository, Research, Search, Session, Source, Task } from "./model.ts";
 import { conflictTitle, displayName, lifespan } from "./people.ts";
 import { ownerName, cardFact } from "./overview.ts";
 import { phrase, PHRASES, type PhraseKey } from "./phrases.ts";
@@ -29,7 +29,7 @@ const MODE_SAID: Record<string, PhraseKey> = { "the research is an archive": "lo
 /** The settings of a research said turned on or off (strom config set): each value, which of the two it is. */
 const SETTING_ON_OFF: Record<string, Record<string, "on" | "off">> = {
   ...Object.fromEntries(["stories", "stories.sources", "stories.history", "queue.suggestLines", "queue.sameBook"].map((k) => [k, { yes: "on", no: "off" }])),
-  ...Object.fromEntries(["sync.review", "agent.addons", "experiments.history", "experiments.placeHistory", "experiments.historyPlaces", "intake.auto", "census"].map((k) => [k, { on: "on", off: "off" }])),
+  ...Object.fromEntries(["sync.review", "agent.addons", "experiments.history", "experiments.placeHistory", "experiments.historyPlaces", "intake.auto", "census", "houses"].map((k) => [k, { on: "on", off: "off" }])),
   // the question before a sort: ask — the question on
   "sort.confirm": { ask: "on", no: "off" },
 };
@@ -258,7 +258,7 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     return t ? short(humanTask(tree, t.what, lang)) : (id ?? "");
   };
   const name = (id: string | undefined): string => {
-    const r = get<Person | Family | Source | RecordSet | Task | Session | Research | Search | Lesson | Hypothesis | Conflict | Place | Repository | Input | Media>(id);
+    const r = get<Person | Family | Source | RecordSet | Task | Session | Research | Search | Lesson | Hypothesis | Conflict | Place | Repository | Input | Media | House>(id);
     if (!r) return id ?? "";
     switch (r.type) {
       case "media": {
@@ -289,6 +289,10 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
         return short(r.question);
       case "place":
         return r.names[0]?.name ?? r.id;
+      case "house": {
+        const town = get<Place>(r.place)?.names[0]?.name;
+        return short(r.name ?? `${town ? `${town} ` : ""}${r.house}`);
+      }
       default:
         return (r as { id: string }).id;
     }
@@ -557,6 +561,13 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     if (o.op === "contact.fix" || o.op === "contact.unfix") {
       const n = /: (\d+) in /u.exec(o.summary)?.[1] ?? String(o.targets.length);
       say(phrase(lang, o.op === "contact.fix" ? "log.contact.fix" : "log.contact.unfix", { n }));
+      continue;
+    }
+    // the house numbers of facts set right by strom's fix (a marker taken off, a note's number the house), or put back
+    // (quality/house-numbers.json)
+    if (o.op === "housenumber.fix" || o.op === "housenumber.unfix") {
+      const n = /: (\d+) in /u.exec(o.summary)?.[1] ?? String(o.targets.length);
+      say(phrase(lang, o.op === "housenumber.fix" ? "log.housenumber.fix" : "log.housenumber.unfix", { n }));
       continue;
     }
     // disagreements with the user's own edits an agent decided, opened again for the user by strom's fix, or closed again

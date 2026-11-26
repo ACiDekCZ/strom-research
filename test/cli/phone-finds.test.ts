@@ -31,6 +31,7 @@ test("finds: an agent's new people, facts, families, sources and resolved confli
     await w.ok(["person", "add", "Marie /Nováková/", "--sex", "F"], AGENT); // P0003
     await w.ok(["family", "add", "--partner", "P1", "--partner", "P3"], AGENT); // F0001
     await w.ok(["family", "child", "F1", "P2"], AGENT);
+    await w.ok(["event", "add", "F1", "MARR", "--date", "1859", "--place", "Sloup, okres Blansko"], AGENT);
     await w.ok(["event", "add", "P1", "DEAT", "--date", "1890", "--place", "Sloup"], AGENT); // E0003
     await w.ok(["cite", "E0001", "S1", "--locator", "fol. 3"], AGENT);
     // the research's upkeep: no find
@@ -73,6 +74,8 @@ test("finds: an agent's new people, facts, families, sources and resolved confli
     assert.equal(of("Anežka Dvořáková")?.person, "P0002");
     const family = app.groups.find((g) => g.kind === "family")!;
     assert.equal(family.person, "P0001", "the family by its first partner");
+    assert.equal(family.place, "Sloup", "where it married, its first part (K3.13)");
+    assert.equal(app.groups.find((g) => g.kind !== "family" && g.place !== undefined), undefined, "a place only for a family");
     assert.deepEqual(family.lines.filter((l) => l.kind === "child").map((l) => l.person), ["P0002"]);
     assert.equal(app.groups.find((g) => g.kind === "sources")!.person, undefined);
     assert.deepEqual(JSON.parse(JSON.stringify(f)), JSON.parse(JSON.stringify(app, (k, v) => (k === "person" ? undefined : v))), "the phone's page: the same without an ID");
@@ -133,7 +136,7 @@ test("finds: a fact found and then corrected said once, as it is now; a question
     await w.ok(["hypothesis", "propose", "H3", "--variant", "A", "--decision", "zápis"], AGENT);
     await w.ok(["hypothesis", "decide", "H3", "--variant", "B", "--decision", "jiný zápis"]);
     const f = treeFinds(w.cwd, w.env);
-    assert.deepEqual(f.groups.find((g) => g.kind === "resolved")?.lines.map((l) => [l.kind, l.text]), [["hypothesis", "Чья дочь Мария?"]]);
+    assert.deepEqual(f.groups.find((g) => g.kind === "resolved")?.lines.map((l) => [l.kind, l.text, l.decided]), [["hypothesis", "Чья дочь Мария?", "Ивана"]], "the variant chosen said (K3.13)");
     const maria = f.groups.find((g) => g.title?.startsWith("Мария Жукова"))!;
     assert.ok(maria, JSON.stringify(f));
     const facts = maria.lines.filter((l) => l.kind === "fact" || l.kind === "fixed");

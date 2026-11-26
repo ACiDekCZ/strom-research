@@ -168,6 +168,8 @@ function refusedHere(ctx: Context, root: string, link: TreeLink): { key: UIKey; 
     link.action === "history" ||
     link.action === "places" ||
     link.action === "work" ||
+    // a research of a house taken over by the agent (spec 030): nobody researches in an archive
+    link.action === "house" ||
     (link.action === "conflict" && link.do === "agent") ||
     // the agent deciding the hypotheses: nobody researches in an archive (back to the person: anywhere)
     (link.action === "hypotheses" && "decide" in link && link.decide === "agent") ||
@@ -371,6 +373,16 @@ async function inTerminal(ctx: Context, link: TreeLink, at?: string) {
       // back in time: the change named (or one picked here) — strom history back shows what returns, the person decides
       const { backDo } = await import("../cli/menu-links.ts");
       return end((await backDo(ctx, run, treeLang, root, link.change)) === 0);
+    }
+    case "house": {
+      // the history of a house asked for: the estimate and the person's question here, its task on top, started now if wanted (run.confirm no: neither asked, spec 030 K6.3a)
+      if (link.do === "search") {
+        const { houseSearch } = await import("../cli/menu-links.ts");
+        return end(await houseSearch(ctx, run, treeLang, root, link.house, link.with ? link.with.split(",") : []));
+      }
+      // a research of a house of the person's own: its path asked here, then strom house import (its questions here too)
+      const { houseImportDo } = await import("../cli/menu-links.ts");
+      return end(await houseImportDo(ctx, run, treeLang, root));
     }
   }
   const named = "person" in link ? link.person : undefined;
@@ -784,6 +796,9 @@ register(
       "  archive) ends at once. Asked in the terminal first.\n" +
       "strom-research://archive?tree=<id>&host=www.example.org — the question about an archive's images (slowly, through the\n" +
       "browser, by hand), answered in the terminal as in the menu's What waits; the answer is never in the link.\n" +
+      "strom-research://house?tree=<id>&house=A0001|<town|number>&do=search[&with=A0002,…] — the history of a house of the\n" +
+      "  family tree (at most 2 neighbouring ones with it): the estimate and the person's yes in the terminal, its task on top\n" +
+      "  of the queue (strom house request), then started now if wanted; a house the tree has not: refused.\n" +
       "strom-research://places?tree=<id>&do=run[&place=L0012] — the places of the facts identified by the agent: the queue\n" +
       "  (or the one place, queued when it is not) with its sessions and estimate, the task on top of the queue on the\n" +
       "  person's yes in the terminal, then started now if wanted — a queue of more sessions: how many, each with its\n" +
@@ -810,7 +825,8 @@ register(
       "opening one of them in the app (strom app) is offered first; with no terminal the result lists them (trees).\n" +
       "What writes tasks or starts the agent is said and asked in the terminal first; with run.confirm no (the person's,\n" +
       "this computer's) what only starts the agent on the subscription or AI credit starts at once, one line says so — a\n" +
-      "price in money, a consent, a deletion, a request sent, the gate and an agent's own command still ask. Any page can open such a link:\n" +
+      "price in money (save the history of a house asked for, its estimate one line), a consent, a deletion, a request sent, the gate\n" +
+      "and an agent's own command still ask. Any page can open such a link:\n" +
       "each part is checked (only IDs and fixed values, never text but new's suggested name), an unknown research, person, task or excerpt is\n" +
       "only said. No link: the menu.\n" +
       "&handoff=<uuid> (any link of a research): the app's id of it — written when the link was taken (the terminal it\n" +

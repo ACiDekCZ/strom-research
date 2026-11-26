@@ -96,6 +96,7 @@ import type { Tree } from "../core/tree.ts";
 import { moreLine, paginate } from "../cli/format.ts";
 import type { UIKey } from "../cli/ui.ts";
 import { displayName } from "../core/people.ts";
+import { raiseHouseTasks } from "../core/houseauto.ts";
 import { eventExists, historyOn, readLocal, type AppEvent, type AppPlace, type EventKind, type Hide } from "../core/pastevents.ts";
 import { placeRecord } from "../core/placehistory.ts";
 import { foldText } from "../core/text.ts";
@@ -705,6 +706,7 @@ register(
         const c = markPlaceDone(sh, key, tree.config.id, placeTaskKinds(tree, ownTask && placeOfTask(ownTask) === p.id ? ownTask : undefined, ctx.settings))!;
         // its task waiting (asked for, or raised by itself) is done with it; one at work closes with its session
         raiseHistoryTasks(tree, sh, ctx.settings);
+        raiseHouseTasks(tree, ctx.settings);
         return { text: `${p.id}: done (${c.events.filter((e) => !e.retracted).length} events)`, data: { place: p.id, key, done: c.done } };
       }
       // the years looked through: this tree's period (K2.7), the events written in them since its session's task was made
@@ -801,6 +803,7 @@ register(
       const c = redoRegion(shared(ctx), id);
       // its tasks at once: a task of its gaps waiting is done (the whole region is looked for), the region's raised
       raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings);
+      raiseHouseTasks(tree, ctx.settings);
       return { text: ui(tree.lang, "ui.history.past.redo", { region: c.region.name[tree.lang] ?? c.region.name.en ?? id }), data: { region: id } };
     },
   },

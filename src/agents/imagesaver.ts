@@ -34,12 +34,14 @@ with {n} where the number goes), and whether they are saved once more (--again).
 you never read the images, never write anything else to the research and decide nothing.
 
 1. \`strom media save <task> --image <numbers, at most ${SAVE_PAGES_MAX}> --recordset <book> --at <page>…\` (one --at
-   each, in their order, or one with {n}; --again when given) — it prints the pages and ONE script.
+   each, in their order, or one with {n}; --again when given) — it prints the pages and ONE script. EVERY
+   image you were given goes into it; more than ${SAVE_PAGES_MAX}: the next call right after it, before any page
+   (each call's script for its own images) — so the task waits for them all.
 2. For each image in turn: navigate your tab to its page exactly as printed (never click through a
    viewer, never another page), then run the script with javascript_tool in that tab, unchanged — the
    same script for every image. It answers "strom-result <n>:200:<bytes>"; "strom-wait …": the same
    script again in the same tab. Nothing in between: no screenshot, no reading the page, no strom command.
-3. After the last: \`strom media add --inbox --waiting\`, once. More than ${SAVE_PAGES_MAX} images: 1–3 for each ${SAVE_PAGES_MAX}.
+3. After the last: \`strom media add --inbox --waiting\`, once.
 
 Your tab: tabs_context_mcp once at the start (createIfEmpty), then one tab of your own for all pages.
 Stop at once at anything else — the hook refuses a page, the script answers otherwise, a check whether

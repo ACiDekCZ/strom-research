@@ -186,10 +186,10 @@ test("What waits shows the books most tasks need in the research language", opts
   try {
     // 3 What waits · k the books · Enter · 0 back · 0 the end
     const r = await w.ok([], { tty: true, answers: ["3", "k", "", "0", "0"] });
-    assert.match(r.out, / k knihy s nejvíc úkoly 2 · /u);
-    assert.match(r.out, /\nKnihy s nejvíc úkoly · 2\n Jedno ruční stažení poslouží všem úkolům knihy; bez něj agent čte dál online\.\n 1 {2}Lhota 3, N 1784–1820 · 7 úkolů · 1 čeká\n {4}Státní oblastní archiv v Lhotě · 1784-1820 · snímků 20, na disku 6, chybí 15\n {4}potřebné snímky, které nejsou na disku: 5–6\n {4}https:\/\/archiv-lhota\.example\/kniha\/3\n {4}složka pro snímky: .*B0001 Lhota 3, N 1784–1820.\n 2 {2}Матрика Lhotíčky O 1800–1850 · 5 úkolů · 1 čeká\n {4}snímků 10, na disku 0, chybí 10\n {4}potřebné snímky, které nejsou na disku: 3\n/u);
+    assert.match(r.out, /\n {2}\[k\] {2}knihy s nejvíc úkoly 2\n\n {2}\[0\] {2}Zpět\n/u);
+    assert.match(r.out, /\nStrom › Co čeká › Knihy s nejvíc úkoly\n {2}2 knihy · Jedno ruční stažení poslouží všem úkolům knihy; bez něj agent čte dál online\.\n\n 1 {2}Lhota 3, N 1784–1820 · 7 úkolů · 1 čeká\n {4}Státní oblastní archiv v Lhotě · 1784-1820 · snímků 20, na disku 6, chybí 15\n {4}potřebné snímky, které nejsou na disku: 5–6\n {4}https:\/\/archiv-lhota\.example\/kniha\/3\n {4}složka pro snímky: .*B0001 Lhota 3, N 1784–1820.\n 2 {2}Матрика Lhotíčky O 1800–1850 · 5 úkolů · 1 čeká\n {4}snímků 10, na disku 0, chybí 10\n {4}potřebné snímky, které nejsou na disku: 3\n/u);
     const en = await w.ok([], { tty: true, answers: ["3", "b", "", "0", "0"], env: { STROM_LANG: "en" } });
-    assert.match(en.out, /\nBooks with the most tasks · 2\n One download by hand serves every task of a book; without it the agent reads on online\.\n 1 {2}Lhota 3, N 1784–1820 · 7 tasks · 1 waiting\n[^]*?\n {4}images needed, not on disk: 5–6\n/u);
+    assert.match(en.out, /\nStrom › What waits › Books with the most tasks\n {2}2 books · One download by hand serves every task of a book; without it the agent reads on online\.\n\n 1 {2}Lhota 3, N 1784–1820 · 7 tasks · 1 waiting\n[^]*?\n {4}images needed, not on disk: 5–6\n/u);
     // nothing waits: no range to offer either (the whole book comes with the archives' terms) — what waits says so alone
     await w.ok(["task", "wake", "T5"]);
     await w.ok(["task", "wake", "T12"]);

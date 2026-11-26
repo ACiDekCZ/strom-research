@@ -9,7 +9,8 @@
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { resolveCommand } from "../cli/execute.ts";
-import { lines } from "../cli/format.ts";
+import { counted, lines } from "../cli/format.ts";
+import { line, saidLines, shown, spansOf } from "../cli/screen.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import { UsageError } from "../core/errors.ts";
 import { isArchive } from "../core/mode.ts";
@@ -19,6 +20,7 @@ import { phrase } from "../core/phrases.ts";
 import type { Media, Task } from "../core/model.ts";
 import type { Tree } from "../core/tree.ts";
 import {
+  AGAIN_QUESTION,
   compareDocuments,
   compareReadings,
   checksHere,
@@ -63,6 +65,9 @@ import { applyOrigins, originsDone, undoOrigins, type OriginMark } from "../core
 import { applyVerify, undoVerify, verifyDone, type VerifyItem } from "../core/verify.ts";
 import { applyNameStatus, nameStatusDone, undoNameStatus, type NameStatusFix } from "../core/namestatusfix.ts";
 import { applyContactResidences, contactResidencesDone, undoContactResidences, type ContactFix, type ContactLeft } from "../core/contactfix.ts";
+import { applyHouseNumbers, houseNumbersDone, undoHouseNumbers, type HouseNumberFix, type HouseNumberLeft } from "../core/housenumberfix.ts";
+import { applyBookCounts, bookCountsDone, undoBookCounts, type BookCountFix } from "../core/bookcountfix.ts";
+import { againWaitsDone, applyAgainWaits, undoAgainWaits, type AgainWaitFix } from "../core/againwaitfix.ts";
 import { townAnswers } from "../core/streets.ts";
 import { eventKey } from "../cli/human.ts";
 import type { TreeConfig } from "../core/model.ts";
@@ -115,6 +120,9 @@ const estimateText = (t: T, e: FixEstimate, agent: string, trial = false) =>
   });
 
 /** " — cheap, about 3 min": what a choice would take, beside it. */
+/** A text said after another (" — expensive…", " · read before") said on its own, in a column of a menu. */
+const bare = (text: string) => text.replace(/^\s*[—–·]\s*/u, "");
+
 const costText = (t: T, e: FixEstimate) => t("ui.fixes.cost", { level: t(`ui.fixes.level.${e.level}` as UIKey), minutes: e.minutes });
 
 const stateText = (t: T, s: FixState) =>
@@ -421,6 +429,52 @@ const REWRITERS: Record<string, Rewriter> = {
     fixed: (key, n, records) => `Fix ${key}: ${n} residences of contacts set right, their e-mails in the persons' contacts, in ${records} records`,
     undone: (key, n, left) => `Fix ${key}: undone, ${n} residences of contacts put back as they were${left ? `, ${left} changed since left` : ""}`,
   },
+  "house-numbers": {
+    // one fact's house: whose, which, its house before (or its note) → after
+    example: (t, item) => {
+      const r = item as HouseNumberFix;
+      return t(r.how === "note" ? "ui.fixes.house-numbers.example.note" : "ui.fixes.house-numbers.example", { owner: r.owner, event: r.event, before: r.before ?? "", after: r.after });
+    },
+    left: (t, item) => {
+      const r = item as HouseNumberLeft;
+      return t("ui.fixes.house-numbers.kept", { owner: r.owner, event: r.event, numbers: r.numbers.join(", ") });
+    },
+    apply: (tree, items, config) => applyHouseNumbers(tree, items as HouseNumberFix[], VERSION, config),
+    done: (tree) => houseNumbersDone(tree).length,
+    undo: (tree, config) => undoHouseNumbers(tree, config),
+    ask: "Set the house numbers of facts right (the marker before a number taken off, a number of a note to the house)?",
+    askUndo: "Put the houses of the facts back as they were?",
+    fixed: (key, n, records) => `Fix ${key}: ${n} house numbers of facts set right, in ${records} records`,
+    undone: (key, n, left) => `Fix ${key}: undone, ${n} houses of facts put back as they were${left ? `, ${left} changed since left` : ""}`,
+  },
+  "book-counts": {
+    // one book: which, its archive, its images on disk — and how another count is written instead
+    example: (t, item) => {
+      const r = item as BookCountFix;
+      return t(r.archive ? "ui.fixes.book-counts.example" : "ui.fixes.book-counts.example.local", { recordset: r.recordset, title: short(r.title), archive: r.archive ?? "", n: r.images });
+    },
+    apply: (tree, items, config) => applyBookCounts(tree, items as BookCountFix[], VERSION, config),
+    done: (tree) => bookCountsDone(tree).length,
+    undo: (tree, config) => undoBookCounts(tree, config),
+    ask: "Write each book's count of images as its images on disk 1…N say (another count: strom recordset edit B… --images <n>)?",
+    askUndo: "Take off the counts of images the fix wrote on books?",
+    fixed: (key, n, records) => `Fix ${key}: ${n === 1 ? "1 book's count" : `${n} books' counts`} of images written as their images on disk 1…N, in ${counted(records, "record")}`,
+    undone: (key, n, left) => `Fix ${key}: undone, ${n === 1 ? "1 book's count" : `${n} books' counts`} of images taken off${left ? `, ${left} changed since left` : ""}`,
+  },
+  "again-waits": {
+    // one task: what it is, its book, the images its text names its wait did not hold
+    example: (t, item) => {
+      const r = item as AgainWaitFix;
+      return t("ui.fixes.again-waits.example", { task: r.task, what: short(r.what), recordset: r.recordset, added: r.added, images: r.after.images });
+    },
+    apply: (tree, items, config) => applyAgainWaits(tree, items as AgainWaitFix[], VERSION, config),
+    done: (tree) => againWaitsDone(tree).length,
+    undo: (tree, config) => undoAgainWaits(tree, config),
+    ask: "Let the tasks saving images once more wait for every image their text names (those whose new copy did not come counted missing)?",
+    askUndo: "Put the waits of the tasks the fix set right back as they were?",
+    fixed: (key, n, records) => `Fix ${key}: ${n === 1 ? "1 task saving images once more waits for every image its text names" : `${n} tasks saving images once more wait for every image their text names`}, in ${counted(records, "record")}`,
+    undone: (key, n, left) => `Fix ${key}: undone, ${counted(n, "wait")} of tasks put back as they were${left ? `, ${left} changed since left` : ""}`,
+  },
 };
 
 /** A kind of fact in the person's words: "narození"; a kind with no word as it is written. */
@@ -444,8 +498,21 @@ const rewriterOf = (id: string): Rewriter => {
 /** The places of a municipality with numbers alone after its name, as written: the first few, how many in all. */
 const townPlaces = (town: StreetTown) => (town.places.length > 3 ? `${town.places.slice(0, 3).join(", ")} … (${town.places.length})` : town.places.join(", "));
 
+/** A line of what a check says, and whether it is said before its question (brief: what, how many, what it costs). */
+type Told = readonly [string | undefined, boolean];
+
+/** The lines told, in their order: all of them (strom fixes show), or the brief ones and the rest (behind [?] Details). */
+function told(lines: readonly Told[]): { all: string[]; brief: string[]; more: string[] } {
+  const kept = lines.filter((l): l is readonly [string, boolean] => l[0] !== undefined);
+  return { all: kept.map((l) => l[0]), brief: kept.filter((l) => l[1]).map((l) => l[0]), more: kept.filter((l) => !l[1]).map((l) => l[0]) };
+}
+
 /** A check that rewrites by rules: what it is, what it found, examples, what setting it right does and does not. */
 function rewriteDetail(t: T, s: FixState): string[] {
+  return rewriteTold(t, s).all;
+}
+
+function rewriteTold(t: T, s: FixState): ReturnType<typeof told> {
   const f = s.found;
   const rewrites = f.rewrites ?? [];
   const towns = f.towns ?? [];
@@ -453,51 +520,65 @@ function rewriteDetail(t: T, s: FixState): string[] {
   // a check applied by itself once (verify-originals): what it found then and set right, its examples
   const done = !rewrites.length && !f.unsplit && f.done?.count ? f.done : undefined;
   const shown: unknown[] = done ? done.items : rewrites;
-  return [
-    `${id} · ${t(`ui.fixes.${id}.name` as UIKey)} — ${stateText(t, s)}`,
-    t(`ui.fixes.${id}.what` as UIKey, { since: s.check.since }),
-    rewrites.length || f.unsplit
-      ? t(`ui.fixes.${id}.found` as UIKey, { found: rewrites.length + (f.unsplit ?? 0), split: rewrites.length, unsplit: f.unsplit ?? 0 })
-      : done
-        ? t(`ui.fixes.${id}.found` as UIKey, { found: done.count, split: done.count, unsplit: 0 })
-        : towns.length
-          ? undefined
-          : t("ui.fixes.found.none"),
-    ...shown.slice(0, EXAMPLES).map((r) => rewriterOf(id).example(t, r)),
-    shown.length > EXAMPLES ? t(`ui.fixes.${id}.more` as UIKey, { n: shown.length - EXAMPLES, id }) : undefined,
-    done ? t(`ui.fixes.${id}.done` as UIKey, { n: done.count, records: done.records, id }) : undefined,
+  return told([
+    [`${id} · ${t(`ui.fixes.${id}.name` as UIKey)} — ${stateText(t, s)}`, true],
+    [t(`ui.fixes.${id}.what` as UIKey, { since: s.check.since }), false],
+    [
+      rewrites.length || f.unsplit
+        ? t(`ui.fixes.${id}.found` as UIKey, { found: rewrites.length + (f.unsplit ?? 0), split: rewrites.length, unsplit: f.unsplit ?? 0 })
+        : done
+          ? t(`ui.fixes.${id}.found` as UIKey, { found: done.count, split: done.count, unsplit: 0 })
+          : towns.length
+            ? undefined
+            : t("ui.fixes.found.none"),
+      true,
+    ],
+    // what it changes, as examples: seen before the question
+    ...shown.slice(0, EXAMPLES).map((r) => [rewriterOf(id).example(t, r), true] as const),
+    [shown.length > EXAMPLES ? t(`ui.fixes.${id}.more` as UIKey, { n: shown.length - EXAMPLES, id }) : undefined, true],
+    [done ? t(`ui.fixes.${id}.done` as UIKey, { n: done.count, records: done.records, id }) : undefined, false],
     // what it leaves as it is, each with why
-    ...(f.left ?? []).slice(0, EXAMPLES).map((r) => rewriterOf(id).left?.(t, r) ?? ""),
-    (f.left?.length ?? 0) > EXAMPLES ? t(`ui.fixes.${id}.more` as UIKey, { n: f.left!.length - EXAMPLES, id }) : undefined,
-    // numbers alone after a municipality: each municipality, set right only on a person's word for all of it
-    towns.length ? t("ui.fixes.street-places.bare") : undefined,
-    ...towns.slice(0, EXAMPLES).map((x) => t("ui.fixes.street-places.town", { town: x.town, n: x.fixes.length, places: townPlaces(x) })),
-    towns.length > EXAMPLES ? t(`ui.fixes.${id}.more` as UIKey, { n: towns.length - EXAMPLES, id }) : undefined,
-    rewrites.length || towns.length ? t(`ui.fixes.${id}.does` as UIKey, { id }) : undefined,
-    rewrites.length || towns.length ? t(`ui.fixes.${id}.not` as UIKey, { id }) : undefined,
-  ].filter((l): l is string => l !== undefined);
+    ...(f.left ?? []).slice(0, EXAMPLES).map((r) => [rewriterOf(id).left?.(t, r) ?? "", false] as const),
+    [(f.left?.length ?? 0) > EXAMPLES ? t(`ui.fixes.${id}.more` as UIKey, { n: f.left!.length - EXAMPLES, id }) : undefined, false],
+    // numbers alone after a municipality: each municipality, set right only on a person's word for all of it (asked
+    // one by one after it, each with its own examples)
+    [towns.length ? t("ui.fixes.street-places.bare") : undefined, false],
+    ...towns.slice(0, EXAMPLES).map((x) => [t("ui.fixes.street-places.town", { town: x.town, n: x.fixes.length, places: townPlaces(x) }), false] as const),
+    [towns.length > EXAMPLES ? t(`ui.fixes.${id}.more` as UIKey, { n: towns.length - EXAMPLES, id }) : undefined, false],
+    [rewrites.length || towns.length ? t(`ui.fixes.${id}.does` as UIKey, { id }) : undefined, false],
+    [rewrites.length || towns.length ? t(`ui.fixes.${id}.not` as UIKey, { id }) : undefined, false],
+  ]);
 }
 
 /** What it is, what it found, what setting it right does and does not, and what it would take. */
 function detail(ctx: Context, tree: Tree, t: T, s: FixState): string[] {
-  if (s.check.remedy === "rewrite") return rewriteDetail(t, s);
+  return detailTold(ctx, tree, t, s).all;
+}
+
+/**
+ * Before the question at a person's terminal (spec 144 K6): what it is, how many it found, what it costs — the rest
+ * (what happened, examples, what it does and does not, the narrower stages) behind [?] Details. Paid work stays clear
+ * without it: the cost of each choice stands beside it too.
+ */
+function detailTold(ctx: Context, tree: Tree, t: T, s: FixState): ReturnType<typeof told> {
+  if (s.check.remedy === "rewrite") return rewriteTold(t, s);
   const f = s.found;
   const agent = readerAgent(ctx, tree);
   const values = textValues(t, s);
   const groups = byReading(f.items);
-  return [
-    `${s.check.id} · ${t(`ui.fixes.${s.check.id}.name` as UIKey)} — ${stateText(t, s)}`,
+  return told([
+    [`${s.check.id} · ${t(`ui.fixes.${s.check.id}.name` as UIKey)} — ${stateText(t, s)}`, true],
     // new-model with nothing read with another model: nothing to say what changed
-    !f.models && s.check.id === "new-model" ? t(`ui.fixes.${s.check.id}.idle` as UIKey) : t(`ui.fixes.${s.check.id}.what` as UIKey, values),
-    foundText(t, s),
-    ...groups.slice(0, EXAMPLES).map((g) => exampleText(t, g)),
-    groups.length > EXAMPLES ? t("ui.fixes.more", { n: groups.length - EXAMPLES, id: s.check.id }) : undefined,
-    f.estimated ? t("ui.fixes.estimated.why") : undefined,
-    f.items.length ? t(`ui.fixes.${s.check.id}.does` as UIKey, values) : undefined,
-    f.items.length ? t(`ui.fixes.${s.check.id}.not` as UIKey, values) : undefined,
-    f.items.length ? estimateText(t, estimateOf(ctx, tree, readersOf(f.items)), agent) : undefined,
-    ...stagesText(ctx, tree, t, groups),
-  ].filter((l): l is string => l !== undefined);
+    [!f.models && s.check.id === "new-model" ? t(`ui.fixes.${s.check.id}.idle` as UIKey) : t(`ui.fixes.${s.check.id}.what` as UIKey, values), false],
+    [foundText(t, s), true],
+    ...groups.slice(0, EXAMPLES).map((g) => [exampleText(t, g), false] as const),
+    [groups.length > EXAMPLES ? t("ui.fixes.more", { n: groups.length - EXAMPLES, id: s.check.id }) : undefined, false],
+    [f.estimated ? t("ui.fixes.estimated.why") : undefined, false],
+    [f.items.length ? t(`ui.fixes.${s.check.id}.does` as UIKey, values) : undefined, false],
+    [f.items.length ? t(`ui.fixes.${s.check.id}.not` as UIKey, values) : undefined, false],
+    [f.items.length ? estimateText(t, estimateOf(ctx, tree, readersOf(f.items)), agent) : undefined, true],
+    ...stagesText(ctx, tree, t, groups).map((l) => [l, false] as const),
+  ]);
 }
 
 function stateData(ctx: Context, tree: Tree, s: FixState, all = false) {
@@ -567,16 +648,20 @@ function stateOfCheck(ctx: Context, tree: Tree, id: string): FixState {
 async function runRewrite(ctx: Context, tree: Tree, t: T, s: FixState): Promise<{ decided?: "declined" | "fixed"; changed: number; records: number }> {
   const id = s.check.id;
   const out = (l = "") => ctx.io.stdout(l + "\n");
-  for (const l of detail(ctx, tree, t, s)) out(l);
   const rewrites = s.found.rewrites ?? [];
   const towns = s.found.towns ?? [];
-  if (!rewrites.length && !towns.length) return { changed: 0, records: 0 };
+  // a question follows: what it is, how many and its examples before it, the rest behind [?] Details
+  const said = detailTold(ctx, tree, t, s);
+  const asks = rewrites.length > 0 || towns.length > 0;
+  for (const l of asks ? said.brief : said.all) out(saidLines(l, ctx.style).join("\n"));
+  if (!asks) return { changed: 0, records: 0 };
+  const details = said.more.length ? { details: () => said.more.join("\n") } : {};
   const take: unknown[] = [];
   if (rewrites.length) {
     const choices = [{ label: t(`ui.fixes.${id}.all` as UIKey, { n: rewrites.length }) }, { label: t("ui.fixes.decline") }];
-    const pick = await ctx.choose(t(`ui.fixes.${id}.ask` as UIKey), choices, choices.length, { back: t("ui.fixes.later") });
+    const pick = await ctx.choose(t(`ui.fixes.${id}.ask` as UIKey), choices, choices.length, { back: t("ui.fixes.later"), ...details });
     if (pick === undefined) {
-      out(t("ui.fixes.later.said", { id }));
+      out(saidLines(t("ui.fixes.later.said", { id }), ctx.style).join("\n"));
       return { changed: 0, records: 0 };
     }
     if (pick === 1) {
@@ -599,14 +684,14 @@ async function runRewrite(ctx: Context, tree: Tree, t: T, s: FixState): Promise<
     for (const r of town.fixes.slice(0, EXAMPLES)) out(rewriterOf(id).example(t, r));
     if (town.fixes.length > EXAMPLES) out(t(`ui.fixes.${id}.more` as UIKey, { n: town.fixes.length - EXAMPLES, id }));
     const choices = [{ label: t("ui.fixes.street-places.town.yes", { town: town.town, n: town.fixes.length }) }, { label: t("ui.fixes.street-places.town.no", { town: town.town }) }];
-    const a = await ctx.choose(t("ui.fixes.street-places.town.ask", { town: town.town }), choices, choices.length, { back: t("ui.fixes.later") });
+    const a = await ctx.choose(t("ui.fixes.street-places.town.ask", { town: town.town }), choices, choices.length, { back: t("ui.fixes.later"), ...details });
     if (a === undefined) continue;
     answers[town.key] = { town: town.town, houses: a === 0 };
     if (a === 0) take.push(...town.fixes);
     else kept.push(town.town);
   }
   if (!take.length && !Object.keys(answers).length) {
-    out(t("ui.fixes.later.said", { id }));
+    out(saidLines(t("ui.fixes.later.said", { id }), ctx.style).join("\n"));
     return { changed: 0, records: 0 };
   }
   const r = tree.withTreeLock(() => {
@@ -669,7 +754,7 @@ async function readAgain(ctx: Context, tree: Tree, t: T, items: FixItem[], model
     if (item.document) {
       // a document: a new reading of the same pages and parts beside the earlier one (never strom document again)
       const d = item.document;
-      const opts = { readers: String(d.readers), ...(model ? { model } : {}), ...(d.regions.length ? { region: d.regions } : {}), ...(d.note ? { note: d.note } : {}), ...(d.persons?.length ? { person: d.persons } : {}) };
+      const opts = { readers: String(d.readers), again: item.reading, ...(model ? { model } : {}), ...(d.regions.length ? { region: d.regions } : {}), ...(d.note ? { note: d.note } : {}), ...(d.persons?.length ? { person: d.persons } : {}) };
       let now: ReadResult | undefined;
       let error: string | undefined;
       try {
@@ -682,7 +767,7 @@ async function readAgain(ctx: Context, tree: Tree, t: T, items: FixItem[], model
       const c = before ? compareDocuments(before, now) : undefined;
       return [{ item, ...compared(c), ...(now?.id ? { reading: now.id } : {}), secs, ...(error ? { error } : {}) }];
     }
-    const opts: Record<string, string | boolean> = { question: item.question, ...(model ? { model } : {}), ...(item.crop ? { crop: item.crop } : {}), parallel: "1", ...(item.blind ? { blind: true } : {}), ...(item.context ? { context: item.context } : {}) };
+    const opts: Record<string, string | boolean> = { question: item.question || AGAIN_QUESTION, again: item.reading, ...(model ? { model } : {}), ...(item.crop ? { crop: item.crop } : {}), parallel: "1", ...(item.blind ? { blind: true } : {}), ...(item.context ? { context: item.context } : {}) };
     let reading: string | undefined;
     let error: string | undefined;
     try {
@@ -781,7 +866,7 @@ function requireReady(ctx: Context, tree: Tree, command: string): void {
  * can read here, the person's choice — the one reading now first, each said with whether it read these before; where
  * the one now read them, another one here is recommended. Undefined: later.
  */
-async function chooseReader(ctx: Context, tree: Tree, t: T, s: FixState, model: string | undefined): Promise<Reader | undefined> {
+async function chooseReader(ctx: Context, tree: Tree, t: T, s: FixState, model: string | undefined, details: { details?: () => string } = {}): Promise<Reader | undefined> {
   const now = readerNow(ctx, tree, model);
   if (model || ctx.settings.agent(tree.config).source === "flag") return now;
   // only the agents that can read here (the one now too)
@@ -796,15 +881,13 @@ async function chooseReader(ctx: Context, tree: Tree, t: T, s: FixState, model: 
   const before = new Set([...readBefore(tree, s.found.items)].map((k) => splitKey(k).agent));
   const readBy = (r: Reader) => before.has(r.agent);
   const pick = readBy(now) ? Math.max(0, readers.findIndex((r) => !readBy(r))) : 0;
+  // the reader in its column, what it costs as its value, whether it read them before faintly after it
   const choices = readers.map((r, i) => ({
-    label: [
-      calibrationLabel(readerKey(tree, r), t("ui.settings.model.own")),
-      costText(t, estimateOf(ctx, tree, readersOf(s.found.items), { reader: r })),
-      readBy(r) ? t("ui.fixes.reader.before") : "",
-      i === pick && pick > 0 ? t("ui.fixes.reader.other") : "",
-    ].join(""),
+    label: calibrationLabel(readerKey(tree, r), t("ui.settings.model.own")),
+    value: bare(costText(t, estimateOf(ctx, tree, readersOf(s.found.items), { reader: r }))),
+    extra: [readBy(r) ? t("ui.fixes.reader.before") : "", i === pick && pick > 0 ? t("ui.fixes.reader.other") : ""].map(bare).filter(Boolean).join(" · ") || undefined,
   }));
-  const i = await ctx.choose(t("ui.fixes.reader.ask"), choices, pick, { back: t("ui.fixes.later") });
+  const i = await ctx.choose(t("ui.fixes.reader.ask"), choices, pick, { back: t("ui.fixes.later"), ...details });
   return i === undefined ? undefined : readers[i];
 }
 
@@ -825,10 +908,13 @@ async function runCheck(ctx: Context, tree: Tree, t: T, s: FixState, opts: { fir
   const out = (l = "") => ctx.io.stdout(l + "\n");
   let left = byReading(s.found.items).slice(0, opts.first ?? Infinity);
   const done: Reread[] = [];
-  for (const l of detail(ctx, tree, t, s)) out(l);
-  const reader = await chooseReader(ctx, tree, t, s, opts.model);
+  // what it is, how many, what it costs before the question; the rest behind [?] Details (each choice says its cost)
+  const said = detailTold(ctx, tree, t, s);
+  for (const l of said.brief) out(saidLines(l, ctx.style).join("\n"));
+  const details = said.more.length ? { details: () => said.more.join("\n") } : {};
+  const reader = await chooseReader(ctx, tree, t, s, opts.model, details);
   if (!reader) {
-    out(t("ui.fixes.later.said", { id }));
+    out(saidLines(t("ui.fixes.later.said", { id }), ctx.style).join("\n"));
     return { done };
   }
   const rctx = readerContext(ctx, reader);
@@ -839,7 +925,13 @@ async function runCheck(ctx: Context, tree: Tree, t: T, s: FixState, opts: { fir
   while (left.length) {
     const perReading = spent.readings ? spent.secs / spent.readings : undefined;
     const est = (groups: FixItem[][]) => estimateOf(ctx, tree, readersOf(groups.flat()), { reader, ...(perReading !== undefined ? { perReading } : {}) });
-    const offer = (key: UIKey, n: number) => ({ label: t(key, { part: partText(t, left.slice(0, n).flat()) }) + costText(t, est(left.slice(0, n))), n });
+    // what is read in its column, how much and what it costs as its value
+    const offer = (key: UIKey, n: number) => {
+      const said = t(key, { part: partText(t, left.slice(0, n).flat()) });
+      const at = said.indexOf(": ");
+      const part = at > 0 ? said.slice(at + 2) : "";
+      return { label: at > 0 ? said.slice(0, at) : said, value: [part, bare(costText(t, est(left.slice(0, n))))].filter(Boolean).join(" · "), n };
+    };
     // a trial from the narrowest stage that holds any; then the disputed alone, with the direct line, all — each
     // offered where it is more than the one before and less than all
     const st = stagesOf(left);
@@ -853,9 +945,9 @@ async function runCheck(ctx: Context, tree: Tree, t: T, s: FixState, opts: { fir
     ];
     if (!first) out(estimateText(t, est(left), reader.agent, perReading !== undefined));
     // Enter: later — paid work starts on a choice of its own
-    const pick = await ctx.choose(t(first ? "ui.fixes.ask" : "ui.fixes.ask.rest"), choices, choices.length, { back: t(first ? "ui.fixes.later" : "ui.fixes.end") });
+    const pick = await ctx.choose(t(first ? "ui.fixes.ask" : "ui.fixes.ask.rest"), choices, choices.length, { back: t(first ? "ui.fixes.later" : "ui.fixes.end"), ...(first ? details : {}) });
     if (pick === undefined) {
-      out(t("ui.fixes.later.said", { id }));
+      out(saidLines(t("ui.fixes.later.said", { id }), ctx.style).join("\n"));
       return { done };
     }
     if (pick === choices.length - 1) {
@@ -883,6 +975,12 @@ async function runCheck(ctx: Context, tree: Tree, t: T, s: FixState, opts: { fir
     done.push(...read);
     out(lines(...summaryText(t, read, secs)));
     first = false;
+    // most of its places not read (the reader refused them, strom read did): nothing more offered to be paid for — what
+    // failed and why said, the rest waits as it was
+    if (left.length && read.filter((d) => d.result === "failed").length * 2 > read.length) {
+      out(t("ui.fixes.failed.stop", { id }));
+      return { done };
+    }
   }
   const failed = new Set(done.filter((d) => d.result === "failed").map((d) => d.item.reading)).size;
   out(failed ? t("ui.fixes.failed.left", { n: failed, id }) : t("ui.fixes.done"));
@@ -919,7 +1017,7 @@ register(
       "beside the earlier one, a difference becomes a task. The person decides: set it right (strom fixes run), leave it as\n" +
       "it is (strom fixes decline) or later (nothing kept). The decision is kept with the research (strom.json \"fixes\")\n" +
       "and holds on every computer. strom doctor and the menu say when one waits. In an archive only participant-names,\n" +
-      "app-shapes, street-places and contact-residences.\n" +
+      "app-shapes, street-places, contact-residences, house-numbers and book-counts.\n" +
       "The checks: blind-reduced — a reading of a part of an image (strom read --crop) read from the whole image, reduced,\n" +
       "where a sharper copy of the part was at hand (strom before 1.19.0); where this computer has no record of the\n" +
       "reading's views, the place is estimated from the sources' entries on the image, and said so.\n" +
@@ -1005,8 +1103,26 @@ register(
       "withdrawn with the reason — never deleted; one citing a record, with people at it or a note of its own beside the\n" +
       "e-mail is left and listed with why (--json: left). One operation, one commit; strom fixes undo contact-residences\n" +
       "puts the residences back and takes off only the e-mails the fix added.\n" +
+      "house-numbers — one house of a municipality written as two before strom 1.38.0 (since then a house is a record of\n" +
+      "its own, strom house): a marker before a number alone taken off (\"čp. 16\", \"Haus Nr. 16\" → \"16\"), a marker before a\n" +
+      "street taken off (\"čp. Dlouhá 12\" → \"Dlouhá 12\"), the one house number of a fact's note its house where it has none\n" +
+      "(\"Adresa: čp. 13\" → \"13\"; the note stays). The markers are the words of assets/terms/streets.json. A note naming\n" +
+      "more numbers than one is left and listed (--json: left). Set right by rules on the person's word alone (free, also\n" +
+      "in an archive); one operation, one commit; strom fixes undo house-numbers puts the houses back as they were.\n" +
+      "book-counts — a book downloaded whole with no count of its images before strom 1.38.0 (since then the count is\n" +
+      "written from the archive's catalogue or after a whole book on disk): its tasks still need it, its archive lets it be\n" +
+      "downloaded whole, its images registered run 1…N with no gap (N at least 2) — offered to download by hand for ever.\n" +
+      "Set right on the person's word alone (free, also in an archive): its count N written (one operation per book, one\n" +
+      "commit). Another count from the archive's page: strom recordset edit B… --images <n> first — the book is then no\n" +
+      "longer found. strom fixes undo book-counts takes off the counts still as written.\n" +
+      "again-waits — a task saving images once more (strom media save --again) before strom 1.38.0 waited for fewer images\n" +
+      "than its own text names and counted the copies registered before as saved. Its text (what, else done-when) read for\n" +
+      "image numbers and ranges (\"23–25 and 40\"), never a number of the book's title, years or call number, only images\n" +
+      "registered for the book; set right by rules (free, never in an archive — an agent's work): its wait holds them all,\n" +
+      "those whose new copy did not come since counted missing (awaits.again); strom fixes undo again-waits puts the waits\n" +
+      "back as they were.\n" +
       SET_RIGHT_HELP,
-    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes show app-shapes", "strom fixes show street-places", "strom fixes show edit-decisions", "strom fixes show woken-waits", "strom fixes show readers", "strom fixes show proven-originals", "strom fixes show origins", "strom fixes show verify-originals", "strom fixes show name-status", "strom fixes show contact-residences", "strom fixes --json"],
+    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes show app-shapes", "strom fixes show street-places", "strom fixes show edit-decisions", "strom fixes show woken-waits", "strom fixes show readers", "strom fixes show proven-originals", "strom fixes show origins", "strom fixes show verify-originals", "strom fixes show name-status", "strom fixes show contact-residences", "strom fixes show house-numbers", "strom fixes show book-counts", "strom fixes show again-waits", "strom fixes --json"],
     run: (ctx: Context) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);
@@ -1014,11 +1130,13 @@ register(
       const archive = isArchive(tree);
       const states = fixStates(tree, fixEnv(ctx, tree), { keep: !ctx.backupFailed });
       const pending = states.filter((s) => s.state === "pending");
+      // on a person's terminal wrapped to it, a check's further lines under its name (off a terminal: as it is)
+      const shownLine = (text: string, hang = 0) => line(spansOf(text), ctx.style, hang);
       const text = lines(
-        t(archive ? "ui.fixes.title.archive" : "ui.fixes.title"),
-        ...states.map((s) => `  ${s.check.id} · ${t(`ui.fixes.${s.check.id}.name` as UIKey)} — ${stateText(t, s)}`),
+        shownLine(t(archive ? "ui.fixes.title.archive" : "ui.fixes.title")),
+        ...states.map((s) => shownLine(`  ${s.check.id} · ${t(`ui.fixes.${s.check.id}.name` as UIKey)} — ${stateText(t, s)}`, 2 + shown(s.check.id) + 3)),
         pending.length ? "" : undefined,
-        pending.length ? t("ui.fixes.next", { id: pending[0]!.check.id }) : undefined,
+        pending.length ? shownLine(t("ui.fixes.next", { id: pending[0]!.check.id }), 2) : undefined,
       );
       return { text, data: { checks: states.map((s) => stateData(ctx, tree, s)) } };
     },
@@ -1059,10 +1177,13 @@ register(
       "and with the direct line are offered beside all, each with what it would take.\n" +
       "Who reads: --agent and --model; else, where more agents can read here, the person chooses — each said with whether\n" +
       "it read these before, another one recommended where the one now did. After the first few, the rest is estimated\n" +
-      "again by the real time they took.\n" +
-      "participant-names, app-shapes, street-places and contact-residences read nothing: set right as shown (strom fixes show <check>), all or none, in one\n" +
-      "operation and one commit, free, also in an archive; strom fixes undo <check> puts it back. So do edit-decisions and\n" +
-      "woken-waits and readers, never in an archive (an agent's work); readers, proven-originals, origins, verify-originals and name-status are set right by themselves once,\n" +
+      "again by the real time they took; where most of a round was not read, its reason is said and nothing more is\n" +
+      "offered (what was not read waits as it was). An earlier reading that kept no question (an older tool's report) is\n" +
+      "read again for the whole of it. A reading a fix made (read again beside an earlier one) is never offered by a fix\n" +
+      "again, nor is a reading whose place was estimated once one of its places was read again.\n" +
+      "participant-names, app-shapes, street-places, contact-residences, house-numbers and book-counts read nothing: set right as shown (strom fixes show <check>), all or none, in one\n" +
+      "operation and one commit, free, also in an archive; strom fixes undo <check> puts it back. So do edit-decisions,\n" +
+      "woken-waits, again-waits and readers, never in an archive (an agent's work); readers, proven-originals, origins, verify-originals and name-status are set right by themselves once,\n" +
       "run again only after strom fixes undo or reopen.\n" +
       SET_RIGHT_HELP,
     args: [{ name: "check", description: "the check (default: each that waits)" }],
@@ -1166,7 +1287,7 @@ register(
   },
   {
     path: ["fixes", "undo"],
-    summary: "Put back what a check that rewrites set right (participant-names, app-shapes, street-places, edit-decisions, woken-waits, readers, proven-originals, origins, verify-originals, name-status, contact-residences): as it was before the fix (the person's own)",
+    summary: "Put back what a check that rewrites set right (participant-names, app-shapes, street-places, edit-decisions, woken-waits, readers, proven-originals, origins, verify-originals, name-status, contact-residences, house-numbers, book-counts, again-waits): as it was before the fix (the person's own)",
     group: "history",
     tree: true,
     person: "Putting a fix back is the person's own decision, at their own terminal: never done by an agent",
@@ -1177,11 +1298,13 @@ register(
       "queue as the images woke it (woken-waits); each source read by the user again (readers); each fact proven again\n" +
       "(proven-originals); each mark of where a value came from taken off (origins); each task of verification nobody started\n" +
       "dropped (verify-originals); each name's status taken off (name-status); each residence of a contact back and the\n" +
-      "e-mails the fix added taken off the contact (contact-residences) — where it is still as the fix left it; one\n" +
+      "e-mails the fix added taken off the contact (contact-residences); each fact's house as it was (house-numbers); each\n" +
+      "book's count of images taken off (book-counts); each task's wait of images as it was (again-waits) —\n" +
+      "where it is still as the fix left it; one\n" +
       "changed since is left as it is and counted. One step of the history (one operation, one commit); the fix is then left as it is\n" +
-      "(strom fixes reopen asks again). Also in an archive (edit-decisions, woken-waits, readers, origins, verify-originals and name-status not).",
+      "(strom fixes reopen asks again). Also in an archive (edit-decisions, woken-waits, readers, origins, verify-originals, name-status and again-waits not).",
     args: [{ name: "check", description: "the check, e.g. participant-names", required: true }],
-    examples: ["strom fixes undo participant-names", "strom fixes undo app-shapes", "strom fixes undo street-places", "strom fixes undo edit-decisions", "strom fixes undo readers", "strom fixes undo proven-originals", "strom fixes undo origins", "strom fixes undo verify-originals", "strom fixes undo name-status", "strom fixes undo contact-residences"],
+    examples: ["strom fixes undo participant-names", "strom fixes undo app-shapes", "strom fixes undo street-places", "strom fixes undo edit-decisions", "strom fixes undo readers", "strom fixes undo proven-originals", "strom fixes undo origins", "strom fixes undo verify-originals", "strom fixes undo name-status", "strom fixes undo contact-residences", "strom fixes undo house-numbers", "strom fixes undo book-counts", "strom fixes undo again-waits"],
     run: (ctx: Context, { args }) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);

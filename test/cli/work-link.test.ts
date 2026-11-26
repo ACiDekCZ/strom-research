@@ -114,7 +114,7 @@ test("the link work, the tasks named: shown in the link's order, those no longer
     assert.match(enter.out, /Úkoly z odkazu, které už nečekají \(hotové, vzaté zpět nebo je má jiný\), vynechány: 1\./u, enter.out);
     assert.match(enter.out, /Každý úkol jedno sezení \(2 sezení\), pak konec/u, enter.out);
     assert.doesNotMatch(enter.out, PERSON);
-    assert.match(enter.out, /Pokračovat\? \(a\/n\) \[n\]/u, "no by default");
+    assert.match(enter.out, /Pokračovat\? \(a\/n, Enter = n\)/u, "no by default");
     assert.equal(sessions(w), 0, "Enter: no");
     const yes = await w.run(["link", "open", link], { tty: true, answers: ["a"] });
     assert.equal(yes.code, 0, yes.out + yes.err);
@@ -124,7 +124,7 @@ test("the link work, the tasks named: shown in the link's order, those no longer
     // none of them open any more: said, nothing started, nothing asked
     const none = await w.run(["link", "open", link], { tty: true, answers: ["a"] });
     assert.match(none.out, /Žádný z úkolů odkazu už nečeká\. Nic se nespustilo\./u, none.out);
-    assert.doesNotMatch(none.out, /\(a\/n\)/u);
+    assert.doesNotMatch(none.out, /\(a\/n,/u);
     assert.equal(sessions(w), 2);
   } finally {
     w.cleanup();
@@ -148,7 +148,7 @@ test("the link work, n tasks: the first tasks in the run's order, n, the time an
     assert.match(enter.out, /minut/u, "the session's time");
     assert.doesNotMatch(enter.out, /\$|odhad/u, "no estimate of a price");
     assert.doesNotMatch(enter.out, PERSON);
-    assert.match(enter.out, /Pokračovat\? \(a\/n\) \[n\]/u, "no by default");
+    assert.match(enter.out, /Pokračovat\? \(a\/n, Enter = n\)/u, "no by default");
     assert.equal(sessions(w), 0, "Enter: no");
     const no = await w.run(["link", "open", link], { tty: true, answers: ["n"] });
     assert.equal(no.code, 0, no.err);
@@ -176,7 +176,7 @@ test("the link work: a run or a session already at work — said, nothing starte
     try {
       const r = await w.run(["link", "open", `strom-research://work?tree=${w.id}&do=tasks&n=3`], { tty: true, answers: ["a", "a"] });
       assert.match(r.out, /Na tomto výzkumu se už pracuje \(běhy: 1, sezení: 0\)\. Nic dalšího se nespustilo\./u, r.out);
-      assert.doesNotMatch(r.out, /\(a\/n\)/u, "nothing asked");
+      assert.doesNotMatch(r.out, /\(a\/n,/u, "nothing asked");
       assert.equal(sessions(w), 0);
     } finally {
       leave();
@@ -193,8 +193,8 @@ test("the link work, loop without a gate: not started — n tasks instead, the g
     // nothing (Enter: 0 is suggested)
     const none = await w.run(["link", "open", link], { tty: true, answers: [""] });
     assert.match(none.out, /Automatická práce běží jen pod podmínkou \(nastavení run\.gate\)/u, none.out);
-    assert.match(none.out, / {3}1 {2}Teď jen určitý počet úkolů\n {3}2 {2}Nastavit podmínku \(jako v nastavení\)\n {3}0 {2}Teď nic\n/u, none.out);
-    assert.doesNotMatch(none.out, /\(a\/n\)/u);
+    assert.match(none.out, / {2}\[1\] {2}Teď jen určitý počet úkolů\n {2}\[2\] {2}Nastavit podmínku \(jako v nastavení\)\n\n {2}\[0\] {2}Teď nic\n/u, none.out);
+    assert.doesNotMatch(none.out, /\(a\/n,/u);
     assert.doesNotMatch(none.out, PERSON);
     assert.equal(sessions(w), 0);
     // n tasks instead: 3 asked, the question default no → nothing; then yes → run --tasks 3

@@ -41,7 +41,7 @@ const link = (w: World, query: string, answers: string[], tty = true) => w.run([
 /** No word addressing the person, in any of the research's languages here. */
 const impersonal = (s: string) => assert.doesNotMatch(s, /(?<![\p{L}\p{M}])(vy|vás|váš|vaše|ty|tvůj|rozhoduji)(?![\p{L}\p{M}])/iu);
 /** The number of a menu item, by its words. */
-const itemOf = (out: string, words: string) => new RegExp(String.raw`^ +(\d) {2}${words}`, "mu").exec(out)?.[1];
+const itemOf = (out: string, words: string) => new RegExp(String.raw`^ +\[(\d+)\] {2}${words}`, "mu").exec(out)?.[1];
 
 test("What waits: the open hypotheses with no proposal where the person decides them, after the proposals; left open — gone; the agent deciding them — none", opts, async () => {
   const w = await world();
@@ -68,8 +68,8 @@ test("What waits: the open hypotheses with no proposal where the person decides 
     assert.match(r.out, /^ H0001 · hypotéza · od /mu, r.out);
     assert.match(r.out, /^ Čí syn je Josef\?$/mu, r.out);
     assert.match(r.out, /^ {4}A\) syn Václava a Marie$/mu, r.out);
-    assert.match(r.out, /^ {3}1 {2}Rozhodnout$/mu, r.out);
-    assert.match(r.out, /^ {3}2 {2}Nechat otevřenou$/mu, r.out);
+    assert.match(r.out, /^ {2}\[1\] {2}Rozhodnout$/mu, r.out);
+    assert.match(r.out, /^ {2}\[2\] {2}Nechat otevřenou$/mu, r.out);
     assert.match(r.out, /Hypotéza zůstává otevřená; Co čeká ji už neukazuje/u, r.out);
     impersonal(r.out);
     const h = hyp(w, "H0001");
@@ -103,7 +103,7 @@ test("one screen: an open hypothesis decided (a variant, why); a decided one's d
     assert.equal(c.code, 0, c.out + c.err);
     assert.match(c.out, /Aplikace Strom žádá: změnit rozhodnutí hypotézy: Kde se Josef narodil\?/u, c.out);
     assert.match(c.out, /^ {4}Rozhodnuto: varianta B – Křest S0001 byl v Lhotě, narozen jinde – v Lhotici$/mu, c.out);
-    assert.match(c.out, /^ {3}1 {2}Změnit rozhodnutí$/mu, c.out);
+    assert.match(c.out, /^ {2}\[1\] {2}Změnit rozhodnutí$/mu, c.out);
     assert.doesNotMatch(c.out, /Rozhodl agent/u, "the person's own decision");
     const h = hyp(w, "H0002");
     assert.deepEqual([h.state, h.chosen, h.decision], ["decided", "A", "Oprava: Lhotice patří k farnosti Lhota"]);
@@ -165,17 +165,17 @@ test("the menu's settings: who decides the hypotheses — the agent only on the 
   try {
     // nothing set: the AI; the person chosen — no second question, this computer's
     const first = await w.ok([], { tty: true, answers: ["8", "1", "0", "0", "0"] });
-    const n = itemOf(first.out, "Kdo rozhoduje hypotézy: Rozhoduje AI");
+    const n = itemOf(first.out, "Kdo rozhoduje hypotézy {2,}Rozhoduje AI");
     assert.ok(n, first.out);
     const toPerson = await w.ok([], { tty: true, answers: ["8", "1", n, "1", "0", "0"] });
-    assert.match(toPerson.out, /^ {3}2 {2}Rozhoduje AI$\n {3}0 {2}[^\n]+\nVybrat \[2\]/mu, toPerson.out);
+    assert.match(toPerson.out, /^ {2}\[2\] {2}Rozhoduje AI$\n\n {2}\[0\] {2}[^\n]+\n\nVolba \(Enter = 2[^)]*\):/mu, toPerson.out);
     assert.equal(await decide(w), "person");
     assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"))["hypotheses.decide"], "person", "this computer's");
     // the AI · the consent: no — nothing changed
     const no = await w.ok([], { tty: true, answers: ["8", "1", n, "2", "n", "0", "0"] });
     assert.match(no.out, /Kdo rozhoduje hypotézy – nejistá spojení lidí\?/u, no.out);
-    assert.match(no.out, /^ {3}1 {2}Rozhoduje člověk$/mu, no.out);
-    assert.match(no.out, /^ {3}2 {2}Rozhoduje AI$/mu, no.out);
+    assert.match(no.out, /^ {2}\[1\] {2}Rozhoduje člověk$/mu, no.out);
+    assert.match(no.out, /^ {2}\[2\] {2}Rozhoduje AI$/mu, no.out);
     assert.equal(await decide(w), "person");
     // yes: this computer's (the research has no value of its own)
     await w.ok([], { tty: true, answers: ["8", "1", n, "2", "a", "0", "0"] });
@@ -183,7 +183,7 @@ test("the menu's settings: who decides the hypotheses — the agent only on the 
     assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"))["hypotheses.decide"], "agent", "this computer's");
     assert.equal(readJsonFile(path.join(w.cwd, "strom.json"))["hypotheses.decide"], undefined);
     const shown = await w.ok([], { tty: true, answers: ["8", "1", "0", "0", "0"] });
-    assert.match(shown.out, /Kdo rozhoduje hypotézy: Rozhoduje AI/u, shown.out);
+    assert.match(shown.out, /\[\d+\] {2}Kdo rozhoduje hypotézy {2,}Rozhoduje AI\n/u, shown.out);
     // back to the person: no second question
     await w.ok([], { tty: true, answers: ["8", "1", n, "1", "0", "0"] });
     assert.equal(await decide(w), "person");
@@ -213,7 +213,7 @@ test("the setup asks who decides the hypotheses only a person at a terminal: no 
     // a person: asked after the stories, nothing chosen yet — the AI recommended and offered (spec 060 K1.6), the
     // default (K1.9): Enter takes it with no second yes
     const keep = await w.ok(["setup"], { tty: true, answers: Array(12).fill("") });
-    assert.match(keep.out, /vyprávění[^]*Kdo rozhoduje hypotézy – nejistá spojení lidí\?[^\n]*\nDoporučeno: rozhoduje AI – [^\n]+\n {3}1 {2}Rozhoduje člověk\n {3}2 {2}Rozhoduje AI \(doporučeno\)\n {3}0 {2}[^\n]+\nVybrat \[2\]/u, keep.out);
+    assert.match(keep.out, /vyprávění[^]*Kdo rozhoduje hypotézy – nejistá spojení lidí\?[^\n]*\nDoporučeno: rozhoduje AI – [^\n]+\n {2}\[1\] {2}Rozhoduje člověk\n {2}\[2\] {2}Rozhoduje AI {2,}doporučeno\n\n {2}\[0\] {2}[^\n]+\n\nVolba \(Enter = 2[^)]*\):/u, keep.out);
     assert.doesNotMatch(keep.out, /Má hypotézy \(nejistá spojení lidí\) rozhodovat agent sám\?/u, "no second yes");
     impersonal(keep.out);
     assert.equal(await decide(w), "agent");
@@ -222,7 +222,7 @@ test("the setup asks who decides the hypotheses only a person at a terminal: no 
     const chosen = await w.ok(["setup"], { tty: true, answers: ["", "", "", "", "", "", "", "1", "", "", "", "", "", ""] });
     assert.equal(config()["hypotheses.decide"], "person", chosen.out);
     const again = await w.ok(["setup"], { tty: true, answers: Array(12).fill("") });
-    assert.match(again.out, /Rozhoduje AI \(doporučeno\)\n {3}0 {2}[^\n]+\nVybrat \[1\]/u, again.out);
+    assert.match(again.out, /Rozhoduje AI {2,}doporučeno\n\n {2}\[0\] {2}[^\n]+\n\nVolba \(Enter = 1[^)]*\):/u, again.out);
     assert.equal(await decide(w), "person");
     // the AI where the person was chosen: the second yes — no: the person stays
     // language, folder, research, agent, model, effort, stories · the AI · no · the rest kept
@@ -245,9 +245,9 @@ test("a person's review offers the hypotheses about them: the list with each one
     await w.ok(["hypothesis", "decide", "H2", "--variant", "A", "--decision", "křest S0001 v Lhotě"]);
     // 4 add to the research · 3 review one person · Josef · not the family · the hypotheses · H1 · Decide · A · why · 0 the list
     const r = await w.ok(["menu"], { tty: true, answers: ["4", "3", "Josef", "n", "1", "1", "1", "1", "Křest S0001 jmenuje Václava a Marii", "0", "n", "", "0", "0"] });
-    assert.match(r.out, /^ {3}1 {2}Hypotézy o osobě \(2\)$/mu, r.out);
-    assert.match(r.out, /^ {3}0 {2}Pokračovat$/mu, r.out);
-    assert.match(r.out, /Hypotézy o osobě\n {3}1 {2}H0001 · otevřená · Čí syn je Josef\?\n {3}2 {2}H0002 · rozhodnutá · Kde se Josef narodil\?/u, r.out);
+    assert.match(r.out, /^ {2}\[1\] {2}Hypotézy o osobě {2,}2$/mu, r.out);
+    assert.match(r.out, /^ {2}\[0\] {2}Pokračovat$/mu, r.out);
+    assert.match(r.out, /Hypotézy o osobě\n {2}\[1\] {2}H0001 · otevřená · Čí syn je Josef\?\n {2}\[2\] {2}H0002 · rozhodnutá · Kde se Josef narodil\?/u, r.out);
     assert.match(r.out, /✓ Hypotéza je rozhodnutá\./u, r.out);
     impersonal(r.out);
     assert.deepEqual([hyp(w, "H0001").state, hyp(w, "H0001").chosen], ["decided", "A"]);

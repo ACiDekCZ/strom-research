@@ -164,16 +164,16 @@ test("What waits: a hypothesis proposed — its question, variants, the proposal
     await w.ok(["hypothesis", "propose", "H2", "--decision", "v Lhotě podle křtu", "--variant", "A"], AGENT);
     // the menu's What waits: its place, the hypothesis, 1 as proposed
     const menu = await w.ok([], { tty: true, answers: ["0"] });
-    const item = /^ +(\d) {2}Co čeká/mu.exec(menu.out)?.[1];
+    const item = /^ +\[(\d+)\] {2}Co čeká/mu.exec(menu.out)?.[1];
     assert.ok(item, menu.out);
     const r = await w.ok([], { tty: true, answers: [item, "1", "1", "1", "0", "0", "0"] });
     assert.match(r.out, /Hypotézy k rozhodnutí/u, r.out);
     assert.match(r.out, /^ H0001 · hypotéza · od /mu, r.out);
     assert.match(r.out, /^ {4}A\) syn Václava a Marie$/mu, r.out);
     assert.match(r.out, /^ {4}Návrh: varianta A – křest S0001 jmenuje rodiče$/mu, r.out);
-    assert.match(r.out, /^ {3}1 {2}Rozhodnout podle návrhu$/mu, r.out);
-    assert.match(r.out, /^ {3}2 {2}Rozhodnout jinak$/mu, r.out);
-    assert.match(r.out, /^ {3}3 {2}Nechat, jak je \(návrh nepřijat\)$/mu, r.out);
+    assert.match(r.out, /^ {2}\[1\] {2}Rozhodnout podle návrhu$/mu, r.out);
+    assert.match(r.out, /^ {2}\[2\] {2}Rozhodnout jinak$/mu, r.out);
+    assert.match(r.out, /^ {2}\[3\] {2}Nechat, jak je \(návrh nepřijat\)$/mu, r.out);
     assert.match(r.out, /✓ Hypotéza je rozhodnutá\./u, r.out);
     assert.doesNotMatch(r.out, /(?<![\p{L}\p{M}])(vy|vás|váš|vaše|ty|tvůj)(?![\p{L}\p{M}])/iu);
     assert.deepEqual([hyp(w, "H0001").state, hyp(w, "H0001").decidedBy], ["decided", "user"]);

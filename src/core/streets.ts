@@ -85,6 +85,25 @@ function markerAt(toks: Tok[], i: number): number {
 
 const isNumber = (t: Tok | undefined) => !!t && NUMBER.test(t.fold);
 
+/**
+ * The markers of a house number in a text ("čp.", "č. p.", "Haus", "Nr."), each where it stands and its words folded
+ * ("c. p."): the longest at each word, none inside another (core/housenumberfix.ts).
+ */
+export function houseMarkers(text: string): { start: number; end: number; fold: string }[] {
+  const toks = tokens(text);
+  const out: { start: number; end: number; fold: string }[] = [];
+  for (let i = 0; i < toks.length; ) {
+    const m = markerAt(toks, i);
+    if (!m) {
+      i++;
+      continue;
+    }
+    out.push({ start: toks[i]!.start, end: toks[i + m - 1]!.end, fold: toks.slice(i, i + m).map((t) => t.fold).join(" ") });
+    i += m;
+  }
+  return out;
+}
+
 /** A house that says it is a house already ("č. p. 12", "Nr. 3", "nr domu 12"): a marker of a house number at its beginning. */
 export function hasHouseMark(text: string): boolean {
   return markerAt(tokens(text.normalize("NFC")), 0) > 0;
@@ -506,4 +525,126 @@ export function checkStreetPlace(tree: Tree, place: string | undefined, house: s
     code: "place.street",
     params: { place: place.trim(), town, house: set },
   });
+}
+
+// ── the Strom app's key of a house (spec 030 K1.1a): ported word for word ─────────────────────────────────────────
+// The app keys a house of its register by its municipality and its number (strom-beta src/places.ts placeKey,
+// houseKey): "<placeKey(town)>|<houseKey(house)>". The research sends that key over the bridge, so both are the app's
+// own, letter by letter; the shared cases (test/fixtures/streets/cases.json "house") hold the two together. Never the
+// research's core/house.ts houseKey (a house compared within a fact), which stays for its own use.
+
+/** The app's placeKey: lower case, accents stripped, punctuation and repeated spaces collapsed ("Děčín  ," → "decin"). */
+export function appPlaceKey(raw: string): string {
+  return raw
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[.,;]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+interface HouseOrder {
+  /** 0 numbers (with a marker word or none), 1 a street with its number, 2 a text without a number. */
+  cls: 0 | 1 | 2;
+  street: string;
+  /** The first number, as written folded ("13" of "13/2", "12a"). */
+  num: string;
+  /** The rest from the first number on, folded ("13 2"). */
+  rest: string;
+  text: string;
+}
+
+function houseOrder(text: string): HouseOrder {
+  const t = text.normalize("NFC").trim();
+  const toks = tokens(t);
+  const i = toks.findIndex(isNumber);
+  if (i < 0) return { cls: 2, street: "", num: "", rest: "", text: foldText(t) };
+  // the words before the first number: a marker ("čp.", "Haus Nr.", "House No.") is no street
+  const street = nameOf(toks.slice(0, i + 1));
+  return { cls: street ? 1 : 0, street, num: toks[i]!.fold, rest: toks.slice(i).map((x) => x.fold).join(" "), text: foldText(t) };
+}
+
+/**
+ * The app's houseKey: the same house however it is written — "16", "čp. 16", "Haus Nr. 16" and "House No. 16" are one
+ * house; "Kopřivná 12" and "kopřivná 12" too.
+ */
+export function appHouseKey(text: string): string {
+  const o = houseOrder(text);
+  if (o.cls === 2) return o.text;
+  return o.street ? `${o.street} ${o.rest}` : o.rest;
+}
+
+/** Is a house text a street ("Lhotákova 23") rather than a number with or without its marker ("16", "čp. 4")? */
+export function houseIsStreet(text: string): boolean {
+  return houseOrder(text).cls !== 0;
+}
+
+const houseCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+/** The app's order of houses: numbers first by value, then streets by street and number, then texts without a number. */
+export function compareHouses(a: string, b: string): number {
+  const x = houseOrder(a);
+  const y = houseOrder(b);
+  return (
+    x.cls - y.cls ||
+    houseCollator.compare(x.street, y.street) ||
+    houseCollator.compare(x.num, y.num) ||
+    houseCollator.compare(x.rest, y.rest) ||
+    houseCollator.compare(x.text, y.text) ||
+    (a < b ? -1 : a > b ? 1 : 0)
+  );
+}
+
+/** The key of a house over the bridge: the app's key of its municipality (the place as the GEDCOM writes it) and of its number. */
+export function houseRowKey(town: string, house: string): string {
+  return `${appPlaceKey(town)}|${appHouseKey(house)}`;
+}
+
+/**
+ * The municipality and the house numbers a title names (strom house import: "Lhota čp. 16 (…) – research", "Lhota
+ * čp. 9 a 16", "lhota_cp16"): the words before the first marker of a house number, and every number after it (a short
+ * word between two numbers — "a", "und", "i" — and a marker again pass); without a marker, the words before the first
+ * number and the numbers. Undefined where it names no municipality or no number.
+ */
+export function houseInTitle(title: string): { town: string; numbers: string[] } | undefined {
+  // what is said in brackets and after a dash is the title's, not the house's
+  let text = title.normalize("NFC").replace(/\([^)]*\)|\[[^\]]*\]/gu, " ").split(/\s[–—-]\s|:\s/u)[0]!.trim();
+  const NUM = /^\p{N}+\p{L}?$/u;
+  const read = (t: string, marked: boolean) => {
+    const parts = [...t.matchAll(/\p{N}+\p{L}?(?:\/\p{N}+\p{L}?)?|[\p{L}\p{M}]+\.?|№/gu)].map((m) => ({ w: m[0], at: m.index }));
+    const toks = tokens(t);
+    let first = -1;
+    let skip = 0;
+    if (marked)
+      for (let i = 0; i < toks.length; i++) {
+        const m = markerAt(toks, i);
+        if (m && isNumber(toks[i + m])) {
+          first = toks[i]!.start;
+          skip = toks[i + m - 1]!.end;
+          break;
+        }
+      }
+    else first = skip = parts.find((p) => /^\p{N}/u.test(p.w))?.at ?? -1;
+    if (first < 0) return undefined;
+    const numbers: string[] = [];
+    for (const p of parts.filter((x) => x.at >= skip)) {
+      if (/^\p{N}/u.test(p.w)) {
+        numbers.push(p.w);
+        continue;
+      }
+      const f = foldText(p.w);
+      if (f.replace(/\.$/u, "").length <= 3 || streetTerms().house.some((m) => m.includes(f))) continue;
+      break;
+    }
+    // a word of a marker before it ("Haus Nr. 3"), one written without its dot in a file's name ("lhota cp 16"): not
+    // of the municipality
+    const bare = new Set(streetTerms().house.flat().map((w) => w.replace(/\.$/u, "")));
+    const words = t.slice(0, first).replace(/[\s,;:.]+$/u, "").trim().split(/\s+/u);
+    while (words.length > 1 && bare.has(foldText(words.at(-1)!).replace(/\.$/u, ""))) words.pop();
+    const town = words.join(" ").replace(/[\s,;:]+$/u, "");
+    return town && numbers.length && !NUM.test(town) ? { town, numbers } : undefined;
+  };
+  text = text.replace(/\s+/gu, " ");
+  return read(text, true) ?? read(text.replace(/[_]+/gu, " ").replace(/(?<=\p{L})(?=\p{N})/gu, " "), false);
 }

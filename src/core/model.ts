@@ -18,6 +18,7 @@ export const RECORD_TYPES = {
   input: { prefix: "I", dir: "inputs" },
   session: { prefix: "N", dir: "sessions" },
   media: { prefix: "M", dir: "images" },
+  house: { prefix: "A", dir: "houses" },
 } as const;
 
 export type RecordType = keyof typeof RECORD_TYPES;
@@ -873,8 +874,12 @@ export interface Task extends BaseRecord {
   /** What it was when the archive put it aside, when it was not open: waiting for the user — waiting again after. */
   heldFrom?: "waiting";
   waitingOn?: string;
-  /** The images it waits for, which the user saves by hand: of this record set, into this folder of the shared inbox. */
-  awaits?: { recordset: string; images: string; folder: string; since?: string };
+  /**
+   * The images it waits for, which the user saves by hand: of this record set, into this folder of the shared inbox.
+   * `again`: those of them saved once more (strom media save --again; as `images`, "23–25") — registered already, what
+   * it waits for is their new copy; each leaves the list as its new copy is taken. Optional: an older strom ignores it.
+   */
+  awaits?: { recordset: string; images: string; folder: string; since?: string; again?: string };
   /**
    * The person's check of a site it waits for (strom task wait --check): the address, and what to check there — a
    * site that keeps automated tools off, the source still necessary. Only the person answers it.
@@ -941,6 +946,16 @@ export interface Task extends BaseRecord {
    * done or set back. Optional: an older strom keeps it and ignores it.
    */
   queueAt?: { do: "next" | "last"; at: string };
+  /**
+   * The other houses (A…) a task of a house works on with its own (spec 030 part 2): neighbouring houses of the same
+   * family in the same municipality, at most two more. Optional: an older strom keeps it and ignores it.
+   */
+  houses?: string[];
+  /**
+   * When the person asked for it (ISO; strom house request, the Strom app's link): such a task is never held while its
+   * kind of work is switched off. Optional: an older strom keeps it and ignores it.
+   */
+  asked?: string;
   /**
    * The person returned it to the agent from What waits (strom task wake --retry: the menu, the Strom app) — images its
    * archive's browser held back, or that the agent's browser reaches now: the last time (at), by whom, given in the app,
@@ -1295,6 +1310,200 @@ export interface Input extends BaseRecord {
   list?: InputList;
   /** Its places in the tree of the Strom app: a record is in the tree while one of them is not retracted. */
   links?: MediaLink[];
+  /** The houses it is material of (A…, spec 030): a research of a house taken in, a photo of it (strom house import). */
+  houses?: string[];
+  /** Who told a memory of a house (spec 030 §2.7), kept only when they agreed to be named. */
+  witness?: string;
+  /** A research of a house the person made themselves, taken in by strom house import (its text kept as it came). */
+  ownResearch?: true;
+  notes: Note[];
+}
+
+// ── a house (spec 030): what the research found of one house of the tree ────────────────────────────────────────
+
+/** How sure a claim of a house is: high, medium, a guess (spec 030 K6.5); a number before a renumbering is probable. */
+export const HOUSE_CERTAINTIES = ["high", "medium", "guess"] as const;
+export type HouseCertainty = (typeof HOUSE_CERTAINTIES)[number];
+export const HOUSE_NUMBER_CERTAINTIES = ["high", "medium", "guess", "probable"] as const;
+/** Who wrote an item of a house: the research, a research of the person's own taken in (import), the person. */
+export const HOUSE_ORIGINS = ["research", "import", "user"] as const;
+export type HouseOrigin = (typeof HOUSE_ORIGINS)[number];
+/** What happened to a house (the timeline's kinds). */
+export const HOUSE_EVENT_KINDS = ["built", "rebuilt", "fire", "flood", "transfer", "renumber", "demolished", "auction", "other"] as const;
+/** How a holder came to the house. */
+export const HOUSE_HOLDER_HOWS = ["purchase", "inheritance", "marriage", "auction", "allotment", "other"] as const;
+/** What a resident was in the house. */
+export const HOUSE_RESIDENT_ROLES = ["farmer", "retired", "lodger", "servant", "tenant", "other"] as const;
+/** How the house was put on the map: by its number today, a cadastral map, an old map, a description. */
+export const HOUSE_LOCATION_HOWS = ["today-number", "cadastre", "old-map", "description", "other"] as const;
+/** The kinds of maps of a house: the cadastre, a military survey, an orthophoto (today's, the 1950s'), other. */
+export const HOUSE_MAP_KINDS = ["cadastre", "military", "ortho", "ortho-1950", "other"] as const;
+
+/** Where a claim of a house comes from: a source of the research (with its page), or an address. */
+export interface HouseSource {
+  source?: string;
+  page?: string;
+  url?: string;
+}
+
+/** What every item of a house has: its own short ID within the house ("e3"), who wrote it. */
+export interface HouseItem {
+  id: string;
+  origin: HouseOrigin;
+  at?: string;
+}
+
+/** A number the house had, and when (spec 030 K1.1a): before a renumbering the person confirmed, at most probable. */
+export interface HouseNumber extends HouseItem {
+  number: string;
+  from?: string;
+  to?: string;
+  certainty: (typeof HOUSE_NUMBER_CERTAINTIES)[number];
+  sources?: HouseSource[];
+  /** A renumbering the research proposes (the same family under two numbers): the person confirms it. */
+  proposed?: true;
+  text?: string;
+  /** The day the person confirmed the renumbering. */
+  confirmed?: string;
+  /** The day the person said it is not the same house: never sent. */
+  notSame?: string;
+}
+
+export interface HouseLocation {
+  lat: number;
+  lon: number;
+  how: (typeof HOUSE_LOCATION_HOWS)[number];
+  certainty: HouseCertainty;
+  sources?: HouseSource[];
+  origin: HouseOrigin;
+  /** The day the person confirmed the point (or put it there). */
+  confirmed?: string;
+}
+
+export interface HouseEvent extends HouseItem {
+  date?: string;
+  kind: (typeof HOUSE_EVENT_KINDS)[number];
+  text: string;
+  certainty: HouseCertainty;
+  sources?: HouseSource[];
+  /** The material it was read from (I…). */
+  material?: string;
+}
+
+export interface HouseHolder extends HouseItem {
+  name: string;
+  /** The person of the tree, where it is one (P…): people off the tree are only named (K2.5). */
+  person?: string;
+  from?: string;
+  to?: string;
+  how: (typeof HOUSE_HOLDER_HOWS)[number];
+  certainty: HouseCertainty;
+  sources?: HouseSource[];
+}
+
+export interface HouseResident extends HouseItem {
+  name: string;
+  person?: string;
+  role: (typeof HOUSE_RESIDENT_ROLES)[number];
+  from?: string;
+  to?: string;
+  certainty?: HouseCertainty;
+  sources?: HouseSource[];
+}
+
+export interface HouseLook {
+  text: string;
+  certainty: HouseCertainty;
+  images?: { url?: string; license?: string; credit?: string; file?: string }[];
+  origin: HouseOrigin;
+}
+
+export interface HouseMap extends HouseItem {
+  kind: (typeof HOUSE_MAP_KINDS)[number];
+  url?: string;
+  /** Only a link to open by hand (a site that refuses automated reading). */
+  manual?: true;
+  sheet?: string;
+  label?: string;
+  /** A map layer strom ships (assets/maplayers.json, its id) the Strom app draws over the house's place. */
+  layer?: string;
+}
+
+/** What was gone through for the house, found or not (K2.6): a later task never goes through it again. */
+export interface HousePassed extends HouseItem {
+  what: string;
+  source?: string;
+  url?: string;
+  found?: boolean;
+}
+
+/** A link to go through by hand (the research of the person's own said so): never taken for gone through. */
+export interface HouseManual extends HouseItem {
+  what: string;
+  url?: string;
+  why?: string;
+}
+
+/** What is not known of the house: an open question, a disputed reading (a question to the person: T…). */
+export interface HouseUnknown extends HouseItem {
+  text: string;
+  question?: string;
+}
+
+/** What is only in an archive's reading room: the archive, the fonds, the call number. */
+export interface HouseArchiveOnly extends HouseItem {
+  archive: string;
+  fond?: string;
+  signature?: string;
+  what?: string;
+  url?: string;
+}
+
+/** Who named the house: the person, a research taken in, the research. */
+export const HOUSE_NAME_BYS = ["user", "import", "research"] as const;
+
+/**
+ * A house of the tree, as the research found it (spec 030, strom house): its municipality (a place record) and its
+ * number as written; its key over the bridge is computed (core/houses.ts), never kept — a place renamed changes it.
+ */
+export interface House extends BaseRecord {
+  type: "house";
+  /** The municipality (L…). */
+  place: string;
+  /** The number as written (NFC): "16", "Dlouhá 12", "13/2"; "" in a municipality's record (town). */
+  house: string;
+  /** Its name after the family (the person's, a research taken in, the research's). */
+  name?: string;
+  nameBy?: (typeof HOUSE_NAME_BYS)[number];
+  numbers: HouseNumber[];
+  location?: HouseLocation;
+  timeline: HouseEvent[];
+  holders: HouseHolder[];
+  residents: HouseResident[];
+  look?: HouseLook;
+  maps: HouseMap[];
+  passed: HousePassed[];
+  manual: HouseManual[];
+  unknown: HouseUnknown[];
+  archiveOnly: HouseArchiveOnly[];
+  /** Items of the timeline that are sensitive (a confiscation, an expulsion of the 20th century): shared outputs hide them. */
+  sensitive?: string[];
+  /** Made by the person (strom house add, an import with --house): listed although nobody of the tree lived there. */
+  byUser?: true;
+  /**
+   * Other records (A…) of the same house, as the person joined them in the Strom app (its `_HOUSE` with `1 _SAME`, read
+   * by strom sync): the person's word, never the research's guess.
+   */
+  same?: string[];
+  /**
+   * A record of a municipality, not of a house (spec 030 part 2): the skeleton its houses are researched in — what was
+   * gone through, what is only by hand or in a reading room, its maps — with no number. Never listed as a house.
+   */
+  town?: true;
+  /** A municipality's short summary: its lordship, estate, parish, cadastral area, where its land registers are. */
+  text?: string;
+  /** The day the municipality's skeleton was done (its task closed done): no task of it is raised again. */
+  done?: string;
   notes: Note[];
 }
 
@@ -1435,7 +1644,7 @@ export interface Session extends BaseRecord {
 
 export type AnyRecord =
   | Person | Family | Research | Source | Repository | RecordSet | Place
-  | Search | Task | Conflict | Hypothesis | Lesson | Input | Session | Media;
+  | Search | Task | Conflict | Hypothesis | Lesson | Input | Session | Media | House;
 
 /** Tree-level configuration stored in <tree>/strom.json. */
 export interface TreeConfig {
@@ -1445,6 +1654,11 @@ export interface TreeConfig {
    * their history and the sources — no agent works on it, its tasks wait put aside. None: a research with an agent.
    */
   mode?: "archive";
+  /**
+   * The sample research (strom demo): a made-up family put in place apart from the person's own trees, to look
+   * through — an agent may work on it, but nothing offers or recommends one (spec 143).
+   */
+  demo?: true;
   /** Random id; names the seal key of this tree. */
   id: string;
   name: string;
@@ -1501,6 +1715,8 @@ export interface TreeConfig {
   historyKinds?: string;
   /** Census records as a source for this tree alone, both ways ("on" | "off"; unset: the user's config, else off — spec 106). */
   census?: string;
+  /** The history of the tree's houses looked for by itself (spec 030 part 2): on, off (default). */
+  houses?: string;
   /** The main person of the tree: first in the GEDCOM files, where the Strom app opens. */
   mainPerson?: string;
   /** The entries cut out of their scans for the Strom app: quality, whose, limit in MB. */
@@ -1521,7 +1737,7 @@ export type ExcerptScope = (typeof EXCERPT_SCOPES)[number];
 /** Default limit of all of them in one file, MB. */
 export const EXCERPTS_MAX_MB = 200;
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const NOTE_MAX = 500;
 

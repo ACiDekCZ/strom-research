@@ -144,7 +144,7 @@ test("helps a line: a hypothesis of the line, joining people to the tree, the ag
   assert.equal((await w.ok(["task", "show", "T5", "--json"])).json.task.helps, "kmotra předka G0001");
   // the menu's directions count what helps them
   const menu = await w.ok([], { tty: true, answers: ["4", "5", "", "0"] });
-  assert.match(menu.out, /Předci Jana – běží · úkoly: 4\n +2 {2}Předci Marie – běží · úkoly: 1/);
+  assert.match(menu.out, /Předci Jana – běží · úkoly: 4\n +\[2\] {2}Předci Marie – běží · úkoly: 1/);
   assert.match((await w.ok(["check"])).out, /^ok/);
   w.cleanup();
 });
@@ -223,9 +223,9 @@ test("off the lines in the overviews: strom plan says it waits at the end, the b
   assert.match((await w.ok(["guide"])).out, /joining them to a side branch does not\. What work on a side branch\s+finds about an ancestor goes to that person of the line/);
   // the menu: settings → the agent working alone → work off the lines: never
   const set = await w.ok([], { tty: true, answers: ["8", "2", "6", "1", "4", "0", "0", "0", "0"] });
-  assert.match(set.out, /Práce mimo linie: občas, jednou za čas/);
+  assert.match(set.out, /Práce mimo linie {2,}občas, jednou za čas/);
   assert.match(set.out, /Mimo linie: práce na vedlejší větvi/);
-  assert.match(set.out, /1 {2}občas, jednou za čas – [^\n]*\n +2 {2}na konci, až po liniích – [^\n]*\n +3 {2}normálně, jako práce linií – [^\n]*\n +4 {2}nikdy – /);
+  assert.match(set.out, /\[1\] {2}Občas, jednou za čas {2,}[^\n]*\n +\[2\] {2}Na konci, až po liniích {2,}[^\n]*\n +\[3\] {2}Normálně, jako práce linií {2,}[^\n]*\n +\[4\] {2}Nikdy {2,}/);
   assert.equal((await w.ok(["config", "get", "queue.offLine", "--json"])).json.value, "never");
   assert.match((await w.ok(["plan"])).out, /Mimo linie, nebere se: 1 \(nastavení queue\.offLine\)/);
   assert.deepEqual((await w.ok(["plan", "--json"])).json.tasks.map((t: { id: string }) => t.id), ["T0001"]);

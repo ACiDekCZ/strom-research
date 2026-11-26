@@ -7,8 +7,11 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.38.0
 
-*Připravuje se: bety do 1.38.0-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.38.0-beta.2. Oddíl bude úplný s vydáním.*
 
+- **Přehlednější menu v terminálu:** každá obrazovka říká, kde je (Strom › Nastavení › Údržba), volby jako
+  `[1]  Popisek   stav`, přepínač s tím, jak je teď a na co přepne, zpět vždy poslední jako `[0]` (i cesta stahovače v Nastavení → Archivy), výzva říká, co udělá Enter, a příkaz k opsání stojí na
+  vlastním řádku; v terminálu, který to umí, jsou klávesy a příkazy zvýrazněné.
 - **Nastavení výzkumu v historii slovy:** nastavení změněné z aplikace nebo z menu se v posledních změnách ukáže
   názvem a hodnotou v jazyce výzkumu („Vypnuto ve výzkumu: Dotaz před tříděním materiálu“), už ne jako klíč
   (`sort.confirm`).
@@ -16,6 +19,22 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   `strom place list <jméno>`; `strom source list --note <text>` vypíše jedním voláním prameny, jejichž poznámka něco
   říká (třeba že adresu dal rejstřík); `strom media view` vysvětluje, jak si prohlédnout obrázek registrovaný jen po
   částech a jeho výřez.
+- **Zápisy člověka v terminálu už neodmítá převzaté sezení agenta:** když sezení agenta převzal jiný běh, zápisy
+  člověka v terminálu a v menu (Údržba → Místo na disku, `strom tidy`, `strom history align`…) prošly až po týdnu;
+  teď projdou hned. Agent, jehož sezení bylo, je odmítnut dál.
+- **Historie domů:** `strom house` vede záznam každého domu, kde rodina žila – jeho čísla v čase, držitele, obyvatele,
+  co se s ním dělo, jeho místo na mapě a co se pro něj prošlo; domy přímých předků výzkum zkoumá jen se zapnutým
+  nastavením „Historie domů“ a jednotlivý dům jde vyžádat vždy, i z aplikace Strom. Nad místem domu smí aplikace
+  ukázat letecké snímky z 50. let (Česko).
+- **`strom demo`:** strom vyzkoušený na ukázkovém výzkumu smyšlené rodiny (cs, en, de, pl), mimo vlastní stromy
+  a nastavení, otevřený v aplikaci Strom; všechno v něm jde prohlédnout, nic nenabízí agenta; `strom demo --remove` ho
+  smaže.
+- **Opravy čtení znovu:** dřívější čtení, které nezachovalo otázku (staršího nástroje), se přečte znovu celé místo
+  odmítnutí, jeho výsledek se zapíše celý dřív, než pramen řekne hotovo, kolo s většinou míst nepřečtených řekne proč
+  a nenabízí nic dalšího k zaplacení, a čtení, které udělala oprava, se znovu nenabízí.
+- **Knihy a snímky:** kniha dostane počet snímků, který udává katalog archivu, kniha stažená celá dostane počet na slovo
+  člověka (`strom fixes`), na snímky ukládané znovu se čeká, dokud nepřijde každá nová kopie, a rada ke snímku po
+  částech jmenuje poloviny, ve kterých je.
 
 ## 1.37.0
 

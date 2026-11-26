@@ -7,8 +7,11 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.38.0
 
-*W przygotowaniu: bety do 1.38.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.38.0-beta.2. Sekcja będzie kompletna z wydaniem.*
 
+- **Bardziej przejrzyste menu w terminalu:** każdy ekran mówi, gdzie jest (Strom › Ustawienia › Konserwacja),
+  opcje jako `[1]  Etykieta   stan`, przełącznik z tym, jak jest teraz i na co przełącza, powrót zawsze na końcu jako `[0]` (także sposób pobierania w Ustawienia → Archiwa), wiersz wyboru mówi, co robi Enter, a
+  polecenie do przepisania stoi w osobnym wierszu; w terminalu, który to potrafi, klawisze i polecenia są wyróżnione.
 - **Ustawienia badania w historii słowami:** ustawienie zmienione w aplikacji lub w menu pokazuje się w ostatnich
   zmianach nazwą i wartością w języku badania („Wyłączono w badaniu: Pytanie przed sortowaniem materiałów”), już nie
   jako klucz (`sort.confirm`).
@@ -16,6 +19,24 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   `strom place list <nazwa>`; `strom source list --note <tekst>` wypisuje jednym wywołaniem źródła, których notatka coś
   mówi (na przykład że adres dał rejestr); `strom media view` wyjaśnia, jak obejrzeć obraz zarejestrowany tylko w
   częściach i jego wycinek.
+- **Zapisy człowieka w terminalu nie są już odrzucane z powodu przejętej sesji agenta:** gdy sesję agenta przejął
+  inny przebieg, zapisy człowieka w terminalu i w menu (Konserwacja → Miejsce na dysku, `strom tidy`,
+  `strom history align`…) przechodziły dopiero po tygodniu; teraz od razu. Agent, do którego sesja należała, jest
+  odrzucany dalej.
+- **Historia domów:** `strom house` prowadzi zapis każdego domu, w którym rodzina mieszkała – jego numery w czasie,
+  właścicieli, mieszkańców, co się z nim działo, jego miejsce na mapie i co dla niego przejrzano; domy przodków
+  w linii prostej badanie bada tylko przy włączonym ustawieniu „Historia domów”, a pojedynczy dom można zamówić zawsze,
+  także z aplikacji Strom. Nad miejscem domu aplikacja może pokazać zdjęcia lotnicze z lat 50. (Czechy).
+- **`strom demo`:** strom wypróbowany na przykładowym badaniu zmyślonej rodziny (cs, en, de, pl), z dala od własnych
+  drzew i ustawień, otwarty w aplikacji Strom; wszystko w nim można przejrzeć, nic nie proponuje agenta;
+  `strom demo --remove` je usuwa.
+- **Poprawione ponowne czytanie:** wcześniejsze czytanie, które nie zachowało pytania (starszego narzędzia), jest
+  czytane ponownie w całości zamiast odrzucenia, jego wynik zapisuje się w całości, zanim źródło powie gotowe, runda
+  z większością miejsc nieodczytanych mówi dlaczego i nie proponuje niczego więcej do zapłacenia, a czytanie wykonane
+  przez poprawkę nie jest proponowane ponownie.
+- **Księgi i skany:** księga otrzymuje liczbę skanów, którą podaje katalog archiwum, księga pobrana w całości swoją
+  liczbę na słowo człowieka (`strom fixes`), na skany zapisywane ponownie czeka się, aż przyjdzie każda nowa kopia,
+  a wskazówka do skanu w częściach wymienia połówki, w których jest.
 
 ## 1.37.0
 

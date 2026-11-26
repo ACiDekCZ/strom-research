@@ -18,6 +18,7 @@ import {
   type Person,
   type Story,
   type Research,
+  type House,
 } from "./model.ts";
 import { normalizeDate } from "./gdate.ts";
 import { isGedcomAge } from "./age.ts";
@@ -357,9 +358,37 @@ export function validateRecord(value: unknown): Problem[] {
     const spec = SCHEMAS[rec.type];
     if (spec) checkFields(value, spec, ALL_PREFIXES, "", out, []);
     if (rec.type === "hypothesis") checkVariantLinks(rec, out);
+    if (rec.type === "house") checkHouse(rec, out);
     checkNotes((value as { notes?: unknown }).notes, "notes", out);
   }
   return out;
+}
+
+/** A house's items: each ID once in the house, the flags of their own kind, what is sensitive one of its timeline. */
+function checkHouse(h: Partial<House>, out: Problem[]): void {
+  const seen = new Set<string>();
+  const lists = ["numbers", "timeline", "holders", "residents", "maps", "passed", "manual", "unknown", "archiveOnly"] as const;
+  for (const key of lists) {
+    const list = h[key];
+    if (!Array.isArray(list)) continue;
+    list.forEach((item, i) => {
+      const id = (item as { id?: unknown })?.id;
+      if (typeof id !== "string") return;
+      if (seen.has(id)) out.push({ path: `${key}[${i}].id`, message: `"${id}" is in the house twice` });
+      seen.add(id);
+      if ("proposed" in (item as object) && (item as { proposed?: unknown }).proposed !== true) out.push({ path: `${key}[${i}].proposed`, message: "must be true or left out" });
+      if ("manual" in (item as object) && (item as { manual?: unknown }).manual !== true) out.push({ path: `${key}[${i}].manual`, message: "must be true or left out" });
+      if ("found" in (item as object) && typeof (item as { found?: unknown }).found !== "boolean") out.push({ path: `${key}[${i}].found`, message: "must be true or false" });
+    });
+  }
+  if (h.byUser !== undefined && h.byUser !== true) out.push({ path: "byUser", message: "must be true or left out" });
+  if (h.town !== undefined && h.town !== true) out.push({ path: "town", message: "must be true or left out" });
+  if (h.town && typeof h.house === "string" && h.house.trim()) out.push({ path: "house", message: "a municipality's record has no number" });
+  if (!h.town && (typeof h.house !== "string" || !h.house.trim())) out.push({ path: "house", message: "is required" });
+  const events = new Set((Array.isArray(h.timeline) ? h.timeline : []).map((e) => e?.id));
+  (Array.isArray(h.sensitive) ? h.sensitive : []).forEach((id, i) => {
+    if (!events.has(id)) out.push({ path: `sensitive[${i}]`, message: `"${String(id)}" is no item of the house's timeline` });
+  });
 }
 
 /**

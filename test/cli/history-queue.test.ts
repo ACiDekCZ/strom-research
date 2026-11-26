@@ -560,7 +560,7 @@ test("history tasks: strom run --history takes them alone, in their order whatev
     assert.match((await w.ok(["plan"])).out, /Úkolů dějin zbývá: 1 \(všechny napřed: strom run --history\)/u);
     // the menu: the way last, how many asked (0 goes back: nothing runs)
     const menu = await w.ok([], { tty: true, env: { STROM_AGENT: "script" }, answers: ["2", "3", "0", "0"] });
-    assert.match(menu.out, / 3 {2}Hledat dějiny teď \(1 úkol dějin\)/u, menu.out);
+    assert.match(menu.out, / \[3\] {2}Hledat dějiny teď \(1 úkol dějin\)/u, menu.out);
     assert.match(menu.out, /Kolik úkolů dějin\? \(0 zpět\)/u);
     assert.ok(!fs.existsSync(path.join(w.cwd, "data", "sessions", "N0001.json")), "nothing ran");
     const r = await w.ok(["run", "--agent", "script", "--history", "--json"]);

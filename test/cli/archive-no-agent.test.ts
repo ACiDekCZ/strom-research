@@ -209,7 +209,7 @@ test("K1.5 + K3.2 the menu waiting for an agent: an archive's — get the agent,
   await w.withTree();
   const r = await w.ok([], { tty: true, answers: ["0"] });
   assert.match(r.out, /Výzkum čeká na AI agenta/);
-  assert.match(r.out, / 1 {2}Nainstalovat nebo vybrat AI agenta\n {3}2 {2}Nechat jen jako Archiv Stromu: ukládat data z aplikace Strom\n {3}3 {2}Co čeká/, r.out);
+  assert.match(r.out, / \[1\] {2}Nainstalovat nebo vybrat AI agenta\n {2}\[2\] {2}Nechat jen jako Archiv Stromu {2,}ukládat data z aplikace Strom\n {2}\[3\] {2}Co čeká/, r.out);
   assert.match(r.out, /Přidat do Archivu Stromu/);
   assert.doesNotMatch(r.out, /pracovat samotného|Tento výzkum pracuje s agentem|Tentokrát mluvit s jiným agentem/, r.out);
   // the settings say what it is (never "works with an agent")
@@ -232,8 +232,8 @@ test("K3.1 switch research on in an archive with no agent: the agent offered fir
   await w.ok(["init", "Archiv", "--mode", "archive"]);
   w.cwd = w.treeDir("Archiv");
   const before = commits(w);
-  // 1 switch research on · 3 later · Enter · 0
-  const r = await w.ok([], { tty: true, answers: ["1", "3", "", "0"] });
+  // 1 switch research on · 0 later · Enter · 0
+  const r = await w.ok([], { tty: true, answers: ["1", "0", "", "0"] });
   assert.match(r.out, /Na tomto počítači zatím není agent, se kterým pracovat/);
   assert.match(r.out, /Archiv Stromu zůstává beze změny: výzkum jde zapnout, až bude na počítači AI agent\./);
   assert.equal(stored(w.cwd), "archive");
@@ -282,7 +282,7 @@ test("K2.1 an archive with an agent here stays one: started again, strom updated
 test("K2.2 + K2.4 the setup with an agent here asks research or only an archive; with none it asks nothing and sets nothing", opts, async () => {
   const w = new World();
   noAgent(w);
-  const question = /Čím má být nový výzkum na tomto počítači\?\n\s+1\s+Výzkum s agentem Claude Code: hledá předky v matrikách a archivech \(doporučeno\)\n\s+2\s+Jen Archiv Stromu – ukládat data z aplikace Strom\n(?:\s+0\s+Nechat, jak je\n)?Vybrat \[(\d)\]/u;
+  const question = /Čím má být nový výzkum na tomto počítači\?\n\s+\[1\]\s+Výzkum s agentem Claude Code {2,}hledá předky v matrikách a archivech \(doporučeno\)\n\s+\[2\]\s+Jen Archiv Stromu {2,}ukládat data z aplikace Strom\n(?:\n\s+\[0\]\s+Nechat, jak je\n)?\nVolba \(Enter = (\d) /u;
   // no agent here: nothing asked, nothing set (the research waits for its agent)
   const none = await w.ok(["setup"], { tty: true, answers: Array(20).fill("") });
   assert.doesNotMatch(none.out, /Čím má být nový výzkum/);
@@ -315,7 +315,7 @@ test("K2.3 the settings: what new researches are — research or only an archive
   // 8 settings · 5 research or archive · 4 new researches: only an archive · Enter · 0 · 0
   const r = await w.ok([], { tty: true, answers: ["8", "5", "4", "", "0", "0"] });
   assert.match(r.out, /Nové výzkumy na tomto počítači: výzkum: hledání v matrikách a archivech\./);
-  assert.match(r.out, / 3 {2}Nové výzkumy: výzkum – hledání v matrikách a archivech\n {3}4 {2}Nové výzkumy: jen Archiv Stromu s daty z aplikace Strom/);
+  assert.match(r.out, / \[3\] {2}Nové výzkumy: výzkum – hledání v matrikách a archivech\n {2}\[4\] {2}Nové výzkumy: jen Archiv Stromu s daty z aplikace Strom/);
   assert.equal(userConfig(w).mode, "archive");
   assert.equal(stored(w.cwd), undefined, "this research as it was");
   await w.ok(["init", "Druhý"]);

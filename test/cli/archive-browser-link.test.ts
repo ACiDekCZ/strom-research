@@ -25,7 +25,7 @@ test("the app's Permission… for a browser-only archive with no downloader: the
     // 0: nothing changes
     const back = await w.run(["link", "open", `strom-research://archive?tree=${id}&host=genbaza.pl`], { tty: true, answers: ["0", ""] });
     assert.doesNotMatch(back.out, /není co rozhodnout/, back.out);
-    assert.match(back.out, /jak získávat snímky\?/);
+    assert.match(back.out, /[Jj]ak získávat snímky\?/);
     assert.equal(store(w).archives?.["genbaza.pl"]?.way, undefined);
     assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "waiting");
     // the app's host as the book's address names it (www. too): through the browser — the person's permission, the task back

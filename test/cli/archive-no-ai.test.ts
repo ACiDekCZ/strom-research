@@ -96,6 +96,11 @@ test("an archive says nothing of an agent or AI anywhere a person or the app loo
     assert.deepEqual([status.queue, status.queueMore, status.spend, status.agent], [[], 0, undefined, undefined]);
     // nothing of the agent working alone (the link work): no gate, no session's time
     assert.equal(status.work, undefined);
+    // the houses (spec 030): there, nothing researched; the takeover of a research of one's own is no feature here
+    assert.deepEqual((status.houses as { counts: unknown }).counts, { done: 0, running: 0, queued: 0, waiting: 0, held: 0 });
+    assert.ok(!(status.features as string[]).includes("house.import"));
+    const houses = await fetch(`${info.url}/houses`, { headers: { Origin: "https://beta.stromapp.info" } }).then((r) => r.text());
+    assert.doesNotMatch(houses, AI, houses);
   } finally {
     await w.ok(["live", "stop"]);
   }

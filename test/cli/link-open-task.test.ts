@@ -29,9 +29,9 @@ test("a link to a task in the queue: shown with its why, then left (Enter, 0), p
   assert.match(left.out, /Úkol T0001 je ve frontě/u);
   assert.match(left.out, /Proč: přepis: Ludmilae; nové čtení: Annae/u);
   assert.match(left.out, /Hotovo, když: rozdíly rozhodnuté/u);
-  assert.match(left.out, / 1  Projít ho s agentem \(Claude Code\) teď, v rozhovoru/u);
-  assert.match(left.out, / 2  Dát ho ve frontě dopředu \(nejvyšší priorita\)/u);
-  assert.match(left.out, / 3  Nechat ho ve frontě, jak je/u);
+  assert.match(left.out, /\[1\]  Projít ho s agentem \(Claude Code\) teď, v rozhovoru/u);
+  assert.match(left.out, /\[2\]  Dát ho ve frontě dopředu \(nejvyšší priorita\)/u);
+  assert.match(left.out, /\[3\]  Nechat ho ve frontě, jak je/u);
   assert.match(left.out, /Úkol zůstává ve frontě, jak byl\. Nic se nestalo\./u);
   assert.doesNotMatch(left.out, /už nečeká/u);
   assert.equal(head(), before, "nothing written");

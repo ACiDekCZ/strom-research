@@ -10,7 +10,8 @@ import path from "node:path";
 import type { Context } from "./context.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { lines } from "./format.ts";
-import { claudeHere, pause, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
+import { claudeHere, LABEL_MAX, pause, shaped, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
+import { crumbLine, saidLines, shortLabel } from "./screen.ts";
 import { Tree, VERSION } from "../core/tree.ts";
 import { replacedOnDisk } from "../core/self.ts";
 import { modelStep, shortcutName } from "./wizard.ts";
@@ -20,7 +21,7 @@ import { SAME_BOOK_MAX } from "../core/queue.ts";
 import { OFF_LINE_CHOICES, type OffLine, type Person, type Research, type Task, type TreeConfig } from "../core/model.ts";
 import { byTree, offLineView, type BranchView } from "../core/offline.ts";
 import { displayName } from "../core/people.ts";
-import { humanTask } from "./human.ts";
+import { humanCost, humanTask } from "./human.ts";
 import { chooseHistory, historyOfferDue, historySuggested, markHistoryAsked } from "../commands/setup.ts";
 import { askGate, capProblem, ensureGatesDir, gateLabel, listGates, loadGate, pointsProblem } from "../core/gate.ts";
 import { ensureHooksDir, hooksDir, listHooks } from "../core/hooks.ts";
@@ -44,6 +45,8 @@ import { ALL_KINDS, allKinds, EVENT_KINDS, NO_KINDS } from "../core/eventkinds.t
 import { kindNames } from "../core/historyalign.ts";
 import { pinPlaces, placeCost } from "./menu-links.ts";
 import { censusHeldCount } from "../core/census.ts";
+import { housesHeldCount } from "../core/houses.ts";
+import { houseAuto, houseEstimate } from "../core/houseauto.ts";
 
 export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
   const t = translator(lang);
@@ -69,7 +72,7 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
       const items: Item[] = [
         {
           key: "1",
-          label: t(archive ? "ui.settings.wizard.archive" : "ui.settings.wizard"),
+          ...shaped(t(archive ? "ui.settings.wizard.archive" : "ui.settings.wizard"), { swap: true }),
           act: async () => {
             // the setup's model step alone, the terminal for the research's windows, or the whole setup (Enter); 0 back
             // with nothing changed (the menu has nine items: these are steps of the setup)
@@ -94,11 +97,13 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
               parts.push({ label: t("ui.settings.runconfirm", { state: t(ctx.settings.runConfirm() === "no" ? "ui.runconfirm.no" : "ui.runconfirm.ask") }), act: () => runConfirmStep(ctx, run, lang) });
               // census records as a source of this research (spec 106): the person's switch, with the census tasks held while off
               if (root) parts.push({ label: censusLabel(ctx, lang, root), act: () => censusStep(ctx, run, lang, root) });
+              // the history of the houses by itself (spec 030 part 2): the person's switch, its tasks held while off
+              if (root) parts.push({ label: housesLabel(ctx, lang, root), act: () => housesStep(ctx, run, lang, root) });
               // the batches from the app sorted by the agent by themselves (spec 130): the person's switch, off by default
               if (root) parts.push({ label: t("ui.settings.intake", { state: t(ctx.settings.intakeAuto(Tree.open(root, ctx.env).config) ? "ui.settings.on" : "ui.settings.off") }), act: () => intakeStep(ctx, run, lang, root) });
             }
             if (parts.length) {
-              const i = await ctx.choose(t("ui.settings.wizard.what"), [{ label: t("ui.settings.wizard.all") }, ...parts.map((p) => ({ label: p.label }))], 0, { back: t("ui.browse.back") });
+              const i = await ctx.choose(t("ui.settings.wizard.what"), [shaped(t("ui.settings.wizard.all")), ...parts.map((p) => shaped(p.label, { as: "value" }))], 0, { back: t("ui.browse.back") });
               if (i === undefined) return;
               if (i > 0) return void (await parts[i - 1]!.act());
             }
@@ -107,21 +112,24 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
             return true;
           },
         },
-        ...(archive ? [] : [{ key: "2", label: t("ui.settings.alone", { minutes, gate: gate ? gateLabel(shared, gate) : t("ui.settings.gate.none") }), act: async () => alone(ctx, run, lang, root) }]),
+        ...(archive ? [] : [{ key: "2", ...shaped(t("ui.settings.alone", { minutes, gate: gate ? gateLabel(shared, gate) : t("ui.settings.gate.none") }), { as: "value" }), act: async () => alone(ctx, run, lang, root) }]),
         {
           key: "3",
-          label: t("ui.settings.hooks", { state: on.length ? on.join(", ") : t(anyHook ? "ui.settings.off" : "ui.hooks.nothing") }),
+          ...shaped(t("ui.settings.hooks", { state: on.length ? on.join(", ") : t(anyHook ? "ui.settings.off" : "ui.hooks.nothing") }), { as: "value" }),
           act: async () => (shared ? hooks(ctx, run, lang, shared) : undefined),
         },
-        ...(archive ? [] : [{ key: "4", label: t("ui.settings.archives"), act: async () => archives(ctx, run, lang, shared, root) }]),
+        ...(archive ? [] : [{ key: "4", ...shaped(t("ui.settings.archives")), act: async () => archives(ctx, run, lang, shared, root) }]),
       ];
       // the research of the tree worked on: with an agent (or waiting for one), or only an archive of the data from the
       // Strom app — and what a new research on this computer is (no tree yet: that one alone)
       items.push({
         key: "5",
-        label: root
-          ? t("ui.settings.mode", { state: t(modeState(ctx, root)) })
-          : t("ui.settings.newmode", { state: t(ctx.settings.config.mode === "archive" ? "ui.mode.archive" : "ui.mode.research") }),
+        ...shaped(
+          root
+            ? t("ui.settings.mode", { state: t(modeState(ctx, root)) })
+            : t("ui.settings.newmode", { state: t(ctx.settings.config.mode === "archive" ? "ui.mode.archive" : "ui.mode.research") }),
+          { as: "value" },
+        ),
         act: async () => chooseMode(ctx, run, lang, root),
       });
       // the size of the scan views tuned for this agent and model on the research's own records (paid: the person's yes
@@ -131,9 +139,12 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
         const other = calibrationOffer(ctx.settings, agent, tree, root);
         items.push({
           key: "6",
-          label: t("ui.settings.views", {
-            state: views.calibrated ? t("ui.settings.views.done", { date: views.calibrated.at }) : t(other ? "ui.settings.views.other" : "ui.settings.views.default"),
-          }),
+          ...shaped(
+            t("ui.settings.views", {
+              state: views.calibrated ? t("ui.settings.views.done", { date: views.calibrated.at }) : t(other ? "ui.settings.views.other" : "ui.settings.views.default"),
+            }),
+            { as: "value" },
+          ),
           act: async () => {
             await run(["media", "calibrate"]);
             await pause(ctx, lang);
@@ -146,7 +157,7 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
         const remote = ctx.settings.agentRemote();
         items.push({
           key: "7",
-          label: t("ui.settings.remote", { state: t(remote ? "ui.settings.remote.both" : own ? "ui.settings.remote.chats" : "ui.settings.off") }),
+          ...shaped(t("ui.settings.remote", { state: t(remote ? "ui.settings.remote.both" : own ? "ui.settings.remote.chats" : "ui.settings.off") }), { as: "value", to: t(remote ? "ui.switch.off" : "ui.switch.on") }),
           act: async () => {
             ctx.io.stdout(t(own ? "ui.settings.remote.own" : "ui.settings.remote.about") + "\n");
             // on: the command asks the person's yes itself (Enter says no) — asked once
@@ -159,17 +170,18 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
       const disk = root ? tidyPlan(Tree.open(root, ctx.env)) : undefined;
       items.push({
         key: "8",
-        label: newer
-          ? t("ui.settings.maintenance.update", { version: newer })
+        ...shaped(t("ui.settings.maintenance")),
+        ...(newer
+          ? { value: t("ui.settings.maintenance.new", { version: newer }) }
           : disk && disk.frees >= TIDY_SAID
-            ? t("ui.settings.maintenance.tidy", { size: mb(disk.frees, lang) })
-            : t("ui.settings.maintenance"),
+            ? { value: t("ui.settings.maintenance.free", { size: mb(disk.frees, lang) }) }
+            : {}),
         act: async () => maintenance(ctx, run, lang, root, newer),
       });
       // a person's help in their language (strom help --human)
       items.push({
         key: "9",
-        label: t("ui.settings.help"),
+        ...shaped(t("ui.settings.help")),
         act: async () => {
           await run(["help", "--human"]);
           await pause(ctx, lang);
@@ -236,6 +248,43 @@ async function censusStep(ctx: Context, run: Run, lang: string, root: string): P
   const tree = Tree.open(root, ctx.env);
   const held = censusHeldCount(tree.list<Task>("task"), ctx.settings.census(tree.config));
   if (held) ctx.io.stdout(t("ui.settings.census.back", { n: held }) + "\n");
+}
+
+/** The history of the houses in this research: on, off, or off with the tasks of the houses held (spec 030 part 2). */
+function housesLabel(ctx: Context, lang: string, root: string): string {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const on = ctx.settings.houses(tree.config);
+  const held = housesHeldCount(tree, on);
+  return t("ui.settings.houses", { state: on ? t("ui.settings.on") : held ? t("ui.settings.houses.held", { n: held }) : t("ui.settings.off") });
+}
+
+/**
+ * The history of the houses by itself (spec 030 part 2): what it is said first, and before it is switched on how many
+ * houses in how many municipalities it would take and what it would take (the price only once measured), then the
+ * person's yes (Enter: nothing changed). Off: its tasks held, back once on again — said with their number. Written for
+ * this research (--for-tree): the tree's own value wins both ways.
+ */
+async function housesStep(ctx: Context, run: Run, lang: string, root: string): Promise<void> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const on = ctx.settings.houses(tree.config);
+  ctx.io.stdout(t("ui.settings.houses.about") + "\n");
+  if (!on) {
+    const auto = houseAuto(tree);
+    const est = houseEstimate(tree, auto);
+    const said =
+      est.houses || est.towns
+        ? lines(t("ui.settings.houses.count", { houses: est.houses, towns: est.towns, minutes: est.minutes }), est.usd !== undefined ? t("ui.settings.houses.usd", { usd: humanCost(est.usd, lang) }) : undefined)
+        : t("ui.settings.houses.none");
+    ctx.io.stdout(said + "\n");
+  }
+  if (!(await ctx.confirm(t(on ? "ui.settings.houses.off" : "ui.settings.houses.on"), false))) return;
+  if ((await run(["config", "set", "houses", on ? "off" : "on", "--for-tree"], true)) !== 0 || !on) return;
+  ctx.settings.reload();
+  const after = Tree.open(root, ctx.env);
+  const held = housesHeldCount(after, ctx.settings.houses(after.config));
+  if (held) ctx.io.stdout(t("ui.settings.houses.back", { n: held }) + "\n");
 }
 
 /**
@@ -318,7 +367,7 @@ async function maintenance(ctx: Context, run: Run, lang: string, root: string | 
         const plan = tidyPlan(Tree.open(root, ctx.env));
         items.push({
           key: "2",
-          label: plan.frees >= TIDY_SAID ? t("ui.menu.settings.tidy", { size: mb(plan.frees, lang) }) : t("ui.maintenance.tidy", { size: mb(plan.size.strom, lang) }),
+          ...shaped(plan.frees >= TIDY_SAID ? t("ui.menu.settings.tidy", { size: mb(plan.frees, lang) }) : t("ui.maintenance.tidy", { size: mb(plan.size.strom, lang) }), { as: "value" }),
           act: async () => {
             await run(["tidy"]);
             await pause(ctx, lang);
@@ -334,9 +383,10 @@ async function maintenance(ctx: Context, run: Run, lang: string, root: string | 
         const waits = (pendingFixes(tree, fixEnv(ctx, tree)) ?? []).filter((s) => !archive || quietCheck(s.check)).reduce((n, s) => n + pendingCount(s), 0);
         items.push({
           key: "3",
-          label: t("ui.maintenance.fixes", { state: waits ? t("ui.maintenance.fixes.waits", { n: waits }) : "" }),
+          ...shaped(t("ui.maintenance.fixes", { state: waits ? t("ui.maintenance.fixes.waits", { n: waits }) : "" }), { as: "value" }),
           act: async () => {
-            // (an archive: its checks are those that rewrite alone)
+            // (an archive: its checks are those that rewrite alone) — the way here above it: the command runs on its own
+            ctx.io.stdout(`\n${crumbLine(ctx.crumbs, ctx.style)}\n\n`);
             await run(waits ? ["fixes", "run"] : ["fixes"]);
             await pause(ctx, lang);
           },
@@ -357,7 +407,7 @@ async function maintenance(ctx: Context, run: Run, lang: string, root: string | 
       // what to back up: the one folder with every research and the shared images, its size, or a research packed (strom backup)
       items.push({
         key: "5",
-        label: t("ui.maintenance.backup"),
+        ...shaped(t("ui.maintenance.backup")),
         act: async () => {
           await run(["backup"]);
           await pause(ctx, lang);
@@ -366,7 +416,7 @@ async function maintenance(ctx: Context, run: Run, lang: string, root: string | 
       // a problem to report: one ZIP to send, nothing of the family tree's people (strom error asks where and what)
       items.push({
         key: "6",
-        label: t("ui.maintenance.report"),
+        ...shaped(t("ui.maintenance.report")),
         act: async () => {
           await run(["error"]);
           await pause(ctx, lang);
@@ -591,7 +641,7 @@ async function booksSettings(ctx: Context, run: Run, lang: string, root: string)
           },
           {
             key: "2",
-            label: t("ui.books.same", { state: t(same ? "ui.settings.on" : "ui.settings.off") }),
+            ...shaped(t("ui.books.same", { state: t(same ? "ui.settings.on" : "ui.settings.off") }), { as: "value", to: t(same ? "ui.switch.off" : "ui.switch.on") }),
             act: async () => {
               out(t("ui.books.same.about", { max: SAME_BOOK_MAX }));
               if (!(await ctx.confirm(t(same ? "ui.books.same.off" : "ui.alone.places.on"), false))) return;
@@ -638,7 +688,7 @@ async function offLineMenu(ctx: Context, run: Run, lang: string, root: string | 
             const share = ctx.settings.offLineShare(tree);
             const i = await ctx.choose(
               t("ui.alone.offline.pick"),
-              OFF_LINE_CHOICES.map((c) => ({ label: `${t(`ui.alone.offline.${c}` as UIKey)} – ${t(`ui.offline.says.${c}` as UIKey, { share })}${n === undefined ? "" : ` · ${t("ui.offline.tasks", { n })}`}` })),
+              OFF_LINE_CHOICES.map((c) => ({ label: capital(t(`ui.alone.offline.${c}` as UIKey)), extra: `${t(`ui.offline.says.${c}` as UIKey, { share })}${n === undefined ? "" : ` · ${t("ui.offline.tasks", { n })}`}` })),
               OFF_LINE_CHOICES.indexOf(mode),
               { back: t("ui.browse.back") },
             );
@@ -858,7 +908,9 @@ async function hooks(ctx: Context, run: Run, lang: string, shared: string): Prom
 /** Archives: the person's logins to portals (typed here, kept on this computer), and whether downloaders ask first. */
 async function archives(ctx: Context, run: Run, lang: string, shared: string | undefined, root: string | undefined): Promise<void> {
   const t = translator(lang);
-  const out = (line: string) => ctx.io.stdout(line + "\n");
+  // what an item says before its question: wrapped under its text on a person's terminal, a line apart from the question
+  const out = (said: string) => ctx.io.stdout(said.split("\n").flatMap((l) => saidLines(l, ctx.style)).join("\n") + "\n");
+  const about = (said: string) => out(`${said}\n`);
   await subMenu(ctx, lang, () => {
     ctx.settings.reload();
     const saved = loadLogins(ctx.env);
@@ -890,16 +942,16 @@ async function archives(ctx: Context, run: Run, lang: string, shared: string | u
           : t("ui.browser.noext", { names, url: CLAUDE_IN_CHROME_URL });
     const withLogin = connectors.filter((c) => c.manifest.login);
     const title = connectors.length
-      ? [t("ui.archives.title"), ...lines, "", ...(browserLine ? [browserLine] : []), t(withLogin.length ? "ui.archives.login.how" : "ui.archives.login.nobody")].join("\n")
-      : t("ui.archives.empty");
+      ? [t("ui.archives.title"), ...lines, "", ...(browserLine ? [browserLine] : []), t(withLogin.length ? "ui.archives.login.how" : "ui.archives.login.nobody"), ""].join("\n")
+      : `${t("ui.archives.empty")}\n`;
     // A downloader that can take either way: switched here (the agents' permissions follow).
     const switchable = connectors.filter((c) => via(c) !== "manual" && routesOf(c).includes("browser") && routesOf(c).includes("direct"));
     const items: Item[] = [
       {
         key: "1",
-        label: t("ui.archives.consent", { state: t(consent ? "ui.settings.on" : "ui.settings.off") }),
+        ...shaped(t("ui.archives.consent", { state: t(consent ? "ui.settings.on" : "ui.settings.off") }), { as: "value", to: t(consent ? "ui.switch.off" : "ui.switch.on") }),
         act: async () => {
-          out(t("ui.archives.consent.about"));
+          about(t("ui.archives.consent.about"));
           // off: the command asks the person's yes itself (Enter says no) — asked once
           if (consent) await run(["config", "set", "connectors.consent", "off"], true);
           else if (await ctx.confirm(t("ui.archives.consent.on"), false)) await run(["config", "set", "connectors.consent", "on"], true);
@@ -910,9 +962,12 @@ async function archives(ctx: Context, run: Run, lang: string, shared: string | u
         ? [
             {
               key: "b",
-              label: t("ui.archives.agentbrowser", { state: t(always ? "ui.archives.agentbrowser.always" : "ui.archives.agentbrowser.archives") }),
+              ...shaped(t("ui.archives.agentbrowser", { state: t(always ? "ui.archives.agentbrowser.always" : "ui.archives.agentbrowser.archives") }), {
+                as: "value",
+                to: t(always ? "ui.archives.agentbrowser.archives" : "ui.archives.agentbrowser.always"),
+              }),
               act: async () => {
-                out(t("ui.archives.agentbrowser.about"));
+                about(t("ui.archives.agentbrowser.about"));
                 if (await ctx.confirm(t(always ? "ui.archives.agentbrowser.off" : "ui.archives.agentbrowser.on"), false))
                   await run(always ? ["config", "unset", "agent.browser"] : ["config", "set", "agent.browser", "always"], true);
               },
@@ -922,12 +977,16 @@ async function archives(ctx: Context, run: Run, lang: string, shared: string | u
       ...switchable.map((c) => {
         const next = via(c) === "browser" ? "direct" : "browser";
         const name = c.manifest.title ?? c.name;
+        // the way it takes now first, then where the item switches it — never an action read as the state
         return {
           key: "s",
-          label: t(next === "browser" ? "ui.archives.to.browser" : "ui.archives.to.direct", { title: name }),
+          // the archive's name (its first 40 characters), the way now in the column of values, where it switches faintly
+          label: shortLabel(name, LABEL_MAX),
+          value: t(next === "browser" ? "ui.archives.way.direct" : "ui.archives.way.browser"),
+          extra: `→ ${t(next === "browser" ? "ui.archives.way.to.browser" : "ui.archives.way.to.direct")}`,
           act: async () => {
-            out(t(next === "browser" ? "ui.archives.browser.about" : "ui.archives.direct.about"));
-            if (!(await ctx.confirm(t("ui.archives.switch"), true))) return;
+            about(t(next === "browser" ? "ui.archives.browser.about" : "ui.archives.direct.about"));
+            if (!(await ctx.confirm(t(next === "browser" ? "ui.archives.switch.browser" : "ui.archives.switch.direct"), false))) return;
             if ((await run(["connector", "use", c.name, "--via", next], true)) === 0) out(t(`ui.archives.now.${next}` as UIKey, { title: name }));
           },
         };
@@ -946,11 +1005,16 @@ async function archives(ctx: Context, run: Run, lang: string, shared: string | u
       ? [
           {
             key: "k",
-            label: t("ui.archives.books", { n: ctx.settings.booksMinTasks(treeConfig), state: t(ctx.settings.sameBook(treeConfig) ? "ui.settings.on" : "ui.settings.off") }),
+            ...shaped(t("ui.archives.books", { n: ctx.settings.booksMinTasks(treeConfig), state: t(ctx.settings.sameBook(treeConfig) ? "ui.settings.on" : "ui.settings.off") })),
             act: async () => void (await booksSettings(ctx, run, lang, root)),
           },
         ]
       : [];
     return { title, items: [...items.slice(0, 9 - books.length), ...books] };
   });
+}
+
+/** A state said as an option's label: its first letter a capital ("never" → "Never"). */
+function capital(s: string): string {
+  return s.charAt(0).toLocaleUpperCase() + s.slice(1);
 }

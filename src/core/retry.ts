@@ -18,7 +18,7 @@ import { bookBrowserArchive, browserState, type BrowserState } from "./browserhe
 import { browserConnectors } from "./connector.ts";
 import { knownScreenOnly, type KnownTerms } from "./knownterms.ts";
 import { knownTerms } from "./terms.ts";
-import { inboxState, registeredImages } from "./inboxwait.ts";
+import { awaitedMissing, inboxState } from "./inboxwait.ts";
 import { parseImageList } from "./media.ts";
 import { phrase } from "./phrases.ts";
 import { PROFILES } from "../agents/profiles.ts";
@@ -108,8 +108,7 @@ function missingImages(tree: Tree, c: RetryCache, t: Task): number | undefined {
   if (inbox && inbox.want > 0) return inbox.missing.length;
   const asked = parseImageList(t.awaits.images);
   if (!asked?.length) return undefined;
-  const have = registeredImages(tree, t.awaits.recordset);
-  return asked.filter((n) => !have.has(n)).length;
+  return awaitedMissing(tree, t, asked).length;
 }
 
 /**

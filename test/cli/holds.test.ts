@@ -8,6 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn, type ChildProcess } from "node:child_process";
+import { fixedClock } from "../fixed-clock.ts";
 import { World, hasGit, readJsonFile, until } from "../helpers.ts";
 
 const CLI = path.join(import.meta.dirname, "..", "..", "src", "cli.ts");
@@ -299,6 +300,53 @@ test("an agent working directly whose session was taken over: its task done refu
     await w.ok(["session", "note", "znovu: obrazy 6–9"], { env: A });
     assert.deepEqual(session(w, again.id).notes.map((n: { text: string }) => n.text), ["znovu: obrazy 6–9"]);
   } finally {
+    w.cleanup();
+  }
+});
+
+test("K054: the one pointer of an agent working directly before 1.36.0 (.strom/session.json), its session taken over — a person's writes in a terminal pass, the agent's own stay refused (session.taken)", { skip: !hasGit, timeout: 120_000 }, async () => {
+  // the refusal says the time of the takeover: a fixed clock (strom's processes too), never across midnight
+  const clock = fixedClock();
+  const w = new World();
+  Object.assign(w.env, clock.env);
+  try {
+    const [first] = (await fourTasks(w)) as [string];
+    // an agent whose CLI says no conversation: its pointer is anyone else's, as every agent working directly had in 1.35.0
+    const OLD = { CLAUDECODE: "1" };
+    const a = (await w.ok(["session", "start", first, "--json"], { env: OLD })).json.session.id;
+    // the pointer exactly as 1.35.0 wrote it
+    const pointer = path.join(w.cwd, ".strom", "session.json");
+    fs.writeFileSync(pointer, JSON.stringify({ id: a, at: "2026-11-21T21:29:04.512Z" }) + "\n");
+    age(w.cwd, a, LAPSED);
+    const b = (await w.ok(["session", "start", "--json"], { env: B })).json.session.id;
+    assert.equal(session(w, a).state, "interrupted");
+    assert.ok(fs.existsSync(path.join(w.cwd, ".strom", "taken", `${a}.json`)), "the record of the takeover");
+    assert.equal(readJsonFile(pointer).id, a, "the old pointer stays where it was");
+
+    // a person in a terminal or the menu: no agent, no worker, no session of strom run's
+    for (const write of [["tidy"], ["note", "add", "P1", "Lhoták z Lhoty, poznámka z terminálu"]]) {
+      const r = await w.run(write);
+      assert.equal(r.code, 0, `${write.join(" ")}: ${r.out}${r.err}`);
+      assert.doesNotMatch(r.out + r.err, /session\.taken|převzal|strom task next/u);
+    }
+    // the agent that held it (the same env), and one given the session by strom run: refused as before
+    for (const env of [OLD, { STROM_SESSION: a }]) {
+      const r = await w.run(["note", "add", "P1", "Lhoták"], { env });
+      assert.equal(r.code, 3, `${JSON.stringify(env)}: ${r.out}${r.err}`);
+      assert.match(r.err, new RegExp(`task ${first} was taken over by session ${b} at \\d{1,2}:\\d{2} after 3[01] min without a sign of life; your session ${a} is closed`, "u"));
+    }
+    // an agent with none of its marks (Codex's sandbox on Windows), found among strom's parent processes: refused too —
+    // in the words a person reads, with no advice of the agent's (strom task next)
+    const bare = await w.run(["note", "add", "P1", "Lhoták"], { env: { STROM_TEST_ANCESTRY: "zsh,codex" } });
+    assert.equal(bare.code, 3, bare.out + bare.err);
+    assert.match(bare.err, new RegExp(`${first} převzalo sezení ${b} v \\d{1,2}:\\d{2} po 3[01] minutách bez známky života; zápis patřil přerušenému sezení agenta ${a}, co v něm bylo zapsáno, zůstává\\n→ zápis jde zopakovat v terminálu mimo agenta`, "u"));
+    assert.doesNotMatch(bare.err, /strom task next/u);
+    // one whose process table cannot be read at all (Codex's sandbox on macOS and Windows): an agent too, refused
+    const sandboxed = await w.run(["note", "add", "P1", "Lhoták"], { env: { STROM_TEST_ANCESTRY: "!" } });
+    assert.equal(sandboxed.code, 3, sandboxed.out + sandboxed.err);
+    assert.match(sandboxed.err, new RegExp(`zápis patřil přerušenému sezení agenta ${a}`, "u"));
+  } finally {
+    clock.stop();
     w.cleanup();
   }
 });

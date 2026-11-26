@@ -9,6 +9,7 @@ import path from "node:path";
 import { register, type Typed } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { counted, lines, moreLine, paginate, runs, runsArg, shellArg, table, truncate } from "../cli/format.ts";
+import { textBeyondWait } from "../core/againwaitfix.ts";
 import { notFound, UsageError } from "../core/errors.ts";
 import type { Clip, Input, Media, RecordSet, Region, Repository, Source, Task } from "../core/model.ts";
 import { makeNote, makeNotes } from "../core/actions.ts";
@@ -33,10 +34,11 @@ import { workingCopyOf } from "../core/material.ts";
 import { makeThumb, THUMB_SIZES } from "../core/thumbs.ts";
 import { batchPath } from "../core/batches.ts";
 import { fileBy, handFiles, taskForFile, taskPeople } from "../core/taskfiles.ts";
-import { askedNow, bookFolders, bookTimes, folderFiles, handedImages, inboxState, inboxWaitOf, inboxWaits, numberBookFiles, numberFiles, numbersForTask, registeredImages, type Numbered, SETTLE_MS, unsettled, webWaitBook, DOWNLOADING, folderBusy, STALLED_MS, asideFiles, type AsideFile, type InboxWait } from "../core/inboxwait.ts";
+import { againPending, awaitedMissing, askedNow, bookFolders, bookTimes, folderFiles, handedImages, inboxState, inboxWaitOf, inboxWaits, numberBookFiles, numberFiles, numbersForTask, registeredImages, type Numbered, SETTLE_MS, unsettled, webWaitBook, DOWNLOADING, folderBusy, STALLED_MS, asideFiles, type AsideFile, type InboxWait } from "../core/inboxwait.ts";
 import { formatOf } from "../image/index.ts";
 import { pdfScans } from "../image/pdf.ts";
 import { readableFile } from "../core/readable.ts";
+import { countUnknownAfterSave, liveBook } from "../core/books.ts";
 import { HELD_AFTER_MS, PLAN_TTL_MS, STOPS_FILE, TAKEN_KEEP_MS, findDownload, loadPlans, loadSaves, loadStops, noteSave, noteStop, parseRangeResult, rangeScript, saveScript, savePagesScript, SAVE_PAGES_MAX, storeSaves, storeStops, waitFileBase, type RangeItem, type RangeStop, type SaveRecord } from "../core/browser.ts";
 import { bookOn, browserGate, hostBlocked, netDirOf, otherWay, type WebGate } from "../core/webgate.ts";
 import { allows, browserRangeOf } from "../core/terms.ts";
@@ -190,7 +192,7 @@ export function wakeWaiting(tree: Tree, recordset: string, count: number, o: { e
     for (const t of tree.list<Task>("task").filter((t) => t.state === "waiting" && t.id !== o.except && wakes(t, recordset))) {
       const want = t.awaits ? (parseImageList(t.awaits.images) ?? []) : [];
       // a part of the images asked for: it waits on for the rest (one saved once more: for its new copy)
-      if (want.some((n) => !have.has(n) || pending.has(`${t.id}:${n}`))) continue;
+      if (awaitedMissing(tree, t, want, { have, pending }).length) continue;
       // what it asked for, for the session that takes it up
       const note = `${counted(count, "image")} of ${recordset} registered${t.awaits ? ` (it waited for images ${t.awaits.images})` : ""}`;
       // the person's own images of a task that waited for them: ahead in the queue, once (a letter, the family: never)
@@ -206,14 +208,6 @@ export function wakeWaiting(tree: Tree, recordset: string, count: number, o: { e
     }
   }
   return woken;
-}
-
-/**
- * The images saved once more (strom media save --again) whose new copy was not taken yet, as "T0007:40": registered,
- * yet what their task waits for.
- */
-function againPending(tree: Tree): Set<string> {
-  return new Set(loadSaves(tree.root).filter((r) => r.again && r.taken === undefined).map((r) => `${r.task}:${r.n}`));
 }
 
 /** What strom took of a folder of the shared inbox a task waits on. */
@@ -310,13 +304,15 @@ function takeWaitingNow(tree: Tree, shared: string, o: { now?: number; folder?: 
     const asked = ws.some((x) => x.want?.length) ? [...new Set(ws.flatMap((x) => x.want ?? []))].sort((a, b) => a - b) : undefined;
     const before = registeredImages(tree, w.recordset);
     const numbered = numberFiles(files, asked, before, w.recordset, bookTimes(tree, w.recordset), { quiet: settled(tree, dir, files, ws, o.now) });
+    // of what they asked for, what is missing: not registered, or saved once more and its new copy not here (awaitedMissing)
+    const lacking = () => (asked ?? []).filter((n) => !before.has(n) || ws.some((x) => awaitedMissing(tree, x.task, [n], { have: before }).length));
     if ("problem" in numbered) {
-      out.push({ ...base, added: [], woken: [], missing: (asked ?? []).filter((n) => !before.has(n)), problem: numbered.problem });
+      out.push({ ...base, added: [], woken: [], missing: lacking(), problem: numbered.problem });
       continue;
     }
     // named not by the images' numbers (entries, as many otherwise): in the folder's order once it settled (K1.3)
     if ("later" in numbered) {
-      out.push({ ...base, added: [], woken: [], missing: (asked ?? []).filter((n) => !before.has(n)), later: settlesAt(tree, dir, files, ws) ?? 0 });
+      out.push({ ...base, added: [], woken: [], missing: lacking(), later: settlesAt(tree, dir, files, ws) ?? 0 });
       continue;
     }
     // what lies there unnumbered (000.jpg) stays, never holding back the rest (K1.1)
@@ -334,7 +330,7 @@ function takeWaitingNow(tree: Tree, shared: string, o: { now?: number; folder?: 
       added: r.added.map((m) => m.image).filter((n): n is number => n !== undefined),
       ...(numbered.by === "order" ? { byOrder: true } : {}),
       woken: r.woken,
-      missing: (asked ?? []).filter((n) => !after.has(n) || ws.some((x) => pending.has(`${x.task}:${n}`))),
+      missing: (asked ?? []).filter((n) => !after.has(n) || ws.some((x) => awaitedMissing(tree, x.task, [n], { have: after, pending }).length)),
       ...(r.copies.length ? { copies: r.copies } : {}),
       ...(r.aside.length ? { aside: r.aside.map((a) => asideLine(w, a, tree)) } : {}),
       ...(r.replaced.length ? { replaced: r.replaced } : {}),
@@ -656,7 +652,21 @@ export function asideLine(t: { recordset: string }, a: SetAside, tree?: Tree): s
   return `the file for image ${a.image} of ${t.recordset} is the same scan as ${a.same} (${as}), registered already — not taken, set aside as ${a.file}: one of the two numbers is wrong (the image of ${a.same} renumbered, or the file named by its own number)`;
 }
 
-/** The saves once more (strom media save --again) of these images of a book: taken now. How many. */
+/**
+ * A task's awaits.again once it waits for `want` of `recordset`: what it had (of that book, among `want`) with `more`
+ * saved once more now — "23–25" as `images` writes them; none: undefined.
+ */
+function againOf(t: Task, recordset: string, want: readonly number[], more: readonly number[]): string | undefined {
+  const had = t.awaits?.recordset === recordset && t.awaits.again ? (parseImageList(t.awaits.again) ?? []) : [];
+  const all = [...new Set([...had, ...more])].filter((n) => want.includes(n)).sort((x, y) => x - y);
+  return all.length ? runs(all) : undefined;
+}
+
+/**
+ * The saves once more (strom media save --again) of these images of a book: taken now — and out of the waits of the
+ * tasks waiting for them (awaits.again): their new copy came, or the same scan again (nothing sharper to have). How
+ * many saves.
+ */
 function settleAgain(tree: Tree, recordset: string, numbers: number[]): number {
   if (tree.dryRun) return 0;
   const saves = loadSaves(tree.root);
@@ -669,7 +679,25 @@ function settleAgain(tree: Tree, recordset: string, numbers: number[]): number {
     return { ...was, taken: now };
   });
   if (n) storeSaves(tree.root, next);
+  clearAgain(tree, recordset, numbers);
   return n;
+}
+
+/** These images of a book out of awaits.again of the tasks waiting for them: their new copy is here. */
+function clearAgain(tree: Tree, recordset: string, numbers: readonly number[]): void {
+  if (tree.dryRun || !numbers.length) return;
+  for (const t of tree.list<Task>("task")) {
+    if (t.state !== "waiting" || !t.awaits?.again || liveBook(tree, t.awaits.recordset)?.id !== (liveBook(tree, recordset)?.id ?? recordset)) continue;
+    const had = parseImageList(t.awaits.again) ?? [];
+    const came = had.filter((n) => numbers.includes(n));
+    if (!came.length) continue;
+    update<Task>(tree, t.id, "task", (x) => {
+      if (!x.awaits) return x;
+      const rest = (parseImageList(x.awaits.again ?? "") ?? []).filter((n) => !numbers.includes(n));
+      const { again: _a, ...awaits } = x.awaits;
+      return { ...x, awaits: rest.length ? { ...awaits, again: runs(rest) } : awaits };
+    }, { op: "task.wait", summary: `${t.id} wait: the new copy of image${came.length > 1 ? "s" : ""} ${runs(came)} of ${recordset} came` });
+  }
 }
 
 /**
@@ -992,7 +1020,7 @@ function takeNumbered(tree: Tree, shared: string, t: Task, w0: InboxWait, dir: s
   const after = tree.get<Task>(t.id)!;
   const reg = registeredImages(tree, w.recordset);
   const want = w.want ?? [];
-  const missing = want.filter((n) => !reg.has(n));
+  const missing = awaitedMissing(tree, after, want, { have: reg });
   const have = want.length ? want.length - missing.length : handedImages(tree, after, w.recordset).length + folderFiles(dir).length;
   return {
     task: t.id,
@@ -1020,7 +1048,7 @@ function stillWaiting(tree: Tree, recordset: string | undefined): string[] {
     .list<Task>("task")
     .filter((t) => t.state === "waiting" && t.awaits?.recordset === recordset)
     .map((t) => {
-      const missing = (parseImageList(t.awaits!.images) ?? []).filter((n) => !have.has(n) || pending.has(`${t.id}:${n}`));
+      const missing = awaitedMissing(tree, t, parseImageList(t.awaits!.images) ?? [], { have, pending });
       return `${t.id} still waits for images ${runs(missing)} of ${recordset} (it asked for ${t.awaits!.images}) — it comes back once they are there`;
     });
 }
@@ -1060,7 +1088,8 @@ export function heldSaves(tree: Tree, shared: string, downloads: string, now = D
     // a tab of the agent's shows it (the hook let it go there), or an image after it in the list came already
     if (r.paged) {
       const shown = pageShownSince(tree.root, r.url, r.at);
-      const later = saves.some((o) => o.paged && o.task === r.task && o.recordset === r.recordset && o.at === r.at && (o.order ?? 0) > (r.order ?? 0) && (o.taken !== undefined || registeredImages(tree, o.recordset).has(o.n) || !!findDownload(downloads, o.file).file));
+      // (one saved once more came when its new copy did: the old one registered is no sign its page was opened)
+      const later = saves.some((o) => o.paged && o.task === r.task && o.recordset === r.recordset && o.at === r.at && (o.order ?? 0) > (r.order ?? 0) && (o.taken !== undefined || (!o.again && registeredImages(tree, o.recordset).has(o.n)) || !!findDownload(downloads, o.file).file));
       if (!later && (shown === undefined || now - shown < HELD_AFTER_MS)) continue;
     }
     // its page refused by the hook and nothing of its site let through since: the script never ran — nothing held back
@@ -1154,12 +1183,23 @@ export function saveBookOf(tree: Tree, t: Task, w: InboxWait | undefined, at: st
 /** What the agent is told of an image its browser held back. */
 function heldLine(ctx: Context, h: SaveRecord, downloads: string): string {
   const since = new Date(h.at).toTimeString().slice(0, 8);
+  const tree = ctx.tree();
+  const t = tree.get<Task>(h.task);
+  const waits = t?.awaits?.images;
+  // what its wait holds is said as its wait; only images its text names beyond it are to be added (N1, 1126)
+  const text = t ? textBeyondWait(tree, t) : undefined;
+  const save = (them: string) => `strom media save ${h.task} --image ${them} --recordset ${h.recordset} --at <their pages> [--again]`;
+  const rest = !text
+    ? `${waits ? `It waits for images ${waits}; any` : "Any"} image it needs beyond those: add them now — ${save("<them>")} — and run no script of them until the person allowed the downloads; go on with other work.`
+    : text.beyond.length
+      ? `Its wait holds images ${waits}; its text names images ${runs(text.beyond)} too, not in its wait yet: add them now — ${save(runsArg(text.beyond))} — and run no script of them until the person allowed the downloads; go on with other work.`
+      : `Its wait (images ${waits}) holds every image its text names: nothing more to save for it now; go on with other work.`;
   return (
     `⚠ image ${h.n} of ${h.recordset} (${h.task}): nothing came into ${ctx.display(downloads)} since strom media save gave its script (${since}). ` +
     `The script answered "strom-result ${h.n}:200:…": the browser held the file back — Chrome saves one file of a site by itself and the next only once the person allows ${h.host} to download several files ` +
     `in the browser profile your browser tool works in — each profile of a browser (and each browser) has its own permission, one given in another does not count ` +
     `(once: the icon at the right end of the address bar, or the site's settings → Automatic downloads). Tell the user exactly that; it is the person's permission — never change the browser's settings yourself, never save the image another way. ` +
-    `${h.task} waits for it meanwhile and what waits says it to the person; go on with other work. Once allowed: strom media save ${h.task} --image ${h.n} --at ${h.url}, its script in that tab again, then strom media add --inbox --waiting. ` +
+    `${h.task} waits for it meanwhile and what waits says it to the person. ${rest} Once allowed: strom media save ${h.task} --image ${h.n} --at ${h.url}, its script in that tab again, then strom media add --inbox --waiting. ` +
     `The script answered anything else: tell the user what it said. The browser saves elsewhere: strom config set browser.downloads <folder>.`
   );
 }
@@ -1366,10 +1406,12 @@ function saveRange(ctx: Context, tree: Tree, t: Task, opts: Record<string, unkno
   const images = runs(want);
   const lang = tree.lang;
   const wasHeld = loadSaves(tree.root).some((r) => r.task === t.id && r.held);
-  const was = t.state === "waiting" && t.awaits?.images === images && !wasHeld;
+  const againNow = againOf(t, b.id, want, []);
+  const was = t.state === "waiting" && t.awaits?.images === images && t.awaits.again === againNow && !wasHeld;
   if (!was && !tree.dryRun)
     update<Task>(tree, t.id, "task", (x) => {
-      const next: Task = { ...x, state: "waiting", waitingOn: phrase(lang, "browser.wait", { images, book: `${b.id} ${b.title}`, url: u.href }), awaits: { recordset: b.id, images, folder: inboxFolderFor(b) }, ...(x.where.includes(b.id) ? {} : { where: [...x.where, b.id] }) };
+      const again = againOf(x, b.id, want, []);
+      const next: Task = { ...x, state: "waiting", waitingOn: phrase(lang, "browser.wait", { images, book: `${b.id} ${b.title}`, url: u.href }), awaits: { recordset: b.id, images, folder: inboxFolderFor(b), ...(again ? { again } : {}) }, ...(x.where.includes(b.id) ? {} : { where: [...x.where, b.id] }) };
       for (const k of ["awaitsCheck", "awaitsPermission", "wait", "sent", "parkedUntil", "parkedReason"] as const) delete next[k];
       return next;
     }, { op: "task.wait", summary: `${t.id} wait: images ${runs(items.map((i) => i.n))} of ${b.id} through the agent's browser` });
@@ -1460,10 +1502,13 @@ function saveSeveral(ctx: Context, tree: Tree, t: Task, ns: number[], ats: strin
   const images = runs(want);
   const lang = tree.lang;
   const wasHeld = loadSaves(tree.root).some((r) => r.task === t.id && r.held);
-  const was = t.state === "waiting" && t.awaits?.images === images && !wasHeld;
+  // the images saved once more: what the task waits for is their new copy (awaits.again), never the one registered
+  const againNow = againOf(t, b.id, want, already);
+  const was = t.state === "waiting" && t.awaits?.images === images && t.awaits.again === againNow && !wasHeld;
   if (!was && !tree.dryRun)
     update<Task>(tree, t.id, "task", (x) => {
-      const next: Task = { ...x, state: "waiting", waitingOn: phrase(lang, "browser.wait", { images, book: `${b.id} ${b.title}`, url: urls[0]!.href }), awaits: { recordset: b.id, images, folder: inboxFolderFor(b) }, ...(x.where.includes(b.id) ? {} : { where: [...x.where, b.id] }) };
+      const again = againOf(x, b.id, want, already);
+      const next: Task = { ...x, state: "waiting", waitingOn: phrase(lang, "browser.wait", { images, book: `${b.id} ${b.title}`, url: urls[0]!.href }), awaits: { recordset: b.id, images, folder: inboxFolderFor(b), ...(again ? { again } : {}) }, ...(x.where.includes(b.id) ? {} : { where: [...x.where, b.id] }) };
       for (const k of ["awaitsCheck", "awaitsPermission", "wait", "sent", "parkedUntil", "parkedReason"] as const) delete next[k];
       return next;
     }, { op: "task.wait", summary: `${t.id} wait: images ${runs(ns)} of ${b.id} through the agent's browser, a page each` });
@@ -1510,7 +1555,7 @@ function saveRangeResult(ctx: Context, tree: Tree, t: Task, line: string) {
   const stop = got.find((g) => g.status !== 200);
   if (!stop)
     return {
-      text: lines(`${t.id} · images ${runs(saved.map((g) => g.n))} saved by your browser — strom media add --inbox --waiting takes them`),
+      text: lines(`${t.id} · images ${runs(saved.map((g) => g.n))} saved by your browser — strom media add --inbox --waiting takes them`, countUnknownAfterSave(tree, rec.recordset)),
       data: { task: t.id, saved: saved.map((g) => g.n), then: "strom media add --inbox --waiting" },
     };
   const host = rec.host;
@@ -2206,10 +2251,7 @@ register(
         const waits = inboxWaits(tree).filter((x) => x.by === "images");
         const saves = loadSaves(tree.root);
         const pending = againPending(tree);
-        const missingOf = (x: InboxWait) => {
-          const have = registeredImages(tree, x.recordset);
-          return (x.want ?? []).filter((n) => !have.has(n) || pending.has(`${x.task}:${n}`));
-        };
+        const missingOf = (x: InboxWait) => awaitedMissing(tree, x.task, x.want ?? [], { have: registeredImages(tree, x.recordset), pending });
         const own = waits.find((x) => x.task === mine);
         const ownLines: string[] = [];
         // still being written after the wait: said, never as "nothing came"
@@ -2234,10 +2276,13 @@ register(
               .join(", ")}`
           : undefined;
         const nothing = !taken.length && !held.length && !ownLines.length && !side && !writing.length;
+        // a book whose images came whole and whose count is not known: how its count is written (never the highest number)
+        const counts = [...new Set(taken.filter((x) => x.added.length).map((x) => x.recordset))].map((b) => countUnknownAfterSave(tree, b));
         return {
           text: lines(
             nothing ? (waits.length ? "nothing came: no file in the downloads folder or the folders of the waiting tasks" : "no task waits for images saved into the inbox") : undefined,
             ...takenLines(taken),
+            ...counts,
             ...writingLines,
             ...ownLines,
             ...heldMine.map((h) => heldLine(ctx, h, downloads)),
@@ -2441,6 +2486,7 @@ register(
         ...added.filter((m) => m.entries).slice(0, 10).map((m) => `  ${m.id} image ${m.image ?? "—"}: entries ${entriesText(m.entries!)} by its name`),
         leftLying.length ? `left lying (no image's number in the name): ${leftLying.slice(0, 10).join(", ")}${leftLying.length > 10 ? " …" : ""} — --image <n> for one of them, once its content says which` : undefined,
         ...stillWaiting(tree, recordset),
+        recordset && added.length ? countUnknownAfterSave(tree, recordset) : undefined,
         added[0] ? `\nlook at one: strom media view ${recordset && added[0].image !== undefined ? `${recordset}:${added[0].image}` : added[0].id} --grid` : undefined,
       );
       return { text, data: { added: added.map((m) => ({ id: m.id, image: m.image })), again, woken, clashes, copies, ...(sheets.length ? { sheets } : {}) } };
@@ -2469,7 +2515,9 @@ register(
       "\n" +
       `--image 40,41,45 (at most ${SAVE_PAGES_MAX}) with an --at each, in their order (or one address with {n} where the number\n` +
       "goes): one script for them all — open each page in turn and run the same script there (it knows the image by the\n" +
-      "tab's address), nothing between them; one strom media add --inbox --waiting after the last. Each image is still a\n" +
+      "tab's address), nothing between them; one strom media add --inbox --waiting after the last. Give every image the\n" +
+      `task needs in one call — more than ${SAVE_PAGES_MAX}: the next call right after it, before any page — so its wait holds them\n` +
+      "all and it never looks done while one is still to come (one saved once more counts once its new copy came). Each image is still a\n" +
       "page of its own, opened by you at a person's pace (strom's hook paces it): no range. Claude Code: more than 3 images —\n" +
       "this tree's subagent strom-image-saver saves them (its context stays small).\n" +
       "\n" +
@@ -2541,10 +2589,13 @@ register(
       const lang = tree.lang;
       // said held back before (its wait asks the person to allow the downloads): the wait as it is again, the script given anew
       const wasHeld = loadSaves(tree.root).some((r) => r.task === t.id && r.held);
-      const was = t.state === "waiting" && t.awaits?.images === images && !wasHeld;
+      // saved once more: what the task waits for is its new copy (awaits.again), never the one registered
+      const againNow = againOf(t, b.id, want, again ? [n] : []);
+      const was = t.state === "waiting" && t.awaits?.images === images && t.awaits.again === againNow && !wasHeld;
       if (!was && !tree.dryRun)
         update<Task>(tree, t.id, "task", (x) => {
-          const next: Task = { ...x, state: "waiting", waitingOn: phrase(lang, "browser.wait", { images, book: `${b.id} ${b.title}`, url: u.href }), awaits: { recordset: b.id, images, folder: inboxFolderFor(b) }, ...(x.where.includes(b.id) ? {} : { where: [...x.where, b.id] }) };
+          const more = againOf(x, b.id, want, again ? [n] : []);
+          const next: Task = { ...x, state: "waiting", waitingOn: phrase(lang, "browser.wait", { images, book: `${b.id} ${b.title}`, url: u.href }), awaits: { recordset: b.id, images, folder: inboxFolderFor(b), ...(more ? { again: more } : {}) }, ...(x.where.includes(b.id) ? {} : { where: [...x.where, b.id] }) };
           for (const k of ["awaitsCheck", "awaitsPermission", "wait", "sent", "parkedUntil", "parkedReason"] as const) delete next[k];
           return next;
         }, { op: "task.wait", summary: `${t.id} wait: image ${n} of ${b.id} through the agent's browser` });

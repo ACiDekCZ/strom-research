@@ -27,7 +27,7 @@ import { makePdf } from "../image-samples.ts";
 const opts = { skip: !hasGit };
 
 /** Commands whose examples change the environment or start an agent (checked for syntax below, not run). */
-const NOT_RUN = new Set(["setup", "init", "run", "read", "document read", "document again", "seal adopt", "unpack", "trees remove", "trees forget", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "allow archive", "login", "uninstall", "update", "gate test", "hook on", "hook test", "phone remove", "history back", "place answer", "place undo", "media save", "repair undo"]); // uninstall, update, unpack, trees remove, trees forget: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests); phone remove: a phone paired; history back: a change of the research's own history (its hash known only there) and the person's yes (test/cli/history-back.test.ts); media save: the person's permission "through the browser" and the agent's own browser (test/cli/media-save.test.ts); repair undo: the copies of a repair done (their stamp known only there) and the person's terminal (test/cli/repair-lost.test.ts)
+const NOT_RUN = new Set(["setup", "init", "run", "read", "document read", "document again", "seal adopt", "unpack", "trees remove", "trees forget", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "allow archive", "login", "uninstall", "update", "demo", "gate test", "hook on", "hook test", "phone remove", "history back", "place answer", "place undo", "media save", "repair undo", "house confirm", "house import"]); // uninstall, update, demo, unpack, trees remove, trees forget: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests); phone remove: a phone paired; history back: a change of the research's own history (its hash known only there) and the person's yes (test/cli/history-back.test.ts); media save: the person's permission "through the browser" and the agent's own browser (test/cli/media-save.test.ts); repair undo: the copies of a repair done (their stamp known only there) and the person's terminal (test/cli/repair-lost.test.ts); house confirm: the person's own judgment at their terminal, house import: a folder of the person's (test/cli/houses.test.ts)
 
 async function seeded(): Promise<World> {
   const w = new World();
@@ -57,6 +57,9 @@ async function seeded(): Promise<World> {
   await w.ok(["source", "add", "Křest", "--kind", "baptism", "--form", "original", "--information", "primary"]);
   await w.ok(["source", "add", "Sňatek", "--kind", "marriage"]);
   await w.ok(["intake", "--text", "Děda Jan byl mlynář"]);
+  await w.ok(["house", "add", "L0001", "12"]); // A0001: house show|add …
+  await w.ok(["event", "add", "P0003", "RESI", "--date", "1897", "--place", "Lhota", "--house", "16"]); // the house "lhota|16" of the facts
+  await w.ok(["event", "add", "P0002", "RESI", "--date", "1899", "--place", "Týnec nad Labem", "--house", "16"]); // the house "L0001 16" of the facts (house add L0001 16: its record)
   // family trees coming back from the Strom app (strom sync): its GEDCOM, its JSON, one taken in already (I0002, to undo)
   await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", path.join(w.cwd, "family.ged")]);
   fs.mkdirSync(path.join(w.env.HOME!, "Downloads"), { recursive: true });

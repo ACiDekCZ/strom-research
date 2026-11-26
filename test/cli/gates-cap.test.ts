@@ -127,7 +127,7 @@ test("a cap's hard stop: no “start anyway” before the first session either, 
 test("no cap: the gate of a run the user started is asked once and a nearly full week asks no session to finish", unix, async () => {
   const w = await capWorld([{ code: 1, say: { reason: "týden 96 %", wait: 3600 } }]);
   const r = await w.ok(["run", "--agent", "claude", "--max", "2"], { tty: true, answers: ["a"], env: { FAKE_WEEK_LATE: "0.995" } });
-  assert.match(r.out, /Spustit přesto\? \(a\/n\)/);
+  assert.match(r.out, /Spustit přesto\? \(a\/n,/);
   assert.match(r.out, /■ N0002 /);
   assert.equal(w.asked().length, 1, "asked once per run");
   assert.doesNotMatch(r.out, /strop|limit agenta/);

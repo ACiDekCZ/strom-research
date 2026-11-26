@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
 import { encodeImage } from "../../src/image/index.ts";
 import { compareDocuments, compareReadings, estimateFix, headImages } from "../../src/commands/fixchecks.ts";
@@ -185,13 +186,13 @@ test("strom fixes run: a few first, their summary and the rest with the estimate
     const olds = Object.fromEntries(stems.map((s) => [s, fs.readFileSync(path.join(w.cwd, "notes", "readings", `${s}-1.md`), "utf8")]));
     // try on 3, then the rest
     const r = await w.ok(["fixes", "run", "blind-reduced", "--agent", "script", "--lang", "en"], { tty: true, answers: ["1", "1"] });
-    assert.match(r.out, /1\s+Try it on the most promising first: 3 readings \(3 places\)/);
+    assert.match(r.out, /\[1\]\s+Try it on the most promising first\s+3 readings \(3 places\)/);
     const results = [...r.out.matchAll(/^Read again: (\d+) readings? \(\d+ places?\) — places the same (\d+), refined (\d+), different (\d+) · \d+ min/gm)];
     assert.equal(results.length, 2, r.out);
     assert.equal(results[0]![1], "3");
     assert.equal(results[1]![1], "1");
     // the rest estimated again by the real time of the first few, each choice with what it would take
-    assert.match(r.out, /^What it would take: cheap · 1 reader call · about 1 min \(by the real time of the readings just done\)\n\nAnd the rest\?\n {3}1 {2}The remaining: 1 reading \(1 place\) — cheap, about 1 min\n/m);
+    assert.match(r.out, /^What it would take: cheap · 1 reader call · about 1 min \(by the real time of the readings just done\)\n\nAnd the rest\?\n {2}\[1\] {2}The remaining {2}1 reading \(1 place\) · cheap, about 1 min\n/m);
     assert.match(r.out, /Set right: nothing of it waits\./);
     // nothing overwritten: the earlier reports as they were, the new ones beside them
     for (const s of stems) assert.equal(fs.readFileSync(path.join(w.cwd, "notes", "readings", `${s}-1.md`), "utf8"), olds[s]);
@@ -238,12 +239,12 @@ test("strom fixes run: places left open read first; nothing disputed nor of the 
     w.env.STROM_RUNNER_SCRIPT = path.join(w.dir, "reader.mjs");
     fs.writeFileSync(w.env.STROM_RUNNER_SCRIPT, READER);
     const r = await w.ok(["fixes", "run", "blind-reduced", "--agent", "script", "--lang", "en"], { tty: true, answers: ["1", "0"] });
-    assert.match(r.out, /1\s+Try it on the most promising first: 3 readings \(3 places\) — cheap, about \d+ min\n\s+2\s+All: 6 readings \(6 places\) — medium, about \d+ min\n\s+3\s+No:/);
+    assert.match(r.out, /\[1\]\s+Try it on the most promising first\s+3 readings \(3 places\) · cheap, about \d+ min\n\s+\[2\]\s+All\s+6 readings \(6 places\) · medium, about \d+ min\n\s+\[3\]\s+No:/);
     assert.match(r.out, /^Read again: 3 readings \(3 places\) — /m);
     // three of the four with places not read were read again; the rest waits
     const fresh = fs.readdirSync(path.join(w.cwd, "notes", "readings")).filter((f) => ![...open, ...whole].some((s) => f.startsWith(s)));
     assert.equal(fresh.length, 3);
-    assert.match(r.out, /1\s+The remaining: 3 readings \(3 places\) — cheap, about \d+ min/);
+    assert.match(r.out, /\[1\]\s+The remaining\s+3 readings \(3 places\) · cheap, about \d+ min/);
     const left = (await w.ok(["fixes", "--json"])).json.checks[0];
     assert.deepEqual(left.items.map((i: { reading: string }) => i.reading).sort(), [open[3], ...whole].sort());
   } finally {
@@ -281,7 +282,7 @@ test("strom fixes: an archive says nothing of the readings again — only what i
     oldReading(w, 1, [0.05, 0.5, 0.2, 0.15], "Jan Novák [?]", 30);
     await w.ok(["mode", "archive"], { tty: true, answers: ["y"] });
     const r = await w.ok(["fixes", "--json"]);
-    assert.deepEqual(r.json.checks.map((c: { id: string; state: string }) => [c.id, c.state]), [["participant-names", "nothing"], ["app-shapes", "nothing"], ["street-places", "nothing"], ["proven-originals", "nothing"], ["contact-residences", "nothing"]]);
+    assert.deepEqual(r.json.checks.map((c: { id: string; state: string }) => [c.id, c.state]), [["participant-names", "nothing"], ["app-shapes", "nothing"], ["street-places", "nothing"], ["proven-originals", "nothing"], ["contact-residences", "nothing"], ["house-numbers", "nothing"], ["book-counts", "nothing"]]);
     const doctor = await w.run(["doctor", "--json"]);
     assert.equal(doctor.json.checks.find((x: { name: string }) => x.name === "fixes"), undefined);
   } finally {
@@ -466,6 +467,36 @@ test("strom fixes: what waits is kept while nothing it is found by changes — t
     assert.ok(found, "the strom started in the background kept what waits");
     assert.equal(found.pending[0]!.readings, 2);
     assert.match((await w.ok([], { tty: true, answers: ["0"], env: { STROM_FIXES_REFRESH: "" } })).out, /^Oprava stromu čeká na rozhodnutí: .+ \(2\) — /m);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("strom fixes run: a reading whose place is estimated, read again once — never its next entry offered after it, as though new (1126)", opts, async () => {
+  const w = await world();
+  try {
+    // two sources with entries in the sharper part; a blind reading of image 1 from another computer (no record of its views)
+    await w.ok(["source", "add", "Sňatek Václava Lhotáka 1822", "--kind", "marriage", "--recordset", "B0001", "--clip", "B0001:1@0.05,0.5,0.2,0.1"]);
+    await w.ok(["source", "add", "Sňatek Josefa Lhotáka 1823", "--kind", "marriage", "--recordset", "B0001", "--clip", "B0001:1@0.28,0.6,0.15,0.1"]);
+    const dir = path.join(w.cwd, "notes", "readings");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "2026-10-05-M0001-1.md"), "# Reading M0001 · batch 1 of 1\nQuestion: Přepsat zápis celý\nBlind: yes\n\n## Image 1 · M0001\nresult: found\nentries:\n- Václav Lhoták [?]\n");
+    // in the research since then (its report committed that day)
+    const date = "2026-10-05T12:00:00Z";
+    execFileSync("git", ["-C", w.cwd, "add", "notes/readings"]);
+    execFileSync("git", ["-C", w.cwd, "commit", "-q", "-m", "A reading of an older strom"], { env: { ...process.env, ...w.env, GIT_COMMITTER_DATE: date, GIT_AUTHOR_DATE: date } });
+    const c = (await w.ok(["fixes", "--json"])).json.checks[0];
+    assert.equal(c.found.count, 1);
+    assert.equal(c.items[0].estimated, true);
+    const first = c.items[0].crop;
+    w.env.STROM_RUNNER_SCRIPT = path.join(w.dir, "reader.mjs");
+    fs.writeFileSync(w.env.STROM_RUNNER_SCRIPT, READER);
+    const r = await w.ok(["fixes", "run", "blind-reduced", "--agent", "script", "--lang", "en"], { tty: true, answers: ["1"] });
+    assert.match(r.out, /^Read again: 1 reading \(1 place\) — /m);
+    // looked at again: the reading is set right, its other entry not offered as a new place
+    const after = (await w.ok(["fixes", "--json"])).json.checks[0];
+    assert.equal(after.found.count, 0, `the reading of ${first} offered again: ${JSON.stringify(after.items)}`);
+    assert.equal(after.state, "fixed");
   } finally {
     w.cleanup();
   }

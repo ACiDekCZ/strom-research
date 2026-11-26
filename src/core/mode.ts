@@ -26,6 +26,11 @@ export function isArchive(tree: { config: { mode?: string } }): boolean {
   return modeOf(tree) === "archive";
 }
 
+/** The sample research (strom demo, its strom.json demo: true): an agent may work on it, nothing offers one. */
+export function isDemo(config: { demo?: unknown } | undefined): boolean {
+  return config?.demo === true;
+}
+
 /** A task coming into an archive waits put aside (records.create): no agent takes it. */
 export function heldInArchive(tree: Tree, task: Record<string, unknown>): Record<string, unknown> {
   if (!isArchive(tree) || task.state !== "open") return task;

@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { bareNumber, houseWith, numberedTown, numbersOnly, splitStreet, streetOfHouse } from "../../src/core/streets.ts";
+import { appHouseKey, appPlaceKey, bareNumber, compareHouses, houseRowKey, houseWith, numberedTown, numbersOnly, splitStreet, streetOfHouse } from "../../src/core/streets.ts";
 import { ui } from "../../src/cli/ui.ts";
 import { foldText } from "../../src/core/text.ts";
 
@@ -129,6 +129,7 @@ test("bareNumber: a number alone after the municipality's name — never split b
 // the shared cases: the Strom app ports the same rules and runs its port over this file (test/fixtures/streets/cases.json,
 // written by make-cases.ts) — the file must say what the code does, each input decomposed (NFD) the same
 interface Cases {
+  house: { town: string; house: string; expect: string }[];
   split: { place: string; known?: Record<string, string[]>; expect: unknown }[];
   bare: { place: string; expect: unknown }[];
   numbered: { name: string; expect: boolean }[];
@@ -155,4 +156,23 @@ test("the shared cases of the street rules (test/fixtures/streets/cases.json) ar
   // every case also a non-Latin script, and the numbers alone never a street by the rules
   assert.ok(c.split.some((x) => /\p{Script=Cyrillic}/u.test(x.place)));
   for (const x of c.bare) if (x.expect) assert.equal(splitStreet(x.place), undefined, x.place);
+});
+
+// the key of a house over the bridge (spec 030 K1.1a): the app's placeKey and houseKey word for word — the Strom app runs
+// its own over the same section of cases.json
+test("the shared key of a house (cases.json house): placeKey|houseKey as the app computes them, NFD the same, any script", () => {
+  const file = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "fixtures", "streets", "cases.json");
+  const c = JSON.parse(fs.readFileSync(file, "utf8")) as Cases;
+  assert.ok(c.house.length >= 15);
+  for (const x of c.house) {
+    assert.equal(houseRowKey(x.town, x.house), x.expect, `${x.town} / ${x.house}`);
+    assert.equal(houseRowKey(x.town.normalize("NFD"), x.house.normalize("NFD")), x.expect, `${x.town} / ${x.house} (NFD)`);
+  }
+  assert.ok(c.house.some((x) => /\p{Script=Cyrillic}/u.test(x.town)));
+  // "čp. 16" = "16" = "Haus Nr. 16" = "House No. 16"; a street keeps its name; a part after a slash its own word
+  for (const h of ["čp. 16", "č. p. 16", "Haus Nr. 16", "House No. 16", "Nr. 16"]) assert.equal(appHouseKey(h), "16", h);
+  assert.equal(appHouseKey("Kopřivná 12"), appHouseKey("kopřivná 12"));
+  assert.equal(appHouseKey("13/2"), "13 2");
+  assert.equal(appPlaceKey("Děčín  ,"), "decin");
+  assert.deepEqual(["Kopřivná 12", "12a", "mlýn", "čp. 4", "12", "13/2"].sort(compareHouses), ["čp. 4", "12", "12a", "13/2", "Kopřivná 12", "mlýn"]);
 });
