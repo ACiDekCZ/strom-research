@@ -37,6 +37,7 @@ import { askedNow, bookFolders, bookTimes, folderFiles, handedImages, inboxState
 import { formatOf } from "../image/index.ts";
 import { pdfScans } from "../image/pdf.ts";
 import { readableFile } from "../core/readable.ts";
+import { countUnknownAfterSave } from "../core/books.ts";
 import { HELD_AFTER_MS, PLAN_TTL_MS, STOPS_FILE, TAKEN_KEEP_MS, findDownload, loadPlans, loadSaves, loadStops, noteSave, noteStop, parseRangeResult, rangeScript, saveScript, savePagesScript, SAVE_PAGES_MAX, storeSaves, storeStops, waitFileBase, type RangeItem, type RangeStop, type SaveRecord } from "../core/browser.ts";
 import { bookOn, browserGate, hostBlocked, netDirOf, otherWay, type WebGate } from "../core/webgate.ts";
 import { allows, browserRangeOf } from "../core/terms.ts";
@@ -1510,7 +1511,7 @@ function saveRangeResult(ctx: Context, tree: Tree, t: Task, line: string) {
   const stop = got.find((g) => g.status !== 200);
   if (!stop)
     return {
-      text: lines(`${t.id} · images ${runs(saved.map((g) => g.n))} saved by your browser — strom media add --inbox --waiting takes them`),
+      text: lines(`${t.id} · images ${runs(saved.map((g) => g.n))} saved by your browser — strom media add --inbox --waiting takes them`, countUnknownAfterSave(tree, rec.recordset)),
       data: { task: t.id, saved: saved.map((g) => g.n), then: "strom media add --inbox --waiting" },
     };
   const host = rec.host;
@@ -2234,10 +2235,13 @@ register(
               .join(", ")}`
           : undefined;
         const nothing = !taken.length && !held.length && !ownLines.length && !side && !writing.length;
+        // a book whose images came whole and whose count is not known: how its count is written (never the highest number)
+        const counts = [...new Set(taken.filter((x) => x.added.length).map((x) => x.recordset))].map((b) => countUnknownAfterSave(tree, b));
         return {
           text: lines(
             nothing ? (waits.length ? "nothing came: no file in the downloads folder or the folders of the waiting tasks" : "no task waits for images saved into the inbox") : undefined,
             ...takenLines(taken),
+            ...counts,
             ...writingLines,
             ...ownLines,
             ...heldMine.map((h) => heldLine(ctx, h, downloads)),
@@ -2441,6 +2445,7 @@ register(
         ...added.filter((m) => m.entries).slice(0, 10).map((m) => `  ${m.id} image ${m.image ?? "—"}: entries ${entriesText(m.entries!)} by its name`),
         leftLying.length ? `left lying (no image's number in the name): ${leftLying.slice(0, 10).join(", ")}${leftLying.length > 10 ? " …" : ""} — --image <n> for one of them, once its content says which` : undefined,
         ...stillWaiting(tree, recordset),
+        recordset && added.length ? countUnknownAfterSave(tree, recordset) : undefined,
         added[0] ? `\nlook at one: strom media view ${recordset && added[0].image !== undefined ? `${recordset}:${added[0].image}` : added[0].id} --grid` : undefined,
       );
       return { text, data: { added: added.map((m) => ({ id: m.id, image: m.image })), again, woken, clashes, copies, ...(sheets.length ? { sheets } : {}) } };

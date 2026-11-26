@@ -1079,6 +1079,7 @@ register(
           `  ${[r.archive?.name, r.years, r.access].filter(Boolean).join(" · ")}`,
           `  ${r.tasks} task${r.tasks > 1 ? "s" : ""}${states.length ? ` (${states.join(", ")})` : ""} · ${images}${r.need ? ` · needed, not on disk ${r.need}` : ""}`,
           `  folder ${dir ? ctx.display(dir) : `inbox/${r.folder}`}`,
+          r.countUnknown ? `  count not known (images 1–${r.countUnknown.from1to} on disk) — offered until it is: strom recordset edit ${r.id} --images <n> (from the archive's page / strom fetch <connector> <book> --list --recordset ${r.id}); never the highest number saved` : undefined,
           r.url ? `  ${r.url}` : undefined,
           `  strom task list --book ${r.id}`,
         ];

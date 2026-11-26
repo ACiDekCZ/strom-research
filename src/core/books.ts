@@ -6,7 +6,7 @@
 
 import { imagesIndex } from "./mediaindex.ts";
 import { inboxFolderFor, parseImageList } from "./media.ts";
-import { runs } from "../cli/format.ts";
+import { runs, shellArg } from "../cli/format.ts";
 import { BOOKS_MIN_TASKS, Settings } from "./config.ts";
 import { hostOf, wholeBookFor } from "./terms.ts";
 import type { RecordSet, Repository, Task } from "./model.ts";
@@ -70,6 +70,12 @@ export interface BookRow {
   downloadTerms?: { how: "offered" | "allowed" | "selected" | "never"; says: string; from: "terms" | "termsPage" | "reply"; host: string };
   /** Its folder of the shared inbox (the name alone). */
   folder: string;
+  /**
+   * Its count not known while its images on disk run 1…N with no gap (N ≥ 2): downloaded whole, perhaps — it stays
+   * offered until its count is written (strom recordset edit B… --images <n>, or strom fetch … --list), never the highest
+   * number saved taken for it.
+   */
+  countUnknown?: { from1to: number };
   /**
    * Offered to download by hand: enough tasks, downloadable, not whole on disk — and something to offer: the whole book
    * where the archive offers or allows it, else the images its tasks need (never a book of download none).
@@ -188,21 +194,64 @@ export function bookTasks(tree: Tree): Map<string, BookTasks> {
   return rows;
 }
 
-/**
- * Every book some task still needs, the most tasks first (then the most waiting, then by ID); offered by `minTasks`
- * (default the research's books.minTasks).
- */
-export function bookRows(tree: Tree, minTasks = minTasksOf(tree)): BookRow[] {
-  const index = imagesIndex(tree);
-  // the images registered to a book merged into another count for that one
+/** The image numbers registered to each book as it stands: those of a book merged into another count for that one. */
+function registeredByBook(tree: Tree): Map<string, Set<number>> {
   const registered = new Map<string, Set<number>>();
-  for (const [id, s] of index.sets) {
+  for (const [id, s] of imagesIndex(tree).sets) {
     const b = liveBook(tree, id);
     if (!b) continue;
     const set = registered.get(b.id) ?? new Set<number>();
     for (const n of s.images) set.add(n);
     registered.set(b.id, set);
   }
+  return registered;
+}
+
+/**
+ * N when a book's count is not known and its images on disk run 1…N with no gap (N ≥ 2) — what a book downloaded whole
+ * looks like; else undefined. The highest number is never its count: the archive's catalogue or page says that.
+ */
+export function countUnknownOf(images: number | undefined, reg: ReadonlySet<number>): number | undefined {
+  if (images !== undefined && images > 0) return undefined;
+  const n = reg.size;
+  if (n < 2) return undefined;
+  for (let i = 1; i <= n; i++) if (!reg.has(i)) return undefined;
+  return n;
+}
+
+/**
+ * The line for the agent at a book whose count is not known and whose images on disk run 1…N (countUnknownOf): how the
+ * count is written — from the archive's catalogue through its connector (`fetch`: one request of the catalogue), or from
+ * the archive's page — never the highest number saved. Undefined for any other book.
+ */
+export function countUnknownLine(tree: Tree, id: string, fetch?: { connector: string; book: string }): string | undefined {
+  const b = liveBook(tree, id);
+  if (!b) return undefined;
+  const n = countUnknownOf(b.images, registeredByBook(tree).get(b.id) ?? new Set());
+  if (n === undefined) return undefined;
+  const list = fetch ? `strom fetch ${fetch.connector} ${shellArg(fetch.book)} --list --recordset ${b.id} writes it from the archive's catalogue (one request of the catalogue), or ` : "";
+  return `${b.id}: images 1–${n} on disk, how many the book has is not known — ${list}strom recordset edit ${b.id} --images <n> when the archive's page says it; never the highest number saved`;
+}
+
+/**
+ * The same line after images were registered by hand (strom media add, a save through the browser): only for a book
+ * the research's tasks need (bookTasks) and the archive lets be downloaded whole (downloadOf) — a whole download kept
+ * offered for ever otherwise.
+ */
+export function countUnknownAfterSave(tree: Tree, id: string): string | undefined {
+  const b = liveBook(tree, id);
+  if (!b || !bookTasks(tree).has(b.id)) return undefined;
+  const repo = b.repository ? tree.get<Repository>(b.repository) : undefined;
+  if (downloadOf(tree, b, repo && !repo.retracted ? repo : undefined).download !== "whole") return undefined;
+  return countUnknownLine(tree, b.id);
+}
+
+/**
+ * Every book some task still needs, the most tasks first (then the most waiting, then by ID); offered by `minTasks`
+ * (default the research's books.minTasks).
+ */
+export function bookRows(tree: Tree, minTasks = minTasksOf(tree)): BookRow[] {
+  const registered = registeredByBook(tree);
   const out: BookRow[] = [];
   for (const { b, ids, need } of bookTasks(tree).values()) {
     const repo = b.repository ? tree.get<Repository>(b.repository) : undefined;
@@ -217,6 +266,7 @@ export function bookRows(tree: Tree, minTasks = minTasksOf(tree)): BookRow[] {
     const tasks = ids.open.length + ids.parked.length + ids.waiting.length;
     const { download, terms } = downloadOf(tree, b, repo && !repo.retracted ? repo : undefined);
     const needed = [...need].filter((n) => !reg.has(n)).sort((x, y) => x - y);
+    const from1to = countUnknownOf(images, reg);
     const row: BookRow = {
       id: b.id,
       title: b.title,
@@ -236,6 +286,7 @@ export function bookRows(tree: Tree, minTasks = minTasksOf(tree)): BookRow[] {
       download,
       ...(terms ? { downloadTerms: terms } : {}),
       folder: inboxFolderFor(b),
+      ...(from1to !== undefined ? { countUnknown: { from1to } } : {}),
       offer: false,
     };
     row.offer = offerable(row, minTasks);
