@@ -23,6 +23,7 @@ import { langName } from "../core/lang.ts";
 import { dateYears } from "../core/gdate.ts";
 import { HOUSE_TAKEOVER, methodFor, METHOD_LINKS } from "../core/assets.ts";
 import { houseWork } from "../core/houses.ts";
+import { houseBrief } from "../core/houseauto.ts";
 import { recentSessions } from "../core/session.ts";
 import { briefClock } from "../core/clock.ts";
 import { calibrationLine } from "../core/calibration.ts";
@@ -1612,6 +1613,10 @@ export function buildBrief(
     const known = censusHoldings();
     if (known.length) sections.push({ name: "census", pointer: "strom task show", text: ["## Census records strom knows of (each archive's level and terms hold)", ...known].join("\n") });
   }
+  // a house's research or a municipality's skeleton (spec 030 part 2): the people of the tree in it, the skeleton, what
+  // was gone through and what is only by hand — given, never looked up again
+  const houseText = task && (houseWork(task) === "house" || houseWork(task) === "town") ? houseBrief(tree, task) : undefined;
+  if (houseText) sections.push({ name: "house", first: true, pointer: "strom house show", text: houseText });
 
   // 8'. the experiment of history on: a session that reads records may write a local event they tell of
   // (the local history: experiments.placeHistory, K1.3), of the kinds looked for (history.kinds) — none: no section

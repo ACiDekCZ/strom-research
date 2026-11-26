@@ -55,6 +55,7 @@ import { asleepHosts, asleepOn, type Asleep } from "./leftalone.ts";
 import { forHistory, HISTORY_PLACES_ORIGIN, historyHeld, historyOrder, historyTurn, type HistoryTurn } from "./pastevents.ts";
 import { Settings } from "./config.ts";
 import { censusHidden } from "./census.ts";
+import { houseAutoTask, houseHidden } from "./houses.ts";
 import { personQueued, placesFirst } from "./placeid.ts";
 import { branchModeOf, placer, readOffline, type Placed } from "./offline.ts";
 import { isBulkTry, readsOriginals, VERIFY_EVERY, verifiesInTurn, verifyLacksImages } from "./verifyfacts.ts";
@@ -293,9 +294,11 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   // a task that helps a line waits with it while it is paused or ended; the person's own turn takes one off the lines
   // census records off (spec 106): their tasks held, back by themselves once on (core/census.ts)
   const censusHide = censusHidden(settings.census(tree.config), today);
+  // the history of the houses off (spec 030 part 2): the houses' tasks raised by themselves held the same way (core/houses.ts)
+  const houseHide = houseHidden(tree, settings.houses(tree.config), today);
   const waits = (t: Task) =>
     t.state !== "doing" &&
-    (censusHide(t) || (stopped.size > 0 && stopped.has(effectiveDirection(tree, t, all) ?? placing(t).research ?? "")) || off(t) || !!decision(t) || !!asleep(t) || (modeOf(t) === "never" && !own(t)));
+    (censusHide(t) || houseHide(t) || (stopped.size > 0 && stopped.has(effectiveDirection(tree, t, all) ?? placing(t).research ?? "")) || off(t) || !!decision(t) || !!asleep(t) || (modeOf(t) === "never" && !own(t)));
   // the tasks of history: only where asked for, and not while the experiment is off, in an archive, or held by another tree
   let held: ((t: Task) => string | undefined) | undefined;
   const history = (t: Task) => {
@@ -455,6 +458,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
           }`
         : undefined,
       hist ? historyWhy(turn!, t, t.id === turnTask, t.id === firstOfHistory?.id) : undefined,
+      houseAutoTask(t) ? "the history of the houses: after the research of the family" : undefined,
       verifying
         ? verifyNow
           ? `verification against the originals: its turn, ${sinceVerify} sessions since the last one on it (one in ${VERIFY_EVERY}; the nearest ancestor first)`
@@ -494,7 +498,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
       ...(ahead || verifyNow ? { turn: true as const } : {}),
       ...(inBook ? { sameBook: sameBook!.book } : {}),
     };
-    return { task: t, why, storyTurn, extra, own: mine === "next" ? -1 : mine === "last" ? 1 : 0, nextAt: mine === "next" ? (bulkTry(t) ? triesAt : t.queueAt!.at) : "", tryAt: mine === "next" && bulkTry(t) ? t.queueAt!.at : "", offLine: offRank, doing: t.state === "doing" ? 0 : 1, hist: !hist ? 0 : t.id === turnTask ? -1 : 1, horder: hist ? order(t) : 0, first: first || placesAsked ? 0 : 1, blocked: blocked ? 1 : 0, inBook: inBook ? 0 : 1, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen, lineRank: lineAt ?? working.length };
+    return { task: t, why, storyTurn, extra, own: mine === "next" ? -1 : mine === "last" ? 1 : 0, nextAt: mine === "next" ? (bulkTry(t) ? triesAt : t.queueAt!.at) : "", tryAt: mine === "next" && bulkTry(t) ? t.queueAt!.at : "", offLine: offRank, doing: t.state === "doing" ? 0 : 1, hist: !hist ? 0 : t.id === turnTask ? -1 : 1, house: !hist && houseAutoTask(t) ? 1 : 0, horder: hist ? order(t) : 0, first: first || placesAsked ? 0 : 1, blocked: blocked ? 1 : 0, inBook: inBook ? 0 : 1, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen, lineRank: lineAt ?? working.length };
   });
   const cmp = (a: (typeof rows)[number], b: (typeof rows)[number]) =>
         a.doing - b.doing ||
@@ -507,6 +511,9 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
         // the tasks of history after everything — but at history's turn its first one before all — the needed one first
         a.hist - b.hist ||
         a.horder - b.horder ||
+        // the houses' tasks raised by themselves after the research of the family (spec 030 part 2), a municipality's
+        // skeleton before its houses (made first)
+        a.house - b.house ||
         // work off the lines: one at its turn forward, the rest after all the lines' work, whatever the strategy
         a.offLine - b.offLine ||
         // the links of hypothesis variants before the research and a story's turn
