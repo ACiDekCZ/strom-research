@@ -59,6 +59,7 @@ import { BOOKS_MIN_TASKS, bookOfTask, bookRows, booksOfTask, liveBook, minTasksO
 import { parseTaskKind, TASK_KINDS, taskKind } from "../core/taskkind.ts";
 import { CENSUS_PREFIX, censusHeld, censusProposal } from "../core/census.ts";
 import { houseHidden } from "../core/houses.ts";
+import { markTownDone } from "../core/houseauto.ts";
 import { closeCoverage, coverageLine } from "../core/coverage.ts";
 import { loadSaves, storeSaves } from "../core/browser.ts";
 import { RETRY_KEPT, RETRY_MAX, retryOf, type RetryCache } from "../core/retry.ts";
@@ -1242,6 +1243,8 @@ register(
       const tree = ctx.tree();
       if (!opts.result) throw new UsageError("--result is required", { hint: "say what was found — or where it was searched without success" });
       const { task, said } = finishTask(tree, args[0]!, String(opts.result), csvOpt(opts.produced));
+      // a municipality's skeleton done: its record keeps the day (spec 030 part 2)
+      markTownDone(tree, task);
       // the years its people's estimated dates ask for, not all searched (spec 131): said once a session and book, never refused
       const coverage = closeCoverage(tree, task.id, currentSession(tree, ctx.env, ctx.refs)?.id, ctx.settings.ageMargin(tree.config));
       return { text: lines(written(tree), ...said, ...coverage.map(coverageLine)), data: { task, ...(coverage.length ? { coverage } : {}) } };

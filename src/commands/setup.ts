@@ -1780,8 +1780,8 @@ export function setTreeSetting(ctx: Context, key: string, value: string | number
   // census records on here: the proposal to turn them on is done, in the same commit
   const closed = key === "census" && ctx.settings.census(tree.config) ? closeCensusProposal(tree) : [];
   // the houses on here: the first of their tasks raised now, in the same commit (the queue shows them at once)
-  if (key === "houses" && ctx.settings.houses(tree.config)) raiseHouseTasks(tree, ctx.settings);
-  tree.withTreeLock(() => tree.commit(`Setting ${key}${value === undefined ? " removed" : `: ${value}`}`, [...new Set(["strom.json", ...tree.opsFilesTouched(), ...files, ...closed])]));
+  const raised = key === "houses" && ctx.settings.houses(tree.config) && raiseHouseTasks(tree, ctx.settings).length ? tree.touchedFiles() : [];
+  tree.withTreeLock(() => tree.commit(`Setting ${key}${value === undefined ? " removed" : `: ${value}`}`, [...new Set(["strom.json", ...tree.opsFilesTouched(), ...files, ...closed, ...raised])]));
   tree.settle();
   return tree;
 }
