@@ -21,7 +21,8 @@ import { settledClaim } from "../core/labels.ts";
 import { parseYears } from "../core/years.ts";
 import { langName } from "../core/lang.ts";
 import { dateYears } from "../core/gdate.ts";
-import { methodFor, METHOD_LINKS } from "../core/assets.ts";
+import { HOUSE_TAKEOVER, methodFor, METHOD_LINKS } from "../core/assets.ts";
+import { houseWork } from "../core/houses.ts";
 import { recentSessions } from "../core/session.ts";
 import { briefClock } from "../core/clock.ts";
 import { calibrationLine } from "../core/calibration.ts";
@@ -1604,6 +1605,8 @@ export function buildBrief(
   const censusTask = !!task && forCensus(task) && censusNow;
   if (censusTask) conditions.push("census");
   else if (!censusNow) conditions.push("census-off");
+  // the research of a house the person made, taken over: its page (spec 030)
+  if (task && houseWork(task) === "takeover") conditions.push(HOUSE_TAKEOVER);
   sections.push({ name: "method", first: true, pointer: "strom guide", text: methodFor(kind, conditions) });
   if (censusTask) {
     const known = censusHoldings();

@@ -289,6 +289,10 @@ test("house import: assigned by the heading, two houses in one file, a file of n
   assert.match(tb.why ?? "", /podklady\/lhota-16\/stavení\.png/u);
   assert.equal((await w.ok(["house", "list", "--json"])).json.houses.find((x: any) => x.id === belokamen.id).state, "queued");
   assert.equal((await w.ok(["house", "show", belokamen.id!, "--json"])).json.house.materials[0].kind, "own-research");
+  // its brief: the page of a house's takeover besides the method of the material; another task's not
+  const brief = (await w.ok(["brief", tb.id], AGENT)).out;
+  assert.match(brief, /# Method: taking over the research of a house[\s\S]*Search nothing new/u);
+  assert.match(brief, /# Method: processing an input/u);
   // taken again: nothing new
   const ops = tree.list<Input>("input").length;
   const again = await w.ok(["house", "import", dir, "--json"], AGENT);

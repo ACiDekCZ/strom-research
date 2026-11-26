@@ -91,9 +91,15 @@ export function methodPage(text: string, level: string | undefined, conditions: 
   return out.join("\n");
 }
 
-/** Method text for a task level: the core plus the level's own page and the pages it works by (a census task's: census.md), each with the parts the level uses. */
+/**
+ * The condition of a task taking over the research of a house the person made (origin house:import:, spec 030): its
+ * page (house.md) besides the level's. Only a page: nothing of a page is marked for it.
+ */
+export const HOUSE_TAKEOVER = "house-takeover";
+
+/** Method text for a task level: the core plus the level's own page and the pages it works by (a census task's: census.md, a house's takeover: house.md), each with the parts the level uses. */
 export function methodFor(level: string | undefined, conditions: readonly string[] = []): string {
   // a census task while census records are on: their page too (spec 106)
-  const pages = ["core.md", ...(level ? [...(level === METHOD_LINKS ? [] : [`${level}.md`]), ...(METHOD_PAGES[level] ?? [])] : []), ...(conditions.includes("census") ? ["census.md"] : [])];
+  const pages = ["core.md", ...(level ? [...(level === METHOD_LINKS ? [] : [`${level}.md`]), ...(METHOD_PAGES[level] ?? [])] : []), ...(conditions.includes("census") ? ["census.md"] : []), ...(conditions.includes(HOUSE_TAKEOVER) ? ["house.md"] : [])];
   return pages.map((p) => readAsset("method", p)).filter((t): t is string => !!t).map((t) => methodPage(t, level, conditions)).join("\n");
 }

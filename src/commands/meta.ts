@@ -288,7 +288,7 @@ register(
     summary: "How to do research with strom — read this first (for agents)",
     group: "start",
     description: "With a topic, one page of the method: waiting — a conversation that begins with a task that waits for the user.",
-    args: [{ name: "topic", description: "a page of the method: waiting, core, locate, link, verify, enrich, request, intake, narrate, reading, recording" }],
+    args: [{ name: "topic", description: "a page of the method: waiting, core, locate, link, verify, enrich, request, intake, narrate, reading, recording, house" }],
     examples: ["strom guide", "strom guide waiting"],
     run(ctx, { args }) {
       const lang = ctx.hasTree() ? ctx.tree().lang : ctx.settings.home() ? ctx.settings.lang().value : undefined;

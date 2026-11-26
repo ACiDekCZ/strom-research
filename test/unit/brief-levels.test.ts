@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import "../../src/commands/index.ts";
-import { assetPath, CENSUS_CONDITIONS, methodFor, methodPage, METHOD_CONDITIONS, METHOD_LINKS } from "../../src/core/assets.ts";
+import { assetPath, CENSUS_CONDITIONS, HOUSE_TAKEOVER, methodFor, methodPage, METHOD_CONDITIONS, METHOD_LINKS } from "../../src/core/assets.ts";
 import { commandSheet } from "../../src/brief/sheet.ts";
 import { TASK_LEVELS } from "../../src/core/model.ts";
 import { guideText } from "../../src/commands/guide.ts";
@@ -200,6 +200,12 @@ test("brief size by level: the method and the commands every session of a level 
   }
   // a census task while census records are on: their page besides (spec 106), within its own budget
   for (const level of TASK_LEVELS) assert.ok(methodFor(level, [...EVERY, "census"]).length - methodFor(level, EVERY).length <= 3_100, level);
+});
+
+test("the research of a house taken over (spec 030): its page only for its task, besides the level's — no other task, no level", () => {
+  for (const level of TASK_LEVELS) assert.doesNotMatch(methodFor(level, EVERY), /taking over the research of a house/u, level);
+  assert.match(methodFor("intake", [...EVERY, HOUSE_TAKEOVER]), /# Method: processing an input[\s\S]*# Method: taking over the research of a house[\s\S]*strom house show A0001/u);
+  assert.doesNotMatch(methodFor(undefined), /taking over the research of a house/u);
 });
 
 test("census records (spec 106, K1.2): their page only for a census task while on; off, one line to propose them once — no level, no condition: neither", () => {

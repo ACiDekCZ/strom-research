@@ -36,7 +36,7 @@ async function older(w: World) {
   await w.withTree("Lhotákovi");
   const add = async (name: string, born: string) => (await w.ok(["person", "add", name, "--sex", "M", "--born", born, "--json"])).json.person.id as string;
   const ids = { kapradin: await add("Kapradin /Lhoták/", "1850"), mlhoslav: await add("Mlhoslav /Lhoták/", "1852"), hromoslav: await add("Hromoslav /Prouzal/", "1854") };
-  const facts: Record<string, [keyof typeof ids, string, Partial<Event>]> = {
+  const facts = {
     mark: ["kapradin", "Lhota", { house: "čp. 16" }],
     plain: ["kapradin", "Lhota", { house: "16" }],
     haus: ["mlhoslav", "Bělokamen", { house: "Haus Nr. 3".normalize("NFD") }],
@@ -46,13 +46,14 @@ async function older(w: World) {
     several: ["hromoslav", "Lhota", { note: "bydlel v čp. 13, později čp. 14" }],
     entry: ["hromoslav", "Lhota", { note: "matrika č. 5, fol. 12" }],
     cyrillic: ["hromoslav", "Лхота", { house: "дом 7" }],
-  };
-  const ev = {} as Record<keyof typeof facts, string>;
+  } satisfies Record<string, [keyof typeof ids, string, Partial<Event>]>;
+  type Fact = keyof typeof facts;
+  const ev = {} as Record<Fact, string>;
   for (const [k, [who, place]] of Object.entries(facts))
-    ev[k] = (await w.ok(["event", "add", ids[who], "RESI", "--date", "1880", "--place", place, "--json"])).json.event.id as string;
+    ev[k as Fact] = (await w.ok(["event", "add", ids[who], "RESI", "--date", "1880", "--place", place, "--json"])).json.event.id as string;
   for (const who of Object.keys(ids) as (keyof typeof ids)[])
     asOlder(w, ids[who], (p) => {
-      for (const [k, [owner, , keep]] of Object.entries(facts)) if (owner === who) Object.assign(p.events.find((e) => e.id === ev[k])!, keep);
+      for (const [k, [owner, , keep]] of Object.entries(facts)) if (owner === who) Object.assign(p.events.find((e) => e.id === ev[k as Fact])!, keep);
     });
   // a note of a number on a fact of no place: a house is of a municipality — not offered
   const placeless = (await w.ok(["event", "add", ids.kapradin, "OCCU", "--value", "kovář", "--date", "1880", "--json"])).json.event.id as string;
