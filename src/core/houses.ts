@@ -701,16 +701,23 @@ export function housesRev(tree: Tree, rows: HouseRow[] = houseRows(tree)): strin
   for (const r of researchHouses(rows)) hash.update(`${r.key}\u0000${r.id ?? ""}\u0000${r.state}\u0000${r.task ?? ""}\u0000${r.at ?? ""}\u0000${r.question?.text ?? ""}\u0000${r.record?.updated ?? ""}\u0000${r.materials.join(",")}\n`);
   for (const t of tree.list<Task>("task").filter(forHouse).sort((a, b) => a.id.localeCompare(b.id))) hash.update(`${t.id}\u0000${t.updated}\u0000${t.state}\n`);
   for (const i of tree.list<Input>("input")) if (i.houses?.length) hash.update(`${i.id}\u0000${i.updated}\n`);
+  // the skeletons of the municipalities (GET /houses/<key> town): a house's answer changes with its municipality's
+  for (const h of tree.list<House>("house")) if (h.town) hash.update(`town\u0000${h.id}\u0000${h.updated}\u0000${h.retracted ? 1 : 0}\n`);
   return hash.digest("hex").slice(0, 16);
 }
 
-/** /status houses (feature house): on — the research of houses by itself, off in part 1; how many houses in each state. */
-export function housesStatus(tree: Tree, archive: boolean): { on: false; rev: string; counts: Record<Exclude<HouseState, "none">, number> } {
-  const rows = houseRows(tree);
+/**
+ * /status houses (feature house), its part of the houses alone: how many houses in each state — held the tasks of houses
+ * the setting off keeps aside (housesHeldCount, as census held) — and the fingerprint; on as the setting says (`on`,
+ * never in an archive). The research's own (auto, estimate, layers): core/houseauto.ts housesBridgeStatus.
+ */
+export function housesStatus(tree: Tree, archive: boolean, on = false, rows: HouseRow[] = houseRows(tree)): { on: boolean; rev: string; counts: Record<Exclude<HouseState, "none">, number> } {
   const counts = { done: 0, running: 0, queued: 0, waiting: 0, held: 0 };
   // an archive: nothing researched, nothing counted (its tasks put aside say nothing of a research)
-  if (!archive) for (const r of rows) if (r.state !== "none") counts[r.state]++;
-  return { on: false, rev: housesRev(tree, rows), counts };
+  if (archive) return { on: false, rev: housesRev(tree, rows), counts };
+  for (const r of rows) if (r.state !== "none" && r.state !== "held") counts[r.state]++;
+  counts.held = housesHeldCount(tree, on);
+  return { on, rev: housesRev(tree, rows), counts };
 }
 
 /** A house as an archive shows it: nobody researches there — no state of a research, no task, no question. */

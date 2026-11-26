@@ -1421,6 +1421,8 @@ export interface HouseMap extends HouseItem {
   manual?: true;
   sheet?: string;
   label?: string;
+  /** A map layer strom ships (assets/maplayers.json, its id) the Strom app draws over the house's place. */
+  layer?: string;
 }
 
 /** What was gone through for the house, found or not (K2.6): a later task never goes through it again. */

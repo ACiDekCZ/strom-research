@@ -3696,6 +3696,7 @@ export const UI = {
   "ui.link.archive.none": "There is nothing to decide about this archive here. Nothing was done.",
   "ui.experiments.link": "The search for the events of history is turned on only in the terminal the link opens.",
   "ui.history.place.link": "The history of a place is looked for only on the word given in the terminal the link opens.",
+  "ui.house.link": "The history of a house is looked for only on the word given in the terminal the link opens.",
   "ui.places.link": "Identifying places is started only on the word given in the terminal the link opens.",
   "ui.link.what.experiment.history": "look for the events of history at the places of this tree — wars, epidemics, censuses, changes of the state",
   "ui.link.experiment.note": "Looked for now and then between the sessions of the family research (how often is chosen next), a session of up to {minutes} minutes.",

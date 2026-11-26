@@ -4003,6 +4003,7 @@
   "ui.link.archive.none": "Über dieses Archiv gibt es hier nichts zu entscheiden. Es ist nichts geschehen.",
   "ui.experiments.link": "Die Suche nach den Ereignissen der Geschichte wird nur im Terminal eingeschaltet, das der Link öffnet.",
   "ui.history.place.link": "Die Geschichte eines Ortes wird nur auf das Wort hin gesucht, das im Terminal gegeben wird, das der Link öffnet.",
+  "ui.house.link": "Die Geschichte eines Hauses wird nur auf das Wort hin gesucht, das im Terminal gegeben wird, das der Link öffnet.",
   "ui.places.link": "Die Bestimmung der Orte startet nur auf das Wort hin, das im Terminal gegeben wird, das der Link öffnet.",
   "ui.link.what.experiment.history": "die Ereignisse der Geschichte an den Orten dieses Stammbaums suchen – Kriege, Epidemien, Volkszählungen, Änderungen des Staates",
   "ui.link.experiment.note": "Gesucht wird ab und zu zwischen den Sitzungen der Familienforschung (wie oft, wird gleich danach gewählt), eine Sitzung dauert höchstens {minutes} Minuten.",

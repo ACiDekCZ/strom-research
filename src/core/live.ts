@@ -743,13 +743,16 @@
 //                          question? {id: T…, text}, summary {events, holders, residents, unknown, materials, passed}}]}
 //                          — the houses with a record, a task or a material (none only of the tree's facts); read in an
 //                          archive too; 503 research.busy (+ Retry-After). rev: the fingerprint of the houses, their
-//                          tasks and their material (core/houses.ts housesRev), as /status houses.rev
+//                          tasks, their material and their municipalities' skeletons (core/houses.ts housesRev), as
+//                          /status houses.rev
 //   GET <token>/houses/<key|A…>  one house whole (spec 030 §2.4 as §4.2 says it; the key URL-encoded, | as %7C): {id?,
 //                          key, place, house, name?, nameBy?, state, at?, task?, work?, question?, persons [P…], years?,
 //                          numbers, location?, timeline, holders, residents, look?, maps?, passed, manual, unknown,
 //                          archiveOnly, materials [{id: I…, kind: own-research | file | memory, title, at, file?}],
-//                          sensitive?, rev} — every item with its id (n…, e…, h…, r…, p…, o…, u…, a…, m…), no recent; a
-//                          house of the tree's facts alone too (state none, its lists empty); 404 house.unknown, 503
+//                          sensitive?, town? {id, text?, passed, manual, archiveOnly, maps} (its municipality's
+//                          skeleton), rev} — every item with its id (n…, e…, h…, r…, p…, o…, u…, a…, m…), a maps[]
+//                          item may name a layer of /status houses.layers (layer: its id), no recent; a house of the
+//                          tree's facts alone too (state none, its lists empty); 404 house.unknown, 503
 //                          research.busy
 //   POST <token>/houses/confirm  {house: <key|A…>, what: renumber|location|notSame, id?: n…, lat?, lon?}: the person's
 //                          word on a house in the app — strom house confirm in the app's environment (no window) — {house
@@ -764,11 +767,36 @@
 //                          of the tree's facts gets its record — {house (as GET /houses/<key>), head, parent}; feature
 //                          house.material (files sent now: POST <token>/batch/<id>/done with house); errors as
 //                          /houses/confirm (400 house.body + reasonCode house.town: its municipality no place record
-//                          yet; 404 house.unknown {file} for a material not in the research). /status houses {on: false,
-//                          rev, counts {done, running, queued, waiting, held}}: always there (feature house) — on, the
-//                          research of houses by itself, false in part 1; counts by state, zeros in an archive. The link
+//                          yet; 404 house.unknown {file} for a material not in the research). /status houses {on, rev,
+//                          counts {done, running, queued, waiting, held}, auto? {houses, towns}, estimate? {houses,
+//                          towns, minutes, usd?, measured, perHouse {minutes, usd?}, perTown {minutes, usd?}}, layers?
+//                          [{id, kind?, label, type: wms, url, layers, format?, attribution, license, minZoom?, bbox
+//                          [w, s, e, n]}]}: always there (feature house) — on, the setting houses as it holds here (the
+//                          tree's own value both ways); counts by state, held the tasks of houses the setting off keeps
+//                          aside (core/houses.ts housesHeldCount); auto, estimate (core/houseauto.ts) once the tree's
+//                          facts give a house; layers (assets/maplayers.json, core/maplayers.ts) those whose bbox holds a
+//                          municipality of a house, else left out (a house's maps[] item refers to one: layer); an
+//                          archive or a research waiting for its agent: on false, zeros, nothing more. The link
 //                          house?tree=…&do=import (feature house.import, not in an archive) takes in a research of the
 //                          person's own in the terminal (strom house import)
+//   POST <token>/houses    {"on": true|false} (exactly): the history of the tree's houses looked for by itself — strom
+//                          config set houses on|off --for-tree, the person's decision in the app (no window, no link) —
+//                          {houses (as /status houses), head, parent (head when the value holds already: nothing
+//                          written)}; feature house.auto (an archive too: there 409); 400 house.body, 409 house.archive
+//                          (an archive, a research waiting for its agent; + reasonCode), 409 seal.foreign |
+//                          tree.not-downloaded, 423 locked, 503 research.busy (+ Retry-After), 507 disk.full, 500
+//                          house.failed (+ reasonCode)
+//   POST <token>/houses/request  {house: <key|A…>, with?: [<key|A…>] (at most 2, the same municipality)}: the history of
+//                          a house of the tree asked for (feature house.request: only where the research has its
+//                          agent; never house.request.direct — the bridge never starts an agent). The setting houses
+//                          off: 403 house.link {error, code, text, link strom-research://house?tree=…&house=<key>&do=
+//                          search[&with=<key>,…], estimate {minutes, usd?, measured, perHouse, perTown}} — the estimate
+//                          and the person's yes in the terminal. On: strom house request --yes (the person's word in
+//                          the app) — its task (and its municipality's skeleton when it has none) on top of the queue —
+//                          {house (its row, as GET /houses), task, state: queued, town?, head, parent}. 400 house.body
+//                          (+ reasonCode house.town: its municipality no place record yet), 404 house.unknown (nobody of
+//                          the tree lived there), 409 house.archive (+ reasonCode), 423 locked, 503 research.busy (+
+//                          Retry-After), 507 disk.full, 500 house.failed
 //   POST <token>/intake    {"auto": true|false} (exactly): what the app sends gone through by the agent by itself — a
 //                          batch once whole, a file of no batch as it comes, the same file again with more said of it, a
 //                          file shown again (spec 130 K1.3) — strom config set intake.auto on|off --for-tree, the person's decision
@@ -883,7 +911,8 @@ import { actsAsArchive, kindOf, settleWaiting, stateOf } from "./state.ts";
 import { forStory } from "./stories.ts";
 import { censusHeldCount, censusHidden } from "./census.ts";
 import { kindCounts, kindMatches, parseKnownKinds, parseTaskKind, TASK_KINDS, taskKind, type TaskKind } from "./taskkind.ts";
-import { archiveRow, forHouse, houseByRef, houseIndex, houseKeyOfTask, houseRows, housesRev, housesStatus, houseView, listRow, researchHouses, type HouseIndex, type HouseRow } from "./houses.ts";
+import { archiveRow, forHouse, houseByRef, houseIndex, houseKeyOfTask, houseRows, housesRev, houseView, listRow, researchHouses, type HouseIndex, type HouseRow } from "./houses.ts";
+import { HOUSE_GROUP_MAX, houseAskEstimate, houseEstimate, housesBridgeStatus } from "./houseauto.ts";
 import { factMark, nameMark, transcriptMark } from "./readers.ts";
 import { quiet, raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts";
 import { settleReaders } from "./readerfix.ts";
@@ -1025,6 +1054,7 @@ const CODES = {
   "ui.error.tree.not-downloaded": "tree.not-downloaded",
   "ui.experiments.link": "experiments.link",
   "ui.history.place.link": "history.link",
+  "ui.house.link": "house.link",
   "ui.places.link": "places.link",
   "ui.history.kinds.link": "history.kinds.link",
   "ui.history.align.link": "history.align.link",
@@ -2027,13 +2057,13 @@ const MEDIA_REF_UNKNOWN = "sync.media-ref-unknown";
 /** How many hashes POST /media/known takes at once. */
 export const MEDIA_KNOWN_MAX = 5000;
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "house", "house.material", "house.confirm", "house.import", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sync.mediaRef", "person.contact", "media.list", "media.list.source", "waiting.gain", "sort.confirm", "working.saving", "waiting.retry", "sort.confirm.app", "run.confirm", "finds", "finds.person", "glance", "people.search"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "house", "house.material", "house.confirm", "house.import", "house.auto", "house.request", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sync.mediaRef", "person.contact", "media.list", "media.list.source", "waiting.gain", "sort.confirm", "working.saving", "waiting.retry", "sort.confirm.app", "run.confirm", "finds", "finds.person", "glance", "people.search"] as const;
 
 /**
  * What only a research with its agent here does (accepts.read: none in an archive, nor where it waits for its agent);
  * finds: what an agent found, which an archive never says (GET finds answers none there).
  */
-const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sort.confirm", "sort.confirm.app", "run.confirm", "finds", "finds.person", "house.import"]);
+const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sort.confirm", "sort.confirm.app", "run.confirm", "finds", "finds.person", "house.import", "house.request"]);
 const withoutAgent = (features: readonly string[]): readonly string[] => features.filter((f) => !AGENT_FEATURES.has(f));
 
 /**
@@ -3342,9 +3372,11 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     // census records as a source (spec 106, feature census): always there — held 0 while on, in an archive and where
     // the research waits for its agent
     census: censusStatus(tree, settings),
-    // the research of houses (spec 030, feature house): always there — on false in part 1, the houses counted by state
-    // (none in an archive, zeros), rev the fingerprint of the houses, their tasks and their material
-    houses: housesStatus(tree, archive),
+    // the research of houses (spec 030, features house, house.auto): always there — on the setting as it holds here, the
+    // houses counted by state (held: the tasks the setting off keeps aside), rev the fingerprint of the houses, their
+    // tasks, their material and their municipalities' skeletons; auto and estimate once the tree's facts give a house,
+    // layers where a map layer covers a municipality of one — an archive: on false, zeros, nothing more
+    houses: housesBridgeStatus(tree, settings, archive),
     // what the app sends gone through by the agent by itself (spec 130, feature intake.auto): off unless the person
     // turned it on — none in an archive or a research waiting for its agent (nothing is sorted there)
     ...(archive ? {} : { intake: { auto: settings.intakeAuto(tree.config) } }),
@@ -4318,8 +4350,13 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       return;
     }
     // census records as a source (spec 106)
-    if (req.method === "POST" && t === token && what === "houses" && (sub === "confirm" || sub === "material") && !act) {
-      writeFor(req, res, origin, sub === "confirm" ? houseConfirmWrite() : houseMaterialWrite());
+    if (req.method === "POST" && t === token && what === "houses" && (sub === "confirm" || sub === "material" || sub === "request") && !act) {
+      writeFor(req, res, origin, sub === "confirm" ? houseConfirmWrite() : sub === "material" ? houseMaterialWrite() : houseRequestWrite());
+      return;
+    }
+    // the history of the houses by itself (spec 030 part 2, feature house.auto)
+    if (req.method === "POST" && t === token && what === "houses" && !sub) {
+      writeFor(req, res, origin, housesWrite());
       return;
     }
     if (req.method === "POST" && t === token && what === "census" && !sub) {
@@ -7241,6 +7278,96 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   };
   const HOUSE_WRITE_CODES = { badBody: "house.body", busy: "research.busy", failed: "house.failed" };
   const houseArchive = (tree: Tree) => ({ code: 409, body: { ...refusal("nothing is written of houses in an archive of Strom", "house.archive"), reasonCode: stateOf(tree) } });
+
+  /**
+   * The history of the tree's houses looked for by itself (POST /houses {"on": true|false}, exactly; spec 030 §2.5, part
+   * 2): strom config set houses on|off --for-tree, in the app's environment — the person's decision there (the app shows
+   * auto and estimate first), turned on or off at once (no window, no link), as census records. As it is already: 200,
+   * nothing written, head = parent. {houses: <as /status houses>, head, parent}. 400 house.body; not in an archive nor a
+   * research waiting for its agent (409 house.archive, reasonCode: its state).
+   */
+  const housesWrite = (): AppWrite => {
+    let before = "";
+    return {
+      what: "the history of the houses",
+      codes: HOUSE_WRITE_CODES,
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body);
+        if (keys.length !== 1 || keys[0] !== "on" || typeof body.on !== "boolean") return { code: 400, body: refusal(`the body: {"on": true} or {"on": false}`, "house.body") };
+        if (actsAsArchive(tree)) return houseArchive(tree);
+        before = head(root);
+        const settings = new Settings(env, {});
+        if (settings.houses(tree.config) === body.on) return { code: 200, body: { houses: housesBridgeStatus(tree, settings), head: before, parent: before } };
+        return { args: ["config", "set", "houses", body.on ? "on" : "off", "--for-tree"] };
+      },
+      done(tree, _data, h) {
+        const now = Tree.open(tree.root, env);
+        return { houses: housesBridgeStatus(now, new Settings(env, {})), head: h, parent: before };
+      },
+      refused(tree, code, why) {
+        if (code === "archive" || code === "agent.missing") return { code: 409, body: { ...refusal(why, "house.archive"), reasonCode: stateOf(tree) } };
+        return undefined;
+      },
+    };
+  };
+
+  /**
+   * The history of a house asked for in the app (POST /houses/request {house: <key|A…>, with?: [<key|A…>, …]}; spec 030
+   * §2.6, part 2): only a house where somebody of the tree lived, its municipality a place record; with: at most
+   * HOUSE_GROUP_MAX − 1 neighbouring houses of the same municipality. The history of the houses off: it spends the
+   * agent's session and the bridge never starts one — 403 house.link with the link that asks the person in the terminal
+   * (strom-research://house?tree=…&house=<key>&do=search[&with=…]) and the estimate. On: strom house request --yes — the
+   * person's word given in the app — its task (and its municipality's skeleton when it has none) on top of the queue:
+   * {house: <its row, as GET /houses>, task, state: "queued", town?, head, parent}. 400 house.body (reasonCode
+   * house.town: its municipality no place record yet), 404 house.unknown (nobody of the tree lived there), 409
+   * house.archive (reasonCode: its state), 503 research.busy.
+   */
+  const houseRequestWrite = (): AppWrite => {
+    let before = "";
+    return {
+      what: "a house asked for",
+      codes: HOUSE_WRITE_CODES,
+      busyStatus: 503,
+      ask(tree, body) {
+        const bad = (why: string) => ({ code: 400, body: refusal(why, "house.body") });
+        const shape = `the body: {"house": "<its key or A…>", "with"?: ["<key or A…>"] (at most ${HOUSE_GROUP_MAX - 1})}`;
+        if (Object.keys(body).some((k) => k !== "house" && k !== "with")) return bad(shape);
+        const more = body.with;
+        if (more !== undefined && (!Array.isArray(more) || more.length > HOUSE_GROUP_MAX - 1 || !more.every((w) => typeof w === "string" && !!w.trim() && w.length <= 300))) return bad(shape);
+        const row = houseOfBody(tree, body);
+        if ("code" in row) return row;
+        if (actsAsArchive(tree)) return houseArchive(tree);
+        const lived = (r: HouseRow) => !!r.tree?.persons.size;
+        if (!lived(row)) return { code: 404, body: refusal(`nobody of the tree lived in the house "${row.key}" — only such a house is researched`, "house.unknown") };
+        const others: HouseRow[] = [];
+        for (const w of (more as string[] | undefined) ?? []) {
+          const r = houseOfBody(tree, { house: w });
+          if ("code" in r) return r;
+          if (!lived(r)) return { code: 404, body: refusal(`nobody of the tree lived in the house "${r.key}" — only such a house is researched`, "house.unknown") };
+          if (r.place.key !== row.place.key) return bad(`"${r.key}" is in another municipality than "${row.key}" — only houses of one municipality go together`);
+          if (r.key !== row.key && !others.some((o) => o.key === r.key)) others.push(r);
+        }
+        if (!row.place.id) return { code: 400, body: { ...refusal(`the municipality of the house "${row.key}" is no place record yet`, "house.body"), reasonCode: "house.town" } };
+        const settings = new Settings(env, {});
+        if (!settings.houses(tree.config)) {
+          const link = linkText({ action: "house", tree: tree.config.id, do: "search", house: row.key, ...(others.length ? { with: others.map((o) => o.key).join(",") } : {}) }, linkScheme(env));
+          const asked = houseAskEstimate(tree, row.place.id, 1 + others.length);
+          const { perHouse, perTown } = houseEstimate(tree);
+          return { code: 403, body: { ...said(tree.lang, "ui.house.link"), link, estimate: { ...asked, perHouse, perTown } } };
+        }
+        before = head(root);
+        return { args: ["house", "request", "--yes", ...others.map((o) => `--with=${o.id ?? o.key}`), "--", row.id ?? row.key] };
+      },
+      done(tree, data, h) {
+        const now = Tree.open(tree.root, env);
+        const rows = houseRows(now);
+        const row = houseByRef(now, String(data.house), rows);
+        return { house: listRow(row), task: data.task, state: "queued", ...(typeof data.town === "string" ? { town: data.town } : {}), head: h, parent: before };
+      },
+      refused: houseRefused,
+    };
+  };
 
   /**
    * The person's word on a house in the app (POST /houses/confirm {house, what: renumber|location|notSame, id?, lat?,

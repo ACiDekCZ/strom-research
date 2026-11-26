@@ -4003,6 +4003,7 @@
   "ui.link.archive.none": "O tym archiwum nie ma tu czego rozstrzygać. Nic się nie stało.",
   "ui.experiments.link": "Wyszukiwanie wydarzeń historycznych włącza się tylko w terminalu, który otworzy link.",
   "ui.history.place.link": "Historii miejsca szuka się tylko po potwierdzeniu w terminalu, który otworzy link.",
+  "ui.house.link": "Historii domu szuka się tylko po potwierdzeniu w terminalu, który otworzy link.",
   "ui.places.link": "Identyfikacja miejsc rusza tylko po potwierdzeniu w terminalu, który otworzy link.",
   "ui.link.what.experiment.history": "szukać wydarzeń historycznych w miejscach tego drzewa – wojen, epidemii, spisów ludności, zmian państwa",
   "ui.link.experiment.note": "Wyszukiwane na bieżąco między sesjami badania rodzinnego (jak często – wybór zaraz potem), sesja trwa najwyżej {minutes} minut.",

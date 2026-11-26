@@ -44,6 +44,7 @@ import { ImportQuestions, planImport, writeImport, type ImportQuestion } from ".
 import { create, listOpt, normId, update } from "../core/records.ts";
 import { isAgent } from "../core/which.ts";
 import { askHouse, HOUSE_GROUP_MAX, houseAskEstimate, houseTaskForMaterial } from "../core/houseauto.ts";
+import { mapLayer, mapLayers } from "../core/maplayers.ts";
 import { rankTasks } from "../core/queue.ts";
 import { actsAsArchive } from "../core/state.ts";
 import type { Tree } from "../core/tree.ts";
@@ -602,12 +603,16 @@ register(
       { name: "manual", type: "boolean", description: "only a link to open by hand (a site that refuses automated reading)" },
       { name: "sheet", type: "string", value: "<sheet>", description: "its sheet", max: 200 },
       { name: "label", type: "string", value: "<text>", description: "what it is", max: 300 },
+      { name: "layer", type: "string", value: "<id>", description: `a map layer strom ships that the Strom app draws over the house's place (${mapLayers().map((l) => l.id).join(", ") || "none"}); --kind then may be left out` },
     ],
     ['strom house add map A0001 --kind cadastre --url https://example.org/sheet --manual --sheet "<sheet 3>"'],
     (ctx, tree, h, opts) => {
       if (opt(opts.url) && !/^https?:\/\//iu.test(opt(opts.url)!)) throw new UsageError(`"${opt(opts.url)}" is no web address`, { code: "house.body" });
+      const layer = opt(opts.layer) ? mapLayer(opt(opts.layer)!) : undefined;
+      if (opt(opts.layer) && !layer) throw new UsageError(`no map layer "${opt(opts.layer)}" — strom ships: ${mapLayers().map((l) => l.id).join(", ") || "none"}`, { code: "house.body" });
       const { id } = addHouseItem(tree, h.id, "maps", {
-        kind: oneOf(opts.kind, HOUSE_MAP_KINDS, "kind"),
+        kind: opts.kind === undefined && layer?.kind ? layer.kind : oneOf(opts.kind, HOUSE_MAP_KINDS, "kind"),
+        ...(layer ? { layer: layer.id } : {}),
         ...(opt(opts.url) ? { url: opt(opts.url)! } : {}),
         ...(opts.manual === true ? { manual: true as const } : {}),
         ...(opt(opts.sheet) ? { sheet: opt(opts.sheet)! } : {}),

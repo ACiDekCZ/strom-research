@@ -4003,6 +4003,7 @@
   "ui.link.archive.none": "O tomto archivu tu není co rozhodnout. Nic se nestalo.",
   "ui.experiments.link": "Hledání událostí dějin se zapíná jen v terminálu, který otevře odkaz.",
   "ui.history.place.link": "Dějiny místa se hledají jen na slovo dané v terminálu, který otevře odkaz.",
+  "ui.house.link": "Historie domu se hledá jen na slovo dané v terminálu, který otevře odkaz.",
   "ui.places.link": "Ztotožnění míst se spouští jen na slovo dané v terminálu, který otevře odkaz.",
   "ui.link.what.experiment.history": "hledat události dějin v místech tohoto stromu – války, epidemie, sčítání, změny státu",
   "ui.link.experiment.note": "Hledá se průběžně mezi sezeními rodinného výzkumu (jak často, se vybere hned potom), sezení trvá nejvýš {minutes} minut.",

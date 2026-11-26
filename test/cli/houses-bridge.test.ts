@@ -2,7 +2,10 @@
 // GET /houses/<key|A…> (the key URL-encoded, | as %7C), POST /houses/confirm and /houses/material (the person's in the
 // app: no window), the field house of POST /batch/<id>/done, the task kind house (queueCounts.kind, GET /queue?kind=house,
 // known=house, the queue's row with its house's key), an archive (reads, its writes 409, nothing of a research), and the
-// link house?do=import (the path asked in the terminal, then strom house import). Synthetic data only (made-up names).
+// link house?do=import (the path asked in the terminal, then strom house import); part 2: the setting houses through the
+// bridge (/status houses on, auto, estimate, held, layers by their box; POST /houses), a house asked for (POST
+// /houses/request: off the link and the estimate, on its task on top), a map layer of a house. Synthetic data only
+// (made-up names).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -13,7 +16,10 @@ import http from "node:http";
 import { fileURLToPath } from "node:url";
 import { World, hasGit } from "../helpers.ts";
 import { Tree, now } from "../../src/core/tree.ts";
-import { forHouse } from "../../src/core/houses.ts";
+import { forHouse, housesHeldCount } from "../../src/core/houses.ts";
+import { houseAuto, houseEstimate } from "../../src/core/houseauto.ts";
+import { mapLayers } from "../../src/core/maplayers.ts";
+import { Settings } from "../../src/core/config.ts";
 import { taskKind } from "../../src/core/taskkind.ts";
 import { LinkError, linkText, parseLink, type TakenLink } from "../../src/core/links.ts";
 import type { House, Input, Task } from "../../src/core/model.ts";
@@ -335,4 +341,146 @@ test("the link house?do=search: a house of the tree by its record or key (at mos
   assert.doesNotMatch(archive.out, AI, archive.out);
   assert.equal(houseTasks().length, 2);
   w.cleanup();
+});
+
+/**
+ * The Lhotáks in Lhota (L0001): Kapradin (the main person) and his father Mlhoslav born in no. 9 (two generations of
+ * direct ancestors, over a hundred years ago); his grandfather Ozubec in no. 12 once, and sixty years in Bělokamen (L0002,
+ * written decomposed) no. 14 (a task raised by itself there); Hromoslav Prouzal in Bělokamen no. 16.
+ */
+async function lhotaks(w: World): Promise<void> {
+  await w.withTree("Lhotákovi");
+  await w.ok(["place", "add", "Lhota", "--kind", "village"]); // L0001
+  await w.ok(["place", "add", "Bělokamen".normalize("NFD"), "--kind", "village"]); // L0002
+  const person = async (name: string) => (await w.ok(["person", "add", name, "--json"])).json.person.id as string;
+  const p1 = await person("Kapradin /Lhoták/");
+  const p2 = await person("Mlhoslav /Lhoták/");
+  const p3 = await person("Ozubec /Lhoták/");
+  const p4 = await person("Hromoslav /Prouzal/");
+  await w.ok(["family", "add", "--partner", p2, "--child", p1]);
+  await w.ok(["family", "add", "--partner", p3, "--child", p2]);
+  await w.ok(["config", "set", "main.person", p1, "--for-tree"]);
+  const fact = async (who: string, kind: string, date: string, place: string, house: string) => w.ok(["event", "add", who, kind, "--date", date, "--place", place, "--house", house]);
+  await fact(p1, "BIRT", "1900", "Lhota", "9");
+  await fact(p2, "BIRT", "1870", "Lhota", "9");
+  await fact(p3, "RESI", "1850", "Lhota", "12");
+  await fact(p3, "BIRT", "1820", "Bělokamen", "14");
+  await fact(p3, "DEAT", "1880", "Bělokamen", "14");
+  await fact(p4, "BIRT", "1820", "Bělokamen", "16");
+}
+
+test("the setting houses and a house asked for through the bridge: /status on, auto, estimate, held, layers by their box; POST /houses; POST /houses/request off the link, on its task; a map layer of a house; an archive", opts, async () => {
+  const w = new World();
+  await lhotaks(w);
+  const url = ((await w.ok(["live", "start", "--json"])).json as { url: string }).url;
+  try {
+    let status = (await request(`${url}/status?app=3.28.0`)).body;
+    for (const f of ["house.auto", "house.request"]) assert.ok(status.features.includes(f), f);
+    assert.ok(!status.features.includes("house.request.direct"), "the bridge never starts an agent");
+    // off: what the research would take by itself, before the person turns it on
+    const auto = houseAuto(open(w));
+    assert.ok(auto.houses.some((h) => h.key === "lhota|9"), JSON.stringify(auto.houses.map((h) => h.key)));
+    assert.equal(status.houses.on, false);
+    assert.deepEqual(status.houses.auto, { houses: auto.houses.length, towns: auto.towns.length });
+    assert.deepEqual(status.houses.estimate, JSON.parse(JSON.stringify(houseEstimate(open(w), auto))));
+    assert.equal(status.houses.estimate.measured, false);
+    assert.deepEqual(status.houses.counts, { done: 0, running: 0, queued: 0, waiting: 0, held: 0 });
+    assert.equal(status.houses.layers, undefined, "no municipality on the map yet");
+
+    // layers: only where a layer's box holds a municipality of a house
+    await w.ok(["place", "identify", "L0002", "--lat=-33.9", "--lon=18.4", "--why", "made up"], AGENT);
+    status = (await request(`${url}/status?app=3.28.0`)).body;
+    assert.equal(status.houses.layers, undefined, "a point no layer covers");
+    await w.ok(["place", "identify", "L0001", "--lat", "49.61", "--lon", "15.12", "--why", "made up"], AGENT);
+    status = (await request(`${url}/status?app=3.28.0`)).body;
+    const layer = mapLayers().find((l) => l.bbox[0] <= 15.12 && l.bbox[2] >= 15.12 && l.bbox[1] <= 49.61 && l.bbox[3] >= 49.61)!;
+    assert.ok(layer);
+    const shown = (status.houses.layers as { id: string; label: string; url: string; bbox: number[] }[]).find((l) => l.id === layer.id);
+    assert.ok(shown, JSON.stringify(status.houses.layers));
+    assert.equal(shown!.label, layer.label[open(w).lang] ?? layer.label.en);
+    assert.equal(shown!.url, layer.url);
+
+    // a house asked for, the setting off: the link to the terminal and the estimate, nothing written
+    const asked = await request(`${url}/houses/request`, "POST", { house: "lhota|9", with: ["lhota|12"] });
+    assert.equal(asked.status, 403, JSON.stringify(asked.body));
+    assert.equal(asked.body.code, "house.link");
+    assert.deepEqual(parseLink(asked.body.link), { action: "house", tree: open(w).config.id, do: "search", house: "lhota|9", with: "lhota|12" });
+    assert.deepEqual([asked.body.estimate.measured, asked.body.estimate.perHouse, asked.body.estimate.perTown], [false, { minutes: 30 }, { minutes: 20 }]);
+    assert.equal(asked.body.estimate.minutes, 2 * 30 + 20, "two houses and the municipality's skeleton");
+    assert.equal(open(w).list<Task>("task").filter(forHouse).length, 0, "nothing written");
+    await w.ok(["house", "add", "L0001", "77"]); // the person's record: nobody of the tree lived there
+    for (const [body, code, why] of [
+      [{}, 400, "house.body"],
+      [{ house: "lhota|9", more: 1 }, 400, "house.body"],
+      [{ house: "lhota|9", with: ["lhota|12", "lhota|77", "lhota|30"] }, 400, "house.body"],
+      [{ house: "lhota|9", with: ["belokamen|16"] }, 400, "house.body"],
+      [{ house: "nowhere|1" }, 404, "house.unknown"],
+      [{ house: "lhota|77" }, 404, "house.unknown"],
+      [{ house: "lhota|9", with: ["lhota|77"] }, 404, "house.unknown"],
+    ] as const) {
+      const r = await request(`${url}/houses/request`, "POST", body);
+      assert.deepEqual([r.status, r.body.code], [code, why], JSON.stringify([body, r.body]));
+    }
+
+    // the setting through the bridge: the body exact, the person's decision (no window), as it is already: nothing written
+    for (const body of [{}, { on: "yes" }, { on: true, more: 1 }]) {
+      const r = await request(`${url}/houses`, "POST", body);
+      assert.deepEqual([r.status, r.body.code], [400, "house.body"], JSON.stringify(r.body));
+    }
+    const on = await request(`${url}/houses`, "POST", { on: true });
+    assert.equal(on.status, 200, JSON.stringify(on.body));
+    assert.equal(on.body.houses.on, true);
+    assert.notEqual(on.body.head, on.body.parent);
+    assert.equal(new Settings(w.env, {}).houses(open(w).config), true, "the tree's own value");
+    assert.ok(on.body.houses.counts.queued > 0, JSON.stringify(on.body.houses));
+    const again = await request(`${url}/houses`, "POST", { on: true });
+    assert.deepEqual([again.status, again.body.head], [200, again.body.parent]);
+
+    // a house asked for, on: its task on top of the queue
+    const top = await request(`${url}/houses/request`, "POST", { house: "lhota|9" });
+    assert.equal(top.status, 200, JSON.stringify(top.body));
+    assert.deepEqual([top.body.house.key, top.body.state], ["lhota|9", "queued"]);
+    assert.match(top.body.task, /^T\d+$/u);
+    const t = open(w).get<Task>(top.body.task)!;
+    assert.equal(t.queueAt?.do, "next");
+    assert.notEqual(top.body.head, top.body.parent);
+
+    // off: the houses' tasks raised by themselves held
+    const off = await request(`${url}/houses`, "POST", { on: false });
+    assert.equal(off.status, 200, JSON.stringify(off.body));
+    assert.equal(off.body.houses.on, false);
+    assert.equal(off.body.houses.counts.held, housesHeldCount(open(w), false));
+    assert.ok(off.body.houses.counts.held >= 1, "the task raised by itself held; the one asked for not");
+
+    // a map layer of a house: by its id; the rev changes with the municipality's skeleton
+    const before = (await request(`${url}/status?app=3.28.0`)).body.houses.rev;
+    await w.ok(["house", "add", "map", "lhota|9", "--layer", layer.id], AGENT);
+    const house = (await request(`${url}/houses/lhota%7C9`)).body;
+    const m = (house.maps as { layer?: string; kind: string }[]).find((x) => x.layer === layer.id);
+    assert.ok(m, JSON.stringify(house.maps));
+    assert.equal(m!.kind, layer.kind);
+    assert.notEqual((await w.run(["house", "add", "map", "lhota|9", "--layer", "nowhere"], AGENT)).code, 0);
+    const mid = (await request(`${url}/status?app=3.28.0`)).body.houses.rev;
+    assert.notEqual(mid, before);
+    await w.ok(["house", "add", "summary", "--town", "L0001", "--text", "Panství i fara v obci."], AGENT);
+    assert.notEqual((await request(`${url}/status?app=3.28.0`)).body.houses.rev, mid, "the municipality's skeleton changes it");
+
+    // an archive: on false whatever is set, zeros, nothing more; its writes 409; nothing of a request
+    await w.ok(["config", "set", "houses", "on", "--for-tree"], { tty: true });
+    await w.ok(["mode", "archive"], { tty: true });
+    status = (await request(`${url}/status?app=3.28.0`)).body;
+    assert.ok(status.features.includes("house.auto"));
+    assert.ok(!status.features.includes("house.request"), "asked for only where the research has its agent");
+    assert.deepEqual(Object.keys(status.houses).sort(), ["counts", "on", "rev"]);
+    assert.equal(status.houses.on, false);
+    assert.deepEqual(status.houses.counts, { done: 0, running: 0, queued: 0, waiting: 0, held: 0 });
+    for (const [path, body] of [["houses", { on: false }], ["houses/request", { house: "lhota|9" }]] as const) {
+      const r = await request(`${url}/${path}`, "POST", body);
+      assert.deepEqual([r.status, r.body.code, r.body.reasonCode], [409, "house.archive", "archive"], JSON.stringify(r.body));
+      assert.doesNotMatch(JSON.stringify(r.body), AI);
+    }
+  } finally {
+    await w.run(["live", "stop"]);
+    w.cleanup();
+  }
 });

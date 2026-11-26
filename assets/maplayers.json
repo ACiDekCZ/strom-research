@@ -1,0 +1,18 @@
+{
+  "about": "Map layers the Strom app may draw over a house's place (GET /status houses.layers, spec 030 part 2): only open services whose host is in archives.json as allowed for automated use, outside its disallowed paths (test/unit/maplayers.test.ts). A layer is offered to a research only when its bbox [west, south, east, north] holds a place of a house of the tree. kind: as a house's maps[] item names it (core/model.ts HOUSE_MAP_KINDS). checked: the day its GetCapabilities was read.",
+  "layers": [
+    {
+      "id": "cz-ortho",
+      "kind": "ortho",
+      "label": { "cs": "Ortofoto ČR (dnes)", "en": "Orthophoto of Czechia (today)", "de": "Orthofoto Tschechiens (heute)", "pl": "Ortofotomapa Czech (dziś)" },
+      "type": "wms",
+      "url": "https://ags.cuzk.gov.cz/arcgis1/services/ORTOFOTO/MapServer/WMSServer",
+      "layers": "0",
+      "format": "image/jpeg",
+      "attribution": "© ČÚZK",
+      "license": "CC BY 4.0",
+      "bbox": [11.885448, 48.196887, 19.164528, 51.393486],
+      "checked": "2026-11-26"
+    }
+  ]
+}

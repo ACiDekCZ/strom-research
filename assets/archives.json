@@ -617,7 +617,7 @@
         "/archiv/",
         "/arcgis4/rest/services/Archiv/"
       ],
-      "scope": "the RÚIAN map service only (/arcgis/rest/services/RUIAN/MapServer: a house's address point, building, cadastral area, municipality — one query at a time, credited \"ČÚZK – on-line\"); never the Archiv application or its map images of the archive (old cadastral maps are no open data: \"s výjimkou leteckých měřických snímků a archiválií\", copies sold) — a person looks at them in the browser",
+      "scope": "the RÚIAN map service (/arcgis/rest/services/RUIAN/MapServer: a house's address point, building, cadastral area, municipality — one query at a time, credited \"ČÚZK – on-line\") and the orthophoto's viewing service (/arcgis1/services/ORTOFOTO/MapServer/WMSServer, its GetCapabilities read 2026-11-26: a map layer the Strom app draws over a house's place, assets/maplayers.json, credited \"© ČÚZK\"); never the Archiv application or its map images of the archive (old cadastral maps are no open data: \"s výjimkou leteckých měřických snímků a archiválií\", copies sold) — a person looks at them in the browser",
       "checked": "2026-11-03"
     },
     {

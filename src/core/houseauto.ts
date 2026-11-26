@@ -14,6 +14,7 @@ import {
   houseOrigin,
   houseRows,
   housesOfTask,
+  housesStatus,
   houseWork,
   recordOf,
   townOfTask,
@@ -24,6 +25,7 @@ import {
   type HouseState,
 } from "./houses.ts";
 import { kinship } from "./kin.ts";
+import { layersFor } from "./maplayers.ts";
 import { familiesAsChild } from "./people.ts";
 import { create, update } from "./records.ts";
 import { Settings } from "./config.ts";
@@ -133,6 +135,29 @@ export function houseEstimate(
   const minutes = towns * perTown.minutes + houses * perHouse.minutes;
   const usd = (houses === 0 || house) && (towns === 0 || town) && (houses || towns) ? Math.round(((house?.usd ?? 0) * houses + (town?.usd ?? 0) * towns) * 100) / 100 : undefined;
   return { houses, towns, minutes, ...(usd !== undefined ? { usd } : {}), measured: !!house, perHouse, perTown };
+}
+
+/**
+ * /status houses (spec 030 §2.2, feature house; part 2: house.auto): on — the setting as it holds for this research (the
+ * tree's own value both ways); counts by state, held the tasks the setting off keeps aside; auto — the houses and
+ * municipalities the research would take by itself (before the person turns it on) and estimate — what they and one
+ * house take, both only once the tree's facts give a house; layers — the map layers whose box holds a municipality of
+ * a house (none: left out). An archive (a research waiting for its agent too): on false, zeros, nothing more.
+ */
+export function housesBridgeStatus(tree: Tree, settings: Settings, archive: boolean = actsAsArchive(tree)): Record<string, unknown> {
+  const on = !archive && settings.houses(tree.config);
+  const rows = houseRows(tree, { on });
+  const base = housesStatus(tree, archive, on, rows);
+  if (archive) return base;
+  const out: Record<string, unknown> = { ...base };
+  if (rows.some((r) => r.tree?.persons.size)) {
+    const auto = houseAuto(tree, rows);
+    out.auto = { houses: auto.houses.length, towns: auto.towns.length };
+    out.estimate = houseEstimate(tree, auto);
+  }
+  const layers = layersFor(tree, rows);
+  if (layers) out.layers = layers;
+  return out;
 }
 
 /** A municipality's skeleton done or begun (its record done, or a task of it alive). */
