@@ -87,8 +87,13 @@ export const LINK_STORY_DOS = ["final", "keep"] as const;
 export const LINK_LIVE_DOS = ["start"] as const;
 
 export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history", "fixes", "back", "places", "history-kinds", "history-align", "hypothesis", "hypotheses", "work", "book", "house"] as const;
-/** A house (spec 030): import — a research of the person's own taken in, in the terminal (strom house import). */
-export const LINK_HOUSE_DOS = ["import"] as const;
+/**
+ * A house (spec 030): import — a research of the person's own taken in, in the terminal (strom house import); search —
+ * the history of a house of the tree asked for (the estimate and the person's yes in the terminal, strom house request).
+ */
+export const LINK_HOUSE_DOS = ["import", "search"] as const;
+/** At most this many neighbouring houses go with a house asked for (house&with=; HOUSE_GROUP_MAX − 1). */
+export const LINK_HOUSE_WITH = 2;
 /** A person's review: the person, with the family, with the ancestors (strom review --scope). */
 export const LINK_SCOPES = ["person", "family", "line"] as const;
 /** A new direction from a person (strom research new --direction). */
@@ -181,6 +186,9 @@ const LINK_AGENT = /^[a-z0-9-]{1,32}$/;
 /** A change of the research's history by its commit hash (the app's /log head, or its first 8 as strom history shows it). */
 const CHANGE = /^[0-9a-f]{7,40}$/;
 /** An archive's host, as a connector names it (www.example.org): letters, digits, hyphens and dots only. */
+/** A house of the tree: its record (A…) or its key (town|number, as the app keys it) — only looked up, never written. */
+const HOUSE_ID = /^A\d{1,9}$/u;
+const HOUSE_KEY = /^[^|,\p{C}]{1,120}\|[^|,\p{C}]{1,80}$/u;
 const HOST = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/;
 /** The name the app gives the tree's file of a move (its strom-prenos-<8 of its mark>.json). */
 const TRANSFER_NAME = /^strom-prenos-[A-Za-z0-9_-]{8}\.json$/;
@@ -268,7 +276,8 @@ export type Link =
   | { action: "work"; tree: string; do: (typeof LINK_WORK_DOS)[number]; n?: string; task?: string; research?: string; agent?: string }
   | { action: "fixes"; tree: string; id?: (typeof LINK_FIX_IDS)[number]; do?: (typeof LINK_FIX_DOS)[number] }
   | { action: "back"; tree: string; change?: string }
-  | { action: "house"; tree: string; do: (typeof LINK_HOUSE_DOS)[number] }
+  | { action: "house"; tree: string; do: "import" }
+  | { action: "house"; tree: string; do: "search"; house: string; with?: string }
   | { action: "history-kinds"; tree: string; scope: (typeof LINK_KINDS_SCOPES)[number]; kinds?: string; inherit?: "1" }
   | { action: "history-align"; tree: string; prune?: "1" }
   | { action: "new"; app: string; browser?: BrowserKind; file?: string; name?: string }
@@ -512,9 +521,24 @@ function linkParts(text: string | undefined, scheme: string): Link {
       if (q.has("prune") && q.get("prune") !== "1") throw new LinkError("prune=1 only");
       return { action, tree: id, ...(q.get("prune") === "1" ? { prune: "1" as const } : {}) };
     }
-    case "house":
+    case "house": {
       // a research of a house of the person's own taken in: the path asked in the terminal, never in the link
-      return { action, tree: id, do: oneOf(q, "do", LINK_HOUSE_DOS) };
+      const what = oneOf(q, "do", LINK_HOUSE_DOS);
+      if (what === "import") return { action, tree: id, do: what };
+      // the history of a house asked for: the house (and at most LINK_HOUSE_WITH neighbouring ones) by its record or its
+      // key alone — looked up in the tree in the terminal, refused there when it is none of its houses
+      const ref = (v: string) => {
+        const x = v.normalize("NFC");
+        if (HOUSE_ID.test(x.toUpperCase())) return x.toUpperCase();
+        if (HOUSE_KEY.test(x)) return x;
+        throw new LinkError("no house named");
+      };
+      const house = ref(q.get("house") ?? "");
+      if (!q.has("with")) return { action, tree: id, do: what, house };
+      const more = (q.get("with") ?? "").split(",").map(ref);
+      if (more.length > LINK_HOUSE_WITH) throw new LinkError(`at most ${LINK_HOUSE_WITH} houses with it`);
+      return { action, tree: id, do: what, house, with: more.join(",") };
+    }
     case "back": {
       // back in time: the change by its hash only (never a day or a text); none: the earlier changes to pick from
       if (!q.has("change")) return { action, tree: id };

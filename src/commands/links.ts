@@ -375,6 +375,11 @@ async function inTerminal(ctx: Context, link: TreeLink, at?: string) {
       return end((await backDo(ctx, run, treeLang, root, link.change)) === 0);
     }
     case "house": {
+      // the history of a house asked for: the estimate and the person's question here, its task on top, started now if wanted
+      if (link.do === "search") {
+        const { houseSearch } = await import("../cli/menu-links.ts");
+        return end(await houseSearch(ctx, run, treeLang, root, link.house, link.with ? link.with.split(",") : []));
+      }
       // a research of a house of the person's own: its path asked here, then strom house import (its questions here too)
       const { houseImportDo } = await import("../cli/menu-links.ts");
       return end(await houseImportDo(ctx, run, treeLang, root));
@@ -791,6 +796,9 @@ register(
       "  archive) ends at once. Asked in the terminal first.\n" +
       "strom-research://archive?tree=<id>&host=www.example.org — the question about an archive's images (slowly, through the\n" +
       "browser, by hand), answered in the terminal as in the menu's What waits; the answer is never in the link.\n" +
+      "strom-research://house?tree=<id>&house=A0001|<town|number>&do=search[&with=A0002,…] — the history of a house of the\n" +
+      "  family tree (at most 2 neighbouring ones with it): the estimate and the person's yes in the terminal, its task on top\n" +
+      "  of the queue (strom house request), then started now if wanted; a house the tree has not: refused.\n" +
       "strom-research://places?tree=<id>&do=run[&place=L0012] — the places of the facts identified by the agent: the queue\n" +
       "  (or the one place, queued when it is not) with its sessions and estimate, the task on top of the queue on the\n" +
       "  person's yes in the terminal, then started now if wanted — a queue of more sessions: how many, each with its\n" +

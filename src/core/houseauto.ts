@@ -135,6 +135,22 @@ export function houseEstimate(
   return { houses, towns, minutes, ...(usd !== undefined ? { usd } : {}), measured: !!house, perHouse, perTown };
 }
 
+/** A municipality's skeleton done or begun (its record done, or a task of it alive). */
+export function townBegun(tree: Tree, place: string): boolean {
+  if (tree.list<House>("house").some((h) => !h.retracted && h.town && h.place === place && !!h.done)) return true;
+  return tree.list<Task>("task").some((t) => t.origin === townOrigin(place) && LIVE.has(t.state));
+}
+
+/**
+ * What houses asked for take (strom house request, the link house&do=search): each house by what such sessions took
+ * here, its municipality's skeleton besides when it is neither done nor begun; the price of a house only once measured.
+ */
+export function houseAskEstimate(tree: Tree, place: string, houses: number): { minutes: number; usd?: number; measured: boolean } {
+  const est = houseEstimate(tree);
+  const minutes = est.perHouse.minutes * houses + (townBegun(tree, place) ? 0 : est.perTown.minutes);
+  return { minutes, ...(est.perHouse.usd !== undefined ? { usd: est.perHouse.usd } : {}), measured: est.measured };
+}
+
 /** The surnames of people, folded (the neighbouring houses of one family share one). */
 function surnames(tree: Tree, persons: string[]): Set<string> {
   const out = new Set<string>();

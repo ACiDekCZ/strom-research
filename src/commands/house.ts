@@ -43,7 +43,7 @@ import {
 import { ImportQuestions, planImport, writeImport, type ImportQuestion } from "../core/houseimport.ts";
 import { create, listOpt, normId, update } from "../core/records.ts";
 import { isAgent } from "../core/which.ts";
-import { askHouse, HOUSE_GROUP_MAX, houseEstimate, houseTaskForMaterial } from "../core/houseauto.ts";
+import { askHouse, HOUSE_GROUP_MAX, houseAskEstimate, houseTaskForMaterial } from "../core/houseauto.ts";
 import { rankTasks } from "../core/queue.ts";
 import { actsAsArchive } from "../core/state.ts";
 import type { Tree } from "../core/tree.ts";
@@ -60,12 +60,6 @@ const text = (v: unknown, name: string, max: number): string => {
   return s;
 };
 const opt = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.normalize("NFC").trim() : undefined);
-
-/** A municipality's skeleton done or begun (its record done, or a task of it alive). */
-function townBegun(tree: Tree, place: string): boolean {
-  if (tree.list<House>("house").some((h) => !h.retracted && h.town && h.place === place && !!h.done)) return true;
-  return tree.list<Task>("task").some((t) => t.origin === `house:town:${place}` && ["open", "doing", "parked", "waiting"].includes(t.state));
-}
 
 /** A word of a command said back, quoted when it is more than letters, digits and a few marks. */
 const shellWord = (w: string): string => (/^[\p{L}\p{M}\p{N}|._:\/-]+$/u.test(w) ? w : JSON.stringify(w));
@@ -221,9 +215,7 @@ register(
       if (!row.place.id) throw new UsageError(`the municipality of the house "${row.key}" is no place record yet`, { code: "house.town", hint: `strom place add "${row.place.name}", then again` });
       const lang = tree.lang;
       const label = `${row.place.name} ${row.house}`;
-      const est = houseEstimate(tree);
-      const minutes = est.perHouse.minutes * (1 + withRefs.length) + (townBegun(tree, row.place.id) ? 0 : est.perTown.minutes);
-      const usd = est.perHouse.usd;
+      const { minutes, usd, measured } = houseAskEstimate(tree, row.place.id, 1 + withRefs.length);
       if (!ctx.yes) {
         if (!ctx.interactive)
           throw new NeedsInputError([{ key: "house.request", kind: "consent", question: ui(lang, "ui.house.ask", { house: label }), set: ["strom house request", ...args.map(shellWord), ...withRefs.flatMap((w) => ["--with", shellWord(w)]), "--yes"].join(" ") }]);
@@ -234,7 +226,7 @@ register(
       const out = askHouse(tree, ref, withRefs, ctx.settings);
       return {
         text: lines(...tree.written.map((o) => o.summary), ui(lang, out.again ? "ui.house.again" : "ui.house.asked", { house: label }), `${out.task}: strom run takes it next (now: strom run --task ${out.task})`),
-        data: { ...out, asked: true, estimate: { minutes, ...(usd !== undefined ? { usd } : {}), measured: est.measured } },
+        data: { ...out, asked: true, estimate: { minutes, ...(usd !== undefined ? { usd } : {}), measured } },
       };
     },
   },

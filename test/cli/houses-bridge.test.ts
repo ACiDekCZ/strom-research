@@ -15,7 +15,7 @@ import { World, hasGit } from "../helpers.ts";
 import { Tree, now } from "../../src/core/tree.ts";
 import { forHouse } from "../../src/core/houses.ts";
 import { taskKind } from "../../src/core/taskkind.ts";
-import { LinkError, parseLink } from "../../src/core/links.ts";
+import { LinkError, linkText, parseLink, type TakenLink } from "../../src/core/links.ts";
 import type { House, Input, Task } from "../../src/core/model.ts";
 
 const opts = { skip: !hasGit || process.platform === "win32", timeout: 240_000 };
@@ -286,5 +286,53 @@ test("the link house?do=import: only do=import; the path asked in the terminal, 
   assert.ok(house, r.out);
   assert.deepEqual(tree.list<Input>("input").map((i) => [i.ownResearch, i.houses]), [[true, [house.id]]]);
   assert.equal(tree.list<Task>("task").filter((t) => forHouse(t)).length, 1);
+  w.cleanup();
+});
+
+test("the link house?do=search: a house of the tree by its record or key (at most 2 with it), never a text; the estimate and the person's yes in the terminal, its task and its municipality's skeleton on top; a house the tree has not: one sentence, nothing done", opts, async () => {
+  const T = "0f6e1c2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
+  const L = (q: string) => `strom-research://house?tree=${T}&do=search${q}`;
+  assert.deepEqual(parseLink(L("&house=a0001")), { action: "house", tree: T, do: "search", house: "A0001" });
+  assert.deepEqual(parseLink(L("&house=lhota%7C9")), { action: "house", tree: T, do: "search", house: "lhota|9" });
+  const nfd = parseLink(L(`&house=${encodeURIComponent("bělokamen|16".normalize("NFD"))}&with=A0002,${encodeURIComponent("лхота|5")}`));
+  assert.deepEqual(nfd, { action: "house", tree: T, do: "search", house: "bělokamen|16", with: "A0002,лхота|5" });
+  assert.deepEqual(parseLink(linkText(nfd as Exclude<TakenLink, { action: "menu" }>)), nfd, "written again as read");
+  for (const bad of ["", "&house=", "&house=Lhota%209", "&house=A0001&with=A0002,A0003,A0004", "&house=a%7Cb%7Cc", "&house=A0001&with=", "&house=lhota%7C9%0A"])
+    assert.throws(() => parseLink(L(bad)), LinkError, bad);
+  const w = new World();
+  await village(w);
+  const id = open(w).config.id;
+  const link = (q: string) => w.run(["link", "open", `strom-research://house?tree=${id}&do=search${q}`], { tty: true, answers: ["", ""] });
+  const houseTasks = () => open(w).list<Task>("task").filter((t) => forHouse(t));
+  // a house the tree has not, one of another municipality with it: one sentence, nothing written
+  const none = await link("&house=lhota%7C99");
+  assert.match(none.out, /Dům lhota\|99, kde žil někdo ze stromu, v tomto výzkumu není/u, none.out);
+  const other = await link("&house=lhota%7C9&with=belokamen%7C16");
+  assert.match(other.out, /nejsou domy téže obce/u, other.out);
+  assert.deepEqual(houseTasks(), []);
+  assert.deepEqual(open(w).list<House>("house"), []);
+  // asked: the estimate said, Enter (no): nothing
+  const no = await link("&house=lhota%7C9&with=lhota%7C12");
+  assert.match(no.out, /hledat historii domu Lhota 9, Lhota 12/u, no.out);
+  assert.match(no.out, /Asi \d+ minut práce agenta/u, no.out);
+  assert.deepEqual(houseTasks(), []);
+  // yes: the house's task (with its neighbour) and the municipality's skeleton on top; not started now
+  const yes = await w.run(["link", "open", `strom-research://house?tree=${id}&do=search&house=lhota%7C9&with=lhota%7C12`], { tty: true, answers: ["y", ""] });
+  assert.equal(yes.code, 0, yes.out + yes.err);
+  assert.match(yes.out, /Historie domu Lhota 9, Lhota 12 je ve frontě první/u, yes.out);
+  const made = houseTasks();
+  const house = made.find((t) => t.origin.startsWith("house:A"))!;
+  const town = made.find((t) => t.origin === "house:town:L0001")!;
+  assert.ok(house && town, JSON.stringify(made));
+  assert.equal(house.houses?.length, 1);
+  assert.ok(house.asked && house.queueAt?.do === "next");
+  assert.ok(town.queueAt!.at > house.queueAt!.at, "the skeleton before its house");
+  assert.ok(!open(w).list<Task>("session" as never).length);
+  // an archive: refused in one sentence before anything is asked
+  await w.ok(["mode", "archive"], { tty: true });
+  const archive = await link("&house=lhota%7C30");
+  assert.doesNotMatch(archive.out, /Asi \d+ minut/u, archive.out);
+  assert.doesNotMatch(archive.out, AI, archive.out);
+  assert.equal(houseTasks().length, 2);
   w.cleanup();
 });

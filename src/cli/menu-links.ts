@@ -21,6 +21,8 @@ import { runsAtWork } from "../core/workers.ts";
 import { choosePace } from "../commands/setup.ts";
 import type { AppClient, Conflict, Family, Hypothesis, HypothesisVariant, HypothesisWrote, Person, Research, Session, Source, Task, VariantLink } from "../core/model.ts";
 import { DevicePreview } from "../core/deviceagent.ts";
+import { findHouse, forHouse, houseRows, housesOfTask, houseWork, townOfTask, type HouseRow } from "../core/houses.ts";
+import { houseAskEstimate } from "../core/houseauto.ts";
 import { costPartial, monthSpend, sessionCost } from "../core/session.ts";
 import { adoptAskedSince, adoptFailedSince, adoptedAt, adoptionNeverCame, awaitAdoption, nothingSince, removedByItsDecision, SYNC_INBOX, keptLines, clientLabel, undoSync, withoutImages, type SyncInput, type UndoKept } from "../core/sync.ts";
 import { moveToTrash } from "../core/trash.ts";
@@ -399,6 +401,55 @@ export async function houseImportDo(ctx: Context, run: Run, lang: string, root: 
   const paths = await askPaths(ctx, lang, root);
   if (!paths?.length) return false;
   return (await run(["house", "import", ...paths])) === 0;
+}
+
+/**
+ * The history of a house of the family tree asked for from the Strom app (strom-research://house?…&do=search, with at
+ * most two neighbouring houses of the same family): the house only looked up among the tree's — none of them, nobody of
+ * the tree in it, its municipality no place yet: one sentence, nothing done. The estimate said and asked here, its task
+ * on top of the queue (strom house request: its municipality's skeleton before it when it has none), then started now if
+ * wanted — the skeleton first.
+ */
+export async function houseSearch(ctx: Context, run: Run, lang: string, root: string, ref: string, withRefs: string[] = []): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const rows = houseRows(tree, { on: true });
+  const lookup = (r: string): HouseRow | undefined => {
+    try {
+      return findHouse(tree, r, rows);
+    } catch {
+      return undefined;
+    }
+  };
+  const row = lookup(ref);
+  if (!row?.tree?.persons.size) return stop(ctx, t("ui.link.house.none", { house: ref }));
+  const more = withRefs.map(lookup);
+  if (more.some((m) => !m?.tree?.persons.size || m.place.id !== row.place.id)) return stop(ctx, t("ui.link.house.with"));
+  const house = [row, ...more.filter((m): m is HouseRow => !!m && m.key !== row.key)].map((r) => `${r.place.name} ${r.house}`).join(", ");
+  if (!row.place.id) return stop(ctx, t("ui.link.house.town", { house }));
+  // its session is strom run's: the agent's CLI not here said before the estimate and the question
+  if (!(await agentCliHere(ctx, run, lang, tree))) return false;
+  const est = houseAskEstimate(tree, row.place.id, 1 + more.length);
+  // a price in money stays the terminal's question; the yes of a device that opened it (no price): queued and started
+  // now, both questions answered (spec 094 K3.15)
+  const priced = est.usd !== undefined;
+  if (ctx.devicePreview && priced) throw new DevicePreview({ kind: "computer", why: "price" });
+  const yes = !!ctx.deviceYes && !priced;
+  const what = t("ui.link.what.house.search", { house });
+  const cost = lines(t("ui.house.minutes", { minutes: est.minutes }), priced ? t("ui.house.usd", { usd: humanCost(est.usd!, lang) }) : undefined);
+  if (yes) out(ctx, deviceYesLine(ctx.deviceYes!, lang, what.trim().replace(/[.:]$/u, ""), tree.config.name));
+  else if (!(await asks(ctx, lang, root, what, cost, false))) return false;
+  const ids = [row, ...more].map((r) => r!.id ?? r!.key);
+  if ((await run(["house", "request", ids[0]!, ...ids.slice(1).flatMap((x) => ["--with", x]), "--yes"], true)) !== 0) return false;
+  // its tasks now: the municipality's skeleton (when alive) before the house
+  const after = Tree.open(root, ctx.env);
+  const id = findHouse(after, row.key).id;
+  const live = after.list<Task>("task").filter((x) => forHouse(x) && !x.retracted && ["open", "doing", "parked", "waiting"].includes(x.state));
+  const town = live.find((x) => houseWork(x) === "town" && townOfTask(x) === row.place.id);
+  const task = live.find((x) => houseWork(x) === "house" && !!id && housesOfTask(x).includes(id));
+  out(ctx, t("ui.link.house.done", { house }));
+  if (!task || (!yes && !(await ctx.confirm(t("ui.link.house.now"), false)))) return true;
+  return (await run(["run", "--task", [...(town ? [town.id] : []), task.id].join(",")])) === 0;
 }
 
 /** The places of this tree that follow its regions' switch written first as they hold (core/pastevents.ts placesPinned). */
