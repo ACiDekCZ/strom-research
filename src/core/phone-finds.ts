@@ -22,7 +22,7 @@ import { Tree, type Op } from "./tree.ts";
 import { actsAsArchive } from "./state.ts";
 import { runGit } from "./git.ts";
 import { factSaid } from "./changelog.ts";
-import { conflictTitle, displayName, lifespan } from "./people.ts";
+import { conflictTitle, displayName, lifespan, preferred } from "./people.ts";
 import { ownerName } from "./overview.ts";
 import { forPhone, PERSON } from "./phone-watch.ts";
 import { eventName } from "../cli/human.ts";
@@ -49,6 +49,8 @@ export interface FindLine {
   span?: string;
   /** A child: its record ID (phone-watch.ts PERSON: never in JSON). */
   [PERSON]?: string;
+  /** A hypothesis decided: the variant chosen, its claim as the phone shows it (else its label) — "· decided: …" (K3.13). */
+  decided?: string;
 }
 
 export interface FindGroup {
@@ -60,6 +62,8 @@ export interface FindGroup {
   /** A person: the name alone, and the years of the life ("1762–1820") — the title is both. */
   name?: string;
   span?: string;
+  /** A family: where it married, the first part of the place with something left as the phone shows it (K3.13). */
+  place?: string;
   /** A person: its record ID; a family: its first partner's (phone-watch.ts PERSON: never in JSON). */
   [PERSON]?: string;
   /** Its newest line's moment. */
@@ -177,7 +181,8 @@ export function findGroups(tree: Tree, ops: Op[], lang = tree.lang): FindGroup[]
       const title = forPhone(ownerName(tree, r.id));
       // the family shown in the tree by its first partner there (the app's "Show in the tree"; the phone's page: none)
       const partner = r.partners.map((x) => live(x)).find((x) => x?.type === "person");
-      return title ? { kind: "family", title, ...(partner ? { [PERSON]: partner.id } : {}) } : undefined;
+      const place = preferred(r.events ?? [], "MARR")?.place?.split(",").map((x) => forPhone(x.trim())).find((x) => x);
+      return title ? { kind: "family", title, ...(place ? { place } : {}), ...(partner ? { [PERSON]: partner.id } : {}) } : undefined;
     });
   const add = (g: FindGroup | undefined, line: FindLine) => {
     if (!g || g.lines.some((l) => l.kind === line.kind && l.text === line.text)) return;
@@ -260,7 +265,9 @@ export function findGroups(tree: Tree, ops: Op[], lang = tree.lang): FindGroup[]
       case "hypothesis.decide": {
         const h = first ? tree.get<Hypothesis>(first) : undefined;
         const text = h && h.type === "hypothesis" && h.state === "decided" ? forPhone(h.question) : "";
-        if (text) add(group("resolved", () => ({ kind: "resolved" })), { kind: "hypothesis", text, at });
+        const v = text && h!.chosen ? h!.variants.find((x) => x.label === h!.chosen) : undefined;
+        const decided = v ? forPhone(v.claim) || forPhone(v.label) : "";
+        if (text) add(group("resolved", () => ({ kind: "resolved" })), { kind: "hypothesis", text, at, ...(decided ? { decided } : {}) });
         break;
       }
     }

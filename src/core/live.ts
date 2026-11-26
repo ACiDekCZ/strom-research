@@ -167,7 +167,9 @@
 //                          sources added, the commits — the same as /status recent (core/recent.ts)
 //   GET <token>/finds      what the research found of the family since a moment (?since=ISO, else the last 24 hours, at
 //                          most 31 days back; ?lang=, else the research language): {since, groups: [{key, kind, title?,
-//                          name?, span?, at, lines: [{kind, text, at, fact?, span?}]}], cut?, earlier?} — the same as the
+//                          name?, span?, place?, at, lines: [{kind, text, at, fact?, span?, decided?}]}], cut?, earlier?}
+//                          (place: a family's, where it married, its first part; decided: a hypothesis decided, the
+//                          variant chosen — both optional, K3.13) — the same as the
 //                          phone's page's Finds (core/phone-finds.ts treeFinds), cleaned as for it (no path, no record's
 //                          ID in a text); feature finds. An archive or a research waiting for its agent: none ({since, groups: []},
 //                          the same as the phone's page; nothing found by an agent is said there)
