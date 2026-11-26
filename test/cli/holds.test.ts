@@ -8,6 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn, type ChildProcess } from "node:child_process";
+import { fixedClock } from "../fixed-clock.ts";
 import { World, hasGit, readJsonFile, until } from "../helpers.ts";
 
 const CLI = path.join(import.meta.dirname, "..", "..", "src", "cli.ts");
@@ -304,7 +305,10 @@ test("an agent working directly whose session was taken over: its task done refu
 });
 
 test("K054: the one pointer of an agent working directly before 1.36.0 (.strom/session.json), its session taken over — a person's writes in a terminal pass, the agent's own stay refused (session.taken)", { skip: !hasGit, timeout: 120_000 }, async () => {
+  // the refusal says the time of the takeover: a fixed clock (strom's processes too), never across midnight
+  const clock = fixedClock();
   const w = new World();
+  Object.assign(w.env, clock.env);
   try {
     const [first] = (await fourTasks(w)) as [string];
     // an agent whose CLI says no conversation: its pointer is anyone else's, as every agent working directly had in 1.35.0
@@ -337,7 +341,12 @@ test("K054: the one pointer of an agent working directly before 1.36.0 (.strom/s
     assert.equal(bare.code, 3, bare.out + bare.err);
     assert.match(bare.err, new RegExp(`${first} převzalo sezení ${b} v \\d{1,2}:\\d{2} po 3[01] minutách bez známky života; zápis patřil přerušenému sezení agenta ${a}, co v něm bylo zapsáno, zůstává\\n→ zápis jde zopakovat v terminálu mimo agenta`, "u"));
     assert.doesNotMatch(bare.err, /strom task next/u);
+    // one whose process table cannot be read at all (Codex's sandbox on macOS and Windows): an agent too, refused
+    const sandboxed = await w.run(["note", "add", "P1", "Lhoták"], { env: { STROM_TEST_ANCESTRY: "!" } });
+    assert.equal(sandboxed.code, 3, sandboxed.out + sandboxed.err);
+    assert.match(sandboxed.err, new RegExp(`zápis patřil přerušenému sezení agenta ${a}`, "u"));
   } finally {
+    clock.stop();
     w.cleanup();
   }
 });
