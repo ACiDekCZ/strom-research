@@ -28,6 +28,7 @@ import { assertIntact } from "../core/integrity.ts";
 import { agentBrowser } from "../core/connector.ts";
 import { browserNote } from "./connectors.ts";
 import { offerLinks } from "../cli/wizard.ts";
+import { isDemo } from "../core/mode.ts";
 import { appOpensLinks, appOpensResearch, appUrlSetting, importAppUrl, installedStromApp, liveAppUrl, liveAppUrlShown, noticeStromApp, stromAppUrl } from "../core/stromapp.ts";
 import { dropLiveSecret, forgetLive, liveRunning, notStartedWhy, serveLive, startLive, stopLive, type LiveInfo } from "../core/live.ts";
 import { openForUser } from "../core/open.ts";
@@ -397,8 +398,9 @@ register(
         const replaced = replaceGone(ctx.settings, win);
         const goneText = replaced && ui(lang, replaced.now ? "ui.app.browser.gone" : "ui.app.browser.gone.none", { gone: replaced.gone, now: replaced.now ?? "" });
         if (win.webApp || win.browser) {
-          // The first time a person opens the research in an app that opens links: may it start the research here? (once)
-          if (ctx.interactive && !isAgent(ctx.env) && appOpensLinks(ctx.settings, ctx.settings.stromVersion(tree.config)) && ctx.settings.config.links === undefined)
+          // The first time a person opens the research in an app that opens links: may it start the research here? (once;
+          // never for the sample research, which starts nothing)
+          if (ctx.interactive && !isAgent(ctx.env) && !isDemo(tree.config) && appOpensLinks(ctx.settings, ctx.settings.stromVersion(tree.config)) && ctx.settings.config.links === undefined)
             await offerLinks(ctx, lang, { ask: false });
           // The bridge serves the tree's GEDCOM to the app; it ends by itself when nobody asks it anything.
           const info = startLive(root, ctx.env, { current: true });

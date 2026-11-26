@@ -8,6 +8,7 @@ import "./verify.ts";
 import "./intake.ts";
 import "./sync.ts";
 import "./pack.ts";
+import "./demo.ts";
 import "./backup.ts";
 import "./tasks.ts";
 import "./census.ts";

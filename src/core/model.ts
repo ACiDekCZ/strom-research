@@ -1650,6 +1650,11 @@ export interface TreeConfig {
    * their history and the sources — no agent works on it, its tasks wait put aside. None: a research with an agent.
    */
   mode?: "archive";
+  /**
+   * The sample research (strom demo): a made-up family put in place apart from the person's own trees, to look
+   * through — an agent may work on it, but nothing offers or recommends one (spec 143).
+   */
+  demo?: true;
   /** Random id; names the seal key of this tree. */
   id: string;
   name: string;

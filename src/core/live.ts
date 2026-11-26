@@ -907,7 +907,7 @@ import { IMAGE_MIME, IMAGE_SHA, imageFile, readImage } from "./liveimages.ts";
 import { markServedWithMedia, treeMediaFile } from "./treemedia.ts";
 import { isStatusPart, splitStatus, StatusKeeper, STATUS_PARTS, type StatusPart } from "./livestatus.ts";
 import { withSendClient, adoptedAt, notWrittenList, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, refuseReceived, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type MediaWritten, type PlanTimes, type ReceiveTimes, type Skipped } from "./sync.ts";
-import { isArchive, modeOf, settleArchive } from "./mode.ts";
+import { isArchive, isDemo, modeOf, settleArchive } from "./mode.ts";
 import { actsAsArchive, kindOf, settleWaiting, stateOf } from "./state.ts";
 import { forStory } from "./stories.ts";
 import { censusHeldCount, censusHidden } from "./census.ts";
@@ -2066,6 +2066,12 @@ export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBac
  */
 const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sort.confirm", "sort.confirm.app", "run.confirm", "finds", "finds.person", "house.import", "house.request"]);
 const withoutAgent = (features: readonly string[]): readonly string[] => features.filter((f) => !AGENT_FEATURES.has(f));
+/**
+ * The sample research (strom demo, spec 143 K2.2): looked through as a research, but nothing that starts or offers an
+ * agent — the agent's features, and the links and the tasks that start one (work.link, run.tasks, work.tasks).
+ */
+const DEMO_HIDDEN: ReadonlySet<string> = new Set(["work.link", "run.tasks", "work.tasks"]);
+const forDemo = (features: readonly string[]): readonly string[] => withoutAgent(features).filter((f) => !DEMO_HIDDEN.has(f));
 
 /**
  * The gateway of the devices of the home network (devices.mode on, the person's in their terminal): the dialog to
@@ -3293,17 +3299,20 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
   // an archive, or a research waiting for its agent (none on this computer): nobody works on it — no agent, no
   // directions, nobody at work, nothing waiting for the person, no queue, nothing spent (Milan's decisions,
   // 2026-10-03 and 2026-10-15); what waits for the agent says so (accepts.agentHere)
-  const archive = actsAsArchive(tree);
+  // the sample research (strom demo): shown as a research, whether an agent is here or not — looked through without
+  // one (spec 143 K2.2), nothing of an agent offered: none named, no runs, no way to start one
+  const demo = isDemo(tree.config);
+  const archive = !demo && actsAsArchive(tree);
   const order = archive ? undefined : rankedNow(tree, settings, last.head);
   const ranked = order?.ranked ?? [];
   const next = ranked.map((r) => r.task);
   const atWork = archive ? [] : working(root, tree, all);
   // where the research is on this computer, and the agent that works on it (an archive: none)
-  const agent = archive ? undefined : settings.agent(tree.config).value;
+  const agent = archive || demo ? undefined : settings.agent(tree.config).value;
   const where = settings.agentWhere();
   // the runs (spec 126, feature run.lines): their limit, the agents here, the lines' runs and which run takes each task —
   // none in an archive or a research waiting for its agent (runs[] and runsEnded[] are read at each ask: withHandoffs)
-  const runs = archive ? undefined : runsNow(tree, settings, env);
+  const runs = archive || demo ? undefined : runsNow(tree, settings, env);
   const takers = runs?.taker;
   // a newer strom on disk than this bridge runs (it starts again with it in a moment): for the app to say so
   const disk = diskVersion(env);
@@ -3311,11 +3320,13 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     strom: VERSION,
     // what this bridge does, for an app to go by rather than the version (a bridge run from the sources says the
     // candidate it is, found on Mac: an app took 1.11.0 for an old research)
-    features: withDevices(archive ? withoutAgent(bridgeFeatures(settings, version)) : bridgeFeatures(settings, version), env, !archive),
+    features: demo ? withDevices(forDemo(bridgeFeatures(settings, version)), env, false) : withDevices(archive ? withoutAgent(bridgeFeatures(settings, version)) : bridgeFeatures(settings, version), env, !archive),
     ...channelOf(env),
     ...(disk && disk.version !== (env.STROM_LIVE_RENEWED ?? VERSION) ? { installed: disk.version } : {}),
     // what the research is (an archive, a research, one waiting for its agent) — the app says it beside the tree
-    tree: { id: tree.config.id, name: tree.config.name, lang: tree.lang, state: stateOf(tree), kind: kindOf(tree) },
+    // demo: the sample research (strom demo) — for the app to mark it so (an app that does not know it loses nothing:
+    // the agent's features are not said for it)
+    tree: { id: tree.config.id, name: tree.config.name, lang: tree.lang, state: demo ? "research" : stateOf(tree), kind: kindOf(tree), ...(demo ? { demo: true } : {}) },
     path: root,
     ...treesRootOf(env, settings),
     // sealed on this computer (writing works), or on another (its folder brought here, strom's settings gone): the
@@ -3343,7 +3354,7 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     ...(archive ? {} : { busy: busyOf(tree) }),
     // before the agent works on the queue alone (the link work): the person's gate (run.gate, as the settings name it;
     // none: the loop is not started, n tasks are) and a session's time — none in an archive or a research waiting for its agent
-    ...(archive ? {} : { work: workOf(tree, settings) }),
+    ...(archive || demo ? {} : { work: workOf(tree, settings) }),
     // what waits for the person, ordered and grouped by the place where it is dealt with (core/waiting.ts): the tasks,
     // a new version of an approved story (for an app that shows it: the _DRAFT gate), an archive's images that wait for
     // the person's decision and the connectors taken over (none in an archive) — the person decides in the terminal a

@@ -328,13 +328,15 @@ export function settingsKeptFrom(dir: string, research: string[], platform: Node
 }
 
 /**
- * What of strom's settings is kept from the agents: of today's folder, of each it was kept in before (oldsettings.ts),
+ * What of strom's settings is kept from the agents: of today's folder (and the person's own, for the sample research), of each it was kept in before (oldsettings.ts),
  * and every packaged app's copy whole, one made after these rules too.
  */
 function keptSettings(tree: Tree, settings: Settings): { path: string; folder: boolean }[] {
   const research = researchFolders(tree, settings);
   const packaged = packagedSettingsPattern(tree.env);
-  return [...[configDir(tree.env), ...oldSettingsDirs(tree.env)].flatMap((d) => settingsKeptFrom(d, research)), ...(packaged ? [{ path: packaged, folder: true }] : [])];
+  // the sample research (strom demo) has settings of its own: the person's own settings folder kept from its agent too
+  const demoOf = (tree.env.STROM_DEMO_OF ?? "").trim();
+  return [...[configDir(tree.env), ...(demoOf ? [path.resolve(demoOf)] : []), ...oldSettingsDirs(tree.env)].flatMap((d) => settingsKeptFrom(d, research)), ...(packaged ? [{ path: packaged, folder: true }] : [])];
 }
 
 /** The folders of the research the agent works in: its home, the shared folder, the tree. */
