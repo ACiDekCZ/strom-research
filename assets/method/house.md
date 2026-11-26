@@ -65,7 +65,7 @@ Its houses are another task each: none of them here.
     house add look A0001 --text "<a ground-floor house, its gable to the green>" --certainty guess --image https://example.org/photo --license "CC BY 4.0"
     house add map A0001 --kind ortho-1950 --url https://example.org/ortho
 
-   A map layer strom ships for the house's region (`strom help house add`,
+   A map layer strom ships for the house's region (`strom help house add map`,
    `--layer`) is drawn by the Strom app itself: name it, never its address:
 
     house add map A0001 --layer <id>
