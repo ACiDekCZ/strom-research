@@ -14,6 +14,10 @@ The changes of each version in short. The full notes and the install lines are o
   `strom place list <name>`; `strom source list --note <text>` lists in one call the sources whose note says something
   (that a register gave the address, for one); `strom media view` says how to look at an image registered only in
   parts, and at a crop of it.
+- **A person's writes in the terminal no longer refused for an agent's session:** where an agent's session was
+  taken over by another run, the person's own writes in the terminal and the menu (Maintenance → Disk space,
+  `strom tidy`, `strom history align`…) passed only a week later; they pass at once. The agent whose session it was is
+  still refused.
 
 ## 1.37.0
 

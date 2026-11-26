@@ -38,6 +38,7 @@ import { forGaps, regionOfTask, takeRegion } from "./pastevents.ts";
 import { placeOfTask, takePlace } from "./placehistory.ts";
 import { PLACES_IDENTIFY_ORIGIN, placesSessionCounts } from "./placeid.ts";
 import { fromDevice } from "./deviceagent.ts";
+import { agentInAncestry } from "./trust.ts";
 
 /** Whose pointers: a worker's, an agent's own conversation's ("@<id>": no letter of a worker's name), or anyone else's (""). */
 function pointerName(env: Env): string {
@@ -562,10 +563,15 @@ export function takenOf(tree: Tree, env: Env): Taken | undefined {
     return s && s.state !== "open" ? readTaken(tree.root, s.id) : undefined;
   }
   if (ownSessions(tree, env).length) return undefined;
+  // a person in a terminal or the menu (no agent's marks, no worker, no STROM_SESSION) holds no session: the pointers
+  // of anyone else ("") were an agent's working directly before it was told apart (1.35.0) — never the person's to be
+  // refused by (K054: every tidy of a person refused for a week); an agent whose CLI says no conversation still is,
+  // and one with none of its marks (Codex's sandbox on Windows) found among strom's parent processes — read only here
+  const person = !pointerName(env) && !detectAgent(env);
   for (const id of pointedIds(tree, env)) {
     const s = tree.get<Session>(id);
     const t = s && s.state !== "open" ? readTaken(tree.root, id) : undefined;
-    if (t) return t;
+    if (t) return person && !agentInAncestry(env) ? undefined : t;
   }
   return undefined;
 }

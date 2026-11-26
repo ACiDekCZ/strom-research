@@ -14,6 +14,9 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   `strom place list <jméno>`; `strom source list --note <text>` vypíše jedním voláním prameny, jejichž poznámka něco
   říká (třeba že adresu dal rejstřík); `strom media view` vysvětluje, jak si prohlédnout obrázek registrovaný jen po
   částech a jeho výřez.
+- **Zápisy člověka v terminálu už neodmítá převzaté sezení agenta:** když sezení agenta převzal jiný běh, zápisy
+  člověka v terminálu a v menu (Údržba → Místo na disku, `strom tidy`, `strom history align`…) prošly až po týdnu;
+  teď projdou hned. Agent, jehož sezení bylo, je odmítnut dál.
 
 ## 1.37.0
 

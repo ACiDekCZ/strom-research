@@ -14,6 +14,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   `strom place list <Name>`; `strom source list --note <Text>` listet mit einem Aufruf die Quellen, deren Notiz etwas
   sagt (etwa dass ein Register die Adresse gab); `strom media view` erklärt, wie ein nur in Teilen registriertes Bild
   und ein Ausschnitt davon anzusehen sind.
+- **Einträge eines Menschen im Terminal nicht mehr wegen einer übernommenen Agenten-Sitzung abgelehnt:** wurde die
+  Sitzung eines Agenten von einem anderen Lauf übernommen, gingen die eigenen Einträge im Terminal und im Menü
+  (Wartung → Speicherplatz, `strom tidy`, `strom history align`…) erst nach einer Woche durch; jetzt sofort. Der Agent,
+  dem die Sitzung gehörte, wird weiter abgelehnt.
 
 ## 1.37.0
 

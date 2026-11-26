@@ -14,6 +14,10 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   `strom place list <nazwa>`; `strom source list --note <tekst>` wypisuje jednym wywołaniem źródła, których notatka coś
   mówi (na przykład że adres dał rejestr); `strom media view` wyjaśnia, jak obejrzeć obraz zarejestrowany tylko w
   częściach i jego wycinek.
+- **Zapisy człowieka w terminalu nie są już odrzucane z powodu przejętej sesji agenta:** gdy sesję agenta przejął
+  inny przebieg, zapisy człowieka w terminalu i w menu (Konserwacja → Miejsce na dysku, `strom tidy`,
+  `strom history align`…) przechodziły dopiero po tygodniu; teraz od razu. Agent, do którego sesja należała, jest
+  odrzucany dalej.
 
 ## 1.37.0
 
