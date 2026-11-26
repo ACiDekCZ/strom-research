@@ -1606,8 +1606,10 @@ export function buildBrief(
   const censusTask = !!task && forCensus(task) && censusNow;
   if (censusTask) conditions.push("census");
   else if (!censusNow) conditions.push("census-off");
-  // the research of a house the person made, taken over: its page (spec 030)
-  if (task && houseWork(task) === "takeover") conditions.push(HOUSE_TAKEOVER);
+  // the tasks of houses (spec 030): their page, the part of their work — a research of the person's taken over, a
+  // municipality's skeleton, a house's research
+  const houseKind = task ? houseWork(task) : undefined;
+  if (houseKind) conditions.push(houseKind === "takeover" ? HOUSE_TAKEOVER : houseKind === "town" ? "house-town" : "house-research");
   sections.push({ name: "method", first: true, pointer: "strom guide", text: methodFor(kind, conditions) });
   if (censusTask) {
     const known = censusHoldings();

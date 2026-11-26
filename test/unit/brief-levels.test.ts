@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import "../../src/commands/index.ts";
-import { assetPath, CENSUS_CONDITIONS, HOUSE_TAKEOVER, methodFor, methodPage, METHOD_CONDITIONS, METHOD_LINKS } from "../../src/core/assets.ts";
+import { assetPath, CENSUS_CONDITIONS, HOUSE_CONDITIONS, HOUSE_TAKEOVER, methodFor, methodPage, METHOD_CONDITIONS, METHOD_LINKS } from "../../src/core/assets.ts";
 import { commandSheet } from "../../src/brief/sheet.ts";
 import { TASK_LEVELS } from "../../src/core/model.ts";
 import { guideText } from "../../src/commands/guide.ts";
@@ -15,7 +15,7 @@ const sheet = (level: string) => commandSheet(level, { connectors: [{ name: "exa
 const line = (text: string, command: string) => text.split("\n").find((l) => l.startsWith(`  strom ${command} `)) ?? "";
 
 test("method pages: every mark names levels or conditions, is closed, and none nests", () => {
-  const known = new Set<string>([...TASK_LEVELS, METHOD_LINKS, ...METHOD_CONDITIONS, ...CENSUS_CONDITIONS]);
+  const known = new Set<string>([...TASK_LEVELS, METHOD_LINKS, ...METHOD_CONDITIONS, ...CENSUS_CONDITIONS, ...HOUSE_CONDITIONS]);
   for (const file of fs.readdirSync(assetPath("method")).filter((f) => f.endsWith(".md"))) {
     let open = false;
     for (const l of fs.readFileSync(assetPath("method", file), "utf8").split("\n")) {
@@ -206,6 +206,26 @@ test("the research of a house taken over (spec 030): its page only for its task,
   for (const level of TASK_LEVELS) assert.doesNotMatch(methodFor(level, EVERY), /taking over the research of a house/u, level);
   assert.match(methodFor("intake", [...EVERY, HOUSE_TAKEOVER]), /# Method: processing an input[\s\S]*# Method: taking over the research of a house[\s\S]*strom house show A0001/u);
   assert.doesNotMatch(methodFor(undefined), /taking over the research of a house/u);
+});
+
+test("the tasks of houses (spec 030 part 2): a municipality's skeleton and a house's research each their own part of house.md, never the takeover's nor the other's; the guide's page whole", () => {
+  const town = methodFor("enrich", [...EVERY, "house-town"]);
+  const house = methodFor("enrich", [...EVERY, "house-research"]);
+  const takeover = methodFor("enrich", [...EVERY, HOUSE_TAKEOVER]);
+  assert.match(town, /# Method: the history of a house[\s\S]*## A municipality's skeleton[\s\S]*house add summary --town L0001[\s\S]*## Sources, and what never goes out/u);
+  assert.doesNotMatch(town, /## A house \(|taking over the research|house add holder/u);
+  assert.match(house, /# Method: the history of a house[\s\S]*## A house[\s\S]*--how today-number[\s\S]*--proposed[\s\S]*strom task wait[\s\S]*high[\s\S]*guess[\s\S]*## Sources, and what never goes out/u);
+  assert.match(house, /archives\.json/u);
+  assert.match(house, /died more than a hundred years ago/u);
+  assert.doesNotMatch(house, /## A municipality's skeleton|taking over the research/u);
+  assert.doesNotMatch(takeover, /# Method: the history of a house|## Sources, and what never goes out/u);
+  for (const level of TASK_LEVELS) assert.doesNotMatch(methodFor(level, EVERY), /the history of a house/u, level);
+  // no server named in the method (spec K4.3): a map service allowed in archives.json, never its name
+  const page = fs.readFileSync(assetPath("method", "house.md"), "utf8");
+  assert.doesNotMatch(page, /(?:https?:\/\/)?(?!example\.org)[\p{L}\p{N}-]+\.(?:cz|de|pl|sk|at|com|net|eu|gov)\b/u);
+  assert.doesNotMatch(page, /RÚIAN|ČÚZK|ÚAZK|Mapy\.|Kramerius|Wikimedia/u);
+  const guide = methodPage(page, undefined);
+  for (const part of ["## A municipality's skeleton", "## A house", "# Method: taking over the research of a house"]) assert.ok(guide.includes(part), part);
 });
 
 test("census records (spec 106, K1.2): their page only for a census task while on; off, one line to propose them once — no level, no condition: neither", () => {

@@ -20,7 +20,7 @@ import { SAME_BOOK_MAX } from "../core/queue.ts";
 import { OFF_LINE_CHOICES, type OffLine, type Person, type Research, type Task, type TreeConfig } from "../core/model.ts";
 import { byTree, offLineView, type BranchView } from "../core/offline.ts";
 import { displayName } from "../core/people.ts";
-import { humanTask } from "./human.ts";
+import { humanCost, humanTask } from "./human.ts";
 import { chooseHistory, historyOfferDue, historySuggested, markHistoryAsked } from "../commands/setup.ts";
 import { askGate, capProblem, ensureGatesDir, gateLabel, listGates, loadGate, pointsProblem } from "../core/gate.ts";
 import { ensureHooksDir, hooksDir, listHooks } from "../core/hooks.ts";
@@ -44,6 +44,8 @@ import { ALL_KINDS, allKinds, EVENT_KINDS, NO_KINDS } from "../core/eventkinds.t
 import { kindNames } from "../core/historyalign.ts";
 import { pinPlaces, placeCost } from "./menu-links.ts";
 import { censusHeldCount } from "../core/census.ts";
+import { housesHeldCount } from "../core/houses.ts";
+import { houseAuto, houseEstimate } from "../core/houseauto.ts";
 
 export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
   const t = translator(lang);
@@ -94,6 +96,8 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
               parts.push({ label: t("ui.settings.runconfirm", { state: t(ctx.settings.runConfirm() === "no" ? "ui.runconfirm.no" : "ui.runconfirm.ask") }), act: () => runConfirmStep(ctx, run, lang) });
               // census records as a source of this research (spec 106): the person's switch, with the census tasks held while off
               if (root) parts.push({ label: censusLabel(ctx, lang, root), act: () => censusStep(ctx, run, lang, root) });
+              // the history of the houses by itself (spec 030 part 2): the person's switch, its tasks held while off
+              if (root) parts.push({ label: housesLabel(ctx, lang, root), act: () => housesStep(ctx, run, lang, root) });
               // the batches from the app sorted by the agent by themselves (spec 130): the person's switch, off by default
               if (root) parts.push({ label: t("ui.settings.intake", { state: t(ctx.settings.intakeAuto(Tree.open(root, ctx.env).config) ? "ui.settings.on" : "ui.settings.off") }), act: () => intakeStep(ctx, run, lang, root) });
             }
@@ -236,6 +240,43 @@ async function censusStep(ctx: Context, run: Run, lang: string, root: string): P
   const tree = Tree.open(root, ctx.env);
   const held = censusHeldCount(tree.list<Task>("task"), ctx.settings.census(tree.config));
   if (held) ctx.io.stdout(t("ui.settings.census.back", { n: held }) + "\n");
+}
+
+/** The history of the houses in this research: on, off, or off with the tasks of the houses held (spec 030 part 2). */
+function housesLabel(ctx: Context, lang: string, root: string): string {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const on = ctx.settings.houses(tree.config);
+  const held = housesHeldCount(tree, on);
+  return t("ui.settings.houses", { state: on ? t("ui.settings.on") : held ? t("ui.settings.houses.held", { n: held }) : t("ui.settings.off") });
+}
+
+/**
+ * The history of the houses by itself (spec 030 part 2): what it is said first, and before it is switched on how many
+ * houses in how many municipalities it would take and what it would take (the price only once measured), then the
+ * person's yes (Enter: nothing changed). Off: its tasks held, back once on again — said with their number. Written for
+ * this research (--for-tree): the tree's own value wins both ways.
+ */
+async function housesStep(ctx: Context, run: Run, lang: string, root: string): Promise<void> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const on = ctx.settings.houses(tree.config);
+  ctx.io.stdout(t("ui.settings.houses.about") + "\n");
+  if (!on) {
+    const auto = houseAuto(tree);
+    const est = houseEstimate(tree, auto);
+    const said =
+      est.houses || est.towns
+        ? lines(t("ui.settings.houses.count", { houses: est.houses, towns: est.towns, minutes: est.minutes }), est.usd !== undefined ? t("ui.settings.houses.usd", { usd: humanCost(est.usd, lang) }) : undefined)
+        : t("ui.settings.houses.none");
+    ctx.io.stdout(said + "\n");
+  }
+  if (!(await ctx.confirm(t(on ? "ui.settings.houses.off" : "ui.settings.houses.on"), false))) return;
+  if ((await run(["config", "set", "houses", on ? "off" : "on", "--for-tree"], true)) !== 0 || !on) return;
+  ctx.settings.reload();
+  const after = Tree.open(root, ctx.env);
+  const held = housesHeldCount(after, ctx.settings.houses(after.config));
+  if (held) ctx.io.stdout(t("ui.settings.houses.back", { n: held }) + "\n");
 }
 
 /**

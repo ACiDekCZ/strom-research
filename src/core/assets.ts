@@ -55,7 +55,15 @@ export type MethodCondition = (typeof METHOD_CONDITIONS)[number];
  * once). Never given both.
  */
 export const CENSUS_CONDITIONS = ["census", "census-off"] as const;
-const CONDITIONS: readonly string[] = [...METHOD_CONDITIONS, ...CENSUS_CONDITIONS];
+
+/**
+ * Conditions of the tasks of houses (spec 030), each giving the method's page of houses (house.md) besides the level's,
+ * with its own part: `house-takeover` — a research of a house the person made, taken over (origin house:import:);
+ * `house-town` — a municipality's skeleton (origin house:town:); `house-research` — a house's research (origin house:).
+ */
+export const HOUSE_CONDITIONS = ["house-takeover", "house-town", "house-research"] as const;
+export type HouseCondition = (typeof HOUSE_CONDITIONS)[number];
+const CONDITIONS: readonly string[] = [...METHOD_CONDITIONS, ...CENSUS_CONDITIONS, ...HOUSE_CONDITIONS];
 
 const MARK = /^<!-- for ([^>]*?) -->$/u;
 const END = "<!-- end -->";
@@ -91,15 +99,12 @@ export function methodPage(text: string, level: string | undefined, conditions: 
   return out.join("\n");
 }
 
-/**
- * The condition of a task taking over the research of a house the person made (origin house:import:, spec 030): its
- * page (house.md) besides the level's. Only a page: nothing of a page is marked for it.
- */
-export const HOUSE_TAKEOVER = "house-takeover";
+/** The condition of a task taking over the research of a house the person made (origin house:import:, spec 030). */
+export const HOUSE_TAKEOVER: HouseCondition = "house-takeover";
 
-/** Method text for a task level: the core plus the level's own page and the pages it works by (a census task's: census.md, a house's takeover: house.md), each with the parts the level uses. */
+/** Method text for a task level: the core plus the level's own page and the pages it works by (a census task's: census.md, a task of houses: house.md), each with the parts the level uses. */
 export function methodFor(level: string | undefined, conditions: readonly string[] = []): string {
   // a census task while census records are on: their page too (spec 106)
-  const pages = ["core.md", ...(level ? [...(level === METHOD_LINKS ? [] : [`${level}.md`]), ...(METHOD_PAGES[level] ?? [])] : []), ...(conditions.includes("census") ? ["census.md"] : []), ...(conditions.includes(HOUSE_TAKEOVER) ? ["house.md"] : [])];
+  const pages = ["core.md", ...(level ? [...(level === METHOD_LINKS ? [] : [`${level}.md`]), ...(METHOD_PAGES[level] ?? [])] : []), ...(conditions.includes("census") ? ["census.md"] : []), ...(conditions.some((c) => (HOUSE_CONDITIONS as readonly string[]).includes(c)) ? ["house.md"] : [])];
   return pages.map((p) => readAsset("method", p)).filter((t): t is string => !!t).map((t) => methodPage(t, level, conditions)).join("\n");
 }

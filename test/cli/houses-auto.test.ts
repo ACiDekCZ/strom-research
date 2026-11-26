@@ -301,3 +301,55 @@ test("a municipality's skeleton (--town, summary), today's holders refused, mate
     w.cleanup();
   }
 });
+
+test("the menu's settings: the history of the houses with its tasks held, what it would take said before it is on, switched by the person; none in an archive; the briefs of a municipality's and a house's task with their method", opts, async () => {
+  const w = new World();
+  try {
+    await village(w);
+    const pick = (text: string) => text.split("\n").find((l) => /Historie domů v tomto výzkumu/u.test(l))?.match(/^\s*(\d+)/u)?.[1];
+    const look = await w.run([], { tty: true, answers: ["8", "1", "0", "0", "0"] });
+    assert.match(look.out, /Historie domů v tomto výzkumu: vypnuto/u, look.out);
+    const n = pick(look.out);
+    assert.ok(n, look.out);
+    // the line beside census records: nine items at most
+    const what = look.out.slice(look.out.indexOf("Co nastavit?"));
+    const parts = what.slice(0, what.indexOf("Vybrat")).split("\n").filter((l) => /^\s+\d\s{2}/u.test(l));
+    assert.ok(parts.length <= 10, look.out);
+    // before it is on: what it is, how many houses in how many municipalities, the minutes (no price measured); Enter: nothing
+    const no = await w.run([], { tty: true, answers: ["8", "1", n!, "", "0", "0"] });
+    assert.match(no.out, /\d+ dom\S* v \d+ obcích, celkem asi \d+ minut práce agenta\./u, no.out);
+    assert.doesNotMatch(no.out, /Taková sezení/u);
+    assert.equal((await w.ok(["config", "get", "houses", "--json"])).json.value, "off");
+    assert.deepEqual(houseTasks(w), []);
+    // the person's yes: on for this research, its tasks raised
+    await w.run([], { tty: true, answers: ["8", "1", n!, "y", "0", "0"] });
+    assert.equal((await w.ok(["config", "get", "houses", "--json"])).json.value, "on");
+    const raised = houseTasks(w);
+    assert.ok(raised.length > 0);
+    // the briefs: a municipality's skeleton, a house's research — each its own part of the method
+    const town = raised.find((t) => houseWork(t) === "town")!;
+    const house = raised.find((t) => houseWork(t) === "house")!;
+    const tb = (await w.ok(["brief", town.id], AGENT)).out;
+    assert.match(tb, /## A municipality's skeleton/u);
+    assert.doesNotMatch(tb, /## A house \(|taking over the research/u);
+    const hb = (await w.ok(["brief", house.id], AGENT)).out;
+    assert.match(hb, /## A house \(/u);
+    assert.match(hb, /never goes out/u);
+    assert.match(hb, /## The house A\d+:/u);
+    assert.doesNotMatch(hb, /## A municipality's skeleton \(once/u);
+    // off: held, said with their number; the line says so
+    const off = await w.run([], { tty: true, answers: ["8", "1", n!, "y", "0", "0"] });
+    const held = housesHeldCount(open(w), false);
+    assert.ok(held > 0);
+    assert.match(off.out, new RegExp(`Odloženo: ${held} úkol\\S* domů\\. Po zapnutí se vrátí\\.`, "u"), off.out);
+    assert.equal(open(w).config.houses, "off");
+    const again = await w.run([], { tty: true, answers: ["8", "1", "0", "0", "0"] });
+    assert.match(again.out, new RegExp(`Historie domů v tomto výzkumu: vypnuto, odložen\\S* ${held} úkol\\S* domů`, "u"), again.out);
+    // an archive: nothing of it
+    await w.ok(["mode", "archive"], { tty: true });
+    const archive = await w.run([], { tty: true, answers: ["8", "1", "0", "0", "0"] });
+    assert.doesNotMatch(archive.out, /Historie domů/u);
+  } finally {
+    w.cleanup();
+  }
+});
