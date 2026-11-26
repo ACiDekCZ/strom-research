@@ -512,7 +512,7 @@ test("archives through the browser: the way each downloader takes, switched in t
   assert.doesNotMatch(kept.out, /snímky přes prohlížeč/);
   // 8 settings · 4 archives · 3 through the browser · yes · 3 back directly · yes · 3 through the browser again · yes · 0 · 0 · 0
   const r = await w.ok([], { tty: true, answers: ["8", "4", "3", "a", "3", "a", "3", "a", "0", "0", "0"] });
-  assert.match(r.out, /\[2\] {2}Prohlížeč pro agenta \(Claude in Chrome\) · jen pro archivy přes prohlížeč {2,}→ v každém sezení\n/);
+  assert.match(r.out, /\[2\] {2}Prohlížeč pro agenta \(Claude in Chrome\) {2,}jen pro archivy přes prohlížeč {2,}→ v každém sezení\n/);
   assert.match(r.out, /• Testovací archiv — snímky přímo, strom hlídá tempo/);
   // the item says the way it takes now, then where it switches it; the question names where (1126)
   assert.match(r.out, /\[3\] {2}Testovací archiv {2,}snímky přímo {2,}→ přepnout na prohlížeč\n/);

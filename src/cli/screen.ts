@@ -200,28 +200,50 @@ export interface Option {
   extra?: string | undefined;
 }
 
-/** The column of values is never further than this from the label's start. */
-const LABEL_MAX = 34;
+/** The column of values is never further than this from the label's start (spec 144: a label of at most 40). */
+const LABEL_MAX = 40;
+
+/** On a narrow terminal the labels' column gives way, so that a value keeps at least this much room beside it. */
+const VALUE_ROOM = 20;
 
 /**
  * The options: `  [1]  Label        value  extra`, the keys aligned right ([9], [10]), the values in one column after
- * the longest label (a longer label: its value after ` · `); [0] last, a blank line before it.
+ * the longest label, at most LABEL_MAX; [0] last, a blank line before it. A longer label wraps within the column on a
+ * terminal, its value staying in the column (beside its first line); off a terminal it stays whole, its value after
+ * ` · ` (never wrapped).
  */
 export function optionLines(options: readonly Option[], style: Style): string[] {
   const keyw = Math.max(0, ...options.map((o) => o.key.length + 2));
   const pre = 2 + keyw + 2;
+  const width = widthOf(style);
   const valued = options.filter((o) => o.value || o.extra);
-  const col = valued.length ? Math.min(LABEL_MAX, Math.max(...valued.map((o) => shown(o.label)))) : 0;
+  const room = Number.isFinite(width) ? Math.max(12, width - pre - 2 - VALUE_ROOM) : LABEL_MAX;
+  const col = valued.length ? Math.min(LABEL_MAX, room, Math.max(...valued.map((o) => shown(o.label)))) : 0;
   const out: string[] = [];
   for (const [i, o] of options.entries()) {
     if (o.key === "0" && i === options.length - 1 && i > 0) out.push("");
-    const spans: Span[] = [{ text: "  " + " ".repeat(keyw - o.key.length - 2), role: "text" }, { text: `[${o.key}]`, role: "key" }, { text: "  ", role: "text" }, { text: o.label, role: "text" }];
+    const key: Span[] = [{ text: "  " + " ".repeat(keyw - o.key.length - 2), role: "text" }, { text: `[${o.key}]`, role: "key" }, { text: "  ", role: "text" }];
+    const spans: Span[] = [...key, { text: o.label, role: "text" }];
     let hang = pre;
     if (o.value || o.extra) {
       const len = shown(o.label);
-      spans.push({ text: len <= col ? " ".repeat(col - len + 2) : " · ", role: "text" });
-      if (o.value) spans.push({ text: o.value, role: "value" });
-      if (o.extra) spans.push({ text: (o.value ? "  " : "") + o.extra, role: "dim" });
+      const said: Span[] = [];
+      if (o.value) said.push({ text: o.value, role: "value" });
+      if (o.extra) said.push({ text: (o.value ? "  " : "") + o.extra, role: "dim" });
+      if (len > col && Number.isFinite(width)) {
+        // the label wrapped within its column, the value beside its first line, what it says further under the value
+        const at = pre + col + 2;
+        const labels = wrap([{ text: o.label, role: "text" }], col, 0).map(plain);
+        const values = wrap(said, width - at, 0);
+        for (let k = 0; k < Math.max(labels.length, values.length); k++) {
+          const l = labels[k] ?? "";
+          const v = values[k] ?? [];
+          const head: Span[] = k ? [{ text: " ".repeat(pre), role: "text" }] : key;
+          out.push(paint([...head, { text: l + (v.length ? " ".repeat(Math.max(0, col - shown(l)) + 2) : ""), role: "text" }, ...v], style).trimEnd());
+        }
+        continue;
+      }
+      spans.push({ text: len <= col ? " ".repeat(col - len + 2) : " · ", role: "text" }, ...said);
       // what a value or its aside says further: under the column of values
       if (len <= col) hang = pre + col + 2;
     }
@@ -403,6 +425,19 @@ export function commandsIn(text: string): [number, number][] {
     re.lastIndex = Math.max(re.lastIndex, end);
   }
   return out;
+}
+
+/** A text as spans: the commands it names as commands (kept whole where it is wrapped, coloured), the rest text. */
+export function spansOf(text: string): Span[] {
+  const spans: Span[] = [];
+  let i = 0;
+  for (const [s, e] of commandsIn(text)) {
+    if (s > i) spans.push({ text: text.slice(i, s), role: "text" });
+    spans.push({ text: text.slice(s, e), role: "command" });
+    i = e;
+  }
+  if (i < text.length) spans.push({ text: text.slice(i), role: "text" });
+  return spans;
 }
 
 /**

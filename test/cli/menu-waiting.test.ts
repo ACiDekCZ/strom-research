@@ -173,7 +173,7 @@ test("What waits with dozens of things: the places of what is to do, counted as 
   assert.match(first, placeLine(14, "MěÚ Havlíčkův Brod", 4, "dopis k odeslání"));
   assert.match(first, placeLine(15, "Matriční úřad Žďár", 3, "dopis k odeslání"), "an office named in NFD: one place, in NFC");
   assert.doesNotMatch(first, /^ *\[16\] /mu);
-  assert.match(first, /^ {2}Stránka 1\/2 {2}\[d\] další {2}\[p\] předchozí {2}\[v\] vše {2}nebo rozsah 10-20\n {2}\[\?\] čeká na odpověď 7\n\n {2}\[0\] {2}Zpět$/mu);
+  assert.match(first, /^ {2}Stránka 1\/2 {2}\[d\] další {2}\[p\] předchozí {2}\[v\] vše {2}nebo rozsah 10-20\n {2}\[\?\] {2}čeká na odpověď 7\n\n {2}\[0\] {2}Zpět$/mu);
   // the next page, the previous, all, a range
   assert.match(s[1]!, placeLine(16, "Rodina", 8, "dotaz k odeslání"));
   assert.match(s[1]!, placeLine(17, "Ostatní", 2, "jiné 2"));
@@ -193,13 +193,13 @@ test("What waits with dozens of things: the places of what is to do, counted as 
   assert.match(s[7]!, /^Strom › Co čeká › rodina\n/u);
   // 0 clears the filter (the overview stays); something unknown: the control line again, nothing else
   assert.doesNotMatch(s[8]!, /^Strom › Co čeká › |Zrušit filtr/mu);
-  assert.match(r.out, /\nVolba \(číslo skupiny, Enter = 0 Zpět\): \n {2}Stránka 1\/2 {2}\[d\] další[^\n]*\n {2}\[\?\] čeká na odpověď 7\n {2}\[0\] {2}Zpět\nVolba \(číslo skupiny, Enter = 0 Zpět\): \n/u);
+  assert.match(r.out, /\nVolba \(číslo skupiny, Enter = 0 Zpět\): \n {2}Stránka 1\/2 {2}\[d\] další[^\n]*\n {2}\[\?\] {2}čeká na odpověď 7\n {2}\[0\] {2}Zpět\nVolba \(číslo skupiny, Enter = 0 Zpět\): \n/u);
   // what waits for a reply: its places, when sent, how long ago — a request with no reply for over 30 days marked
   const replies = s.find((x) => x.startsWith("Strom › Co čeká › Čeká na odpověď\n"))!;
   assert.match(replies, /^Strom › Co čeká › Čeká na odpověď\n {2}čeká na odpověď 7 · k vyřízení 45\n {2}Druh: {2}\[a\] archivy a úřady 5 {2}\[o\] rodina 2\n/u);
   assert.match(replies, placeLine(1, "SOA Praha", 5, "odesláno \\d+\\. \\d+\\.(?: \\d{4})? · před 40 dny · bez odpovědi přes 30 dní"));
   assert.match(replies, placeLine(2, "Rodina", 2, "odesláno \\d+\\. \\d+\\.(?: \\d{4})? · dnes"));
-  assert.match(replies, /^ {2}\[\?\] k vyřízení 45\n\n {2}\[0\] {2}Zpět$/mu);
+  assert.match(replies, /^ {2}\[\?\] {2}k vyřízení 45\n\n {2}\[0\] {2}Zpět$/mu);
   // Enter there: back to what is to do; Enter again: the menu
   const after = r.out.slice(r.out.indexOf(replies));
   assert.match(after, /\nVolba \(číslo skupiny, Enter = 0 Zpět\): \n\nStrom › Co čeká\n {2}k vyřízení 45[^]*?\nVolba \(číslo skupiny, Enter = 0 Zpět\): \n\nStrom výzkum/u);
@@ -343,7 +343,7 @@ test("What waits in English, and the keys of every language: none twice, none a 
   const s = screens(r.out)[0]!;
   assert.match(s, /^Strom › What waits\n {2}to do 45 · waiting for a reply 7\n {2}Kind: {2}\[d\] decisions 1 {2}\[i\] images 11 {2}\[o\] archives and offices 7 {2}\[f\] family 8 {2}\[w\] web 16 {2}\[x\] other 2\n/u);
   assert.match(s, placeLine(14, "MěÚ Havlíčkův Brod", 4, "a letter to send"));
-  assert.match(s, /^ {2}Page 1\/2 {2}\[n\] next {2}\[p\] previous {2}\[a\] all {2}or a range 10-20\n {2}\[\?\] waiting for a reply 7\n\n {2}\[0\] {2}Back$/mu);
+  assert.match(s, /^ {2}Page 1\/2 {2}\[n\] next {2}\[p\] previous {2}\[a\] all {2}or a range 10-20\n {2}\[\?\] {2}waiting for a reply 7\n\n {2}\[0\] {2}Back$/mu);
   assert.match(r.out, /\nStrom › What waits › MěÚ Havlíčkův Brod\n\n {2}to do 4\n {2}\[1\] {2}Opis zápisu Brod 1 · letter · priority 3\n[^]*? {2}\[5\] {2}The text of all requests at once\n {2}\[6\] {2}Sent for the whole group\n {2}\[7\] {2}Talk to the agent about the whole group\n/u);
   w.cleanup();
 });

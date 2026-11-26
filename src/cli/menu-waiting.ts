@@ -275,7 +275,8 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
     const back = t(filter ? "ui.wait.f.unfilter" : "ui.wait.f.back");
     const footer = [
       ...(nav.length ? [line([...keyed(`  ${nav.join("  ")}`), { text: `  ${t("ui.wait.f.range", { range: "10-20" })}`, role: "dim" }], style, 2)] : []),
-      ...(more.length ? [line(keyed(`  ${more.join("  ")}`), style, 2)] : []),
+      // each on its own line, as an option: `[?]  waiting for a reply 1`
+      ...more.map((m) => line(keyed(`  ${m}`), style, 7)),
     ];
     const backLine = line(keyed(`  ${back}`), style, 2);
     screen.push("", ...footer, ...(footer.length ? [""] : []), backLine, "");

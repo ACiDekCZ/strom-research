@@ -862,7 +862,7 @@ test("the Strom app offered gently: the wizard asks once, the menu says what it 
   const leave = enterWorker(w.treeDir("Novákovi"), "codex-1", "Codex conversation");
   const busy = await w.ok([], { tty: true, answers: ["0"] });
   assert.match(busy.out, /Agent pracuje – živě ho jde sledovat v aplikaci Strom: volba 7\./);
-  assert.match(busy.out, /\[7\] {2}Sledovat práci agenta v aplikaci Strom · živě\n/);
+  assert.match(busy.out, /\[7\] {2}Sledovat práci agenta v aplikaci Strom {2,}živě\n/);
   leave();
   // Working alone, with a browser that reaches the bridge: watched live meanwhile? The last answer is suggested.
   w.env.STROM_APP_DIRS = appsWith(w, ["Google Chrome.app"]);

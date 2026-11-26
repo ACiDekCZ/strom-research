@@ -21,18 +21,18 @@ Auswahl (Enter = 1 Die Forschung):
 
 Strom › Einstellungen (auf diesem Computer)
 
-  [1]  Einrichtung                         Sprache, Agent, Modell, was der Agent allein darf,
-                                           Geschichten
-  [2]  Der Agent allein                    60 Min. je Aufgabe · Bedingung: keine
-  [3]  Nachrichten über das Gespeicherte   keine  Hooks
-  [4]  Archive                             Anmeldungen, Zustimmung zum Herunterladen
-  [5]  Forschung oder nur ein Strom-Archiv · Forschung: Suche in Kirchenbüchern und Archiven
-  [6]  Das Lesen der Scans abstimmen       die vorgegebenen Größen
-  [7]  Remote Control in der Claude-App    aus  das Gespräch mit dem Agenten auch vom Handy  →
-                                           einschalten
-  [8]  Wartung                             Prüfung der Installation, Speicherplatz, Korrekturen,
-                                           Sicherung
-  [9]  Hilfe                               die Befehle für Menschen
+  [1]  Einrichtung                          Sprache, Agent, Modell, was der Agent allein darf,
+                                            Geschichten
+  [2]  Der Agent allein                     60 Min. je Aufgabe · Bedingung: keine
+  [3]  Nachrichten über das Gespeicherte    keine  Hooks
+  [4]  Archive                              Anmeldungen, Zustimmung zum Herunterladen
+  [5]  Forschung oder nur ein Strom-Archiv  Forschung: Suche in Kirchenbüchern und Archiven
+  [6]  Das Lesen der Scans abstimmen        die vorgegebenen Größen
+  [7]  Remote Control in der Claude-App     aus  das Gespräch mit dem Agenten auch vom Handy  →
+                                            einschalten
+  [8]  Wartung                              Prüfung der Installation, Speicherplatz, Korrekturen,
+                                            Sicherung
+  [9]  Hilfe                                die Befehle für Menschen
 
   [0]  Zurück
 
@@ -54,6 +54,75 @@ Auswahl (Enter = 0 Zurück):
 
 -----
 
+Strom › Einstellungen › Wartung › Korrekturen von strom
+
+Korrekturen: was frühere Versionen von strom oder frühere Modelle in dieser Forschung hinterlassen
+haben
+  blind-reduced · Lesungen eines Bildausschnitts aus einem verkleinerten Bild — nichts gefunden
+  new-model · Frühere Lesungen durch ein anderes Modell — nichts gefunden
+  participant-names · Namen von Paten und Zeugen mit dem, was der Eintrag dazu sagt — nichts
+                      gefunden
+  app-shapes · Zeiträume und Alter der Strom-App als Änderung genommen — nichts gefunden
+  street-places · Straße und Nummer in den Orten von Angaben — nichts gefunden
+  edit-decisions · Widersprüche zu eigenen Änderungen des Benutzers, von einem Agenten entschieden —
+                   nichts gefunden
+  woken-waits · Aufgaben, die auf eine Antwort warteten, von Bildern geweckt — nichts gefunden
+  readers · Quellen, die ohne eigene Lesung als vom Benutzer gelesen galten — nichts gefunden
+  proven-originals · Angaben, belegt ohne den Originaleintrag — nichts gefunden
+  origins · Herkunft der Angaben — nichts gefunden
+  verify-originals · Angaben zum Prüfen an den Originalen — nichts gefunden
+  name-status · Wie sicher die Namen sind — nichts gefunden
+  contact-residences · Kontakte als Wohnorte gespeichert — nichts gefunden
+  house-numbers · Hausnummern auf zwei Arten geschrieben — nichts gefunden
+  book-counts · Ganz heruntergeladene Bücher ohne Anzahl der Bilder — nichts gefunden
+  again-waits · Aufgaben, die Bilder erneut speichern und auf weniger warten — nichts gefunden
+Mit Enter zurück zum Menü. 
+
+-----
+
+Strom › Einstellungen › Einrichtung
+
+Was einstellen?
+  [1]  Alles, Schritt für Schritt                die Einrichtung
+  [2]  Nur das Modell der Forschung              das eigene des Agenten  Claude Code
+  [3]  Terminal für die Fenster der Forschung    Standard des Systems  aus der Strom-App, ein
+                                                 übergebenes Gespräch
+  [4]  Verbindung mit dem Telefon                aus  Fotos vom Telefon in die Forschung im lokalen
+                                                 Netz
+  [5]  Wer die Hypothesen entscheidet            Die KI entscheidet
+  [6]  Agent aus der Strom-App starten           mit Rückfrage
+  [7]  Volkszählungen in dieser Forschung        aus
+  [8]  Geschichte der Häuser in dieser           aus
+       Forschung
+  [9]  An die Forschung gesendete Dateien sieht  aus
+       der Agent selbst durch
+
+  [0]  Zurück
+
+Auswahl (Enter = 1 Alles): 
+
+-----
+
+Strom › Einstellungen › Der Agent allein
+
+  [1]  Zeit für eine Aufgabe                     60 Min.
+  [2]  Immer weiter unter einer Bedingung        keine
+  [3]  Ohne die persönlichen Erweiterungen des   an  Skills, Plugins, MCP-Server
+       Agenten
+  [4]  Geschichte                                aus
+  [5]  Geschichte der einzelnen Orte             aus
+       automatisch
+  [6]  Arbeit außerhalb der Linien               gelegentlich, ab und zu eine
+  [7]  Geschichte der Regionen in dieser         aus
+       Forschung
+  [8]  Geschichte der Orte in dieser Forschung   aus
+
+  [0]  Zurück
+
+Auswahl (Enter = 0 Zurück): 
+
+-----
+
 Strom › Einstellungen › Archive
 
 Downloader der Archive auf diesem Computer:
@@ -63,11 +132,12 @@ Downloader der Archive auf diesem Computer:
 Keiner braucht eine Anmeldung – die Archive sind frei zugänglich. Eine Anmeldung erscheint hier nur
 bei einem Downloader eines Portals mit Konto (etwa einem bezahlten).
 
-  [1]  Downloader fragen nach, bevor sie laufen · aus  → einschalten
-  [2]  Der Browser für den Agenten         nur für Archive über den Browser  Claude in Chrome  → in
-                                           jeder Sitzung
+  [1]  Downloader fragen nach, bevor sie laufen  aus  → einschalten
+  [2]  Der Browser für den Agenten               nur für Archive über den Browser  Claude in Chrome
+                                                 → in jeder Sitzung
   [3]  Erlaubnis zum Herunterladen aus Archiven
-  [4]  Bücher mit den meisten Aufgaben     angeboten ab 5 Aufgaben, dasselbe Buch nacheinander aus
+  [4]  Bücher mit den meisten Aufgaben           angeboten ab 5 Aufgaben, dasselbe Buch nacheinander
+                                                 aus
 
   [0]  Zurück
 

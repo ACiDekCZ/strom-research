@@ -1,6 +1,6 @@
 Strom výzkum X.Y.Z
 Rodokmen: Lhotákovi · osob: 1
-Čeká: 3
+Čeká: 4 (z toho 1 čeká na odpověď)
 Čtení ke čtení znovu čekají na rozhodnutí: Dřívější čtení jiným modelem (1) —
 Nastavení → Údržba → Opravy
 Tip: výzkum jde prohlížet jako rodokmen v aplikaci Strom a sledovat ho živě,
@@ -8,7 +8,7 @@ když agent pracuje – volba 7.
 
   [1]  Pokračovat ve výzkumu s agentem
   [2]  Nechat agenta pracovat samotného
-  [3]  Co čeká             3
+  [3]  Co čeká             4
   [4]  Rozšířit výzkum     podklady, nová linie, revize osoby, úpravy z aplikace
                            Strom
   [5]  Prohlížet rodokmen  přehled, osoby, předkové, co je nového
@@ -23,12 +23,14 @@ Volba (Enter = 1 Pokračovat):
 -----
 
 Strom › Co čeká
-  k vyřízení 3
+  k vyřízení 3 · čeká na odpověď 1
   Druh:  [a] archivy a úřady 2  [o] rodina 1
 
   [1]  Matriční úřad Lhota nad Lhotkou u Horní   2  dopis k odeslání
        Lhoty
   [2]  Rodina                                    1  Vzpomínky na Lhotu
+
+  [?]  čeká na odpověď 1
 
   [0]  Zpět
 

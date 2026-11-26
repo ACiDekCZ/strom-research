@@ -50,6 +50,66 @@ Volba (Enter = 0 Zpět):
 
 -----
 
+Strom › Nastavení › Údržba › Opravy stromu
+
+Opravy: co v tomto výzkumu zanechaly dřívější verze stromu nebo dřívější modely
+  blind-reduced · Čtení části snímku ze zmenšeného snímku — nic nenalezeno
+  new-model · Dřívější čtení jiným modelem — nic nenalezeno
+  participant-names · Jména kmotrů a svědků s tím, co zápis uvádí u nich — nic nenalezeno
+  app-shapes · Období a věk z aplikace Strom brané jako úprava — nic nenalezeno
+  street-places · Ulice a čísla domů v místech údajů — nic nenalezeno
+  edit-decisions · Rozpory s vlastními úpravami uživatele rozhodnuté agentem — nic nenalezeno
+  woken-waits · Úkoly čekající na odpověď probuzené snímky — nic nenalezeno
+  readers · Prameny počítané jako přečtené uživatelem bez jeho čtení — nic nenalezeno
+  proven-originals · Údaje doložené bez originálu záznamu — nic nenalezeno
+  origins · Původ údajů — nic nenalezeno
+  verify-originals · Údaje k ověření podle originálů — nic nenalezeno
+  name-status · Jistota jmen — nic nenalezeno
+  contact-residences · Kontakty zapsané jako bydliště — nic nenalezeno
+  house-numbers · Čísla domů zapsaná dvojím způsobem — nic nenalezeno
+  book-counts · Knihy stažené celé bez počtu snímků — nic nenalezeno
+  again-waits · Úkoly ukládající snímky znovu, které čekají na méně — nic nenalezeno
+Enter vrátí do nabídky. 
+
+-----
+
+Strom › Nastavení › Průvodce nastavením
+
+Co nastavit?
+  [1]  Všechno, krok za krokem                   průvodce nastavením
+  [2]  Jen model výzkumu (Claude Code)           vlastní model agenta
+  [3]  Terminál pro okna výzkumu                 výchozí systému  z aplikace Strom, předaný rozhovor
+  [4]  Propojení s telefonem                     vypnuto  fotky z telefonu do výzkumu v místní síti
+  [5]  Kdo rozhoduje hypotézy                    Rozhoduje AI
+  [6]  Spouštění agenta z aplikace Strom         s potvrzením
+  [7]  Sčítání lidu v tomto výzkumu              vypnuto
+  [8]  Historie domů v tomto výzkumu             vypnuto
+  [9]  Soubory poslané do výzkumu projde agent   vypnuto
+       sám
+
+  [0]  Zpět
+
+Volba (Enter = 1 Všechno, krok za krokem): 
+
+-----
+
+Strom › Nastavení › Samostatná práce agenta
+
+  [1]  Čas na jeden úkol                     60 min
+  [2]  Práce pořád dál pod podmínkou         žádná
+  [3]  Bez osobních doplňků agenta           zapnuto  skilly, pluginy, MCP servery
+  [4]  Dějiny                                vypnuto
+  [5]  Dějiny jednotlivých míst automaticky  vypnuto
+  [6]  Práce mimo linie                      občas, jednou za čas
+  [7]  Dějiny regionů v tomto výzkumu        vypnuto
+  [8]  Dějiny míst v tomto výzkumu           vypnuto
+
+  [0]  Zpět
+
+Volba (Enter = 0 Zpět): 
+
+-----
+
 Strom › Nastavení › Archivy
 
 Stahovače archivů na tomto počítači:
@@ -59,10 +119,10 @@ Stahovače archivů na tomto počítači:
 Žádný z nich přihlášení nepotřebuje – archivy jsou volně přístupné. Přihlášení se tu objeví jen u
 stahovače portálu s účtem (třeba placeným).
 
-  [1]  Stahovače se ptají, než začnou      vypnuto  → zapnout
-  [2]  Prohlížeč pro agenta (Claude in Chrome) · jen pro archivy přes prohlížeč  → v každém sezení
+  [1]  Stahovače se ptají, než začnou           vypnuto  → zapnout
+  [2]  Prohlížeč pro agenta (Claude in Chrome)  jen pro archivy přes prohlížeč  → v každém sezení
   [3]  Svolení ke stahování z archivů
-  [4]  Knihy s nejvíc úkoly                nabízet od 5 úkolů, tatáž kniha po sobě vypnuto
+  [4]  Knihy s nejvíc úkoly                     nabízet od 5 úkolů, tatáž kniha po sobě vypnuto
 
   [0]  Zpět
 

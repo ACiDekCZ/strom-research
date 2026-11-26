@@ -103,7 +103,7 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
               if (root) parts.push({ label: t("ui.settings.intake", { state: t(ctx.settings.intakeAuto(Tree.open(root, ctx.env).config) ? "ui.settings.on" : "ui.settings.off") }), act: () => intakeStep(ctx, run, lang, root) });
             }
             if (parts.length) {
-              const i = await ctx.choose(t("ui.settings.wizard.what"), [{ label: t("ui.settings.wizard.all") }, ...parts.map((p) => shaped(p.label, { as: "value" }))], 0, { back: t("ui.browse.back") });
+              const i = await ctx.choose(t("ui.settings.wizard.what"), [shaped(t("ui.settings.wizard.all")), ...parts.map((p) => shaped(p.label, { as: "value" }))], 0, { back: t("ui.browse.back") });
               if (i === undefined) return;
               if (i > 0) return void (await parts[i - 1]!.act());
             }

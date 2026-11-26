@@ -10,7 +10,7 @@ import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { resolveCommand } from "../cli/execute.ts";
 import { counted, lines } from "../cli/format.ts";
-import { saidLines } from "../cli/screen.ts";
+import { line, saidLines, shown, spansOf } from "../cli/screen.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import { UsageError } from "../core/errors.ts";
 import { isArchive } from "../core/mode.ts";
@@ -1130,11 +1130,13 @@ register(
       const archive = isArchive(tree);
       const states = fixStates(tree, fixEnv(ctx, tree), { keep: !ctx.backupFailed });
       const pending = states.filter((s) => s.state === "pending");
+      // on a person's terminal wrapped to it, a check's further lines under its name (off a terminal: as it is)
+      const shownLine = (text: string, hang = 0) => line(spansOf(text), ctx.style, hang);
       const text = lines(
-        t(archive ? "ui.fixes.title.archive" : "ui.fixes.title"),
-        ...states.map((s) => `  ${s.check.id} · ${t(`ui.fixes.${s.check.id}.name` as UIKey)} — ${stateText(t, s)}`),
+        shownLine(t(archive ? "ui.fixes.title.archive" : "ui.fixes.title")),
+        ...states.map((s) => shownLine(`  ${s.check.id} · ${t(`ui.fixes.${s.check.id}.name` as UIKey)} — ${stateText(t, s)}`, 2 + shown(s.check.id) + 3)),
         pending.length ? "" : undefined,
-        pending.length ? t("ui.fixes.next", { id: pending[0]!.check.id }) : undefined,
+        pending.length ? shownLine(t("ui.fixes.next", { id: pending[0]!.check.id }), 2) : undefined,
       );
       return { text, data: { checks: states.map((s) => stateData(ctx, tree, s)) } };
     },

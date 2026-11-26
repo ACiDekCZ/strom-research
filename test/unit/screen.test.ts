@@ -76,20 +76,30 @@ test("the old Windows console: no faint text, ✓ ✗ in ASCII; Windows Terminal
   assert.equal(tty(80, {}, "darwin").ascii, false);
 });
 
-test("values in one column after the labels; a long label its value after ·", () => {
-  const lines = optionLines(
-    [
-      { key: "1", label: "Jazyk", value: "čeština" },
-      { key: "2", label: "Agent", value: "Claude", extra: "model nejlepší" },
-      { key: "3", label: "Šablona dopisu pro matriční úřad v Lhotě", value: "vlastní" },
-      { key: "0", label: "Zpět" },
-    ],
-    PLAIN,
-  );
-  assert.equal(lines[0], "  [1]  Jazyk  čeština".replace("Jazyk  ", `Jazyk${" ".repeat(34 - 5 + 2)}`));
+test("values in one column after the labels, at most 40; a longer label wrapped within it on a terminal, its value after · off one", () => {
+  const options = [
+    { key: "1", label: "Jazyk", value: "čeština" },
+    { key: "2", label: "Agent", value: "Claude", extra: "model nejlepší" },
+    { key: "3", label: "Šablona dopisu pro matriční úřad v Horní Lhotě", value: "vlastní" },
+    { key: "0", label: "Zpět" },
+  ];
+  const lines = optionLines(options, PLAIN);
+  assert.equal(lines[0], "  [1]  Jazyk  čeština".replace("Jazyk  ", `Jazyk${" ".repeat(40 - 5 + 2)}`));
   assert.equal(lines[0]!.indexOf("čeština"), lines[1]!.indexOf("Claude"));
   assert.match(lines[2]!, / · vlastní$/u);
   assert.deepEqual(lines.slice(-2), ["", "  [0]  Zpět"]);
+  // a terminal: the label wrapped within its column, its value in the column beside its first line
+  const term = optionLines(options, noColor(80)).join("\n").split("\n");
+  const at = term[0]!.indexOf("čeština");
+  assert.equal(term[2]!.indexOf("vlastní"), at, term.join("\n"));
+  assert.match(term[2]!, /^ {2}\[3\] {2}Šablona dopisu pro matriční úřad v Horní +vlastní$/u);
+  assert.equal(term[3], `${" ".repeat(7)}Lhotě`);
+  for (const l of term) assert.ok(shown(l) <= 80, l);
+  // a value said further wraps under the value, the label's further lines under the label
+  const de = optionLines([{ key: "1", label: "Zeit", value: "60 Min." }, { key: "3", label: "Ohne die persönlichen Erweiterungen des Agenten", value: "an", extra: "Skills, Plugins, MCP-Server und noch etwas mehr" }], noColor(80)).join("\n").split("\n");
+  assert.equal(de[1]!.indexOf("an  Skills"), de[0]!.indexOf("60 Min."), de.join("\n"));
+  assert.match(de[2]!, /^ {7}Agenten +\S/u, de.join("\n"));
+  assert.equal(de[2]!.search(/(?<=Agenten +)\S/u), de[0]!.indexOf("60 Min."), de.join("\n"));
   // keys aligned right: [9] under [10]
   const many = optionLines(Array.from({ length: 11 }, (_, i) => ({ key: String(i + 1), label: `Lhota ${i + 1}` })), PLAIN);
   assert.equal(many[8], "   [9]  Lhota 9");
