@@ -1,5 +1,5 @@
 {
-  "about": "Shared cases of the rules telling a street and a house number in the place of a fact (strom-research src/core/streets.ts, words in assets/terms/streets.json). Each input is also run decomposed (NFD): the result is the same, written composed (NFC). split: splitStreet(place, known) — town (the place without them), house (as written), by: word | known; null: the place stays. known: the streets the houses of facts name at a municipality, by its first part folded (no accents, lower case). bare: bareNumber(place) — a number alone after the name (name, town, house); never split by rules, a house only on a person's word for the whole municipality; null: no such number. numbered: whether the terms say the municipality's numbers are its parts. houseWith: the house of a fact whose place held `street` beside the house it had; null: the house says another thing (left). fold: foldText — how every word is compared (NFD, marks dropped, ß ss, ł l, đ d, ø o, æ ae, œ oe, þ th, lower case, spaces one). Written by test/fixtures/streets/make-cases.ts.",
+  "about": "Shared cases of the rules telling a street and a house number in the place of a fact (strom-research src/core/streets.ts, words in assets/terms/streets.json). Each input is also run decomposed (NFD): the result is the same, written composed (NFC). split: splitStreet(place, known) — town (the place without them), house (as written), by: word | known; null: the place stays. known: the streets the houses of facts name at a municipality, by its first part folded (no accents, lower case). bare: bareNumber(place) — a number alone after the name (name, town, house); never split by rules, a house only on a person's word for the whole municipality; null: no such number. numbered: whether the terms say the municipality's numbers are its parts. houseWith: the house of a fact whose place held `street` beside the house it had; null: the house says another thing (left). fold: foldText — how every word is compared (NFD, marks dropped, ß ss, ł l, đ d, ø o, æ ae, œ oe, þ th, lower case, spaces one). house: the key of a house over the bridge (spec 030 K1.1a) — placeKey(town) + \"|\" + houseKey(house) as the app computes them (strom-beta src/places.ts), the town as the GEDCOM writes the place of the fact; NFD input the same. Written by test/fixtures/streets/make-cases.ts.",
   "split": [
     {
       "place": "Lhota, nám. Míru",
@@ -432,6 +432,111 @@
     {
       "text": " Ленина ",
       "expect": "ленина"
+    }
+  ],
+  "house": [
+    {
+      "town": "Lhota",
+      "house": "16",
+      "expect": "lhota|16"
+    },
+    {
+      "town": "Lhota",
+      "house": "čp. 16",
+      "note": "a marker of the number is no part of the key",
+      "expect": "lhota|16"
+    },
+    {
+      "town": "Lhota",
+      "house": "č. p. 16",
+      "expect": "lhota|16"
+    },
+    {
+      "town": "Lhota",
+      "house": "Haus Nr. 16",
+      "expect": "lhota|16"
+    },
+    {
+      "town": "Lhota",
+      "house": "House No. 16",
+      "expect": "lhota|16"
+    },
+    {
+      "town": "Lhota",
+      "house": "Nr. 16",
+      "expect": "lhota|16"
+    },
+    {
+      "town": "Lhota",
+      "house": "Kopřivná 12",
+      "expect": "lhota|koprivna 12"
+    },
+    {
+      "town": "Lhota",
+      "house": "kopřivná 12",
+      "expect": "lhota|koprivna 12"
+    },
+    {
+      "town": "Lhota",
+      "house": "13/2",
+      "expect": "lhota|13 2"
+    },
+    {
+      "town": "Lhota",
+      "house": "12a",
+      "expect": "lhota|12a"
+    },
+    {
+      "town": "Lhota",
+      "house": "12 a",
+      "expect": "lhota|12 a"
+    },
+    {
+      "town": "Lhota",
+      "house": "mlýn",
+      "note": "a house without a number: the text folded",
+      "expect": "lhota|mlyn"
+    },
+    {
+      "town": "Bělokamen",
+      "house": "16",
+      "expect": "belokamen|16"
+    },
+    {
+      "town": "Bělokamen, okres Brodek",
+      "house": "16",
+      "note": "the place as the GEDCOM writes it, its parts with it",
+      "expect": "belokamen okres brodek|16"
+    },
+    {
+      "town": "BĚLOKAMEN",
+      "house": "16",
+      "expect": "belokamen|16"
+    },
+    {
+      "town": "Lhotau",
+      "house": "Hauptstraße 3",
+      "expect": "lhotau|hauptstrasse 3"
+    },
+    {
+      "town": "Lhotau",
+      "house": "Hauptstr. 3",
+      "expect": "lhotau|hauptstr. 3"
+    },
+    {
+      "town": "Лхота",
+      "house": "д. 5",
+      "expect": "лхота|5"
+    },
+    {
+      "town": "Лхота",
+      "house": "ул. Ленина 5",
+      "expect": "лхота|ул. ленина 5"
+    },
+    {
+      "town": "Łódź",
+      "house": "12",
+      "expect": "łodz|12"
     }
   ],
   "houseWith": [

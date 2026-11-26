@@ -507,3 +507,77 @@ export function checkStreetPlace(tree: Tree, place: string | undefined, house: s
     params: { place: place.trim(), town, house: set },
   });
 }
+
+// ── the Strom app's key of a house (spec 030 K1.1a): ported word for word ─────────────────────────────────────────
+// The app keys a house of its register by its municipality and its number (strom-beta src/places.ts placeKey,
+// houseKey): "<placeKey(town)>|<houseKey(house)>". The research sends that key over the bridge, so both are the app's
+// own, letter by letter; the shared cases (test/fixtures/streets/cases.json "house") hold the two together. Never the
+// research's core/house.ts houseKey (a house compared within a fact), which stays for its own use.
+
+/** The app's placeKey: lower case, accents stripped, punctuation and repeated spaces collapsed ("Děčín  ," → "decin"). */
+export function appPlaceKey(raw: string): string {
+  return raw
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[.,;]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+interface HouseOrder {
+  /** 0 numbers (with a marker word or none), 1 a street with its number, 2 a text without a number. */
+  cls: 0 | 1 | 2;
+  street: string;
+  /** The first number, as written folded ("13" of "13/2", "12a"). */
+  num: string;
+  /** The rest from the first number on, folded ("13 2"). */
+  rest: string;
+  text: string;
+}
+
+function houseOrder(text: string): HouseOrder {
+  const t = text.normalize("NFC").trim();
+  const toks = tokens(t);
+  const i = toks.findIndex(isNumber);
+  if (i < 0) return { cls: 2, street: "", num: "", rest: "", text: foldText(t) };
+  // the words before the first number: a marker ("čp.", "Haus Nr.", "House No.") is no street
+  const street = nameOf(toks.slice(0, i + 1));
+  return { cls: street ? 1 : 0, street, num: toks[i]!.fold, rest: toks.slice(i).map((x) => x.fold).join(" "), text: foldText(t) };
+}
+
+/**
+ * The app's houseKey: the same house however it is written — "16", "čp. 16", "Haus Nr. 16" and "House No. 16" are one
+ * house; "Kopřivná 12" and "kopřivná 12" too.
+ */
+export function appHouseKey(text: string): string {
+  const o = houseOrder(text);
+  if (o.cls === 2) return o.text;
+  return o.street ? `${o.street} ${o.rest}` : o.rest;
+}
+
+/** Is a house text a street ("Lhotákova 23") rather than a number with or without its marker ("16", "čp. 4")? */
+export function houseIsStreet(text: string): boolean {
+  return houseOrder(text).cls !== 0;
+}
+
+const houseCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+/** The app's order of houses: numbers first by value, then streets by street and number, then texts without a number. */
+export function compareHouses(a: string, b: string): number {
+  const x = houseOrder(a);
+  const y = houseOrder(b);
+  return (
+    x.cls - y.cls ||
+    houseCollator.compare(x.street, y.street) ||
+    houseCollator.compare(x.num, y.num) ||
+    houseCollator.compare(x.rest, y.rest) ||
+    houseCollator.compare(x.text, y.text) ||
+    (a < b ? -1 : a > b ? 1 : 0)
+  );
+}
+
+/** The key of a house over the bridge: the app's key of its municipality (the place as the GEDCOM writes it) and of its number. */
+export function houseRowKey(town: string, house: string): string {
+  return `${appPlaceKey(town)}|${appHouseKey(house)}`;
+}

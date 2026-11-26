@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { bareNumber, houseWith, numberedTown, splitStreet } from "../../../src/core/streets.ts";
+import { bareNumber, houseRowKey, houseWith, numberedTown, splitStreet } from "../../../src/core/streets.ts";
 import { foldText } from "../../../src/core/text.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -95,6 +95,30 @@ const houses: [string, string | undefined][] = [
 
 const folds = ["Dlouhá", "NÁMĚSTÍ  Míru", "Hauptstraße", "Łódź", "Øster Allé", "Й улица", "Lhotín 3a".normalize("NFD"), " Ленина "];
 
+// the key of a house over the bridge (spec 030 K1.1a): the app's placeKey of the municipality and houseKey of its number
+const houseKeys: { town: string; house: string; note?: string }[] = [
+  { town: "Lhota", house: "16" },
+  { town: "Lhota", house: "čp. 16", note: "a marker of the number is no part of the key" },
+  { town: "Lhota", house: "č. p. 16" },
+  { town: "Lhota", house: "Haus Nr. 16" },
+  { town: "Lhota", house: "House No. 16" },
+  { town: "Lhota", house: "Nr. 16" },
+  { town: "Lhota", house: "Kopřivná 12" },
+  { town: "Lhota", house: "kopřivná 12" },
+  { town: "Lhota", house: "13/2" },
+  { town: "Lhota", house: "12a" },
+  { town: "Lhota", house: "12 a" },
+  { town: "Lhota", house: "mlýn", note: "a house without a number: the text folded" },
+  { town: "Bělokamen", house: "16" },
+  { town: "Bělokamen, okres Brodek", house: "16", note: "the place as the GEDCOM writes it, its parts with it" },
+  { town: "BĚLOKAMEN", house: "16" },
+  { town: "Lhotau", house: "Hauptstraße 3" },
+  { town: "Lhotau", house: "Hauptstr. 3" },
+  { town: "Лхота", house: "д. 5" },
+  { town: "Лхота", house: "ул. Ленина 5" },
+  { town: "Łódź", house: "12" },
+];
+
 const out = {
   about:
     "Shared cases of the rules telling a street and a house number in the place of a fact (strom-research src/core/streets.ts, " +
@@ -105,11 +129,14 @@ const out = {
     "for the whole municipality; null: no such number. numbered: whether the terms say the municipality's numbers are its parts. " +
     "houseWith: the house of a fact whose place held `street` beside the house it had; null: the house says another thing (left). " +
     "fold: foldText — how every word is compared (NFD, marks dropped, ß ss, ł l, đ d, ø o, æ ae, œ oe, þ th, lower case, spaces one). " +
+    "house: the key of a house over the bridge (spec 030 K1.1a) — placeKey(town) + \"|\" + houseKey(house) as the app computes them " +
+    "(strom-beta src/places.ts), the town as the GEDCOM writes the place of the fact; NFD input the same. " +
     "Written by test/fixtures/streets/make-cases.ts.",
   split: split.map((c) => ({ ...c, expect: splitStreet(c.place, c.known ? known(c.known) : undefined) ?? null })),
   bare: bare.map((place) => ({ place, expect: bareNumber(place) ?? null })),
   numbered: numbered.map((name) => ({ name, expect: numberedTown(name) })),
   fold: folds.map((text) => ({ text, expect: foldText(text) })),
+  house: houseKeys.map((c) => ({ ...c, expect: houseRowKey(c.town, c.house) })),
   houseWith: houses.map(([street, had]) => ({ street, ...(had !== undefined ? { had } : {}), expect: houseWith(street, had) ?? null })),
 };
 fs.writeFileSync(path.join(here, "cases.json"), JSON.stringify(out, null, 2) + "\n");
