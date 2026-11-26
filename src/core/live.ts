@@ -2068,9 +2068,11 @@ const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort", "run.lines
 const withoutAgent = (features: readonly string[]): readonly string[] => features.filter((f) => !AGENT_FEATURES.has(f));
 /**
  * The sample research (strom demo, spec 143 K2.2): looked through as a research, but nothing that starts or offers an
- * agent — the agent's features, and the links and the tasks that start one (work.link, run.tasks, work.tasks).
+ * agent — the agent's features, and the links and the tasks that start one (work.link, run.tasks, work.tasks), a task
+ * returned to the agent (waiting.retry) and the bulk verification it does (verify.bulk, verify.tryFirst); what waits
+ * carries no chat with the agent (core/waiting.ts) and accepts no reading at once (accepts.read).
  */
-const DEMO_HIDDEN: ReadonlySet<string> = new Set(["work.link", "run.tasks", "work.tasks"]);
+const DEMO_HIDDEN: ReadonlySet<string> = new Set(["work.link", "run.tasks", "work.tasks", "waiting.retry", "verify.bulk", "verify.tryFirst"]);
 const forDemo = (features: readonly string[]): readonly string[] => withoutAgent(features).filter((f) => !DEMO_HIDDEN.has(f));
 
 /**
@@ -3205,8 +3207,9 @@ export function liveState(env: Env): { idleMinutes: number; idleChoices: number[
 
 function accepts(tree: Tree, settings: Settings, env: Env, seen?: ReadingsSeen): Record<string, unknown> {
   const mode = modeOf(tree);
-  // a document read at once (live-read.ts): none in an archive, nor where the research waits for its agent
-  const read = readAccepts(tree, settings, env, seen);
+  // a document read at once (live-read.ts): none in an archive, nor where the research waits for its agent, nor in the
+  // sample research (strom demo: its readers are an agent's, which nothing there offers)
+  const read = isDemo(tree.config) ? undefined : readAccepts(tree, settings, env, seen);
   const state = stateOf(tree);
   const shared = settings.shared()?.value;
   const free = shared ? freeBytes(shared) : undefined;
