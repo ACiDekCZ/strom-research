@@ -1658,6 +1658,7 @@
   "ui.help.cmd.seal.accept": "Przyjąć badanie takie, jakie jest teraz, gdy historia zapisów zaginęła (nowa zapieczętowana podstawa)",
   "ui.help.cmd.repair.undo": "Przywrócić to, co strom repair usunął lub nadpisał (z jego kopii w .strom/quarantine/)",
   "ui.help.cmd.fixes.review": "Odpowiedzieć na dane udowodnione bez oryginału zapisu: zostawić jako udowodnione albo zmienić na prawdopodobne",
+  "ui.help.cmd.house.confirm": "Potwierdzić zmianę numeracji, położenie domu albo to, że numer nie jest tym samym domem",
   "ui.help.cmd.connector.use": "Jak program pobierający dociera do swojego archiwum: bezpośrednio czy przez przeglądarkę",
   "ui.help.cmd.link.on": "Pozwolić aplikacji Strom otwierać badanie kliknięciem",
   "ui.help.cmd.link.off": "Koniec z otwieraniem badania z aplikacji Strom kliknięciem",

@@ -1658,6 +1658,7 @@
   "ui.help.cmd.seal.accept": "Die Forschung so annehmen, wie sie jetzt ist, wenn die Geschichte ihrer Einträge verloren ist (eine neue versiegelte Grundlage)",
   "ui.help.cmd.repair.undo": "Zurücklegen, was strom repair entfernt oder überschrieben hat (aus seinen Kopien in .strom/quarantine/)",
   "ui.help.cmd.fixes.review": "Die ohne Originaleintrag belegten Angaben beantworten: belegt lassen oder auf wahrscheinlich setzen",
+  "ui.help.cmd.house.confirm": "Eine Umnummerierung, die Lage eines Hauses oder dass eine Nummer nicht dasselbe Haus ist, bestätigen",
   "ui.help.cmd.connector.use": "Wie ein Downloader sein Archiv erreicht: direkt oder über den eigenen Browser",
   "ui.help.cmd.link.on": "Der Strom-App erlauben, die Forschung per Klick zu öffnen",
   "ui.help.cmd.link.off": "Die Forschung nicht mehr per Klick aus der Strom-App öffnen",

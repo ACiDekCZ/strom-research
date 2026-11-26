@@ -1658,6 +1658,7 @@
   "ui.help.cmd.seal.accept": "Přijmout výzkum tak, jak je teď, když se ztratila historie záznamů (nový zapečetěný základ)",
   "ui.help.cmd.repair.undo": "Vrátit, co strom repair odebral nebo přepsal (z jeho kopií v .strom/quarantine/)",
   "ui.help.cmd.fixes.review": "Odpovědět na údaje doložené bez originálu záznamu: nechat doložené, nebo převést na pravděpodobné",
+  "ui.help.cmd.house.confirm": "Potvrdit přečíslování, polohu domu nebo to, že číslo není tentýž dům",
   "ui.help.cmd.connector.use": "Jak se stahovač dostane ke svému archivu: přímo, nebo přes prohlížeč",
   "ui.help.cmd.link.on": "Dovolit aplikaci Strom otevřít výzkum kliknutím",
   "ui.help.cmd.link.off": "Už neotevírat výzkum z aplikace Strom kliknutím",

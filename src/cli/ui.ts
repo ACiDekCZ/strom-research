@@ -1360,6 +1360,7 @@ export const UI = {
   "ui.help.cmd.seal.accept": "Accept the research as it is now when the history of its records is lost (a new sealed base)",
   "ui.help.cmd.repair.undo": "Put back what strom repair removed or wrote over (from its copies in .strom/quarantine/)",
   "ui.help.cmd.fixes.review": "Answer the facts made proven without the original record: keep them proven, or make them probable",
+  "ui.help.cmd.house.confirm": "Confirm a renumbering, the point of a house, or that a number is not the same house",
   "ui.help.cmd.connector.use": "How a downloader reaches its archive: directly or through the browser",
   "ui.help.cmd.link.on": "Let the Strom app open the research with a click",
   "ui.help.cmd.link.off": "No more opening the research from the Strom app with a click",

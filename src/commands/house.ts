@@ -407,7 +407,7 @@ register(
       { name: "question", type: "string", value: "<T…>", description: "the task asking the person, where there is one" },
       { name: "from", type: "string", value: "<I…>", description: "the material that says so (origin import)" },
     ],
-    ['strom house add unknown A0001 --text "<who held the house 1856–1858?>"'],
+    ['strom house add unknown A0001 --text "<who held the house from 1856 to 1858?>"'],
     (ctx, tree, h, opts) => {
       const q = opt(opts.question) ? normId(opt(opts.question)!, "task") : undefined;
       if (q && !tree.get<Task>(q)) throw new UsageError(`no task ${q}`, { code: "house.body" });
