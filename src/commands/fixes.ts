@@ -64,6 +64,8 @@ import { applyVerify, undoVerify, verifyDone, type VerifyItem } from "../core/ve
 import { applyNameStatus, nameStatusDone, undoNameStatus, type NameStatusFix } from "../core/namestatusfix.ts";
 import { applyContactResidences, contactResidencesDone, undoContactResidences, type ContactFix, type ContactLeft } from "../core/contactfix.ts";
 import { applyHouseNumbers, houseNumbersDone, undoHouseNumbers, type HouseNumberFix, type HouseNumberLeft } from "../core/housenumberfix.ts";
+import { applyBookCounts, bookCountsDone, undoBookCounts, type BookCountFix } from "../core/bookcountfix.ts";
+import { againWaitsDone, applyAgainWaits, undoAgainWaits, type AgainWaitFix } from "../core/againwaitfix.ts";
 import { townAnswers } from "../core/streets.ts";
 import { eventKey } from "../cli/human.ts";
 import type { TreeConfig } from "../core/model.ts";
@@ -439,6 +441,34 @@ const REWRITERS: Record<string, Rewriter> = {
     askUndo: "Put the houses of the facts back as they were?",
     fixed: (key, n, records) => `Fix ${key}: ${n} house numbers of facts set right, in ${records} records`,
     undone: (key, n, left) => `Fix ${key}: undone, ${n} houses of facts put back as they were${left ? `, ${left} changed since left` : ""}`,
+  },
+  "book-counts": {
+    // one book: which, its archive, its images on disk — and how another count is written instead
+    example: (t, item) => {
+      const r = item as BookCountFix;
+      return t(r.archive ? "ui.fixes.book-counts.example" : "ui.fixes.book-counts.example.local", { recordset: r.recordset, title: short(r.title), archive: r.archive ?? "", n: r.images });
+    },
+    apply: (tree, items, config) => applyBookCounts(tree, items as BookCountFix[], VERSION, config),
+    done: (tree) => bookCountsDone(tree).length,
+    undo: (tree, config) => undoBookCounts(tree, config),
+    ask: "Write each book's count of images as its images on disk 1…N say (another count: strom recordset edit B… --images <n>)?",
+    askUndo: "Take off the counts of images the fix wrote on books?",
+    fixed: (key, n, records) => `Fix ${key}: ${n} books' counts of images written as their images on disk 1…N, in ${records} records`,
+    undone: (key, n, left) => `Fix ${key}: undone, ${n} books' counts of images taken off${left ? `, ${left} changed since left` : ""}`,
+  },
+  "again-waits": {
+    // one task: what it is, its book, the images its text names its wait did not hold
+    example: (t, item) => {
+      const r = item as AgainWaitFix;
+      return t("ui.fixes.again-waits.example", { task: r.task, what: short(r.what), recordset: r.recordset, added: r.added, images: r.after.images });
+    },
+    apply: (tree, items, config) => applyAgainWaits(tree, items as AgainWaitFix[], VERSION, config),
+    done: (tree) => againWaitsDone(tree).length,
+    undo: (tree, config) => undoAgainWaits(tree, config),
+    ask: "Let the tasks saving images once more wait for every image their text names (those whose new copy did not come counted missing)?",
+    askUndo: "Put the waits of the tasks the fix set right back as they were?",
+    fixed: (key, n, records) => `Fix ${key}: ${n} tasks saving images once more wait for every image their text names, in ${records} records`,
+    undone: (key, n, left) => `Fix ${key}: undone, ${n} waits of tasks put back as they were${left ? `, ${left} changed since left` : ""}`,
   },
 };
 
@@ -938,7 +968,7 @@ register(
       "beside the earlier one, a difference becomes a task. The person decides: set it right (strom fixes run), leave it as\n" +
       "it is (strom fixes decline) or later (nothing kept). The decision is kept with the research (strom.json \"fixes\")\n" +
       "and holds on every computer. strom doctor and the menu say when one waits. In an archive only participant-names,\n" +
-      "app-shapes, street-places, contact-residences and house-numbers.\n" +
+      "app-shapes, street-places, contact-residences, house-numbers and book-counts.\n" +
       "The checks: blind-reduced — a reading of a part of an image (strom read --crop) read from the whole image, reduced,\n" +
       "where a sharper copy of the part was at hand (strom before 1.19.0); where this computer has no record of the\n" +
       "reading's views, the place is estimated from the sources' entries on the image, and said so.\n" +
@@ -1030,8 +1060,20 @@ register(
       "(\"Adresa: čp. 13\" → \"13\"; the note stays). The markers are the words of assets/terms/streets.json. A note naming\n" +
       "more numbers than one is left and listed (--json: left). Set right by rules on the person's word alone (free, also\n" +
       "in an archive); one operation, one commit; strom fixes undo house-numbers puts the houses back as they were.\n" +
+      "book-counts — a book downloaded whole with no count of its images before strom 1.38.0 (since then the count is\n" +
+      "written from the archive's catalogue or after a whole book on disk): its tasks still need it, its archive lets it be\n" +
+      "downloaded whole, its images registered run 1…N with no gap (N at least 2) — offered to download by hand for ever.\n" +
+      "Set right on the person's word alone (free, also in an archive): its count N written (one operation per book, one\n" +
+      "commit). Another count from the archive's page: strom recordset edit B… --images <n> first — the book is then no\n" +
+      "longer found. strom fixes undo book-counts takes off the counts still as written.\n" +
+      "again-waits — a task saving images once more (strom media save --again) before strom 1.38.0 waited for fewer images\n" +
+      "than its own text names and counted the copies registered before as saved. Its text (what, else done-when) read for\n" +
+      "image numbers and ranges (\"23–25 and 40\"), never a number of the book's title, years or call number, only images\n" +
+      "registered for the book; set right by rules (free, never in an archive — an agent's work): its wait holds them all,\n" +
+      "those whose new copy did not come since counted missing (awaits.again); strom fixes undo again-waits puts the waits\n" +
+      "back as they were.\n" +
       SET_RIGHT_HELP,
-    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes show app-shapes", "strom fixes show street-places", "strom fixes show edit-decisions", "strom fixes show woken-waits", "strom fixes show readers", "strom fixes show proven-originals", "strom fixes show origins", "strom fixes show verify-originals", "strom fixes show name-status", "strom fixes show contact-residences", "strom fixes show house-numbers", "strom fixes --json"],
+    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes show app-shapes", "strom fixes show street-places", "strom fixes show edit-decisions", "strom fixes show woken-waits", "strom fixes show readers", "strom fixes show proven-originals", "strom fixes show origins", "strom fixes show verify-originals", "strom fixes show name-status", "strom fixes show contact-residences", "strom fixes show house-numbers", "strom fixes show book-counts", "strom fixes show again-waits", "strom fixes --json"],
     run: (ctx: Context) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);
@@ -1085,9 +1127,9 @@ register(
       "Who reads: --agent and --model; else, where more agents can read here, the person chooses — each said with whether\n" +
       "it read these before, another one recommended where the one now did. After the first few, the rest is estimated\n" +
       "again by the real time they took.\n" +
-      "participant-names, app-shapes, street-places, contact-residences and house-numbers read nothing: set right as shown (strom fixes show <check>), all or none, in one\n" +
-      "operation and one commit, free, also in an archive; strom fixes undo <check> puts it back. So do edit-decisions and\n" +
-      "woken-waits and readers, never in an archive (an agent's work); readers, proven-originals, origins, verify-originals and name-status are set right by themselves once,\n" +
+      "participant-names, app-shapes, street-places, contact-residences, house-numbers and book-counts read nothing: set right as shown (strom fixes show <check>), all or none, in one\n" +
+      "operation and one commit, free, also in an archive; strom fixes undo <check> puts it back. So do edit-decisions,\n" +
+      "woken-waits, again-waits and readers, never in an archive (an agent's work); readers, proven-originals, origins, verify-originals and name-status are set right by themselves once,\n" +
       "run again only after strom fixes undo or reopen.\n" +
       SET_RIGHT_HELP,
     args: [{ name: "check", description: "the check (default: each that waits)" }],
@@ -1191,7 +1233,7 @@ register(
   },
   {
     path: ["fixes", "undo"],
-    summary: "Put back what a check that rewrites set right (participant-names, app-shapes, street-places, edit-decisions, woken-waits, readers, proven-originals, origins, verify-originals, name-status, contact-residences, house-numbers): as it was before the fix (the person's own)",
+    summary: "Put back what a check that rewrites set right (participant-names, app-shapes, street-places, edit-decisions, woken-waits, readers, proven-originals, origins, verify-originals, name-status, contact-residences, house-numbers, book-counts, again-waits): as it was before the fix (the person's own)",
     group: "history",
     tree: true,
     person: "Putting a fix back is the person's own decision, at their own terminal: never done by an agent",
@@ -1202,12 +1244,13 @@ register(
       "queue as the images woke it (woken-waits); each source read by the user again (readers); each fact proven again\n" +
       "(proven-originals); each mark of where a value came from taken off (origins); each task of verification nobody started\n" +
       "dropped (verify-originals); each name's status taken off (name-status); each residence of a contact back and the\n" +
-      "e-mails the fix added taken off the contact (contact-residences); each fact's house as it was (house-numbers) —\n" +
+      "e-mails the fix added taken off the contact (contact-residences); each fact's house as it was (house-numbers); each\n" +
+      "book's count of images taken off (book-counts); each task's wait of images as it was (again-waits) —\n" +
       "where it is still as the fix left it; one\n" +
       "changed since is left as it is and counted. One step of the history (one operation, one commit); the fix is then left as it is\n" +
-      "(strom fixes reopen asks again). Also in an archive (edit-decisions, woken-waits, readers, origins, verify-originals and name-status not).",
+      "(strom fixes reopen asks again). Also in an archive (edit-decisions, woken-waits, readers, origins, verify-originals, name-status and again-waits not).",
     args: [{ name: "check", description: "the check, e.g. participant-names", required: true }],
-    examples: ["strom fixes undo participant-names", "strom fixes undo app-shapes", "strom fixes undo street-places", "strom fixes undo edit-decisions", "strom fixes undo readers", "strom fixes undo proven-originals", "strom fixes undo origins", "strom fixes undo verify-originals", "strom fixes undo name-status", "strom fixes undo contact-residences", "strom fixes undo house-numbers"],
+    examples: ["strom fixes undo participant-names", "strom fixes undo app-shapes", "strom fixes undo street-places", "strom fixes undo edit-decisions", "strom fixes undo readers", "strom fixes undo proven-originals", "strom fixes undo origins", "strom fixes undo verify-originals", "strom fixes undo name-status", "strom fixes undo contact-residences", "strom fixes undo house-numbers", "strom fixes undo book-counts", "strom fixes undo again-waits"],
     run: (ctx: Context, { args }) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);

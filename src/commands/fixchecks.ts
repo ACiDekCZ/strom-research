@@ -50,6 +50,8 @@ import { VERIFY_SINCE, verifyDone, verifyFixes, verifyQueued, type VerifyItem } 
 import { NAME_STATUS_SINCE, nameStatusDone, nameStatusFixes, type NameStatusFix } from "../core/namestatusfix.ts";
 import { CONTACT_RESIDENCES_SINCE, contactResidenceFixes, contactResidencesDone, type ContactFix, type ContactLeft } from "../core/contactfix.ts";
 import { HOUSE_NUMBERS_SINCE, houseNumberFixes, houseNumbersDone, type HouseNumberFix, type HouseNumberLeft } from "../core/housenumberfix.ts";
+import { BOOK_COUNTS_SINCE, bookCountFixes, bookCountsDone, type BookCountFix } from "../core/bookcountfix.ts";
+import { AGAIN_WAITS_SINCE, againWaitFixes, againWaitsDone, type AgainWaitFix } from "../core/againwaitfix.ts";
 
 /** One earlier reading of one place, to be read again. */
 export interface FixItem {
@@ -102,7 +104,7 @@ export interface FixFindings {
   readings: number;
   /** A check that rewrites (participant-names, app-shapes, street-places, edit-decisions, woken-waits): what it would set
    * right, and how many it found it cannot. */
-  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[] | ReaderFix[] | ProvenFix[] | OriginMark[] | VerifyItem[] | NameStatusFix[] | ContactFix[] | HouseNumberFix[];
+  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[] | ReaderFix[] | ProvenFix[] | OriginMark[] | VerifyItem[] | NameStatusFix[] | ContactFix[] | HouseNumberFix[] | BookCountFix[] | AgainWaitFix[];
   unsplit?: number;
   /** What it found and leaves as it is, each with why (street-places: a fact whose house says another thing; edit-decisions:
    * the user's value taken, decided again on a new source; woken-waits: taken up since). */
@@ -153,7 +155,7 @@ export interface FixCheck {
   /** What it counts: places on images, readings (each read again whole: all its images, a document), participants,
    * what a sync wrote (app-shapes: conflicts, facts, dates), facts (street-places), conflicts (edit-decisions) or tasks
    * (woken-waits). */
-  unit: "place" | "reading" | "participant" | "finding" | "fact" | "conflict" | "task" | "source" | "name";
+  unit: "place" | "reading" | "participant" | "finding" | "fact" | "conflict" | "task" | "source" | "name" | "book";
   /**
    * What it sets right is of an agent's work (edit-decisions, woken-waits): never offered where nobody researches (an
    * archive, a research waiting for its agent — nothing of an agent said there), though it rewrites by rules.
@@ -1097,8 +1099,48 @@ export const HOUSE_NUMBERS: FixCheck = {
   applied: (tree) => houseNumbersDone(tree).length,
 };
 
+/**
+ * Until 1.38.0 a book downloaded whole had no count of its images written (1126): what is missing of it never known, it
+ * stayed offered to download by hand for ever. Since then its count is written from the archive's catalogue (a
+ * connector's report) or after a whole book is on disk; the books found so (core/bookcountfix.ts: their tasks need
+ * them, no count, their images 1…N on disk) have it written on a person's word alone — one who knows another count from
+ * the archive's page writes that one (strom recordset edit B… --images <n>). The person's book data: in an archive too.
+ */
+export const BOOK_COUNTS: FixCheck = {
+  id: "book-counts",
+  since: BOOK_COUNTS_SINCE,
+  paid: false,
+  remedy: "rewrite",
+  unit: "book",
+  detect: (tree) => {
+    const fixes = bookCountFixes(tree);
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: fixes, unsplit: 0, left: [] };
+  },
+  applied: (tree) => bookCountsDone(tree).length,
+};
+
+/**
+ * Until 1.38.0 a task saving images once more (strom media save --again) waited for the first of them alone and counted
+ * the copy registered before as saved (1126): it looked done while the rest had not come. Since then its wait holds every
+ * image and those saved once more until their new copy comes (awaits.again); the tasks waiting so before are set right by
+ * rules (core/againwaitfix.ts) from their own text — an agent's work: never in an archive.
+ */
+export const AGAIN_WAITS: FixCheck = {
+  id: "again-waits",
+  since: AGAIN_WAITS_SINCE,
+  paid: false,
+  remedy: "rewrite",
+  unit: "task",
+  agentWork: true,
+  detect: (tree) => {
+    const fixes = againWaitFixes(tree);
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: fixes, unsplit: 0, left: [] };
+  },
+  applied: (tree) => againWaitsDone(tree).length,
+};
+
 /** Every check strom knows, the oldest fix first. */
-export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS, READERS, PROVEN_ORIGINALS, ORIGINS, VERIFY_ORIGINALS, NAME_STATUS, CONTACT_RESIDENCES, HOUSE_NUMBERS];
+export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS, READERS, PROVEN_ORIGINALS, ORIGINS, VERIFY_ORIGINALS, NAME_STATUS, CONTACT_RESIDENCES, HOUSE_NUMBERS, BOOK_COUNTS, AGAIN_WAITS];
 
 
 /**
@@ -1412,7 +1454,7 @@ function pendingFile(root: string): string {
 /**
  * What the checks are found by, told by the files alone (nothing of them read, no git started): the research's last
  * commit, strom.json, its readings' folder, this computer's records of its readers and views and of its documents
- * read, the shared folder, the agent and model reading now, this strom. The same stamp: what waits is what was found then.
+ * read, the saves of the agent's browser, the shared folder, the agent and model reading now, this strom. The same stamp: what waits is what was found then.
  */
 export function fixesStamp(tree: Tree, env: FixEnv): string {
   const stat = fileStamp;
@@ -1425,6 +1467,8 @@ export function fixesStamp(tree: Tree, env: FixEnv): string {
     stat(path.join(tree.root, ".strom", "views", "views.jsonl")),
     stat(path.join(tree.root, ".strom", "reads")),
     stat(path.join(tree.root, "notes", "readings")),
+    // the saves once more of the agent's browser (again-waits)
+    stat(path.join(tree.root, ".strom", "browser-saves.json")),
     JSON.stringify(tree.config.fixes ?? {}),
   ];
   return crypto.createHash("sha256").update(parts.join("|")).digest("hex").slice(0, 32);
