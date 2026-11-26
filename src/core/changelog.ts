@@ -563,6 +563,13 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       say(phrase(lang, o.op === "contact.fix" ? "log.contact.fix" : "log.contact.unfix", { n }));
       continue;
     }
+    // the house numbers of facts set right by strom's fix (a marker taken off, a note's number the house), or put back
+    // (quality/house-numbers.json)
+    if (o.op === "housenumber.fix" || o.op === "housenumber.unfix") {
+      const n = /: (\d+) in /u.exec(o.summary)?.[1] ?? String(o.targets.length);
+      say(phrase(lang, o.op === "housenumber.fix" ? "log.housenumber.fix" : "log.housenumber.unfix", { n }));
+      continue;
+    }
     // disagreements with the user's own edits an agent decided, opened again for the user by strom's fix, or closed again
     // (quality/edit-decisions.json)
     if (o.op === "editdecision.fix" || o.op === "editdecision.unfix") {

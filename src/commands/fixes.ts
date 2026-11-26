@@ -63,6 +63,7 @@ import { applyOrigins, originsDone, undoOrigins, type OriginMark } from "../core
 import { applyVerify, undoVerify, verifyDone, type VerifyItem } from "../core/verify.ts";
 import { applyNameStatus, nameStatusDone, undoNameStatus, type NameStatusFix } from "../core/namestatusfix.ts";
 import { applyContactResidences, contactResidencesDone, undoContactResidences, type ContactFix, type ContactLeft } from "../core/contactfix.ts";
+import { applyHouseNumbers, houseNumbersDone, undoHouseNumbers, type HouseNumberFix, type HouseNumberLeft } from "../core/housenumberfix.ts";
 import { townAnswers } from "../core/streets.ts";
 import { eventKey } from "../cli/human.ts";
 import type { TreeConfig } from "../core/model.ts";
@@ -420,6 +421,24 @@ const REWRITERS: Record<string, Rewriter> = {
     askUndo: "Put the residences of contacts back as they were and take off the e-mails the fix added?",
     fixed: (key, n, records) => `Fix ${key}: ${n} residences of contacts set right, their e-mails in the persons' contacts, in ${records} records`,
     undone: (key, n, left) => `Fix ${key}: undone, ${n} residences of contacts put back as they were${left ? `, ${left} changed since left` : ""}`,
+  },
+  "house-numbers": {
+    // one fact's house: whose, which, its house before (or its note) → after
+    example: (t, item) => {
+      const r = item as HouseNumberFix;
+      return t(r.how === "note" ? "ui.fixes.house-numbers.example.note" : "ui.fixes.house-numbers.example", { owner: r.owner, event: r.event, before: r.before ?? "", after: r.after });
+    },
+    left: (t, item) => {
+      const r = item as HouseNumberLeft;
+      return t("ui.fixes.house-numbers.kept", { owner: r.owner, event: r.event, numbers: r.numbers.join(", ") });
+    },
+    apply: (tree, items, config) => applyHouseNumbers(tree, items as HouseNumberFix[], VERSION, config),
+    done: (tree) => houseNumbersDone(tree).length,
+    undo: (tree, config) => undoHouseNumbers(tree, config),
+    ask: "Set the house numbers of facts right (the marker before a number taken off, a number of a note to the house)?",
+    askUndo: "Put the houses of the facts back as they were?",
+    fixed: (key, n, records) => `Fix ${key}: ${n} house numbers of facts set right, in ${records} records`,
+    undone: (key, n, left) => `Fix ${key}: undone, ${n} houses of facts put back as they were${left ? `, ${left} changed since left` : ""}`,
   },
 };
 
@@ -919,7 +938,7 @@ register(
       "beside the earlier one, a difference becomes a task. The person decides: set it right (strom fixes run), leave it as\n" +
       "it is (strom fixes decline) or later (nothing kept). The decision is kept with the research (strom.json \"fixes\")\n" +
       "and holds on every computer. strom doctor and the menu say when one waits. In an archive only participant-names,\n" +
-      "app-shapes, street-places and contact-residences.\n" +
+      "app-shapes, street-places, contact-residences and house-numbers.\n" +
       "The checks: blind-reduced — a reading of a part of an image (strom read --crop) read from the whole image, reduced,\n" +
       "where a sharper copy of the part was at hand (strom before 1.19.0); where this computer has no record of the\n" +
       "reading's views, the place is estimated from the sources' entries on the image, and said so.\n" +
@@ -1005,8 +1024,14 @@ register(
       "withdrawn with the reason — never deleted; one citing a record, with people at it or a note of its own beside the\n" +
       "e-mail is left and listed with why (--json: left). One operation, one commit; strom fixes undo contact-residences\n" +
       "puts the residences back and takes off only the e-mails the fix added.\n" +
+      "house-numbers — one house of a municipality written as two before strom 1.39.0 (since then a house is a record of\n" +
+      "its own, strom house): a marker before a number alone taken off (\"čp. 16\", \"Haus Nr. 16\" → \"16\"), a marker before a\n" +
+      "street taken off (\"čp. Dlouhá 12\" → \"Dlouhá 12\"), the one house number of a fact's note its house where it has none\n" +
+      "(\"Adresa: čp. 13\" → \"13\"; the note stays). The markers are the words of assets/terms/streets.json. A note naming\n" +
+      "more numbers than one is left and listed (--json: left). Set right by rules on the person's word alone (free, also\n" +
+      "in an archive); one operation, one commit; strom fixes undo house-numbers puts the houses back as they were.\n" +
       SET_RIGHT_HELP,
-    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes show app-shapes", "strom fixes show street-places", "strom fixes show edit-decisions", "strom fixes show woken-waits", "strom fixes show readers", "strom fixes show proven-originals", "strom fixes show origins", "strom fixes show verify-originals", "strom fixes show name-status", "strom fixes show contact-residences", "strom fixes --json"],
+    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes show app-shapes", "strom fixes show street-places", "strom fixes show edit-decisions", "strom fixes show woken-waits", "strom fixes show readers", "strom fixes show proven-originals", "strom fixes show origins", "strom fixes show verify-originals", "strom fixes show name-status", "strom fixes show contact-residences", "strom fixes show house-numbers", "strom fixes --json"],
     run: (ctx: Context) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);
@@ -1060,7 +1085,7 @@ register(
       "Who reads: --agent and --model; else, where more agents can read here, the person chooses — each said with whether\n" +
       "it read these before, another one recommended where the one now did. After the first few, the rest is estimated\n" +
       "again by the real time they took.\n" +
-      "participant-names, app-shapes, street-places and contact-residences read nothing: set right as shown (strom fixes show <check>), all or none, in one\n" +
+      "participant-names, app-shapes, street-places, contact-residences and house-numbers read nothing: set right as shown (strom fixes show <check>), all or none, in one\n" +
       "operation and one commit, free, also in an archive; strom fixes undo <check> puts it back. So do edit-decisions and\n" +
       "woken-waits and readers, never in an archive (an agent's work); readers, proven-originals, origins, verify-originals and name-status are set right by themselves once,\n" +
       "run again only after strom fixes undo or reopen.\n" +
@@ -1166,7 +1191,7 @@ register(
   },
   {
     path: ["fixes", "undo"],
-    summary: "Put back what a check that rewrites set right (participant-names, app-shapes, street-places, edit-decisions, woken-waits, readers, proven-originals, origins, verify-originals, name-status, contact-residences): as it was before the fix (the person's own)",
+    summary: "Put back what a check that rewrites set right (participant-names, app-shapes, street-places, edit-decisions, woken-waits, readers, proven-originals, origins, verify-originals, name-status, contact-residences, house-numbers): as it was before the fix (the person's own)",
     group: "history",
     tree: true,
     person: "Putting a fix back is the person's own decision, at their own terminal: never done by an agent",
@@ -1177,11 +1202,12 @@ register(
       "queue as the images woke it (woken-waits); each source read by the user again (readers); each fact proven again\n" +
       "(proven-originals); each mark of where a value came from taken off (origins); each task of verification nobody started\n" +
       "dropped (verify-originals); each name's status taken off (name-status); each residence of a contact back and the\n" +
-      "e-mails the fix added taken off the contact (contact-residences) — where it is still as the fix left it; one\n" +
+      "e-mails the fix added taken off the contact (contact-residences); each fact's house as it was (house-numbers) —\n" +
+      "where it is still as the fix left it; one\n" +
       "changed since is left as it is and counted. One step of the history (one operation, one commit); the fix is then left as it is\n" +
       "(strom fixes reopen asks again). Also in an archive (edit-decisions, woken-waits, readers, origins, verify-originals and name-status not).",
     args: [{ name: "check", description: "the check, e.g. participant-names", required: true }],
-    examples: ["strom fixes undo participant-names", "strom fixes undo app-shapes", "strom fixes undo street-places", "strom fixes undo edit-decisions", "strom fixes undo readers", "strom fixes undo proven-originals", "strom fixes undo origins", "strom fixes undo verify-originals", "strom fixes undo name-status", "strom fixes undo contact-residences"],
+    examples: ["strom fixes undo participant-names", "strom fixes undo app-shapes", "strom fixes undo street-places", "strom fixes undo edit-decisions", "strom fixes undo readers", "strom fixes undo proven-originals", "strom fixes undo origins", "strom fixes undo verify-originals", "strom fixes undo name-status", "strom fixes undo contact-residences", "strom fixes undo house-numbers"],
     run: (ctx: Context, { args }) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);

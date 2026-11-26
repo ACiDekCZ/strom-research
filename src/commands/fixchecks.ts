@@ -49,6 +49,7 @@ import { ORIGINS_SINCE, originFixes, originsDone, type OriginMark } from "../cor
 import { VERIFY_SINCE, verifyDone, verifyFixes, verifyQueued, type VerifyItem } from "../core/verify.ts";
 import { NAME_STATUS_SINCE, nameStatusDone, nameStatusFixes, type NameStatusFix } from "../core/namestatusfix.ts";
 import { CONTACT_RESIDENCES_SINCE, contactResidenceFixes, contactResidencesDone, type ContactFix, type ContactLeft } from "../core/contactfix.ts";
+import { HOUSE_NUMBERS_SINCE, houseNumberFixes, houseNumbersDone, type HouseNumberFix, type HouseNumberLeft } from "../core/housenumberfix.ts";
 
 /** One earlier reading of one place, to be read again. */
 export interface FixItem {
@@ -101,11 +102,11 @@ export interface FixFindings {
   readings: number;
   /** A check that rewrites (participant-names, app-shapes, street-places, edit-decisions, woken-waits): what it would set
    * right, and how many it found it cannot. */
-  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[] | ReaderFix[] | ProvenFix[] | OriginMark[] | VerifyItem[] | NameStatusFix[] | ContactFix[];
+  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[] | EditDecisionFix[] | WokenWaitFix[] | ReaderFix[] | ProvenFix[] | OriginMark[] | VerifyItem[] | NameStatusFix[] | ContactFix[] | HouseNumberFix[];
   unsplit?: number;
   /** What it found and leaves as it is, each with why (street-places: a fact whose house says another thing; edit-decisions:
    * the user's value taken, decided again on a new source; woken-waits: taken up since). */
-  left?: StreetLeft[] | EditDecisionLeft[] | WokenWaitLeft[] | ReaderKept[] | ProvenLeft[] | ContactLeft[];
+  left?: StreetLeft[] | EditDecisionLeft[] | WokenWaitLeft[] | ReaderKept[] | ProvenLeft[] | ContactLeft[] | HouseNumberLeft[];
   /**
    * Municipalities with numbers alone after the name ("Lhota 16"), set right only once a person says for the whole
    * municipality that they are houses (street-places): counted in what waits.
@@ -1077,8 +1078,27 @@ export const CONTACT_RESIDENCES: FixCheck = {
   applied: (tree) => contactResidencesDone(tree).length,
 };
 
+/**
+ * Until 1.39.0 one house of a municipality could be two: "16" beside "čp. 16", a house number left in a fact's note
+ * ("Adresa: čp. 13"), a marker before a street ("čp. Dlouhá 12"). Since then a house is a record of its own, keyed by
+ * its number as the Strom app reads it (spec 030 K1.5); the houses of the facts are set right by rules
+ * (core/housenumberfix.ts), on a person's word alone — a note naming more numbers than one left and said why.
+ */
+export const HOUSE_NUMBERS: FixCheck = {
+  id: "house-numbers",
+  since: HOUSE_NUMBERS_SINCE,
+  paid: false,
+  remedy: "rewrite",
+  unit: "fact",
+  detect: (tree) => {
+    const f = houseNumberFixes(tree);
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: f.left.length, left: f.left };
+  },
+  applied: (tree) => houseNumbersDone(tree).length,
+};
+
 /** Every check strom knows, the oldest fix first. */
-export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS, READERS, PROVEN_ORIGINALS, ORIGINS, VERIFY_ORIGINALS, NAME_STATUS, CONTACT_RESIDENCES];
+export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES, EDIT_DECISIONS, WOKEN_WAITS, READERS, PROVEN_ORIGINALS, ORIGINS, VERIFY_ORIGINALS, NAME_STATUS, CONTACT_RESIDENCES, HOUSE_NUMBERS];
 
 
 /**

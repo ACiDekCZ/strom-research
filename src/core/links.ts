@@ -135,7 +135,7 @@ export const LINK_WORK_DEFAULT = 5;
  * strom's fixes a link names (commands/fixchecks.ts FIX_CHECKS, the same ids — a test holds them together): only one of
  * these, never a name the link brings.
  */
-export const LINK_FIX_IDS = ["blind-reduced", "new-model", "participant-names", "app-shapes", "street-places", "edit-decisions", "woken-waits", "readers", "proven-originals", "origins", "verify-originals", "name-status", "contact-residences"] as const;
+export const LINK_FIX_IDS = ["blind-reduced", "new-model", "participant-names", "app-shapes", "street-places", "edit-decisions", "woken-waits", "readers", "proven-originals", "origins", "verify-originals", "name-status", "contact-residences", "house-numbers"] as const;
 /** What a link does with a fix besides showing it: put back what it set right (strom fixes undo asks the person). */
 export const LINK_FIX_DOS = ["undo"] as const;
 /** For whom a link sets the kinds of history looked for: this research, or this computer (the researches without their own). */

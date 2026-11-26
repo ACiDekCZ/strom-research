@@ -274,8 +274,8 @@ test("house import: assigned by the heading, two houses in one file, a file of n
     "https://oldmaps.example.org/2vm/belokamen",
   ]);
   assert.ok(h.passed.every((x) => x.origin === "import" && x.at === "2026-03-14"));
-  assert.equal(h.passed.find((x) => x.url.startsWith("https://matriky"))!.what, "Matrika Mlhov 1770–1800");
-  assert.match(h.passed.find((x) => x.url.endsWith("#1868"))!.what, /1868/u, "a bare address in a table: its row says what it was for");
+  assert.equal(h.passed.find((x) => x.url?.startsWith("https://matriky"))!.what, "Matrika Mlhov 1770–1800");
+  assert.match(h.passed.find((x) => x.url?.endsWith("#1868"))!.what, /1868/u, "a bare address in a table: its row says what it was for");
   // one takeover task a house, of the intake level, in the research language; the files left listed in it
   const tasks = takeovers(w);
   assert.equal(tasks.length, 3);

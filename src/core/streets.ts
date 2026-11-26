@@ -85,6 +85,25 @@ function markerAt(toks: Tok[], i: number): number {
 
 const isNumber = (t: Tok | undefined) => !!t && NUMBER.test(t.fold);
 
+/**
+ * The markers of a house number in a text ("čp.", "č. p.", "Haus", "Nr."), each where it stands and its words folded
+ * ("c. p."): the longest at each word, none inside another (core/housenumberfix.ts).
+ */
+export function houseMarkers(text: string): { start: number; end: number; fold: string }[] {
+  const toks = tokens(text);
+  const out: { start: number; end: number; fold: string }[] = [];
+  for (let i = 0; i < toks.length; ) {
+    const m = markerAt(toks, i);
+    if (!m) {
+      i++;
+      continue;
+    }
+    out.push({ start: toks[i]!.start, end: toks[i + m - 1]!.end, fold: toks.slice(i, i + m).map((t) => t.fold).join(" ") });
+    i += m;
+  }
+  return out;
+}
+
 /** A house that says it is a house already ("č. p. 12", "Nr. 3", "nr domu 12"): a marker of a house number at its beginning. */
 export function hasHouseMark(text: string): boolean {
   return markerAt(tokens(text.normalize("NFC")), 0) > 0;

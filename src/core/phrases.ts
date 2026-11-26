@@ -518,6 +518,8 @@ export const PHRASES = {
   "fix.contact.retracted": "A contact, not a residence: its e-mail is the person's contact (fix contact-residences).",
   "log.contact.fix": "E-mails out of residences moved to the contacts of the persons: {n}",
   "log.contact.unfix": "Residences of contacts put back as they were: {n}",
+  "log.housenumber.fix": "House numbers of facts set right: {n}",
+  "log.housenumber.unfix": "House numbers of facts put back as they were: {n}",
   "fix.editdecision.note": "Decided by an agent before strom {since}, though it was the user's to decide: {decided}. Opened again for the user's decision (fix edit-decisions).",
   "log.editdecision.fix": "Disagreements with the user's own edits opened again for the user's decision: {n}",
   "log.editdecision.unfix": "Disagreements with the user's own edits closed again as they were decided: {n}",
