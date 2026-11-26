@@ -8,7 +8,7 @@ The changes of each version in short. The full notes and the install lines are o
 ## 1.38.0
 
 - **A clearer menu in the terminal:** every screen says where it is (Strom › Settings › Maintenance), its options as
-  `[1]  Label   state`, a switch with how it is now and what it switches to, back last as `[0]`, the prompt says what Enter does, and a command to type stands on a line of
+  `[1]  Label   state`, a switch with how it is now and what it switches to, back last as `[0]` (also the way a downloader takes in Settings → Archives), the prompt says what Enter does, and a command to type stands on a line of
   its own; on a terminal that can, keys and commands are highlighted.
 - **A research's settings said in words in its history:** a setting changed from the app or the menu shows in the
   recent changes by its name and value in the research's language ("Turned off in the research: Question before the
@@ -21,6 +21,19 @@ The changes of each version in short. The full notes and the install lines are o
   taken over by another run, the person's own writes in the terminal and the menu (Maintenance → Disk space,
   `strom tidy`, `strom history align`…) passed only a week later; they pass at once. The agent whose session it was is
   still refused.
+- **The history of the houses:** `strom house` keeps a record of each house the family lived in — its numbers in time,
+  holders, residents, what happened to it, its place on the map and what was gone through for it; the research looks
+  into the houses of direct ancestors only with the setting "House history" on, and one house can always be asked
+  for, also from the Strom app. Over a house's place the app may show the aerial photos of the 1950s (Czechia).
+- **`strom demo`:** strom tried on a sample research of a made-up family (cs, en, de, pl), apart from the person's own
+  trees and settings and opened in the Strom app; everything in it can be looked through, nothing offers an agent;
+  `strom demo --remove` deletes it.
+- **Reading again fixed:** an earlier reading that kept no question (an older tool's) is read again whole instead of
+  refused, its result is written whole before the source says done, a round with most places not read says why and
+  offers nothing more to pay for, and a reading a fix made is not offered again.
+- **Books and images:** a book gets the count of images the archive's catalogue gives, a book downloaded whole gets its
+  count on the person's word (`strom fixes`), images saved once more are waited for until every new copy has come, and
+  the hint on an image in parts names the halves it is in.
 
 ## 1.37.0
 

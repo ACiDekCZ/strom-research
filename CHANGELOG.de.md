@@ -8,7 +8,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 ## 1.38.0
 
 - **Ein übersichtlicheres Menü im Terminal:** jeder Bildschirm sagt, wo er ist (Strom › Einstellungen › Wartung), die
-  Auswahlen als `[1]  Bezeichnung   Stand`, ein Schalter mit seinem jetzigen Stand und wohin er umschaltet, zurück immer zuletzt als `[0]`, die Eingabezeile sagt, was Enter tut, und
+  Auswahlen als `[1]  Bezeichnung   Stand`, ein Schalter mit seinem jetzigen Stand und wohin er umschaltet, zurück immer zuletzt als `[0]` (auch der Weg eines Herunterladers in Einstellungen → Archive), die Eingabezeile sagt, was Enter tut, und
   ein Befehl zum Abschreiben steht in einer eigenen Zeile; in einem Terminal, das es kann, sind Tasten und Befehle
   hervorgehoben.
 - **Einstellungen der Forschung im Verlauf in Worten:** eine in der App oder im Menü geänderte Einstellung erscheint
@@ -22,6 +22,21 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Sitzung eines Agenten von einem anderen Lauf übernommen, gingen die eigenen Einträge im Terminal und im Menü
   (Wartung → Speicherplatz, `strom tidy`, `strom history align`…) erst nach einer Woche durch; jetzt sofort. Der Agent,
   dem die Sitzung gehörte, wird weiter abgelehnt.
+- **Geschichte der Häuser:** `strom house` führt einen Eintrag zu jedem Haus, in dem die Familie lebte – seine Nummern
+  im Lauf der Zeit, Besitzer, Bewohner, was mit ihm geschah, seinen Ort auf der Karte und was dafür durchgesehen wurde;
+  die Häuser der direkten Vorfahren erforscht die Forschung nur mit eingeschalteter Einstellung „Geschichte der Häuser“,
+  ein einzelnes Haus lässt sich immer anfordern, auch aus der Strom-App. Über dem Ort eines Hauses darf die App die
+  Luftbilder der 1950er-Jahre zeigen (Tschechien).
+- **`strom demo`:** strom an einer Beispielforschung einer erfundenen Familie ausprobiert (cs, en, de, pl), getrennt
+  von den eigenen Stammbäumen und Einstellungen und in der Strom-App geöffnet; alles darin lässt sich durchsehen,
+  nichts bietet einen Agenten an; `strom demo --remove` löscht sie.
+- **Erneutes Lesen berichtigt:** eine frühere Lesung, die keine Frage behielt (eines älteren Werkzeugs), wird ganz neu
+  gelesen statt abgelehnt, ihr Ergebnis wird ganz geschrieben, bevor die Quelle fertig sagt, eine Runde mit meist
+  ungelesenen Stellen sagt warum und bietet nichts weiter zum Bezahlen an, und eine Lesung, die eine Korrektur machte,
+  wird nicht wieder angeboten.
+- **Bücher und Bilder:** ein Buch erhält die Zahl der Bilder, die der Katalog des Archivs angibt, ein ganz
+  heruntergeladenes Buch seine Zahl auf das Wort des Menschen (`strom fixes`), auf erneut gespeicherte Bilder wird
+  gewartet, bis jede neue Kopie da ist, und der Hinweis zu einem Bild in Teilen nennt die Hälften, in denen es liegt.
 
 ## 1.37.0
 
