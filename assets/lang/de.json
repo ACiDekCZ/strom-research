@@ -4309,6 +4309,7 @@
   "ui.fixes.later.said": "Auf später verschoben: strom fixes run {id} (im Menü: Einstellungen → Wartung → Korrekturen).",
   "ui.fixes.declined": "So gelassen: nicht mehr angeboten (strom fixes reopen {id} fragt erneut).",
   "ui.fixes.done": "Behoben: nichts davon wartet.",
+  "ui.fixes.failed.stop": "Die meisten dieser Stellen wurden nicht gelesen (warum: oben) – jetzt wird nichts weiter angeboten und nichts weiter bezahlt; was nicht gelesen wurde, wartet weiter: strom fixes run {id}.",
   "ui.fixes.failed.left": "{n, plural, one {# Lesung wurde} other {# Lesungen wurden}} nicht gelesen: strom fixes run {id} liest sie erneut.",
   "ui.fixes.reopened": "Erneut zur Entscheidung: strom fixes show {id}.",
   "ui.fixes.hint": "Eine Korrektur von strom wartet auf eine Entscheidung: {name} ({count}) — Einstellungen → Wartung → Korrekturen",

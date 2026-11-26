@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
 import { encodeImage } from "../../src/image/index.ts";
 import { compareDocuments, compareReadings, estimateFix, headImages } from "../../src/commands/fixchecks.ts";
@@ -466,6 +467,36 @@ test("strom fixes: what waits is kept while nothing it is found by changes — t
     assert.ok(found, "the strom started in the background kept what waits");
     assert.equal(found.pending[0]!.readings, 2);
     assert.match((await w.ok([], { tty: true, answers: ["0"], env: { STROM_FIXES_REFRESH: "" } })).out, /^Oprava stromu čeká na rozhodnutí: .+ \(2\) — /m);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("strom fixes run: a reading whose place is estimated, read again once — never its next entry offered after it, as though new (1126)", opts, async () => {
+  const w = await world();
+  try {
+    // two sources with entries in the sharper part; a blind reading of image 1 from another computer (no record of its views)
+    await w.ok(["source", "add", "Sňatek Václava Lhotáka 1822", "--kind", "marriage", "--recordset", "B0001", "--clip", "B0001:1@0.05,0.5,0.2,0.1"]);
+    await w.ok(["source", "add", "Sňatek Josefa Lhotáka 1823", "--kind", "marriage", "--recordset", "B0001", "--clip", "B0001:1@0.28,0.6,0.15,0.1"]);
+    const dir = path.join(w.cwd, "notes", "readings");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "2026-10-05-M0001-1.md"), "# Reading M0001 · batch 1 of 1\nQuestion: Přepsat zápis celý\nBlind: yes\n\n## Image 1 · M0001\nresult: found\nentries:\n- Václav Lhoták [?]\n");
+    // in the research since then (its report committed that day)
+    const date = "2026-10-05T12:00:00Z";
+    execFileSync("git", ["-C", w.cwd, "add", "notes/readings"]);
+    execFileSync("git", ["-C", w.cwd, "commit", "-q", "-m", "A reading of an older strom"], { env: { ...process.env, ...w.env, GIT_COMMITTER_DATE: date, GIT_AUTHOR_DATE: date } });
+    const c = (await w.ok(["fixes", "--json"])).json.checks[0];
+    assert.equal(c.found.count, 1);
+    assert.equal(c.items[0].estimated, true);
+    const first = c.items[0].crop;
+    w.env.STROM_RUNNER_SCRIPT = path.join(w.dir, "reader.mjs");
+    fs.writeFileSync(w.env.STROM_RUNNER_SCRIPT, READER);
+    const r = await w.ok(["fixes", "run", "blind-reduced", "--agent", "script", "--lang", "en"], { tty: true, answers: ["1"] });
+    assert.match(r.out, /^Read again: 1 reading \(1 place\) — /m);
+    // looked at again: the reading is set right, its other entry not offered as a new place
+    const after = (await w.ok(["fixes", "--json"])).json.checks[0];
+    assert.equal(after.found.count, 0, `the reading of ${first} offered again: ${JSON.stringify(after.items)}`);
+    assert.equal(after.state, "fixed");
   } finally {
     w.cleanup();
   }

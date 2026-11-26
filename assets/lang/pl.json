@@ -4309,6 +4309,7 @@
   "ui.fixes.later.said": "Odłożone na później: strom fixes run {id} (w menu: Ustawienia → Konserwacja → Poprawki drzewa).",
   "ui.fixes.declined": "Pozostawione bez zmian: nie będzie już proponowane (strom fixes reopen {id} zapyta ponownie).",
   "ui.fixes.done": "Naprawione: nic z tego nie czeka.",
+  "ui.fixes.failed.stop": "Większości tych miejsc nie odczytano (dlaczego: powyżej) – nic więcej nie jest teraz proponowane ani opłacane; to, czego nie odczytano, czeka dalej: strom fixes run {id}.",
   "ui.fixes.failed.left": "{n, plural, one {# odczytu nie wykonano} few {# odczytów nie wykonano} many {# odczytów nie wykonano} other {# odczytów nie wykonano}}: strom fixes run {id} {n, plural, one {wykona go} few {wykona je} many {wykona je} other {wykona je}} ponownie.",
   "ui.fixes.reopened": "Znów do decyzji: strom fixes show {id}.",
   "ui.fixes.hint": "Naprawa strom czeka na decyzję: {name} ({count}) – Ustawienia → Konserwacja → Poprawki drzewa",

@@ -1479,6 +1479,7 @@ export const UI = {
   "ui.fixes.later.said": "Left for later: strom fixes run {id} (the menu: Settings → Maintenance → Fixes).",
   "ui.fixes.declined": "Left as it is: not offered again (strom fixes reopen {id} asks again).",
   "ui.fixes.done": "Set right: nothing of it waits.",
+  "ui.fixes.failed.stop": "Most of these places were not read (why: above) — nothing more is offered now, nothing more paid for; what is not read waits as it was: strom fixes run {id}.",
   "ui.fixes.failed.left": "{n, plural, one {# reading was} other {# readings were}} not read: strom fixes run {id} reads {n, plural, one {it} other {them}} again.",
   "ui.fixes.reopened": "Asked again: strom fixes show {id}.",
   "ui.fixes.hint": "A fix of strom's waits for a decision: {name} ({count}) — Settings → Maintenance → Fixes",

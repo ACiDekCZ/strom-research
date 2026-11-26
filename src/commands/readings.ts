@@ -33,6 +33,8 @@ export interface Reading {
   context?: string | undefined;
   /** A blind reading (strom read --blind: "Blind: yes" in its head) — a check of what the researcher read. */
   blind?: boolean;
+  /** The earlier reading it reads again (strom fixes run: "Again: <stem>" in its head) — never offered by a fix itself. */
+  again?: string;
   /** The head of each report, by its name: what strom wrote of the reading (Strom:, Agent:, Model:, Image: lines). */
   heads: Map<string, string>;
   reports: string[];
@@ -70,7 +72,7 @@ export function loadReadings(tree: Tree): Reading[] {
     const stem = /^(.*)-\d+$/.exec(name)?.[1] ?? name;
     const head = text.split(/^##\s/m)[0] ?? "";
     const book = /^# Reading ([Bb]\d+)-/.exec(head)?.[1]?.toUpperCase();
-    const r = byStem.get(stem) ?? { stem, question: headLine(head, "Question"), context: headLine(head, "Context"), ...(/^yes$/i.test(headLine(head, "Blind") ?? "") ? { blind: true } : {}), heads: new Map<string, string>(), reports: [], blocks: [], mtime: 0 };
+    const r = byStem.get(stem) ?? { stem, question: headLine(head, "Question"), context: headLine(head, "Context"), ...(/^yes$/i.test(headLine(head, "Blind") ?? "") ? { blind: true } : {}), ...(headLine(head, "Again") ? { again: headLine(head, "Again")! } : {}), heads: new Map<string, string>(), reports: [], blocks: [], mtime: 0 };
     r.reports.push(name);
     r.heads.set(name, head);
     r.mtime = Math.max(r.mtime, fs.statSync(full).mtimeMs);

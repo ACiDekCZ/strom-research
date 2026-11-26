@@ -208,6 +208,7 @@ register({
     { name: "question", type: "string", value: "<text>", description: "what to look for, what counts as a find and what to write down (page numbers only, one surname's entries, one entry whole) — the whole question: readers know nothing else" },
     { name: "context", type: "string", value: "<text>", description: "what is known that helps recognise the family (names, house, years)" },
     { name: "blind", type: "boolean", description: "blind reading: transcribe exactly, no expectations (for verification)" },
+    { name: "again", type: "string", value: "<reading>", hidden: true, description: "the earlier reading this one reads again (strom fixes run): said in its head, never offered by a fix again" },
     { name: "half", type: "string", value: "<side>", description: "left or right: only that page of each spread; both: each spread as its two halves" },
     { name: "whole", type: "boolean", description: "each image in one view, also a double page (cheaper; small script may be illegible)" },
     { name: "crop", type: "string", value: "<x,y,w,h>", description: "only this part of each image, at full resolution (an entry to verify: find it with strom media view --grid)" },
@@ -519,9 +520,11 @@ register({
       const settingsFile = path.join(own, "reader-settings.json");
       const seen = group.flatMap((g) => [g.view, ...(g.parts ?? []).map((p) => p.view)]);
       fs.writeFileSync(settingsFile, JSON.stringify(readerSettings(seen, report, permissionPath), null, 2));
+      // a reading again of an earlier one (strom fixes run): its stem, one line
+      const again = typeof opts.again === "string" ? opts.again.replace(/[\p{Cc}\s]+/gu, " ").trim() : "";
       const context = typeof opts.context === "string" && opts.context.trim() ? `Context: ${opts.context.trim().replace(/\s*\n\s*/g, " ")}\n` : "";
       // a blind reading says so in its head: its "unclear" over a place the researcher looked at before is a check
-      const head = `# Reading ${label} · batch ${k + 1}${fetching ? "" : ` of ${groups.length}`}\nQuestion: ${question.replace(/\s*\n\s*/g, " ")}\n${context}${opts.blind ? "Blind: yes\n" : ""}${readHead({ agent: agentId, model, images: group.map(readOf) })}\n${NEXT_BLOCK}\n`;
+      const head = `# Reading ${label} · batch ${k + 1}${fetching ? "" : ` of ${groups.length}`}\nQuestion: ${question.replace(/\s*\n\s*/g, " ")}\n${context}${opts.blind ? "Blind: yes\n" : ""}${again ? `Again: ${again}\n` : ""}${readHead({ agent: agentId, model, images: group.map(readOf) })}\n${NEXT_BLOCK}\n`;
       fs.writeFileSync(report, head);
       if (untilFound) atWork.set(k, report);
       const prompt = readerPrompt({ question, images: group, report, lang: tree.lang, context: opts.context as string | undefined, blind: Boolean(opts.blind) });

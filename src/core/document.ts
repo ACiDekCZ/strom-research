@@ -1355,6 +1355,8 @@ export interface ReadState {
   reports: ReadReport[];
   persons?: string[];
   note?: string;
+  /** The earlier reading it reads again (strom fixes run). */
+  again?: string;
   /** Whoever asked: the agent's worker, the app. */
   from?: string;
   at: string;
@@ -1502,6 +1504,8 @@ export interface ReadResult {
   incomplete?: number[];
   persons?: string[];
   note?: string;
+  /** The earlier reading it reads again (strom fixes run): never offered by a fix itself. */
+  again?: string;
   /** credits: what reading services cost in the credits of the person's accounts with them (none: no service read). */
   cost?: { amount: number; currency: "USD"; partial?: true; credits?: number };
   error?: string;
@@ -1666,6 +1670,7 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
     ...(incomplete.length ? { incomplete: [...new Set(incomplete)].sort((a, b) => a - b) } : {}),
     ...(s.persons?.length ? { persons: s.persons } : {}),
     ...(s.note ? { note: s.note } : {}),
+    ...(s.again ? { again: s.again } : {}),
     ...(usd || s.reports.some((r) => r.usd !== undefined) || credits !== undefined ? { cost: { amount: Math.round(usd * 100) / 100, currency: "USD" as const, ...(partial ? { partial: true as const } : {}), ...(credits !== undefined ? { credits } : {}) } } : {}),
     ...(s.error ? { error: s.error } : {}),
     ...(s.failure ? { failure: s.failure } : {}),

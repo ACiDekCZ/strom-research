@@ -19,6 +19,7 @@ import { phrase } from "../core/phrases.ts";
 import type { Media, Task } from "../core/model.ts";
 import type { Tree } from "../core/tree.ts";
 import {
+  AGAIN_QUESTION,
   compareDocuments,
   compareReadings,
   checksHere,
@@ -718,7 +719,7 @@ async function readAgain(ctx: Context, tree: Tree, t: T, items: FixItem[], model
     if (item.document) {
       // a document: a new reading of the same pages and parts beside the earlier one (never strom document again)
       const d = item.document;
-      const opts = { readers: String(d.readers), ...(model ? { model } : {}), ...(d.regions.length ? { region: d.regions } : {}), ...(d.note ? { note: d.note } : {}), ...(d.persons?.length ? { person: d.persons } : {}) };
+      const opts = { readers: String(d.readers), again: item.reading, ...(model ? { model } : {}), ...(d.regions.length ? { region: d.regions } : {}), ...(d.note ? { note: d.note } : {}), ...(d.persons?.length ? { person: d.persons } : {}) };
       let now: ReadResult | undefined;
       let error: string | undefined;
       try {
@@ -731,7 +732,7 @@ async function readAgain(ctx: Context, tree: Tree, t: T, items: FixItem[], model
       const c = before ? compareDocuments(before, now) : undefined;
       return [{ item, ...compared(c), ...(now?.id ? { reading: now.id } : {}), secs, ...(error ? { error } : {}) }];
     }
-    const opts: Record<string, string | boolean> = { question: item.question, ...(model ? { model } : {}), ...(item.crop ? { crop: item.crop } : {}), parallel: "1", ...(item.blind ? { blind: true } : {}), ...(item.context ? { context: item.context } : {}) };
+    const opts: Record<string, string | boolean> = { question: item.question || AGAIN_QUESTION, again: item.reading, ...(model ? { model } : {}), ...(item.crop ? { crop: item.crop } : {}), parallel: "1", ...(item.blind ? { blind: true } : {}), ...(item.context ? { context: item.context } : {}) };
     let reading: string | undefined;
     let error: string | undefined;
     try {
@@ -932,6 +933,12 @@ async function runCheck(ctx: Context, tree: Tree, t: T, s: FixState, opts: { fir
     done.push(...read);
     out(lines(...summaryText(t, read, secs)));
     first = false;
+    // most of its places not read (the reader refused them, strom read did): nothing more offered to be paid for — what
+    // failed and why said, the rest waits as it was
+    if (left.length && read.filter((d) => d.result === "failed").length * 2 > read.length) {
+      out(t("ui.fixes.failed.stop", { id }));
+      return { done };
+    }
   }
   const failed = new Set(done.filter((d) => d.result === "failed").map((d) => d.item.reading)).size;
   out(failed ? t("ui.fixes.failed.left", { n: failed, id }) : t("ui.fixes.done"));
@@ -1126,7 +1133,10 @@ register(
       "and with the direct line are offered beside all, each with what it would take.\n" +
       "Who reads: --agent and --model; else, where more agents can read here, the person chooses — each said with whether\n" +
       "it read these before, another one recommended where the one now did. After the first few, the rest is estimated\n" +
-      "again by the real time they took.\n" +
+      "again by the real time they took; where most of a round was not read, its reason is said and nothing more is\n" +
+      "offered (what was not read waits as it was). An earlier reading that kept no question (an older tool's report) is\n" +
+      "read again for the whole of it. A reading a fix made (read again beside an earlier one) is never offered by a fix\n" +
+      "again, nor is a reading whose place was estimated once one of its places was read again.\n" +
       "participant-names, app-shapes, street-places, contact-residences, house-numbers and book-counts read nothing: set right as shown (strom fixes show <check>), all or none, in one\n" +
       "operation and one commit, free, also in an archive; strom fixes undo <check> puts it back. So do edit-decisions,\n" +
       "woken-waits, again-waits and readers, never in an archive (an agent's work); readers, proven-originals, origins, verify-originals and name-status are set right by themselves once,\n" +

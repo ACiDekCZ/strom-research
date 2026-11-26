@@ -10,7 +10,7 @@ import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { Conflict, Family, Media, Person, Region, Source, TreeConfig } from "../core/model.ts";
+import type { Conflict, Family, Media, Person, Region, Source, Task, TreeConfig } from "../core/model.ts";
 import type { Tree } from "../core/tree.ts";
 import { VERSION } from "../core/tree.ts";
 import { sharperCover } from "../core/media.ts";
@@ -264,6 +264,43 @@ function addedTimes(root: string): Map<string, number> {
   return out;
 }
 
+/**
+ * The question a place is read again with where its earlier reading kept none (a report of an older tool brought in, a
+ * report a reader wrote whole in its own words): the whole of what is there, as a document is read — strom read asks
+ * a question always, an empty one is refused.
+ */
+export const AGAIN_QUESTION = "Transcribe every entry here completely, as written: names, dates, houses, relations, witnesses; mark what is uncertain with [?]";
+
+/** The question an earlier reading is read again with: its own, else the whole of what is there (AGAIN_QUESTION). */
+const againQuestion = (r: Pick<Reading, "question">): string => r.question?.trim() || AGAIN_QUESTION;
+
+/**
+ * The readings a fix itself made — each a reading again of an earlier one, held against it (a task where they differ):
+ * said in its head or its result ("Again:", since 1.38.0), else, of an older strom, the newer reading a fix's task holds
+ * against an earlier one. Never offered by a fix again: the task compares them, and a fix reading it once more would feed
+ * the next one.
+ */
+export function fixReadings(tree: Tree, readings: Reading[]): Set<string> {
+  const out = new Set<string>(readings.filter((r) => r.again).map((r) => r.stem));
+  // when each was read: its day (in its name — a file's time is the clone's on another computer), then its file's time
+  const when = new Map<string, [string, number]>(readings.map((r) => [r.stem, [r.stem.slice(0, 10), r.mtime]]));
+  for (const d of listReadings(tree.root)) {
+    const r = loadDocResult(tree.root, d.id);
+    if (r?.again) out.add(d.id);
+    when.set(d.id, [`${d.id.slice(1, 5)}-${d.id.slice(5, 7)}-${d.id.slice(7, 9)}`, Number(d.id.slice(9, 15))]);
+  }
+  const later = (x: string, y: string) => when.get(y)![0].localeCompare(when.get(x)![0]) || when.get(y)![1] - when.get(x)![1];
+  const word = /[\p{L}\p{N}-]+/gu;
+  for (const t of tree.list<Task>("task")) {
+    if (!(t as Task & { origin?: string }).origin?.startsWith("fix:")) continue;
+    // the readings it names (the earlier one and the new one): the newer is the fix's
+    const named = [...new Set(`${t.what ?? ""} ${t.doneWhen ?? ""}`.match(word) ?? [])].filter((w) => when.has(w));
+    if (named.length < 2) continue;
+    out.add(named.sort(later)[0]!);
+  }
+  return out;
+}
+
 function blindReducedDetect(tree: Tree, env: FixEnv): FixFindings {
   const use = useOf(tree);
   const shared = env.shared;
@@ -398,7 +435,7 @@ function blindReducedDetect(tree: Tree, env: FixEnv): FixFindings {
           media: id,
           ...(m.recordset !== undefined && m.image !== undefined ? { ref: `${m.recordset}:${m.image}` } : {}),
           crop,
-          question: r.question ?? "",
+          question: againQuestion(r),
           ...(r.context ? { context: r.context } : {}),
           blind: !!r.blind,
           from: use.part.id,
@@ -414,9 +451,13 @@ function blindReducedDetect(tree: Tree, env: FixEnv): FixFindings {
     }
   }
   // read again from a sharper copy since: set right already
+  const readSince = (i: (typeof raw)[number]) => (readSharper.get(i.media) ?? []).some((s) => s.t > i.t && covered(i.fileRegion, s.r) >= COVERED);
+  // an estimate knows the entries on the image, not which one the reading asked of: one of its places read again
+  // sets the reading of that image right — never its next entry offered after it, as though the reading were new
+  const estimatedDone = new Set(raw.filter((i) => i.estimated && readSince(i)).map((i) => `${i.reading}|${i.media}`));
   const seen = new Set<string>();
   const items = raw
-    .filter((i) => !(readSharper.get(i.media) ?? []).some((s) => s.t > i.t && covered(i.fileRegion, s.r) >= COVERED))
+    .filter((i) => !readSince(i) && !(i.estimated && estimatedDone.has(`${i.reading}|${i.media}`)))
     .filter((i) => !seen.has(i.key) && seen.add(i.key))
     .map((i) => withUse(i, use))
     .sort(byUse)
@@ -679,6 +720,8 @@ function newModelDetect(tree: Tree, env: FixEnv): FixFindings {
 
   // strom read: each image of each reading
   const readings = loadReadings(tree);
+  // a fix's own readings again: held against the earlier ones by its task, never offered again
+  const byFix = fixReadings(tree, readings);
   const imagesOf = new Map<string, { r: Reading; t: number; blocks: Block[]; key: string }[]>();
   for (const r of readings) {
     // when it was read: its reader's record, else its file (by its day at the latest)
@@ -706,6 +749,7 @@ function newModelDetect(tree: Tree, env: FixEnv): FixFindings {
         noteNow(`${id}|`, t);
         continue;
       }
+      if (byFix.has(r.stem)) continue;
       if (key !== UNKNOWN_KEY) known.add(key);
       const unclear = blocks.reduce((n, b) => n + Math.max(unclearOf(b), b.result === "unclear" ? 1 : 0), 0);
       // a blind reading that reads otherwise than the researcher's reading of the image before it
@@ -722,7 +766,7 @@ function newModelDetect(tree: Tree, env: FixEnv): FixFindings {
         media: id,
         ...(m.recordset !== undefined && m.image !== undefined ? { ref: `${m.recordset}:${m.image}` } : {}),
         ...(crop ? { crop } : {}),
-        question: r.question ?? "",
+        question: againQuestion(r),
         ...(r.context ? { context: r.context } : {}),
         blind: !!r.blind,
         estimated: false,
@@ -760,6 +804,7 @@ function newModelDetect(tree: Tree, env: FixEnv): FixFindings {
       noteNow(`doc|${pagesKey(r)}`, t);
       continue;
     }
+    if (byFix.has(d.id)) continue;
     if (key !== UNKNOWN_KEY) known.add(key);
     const { unclear, facts: atStake } = docText(r);
     const src = sources.filter((s) => s.reading === d.id).map((s) => s.id).sort();

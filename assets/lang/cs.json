@@ -4309,6 +4309,7 @@
   "ui.fixes.later.said": "Odloženo na později: strom fixes run {id} (v menu: Nastavení → Údržba → Opravy).",
   "ui.fixes.declined": "Ponecháno, jak je: už se nenabídne (strom fixes reopen {id} se zeptá znovu).",
   "ui.fixes.done": "Napraveno: nic z toho nečeká.",
+  "ui.fixes.failed.stop": "Většina těchto míst se nepřečetla (proč: výše) – nic dalšího se teď nenabízí ani neplatí; co se nepřečetlo, čeká dál: strom fixes run {id}.",
   "ui.fixes.failed.left": "{n, plural, one {# čtení se nepřečetlo} few {# čtení se nepřečetla} other {# čtení se nepřečetlo}}: strom fixes run {id} je přečte znovu.",
   "ui.fixes.reopened": "Znovu k rozhodnutí: strom fixes show {id}.",
   "ui.fixes.hint": "Oprava stromu čeká na rozhodnutí: {name} ({count}) — Nastavení → Údržba → Opravy",
