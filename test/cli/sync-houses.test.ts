@@ -142,7 +142,7 @@ test("the app's _HOUSE through the bridge: written as the person's, the same sen
     assert.equal(sent.status, 200, JSON.stringify(sent.json));
     // a house of a municipality the research has no place of: only said, with its code for the app
     const town = (sent.json.notWritten as { kind: string; code: string; params: Record<string, string> }[]).find((c) => c.kind === "house.town");
-    assert.deepEqual(town && { code: town.code, town: town.params.town, number: town.params.number }, { code: "house.town", town: "Horní Lhota", number: "5" });
+    assert.deepEqual(town && { code: town.code, params: town.params }, { code: "house.town", params: { town: "Horní Lhota", number: "5" } }, "no empty key of the house");
     assert.equal(byNumber(w, "9")!.name, "Lhotákovic");
     assert.equal(byNumber(w, "9")!.nameBy, "user");
     assert.equal(byNumber(w, "12")!.name, "Mlýn");

@@ -262,16 +262,15 @@ test("a municipality's skeleton (--town, summary), today's holders refused, mate
     const d3 = (await w.ok(["house", "show", "L0002", "3", "--json"])).json.house;
     assert.equal(d3.town.text, "panství Lhota, fara Dolní Lhota");
 
-    // today's holders and residents: never written
-    const year = new Date().getFullYear();
-    const today = await w.run(["house", "add", "holder", "L0001", "9", "--name", "Bezruk Prouzal", "--since", String(year - 20)]);
+    // today's holders and residents: never written (fixed years, open within the last 100 years for decades to come)
+    const today = await w.run(["house", "add", "holder", "L0001", "9", "--name", "Bezruk Prouzal", "--since", "2010"]);
     assert.notEqual(today.code, 0);
     assert.match(today.err, /today's holders and residents/u);
     assert.match(today.err, /--until/u);
-    const lodger = await w.run(["house", "add", "resident", "L0001", "9", "--name", "Vřesomil Prouzal", "--role", "tenant", "--since", `${year - 5}-03`]);
+    const lodger = await w.run(["house", "add", "resident", "L0001", "9", "--name", "Vřesomil Prouzal", "--role", "tenant", "--since", "2020-03"]);
     assert.notEqual(lodger.code, 0);
     await w.ok(["house", "add", "holder", "L0001", "9", "--name", "Kapradin Lhoták", "--person", p.p1, "--since", "1930"]);
-    await w.ok(["house", "add", "holder", "L0001", "9", "--name", "Hvozdík Prouzal", "--since", String(year - 50), "--until", String(year - 40)]);
+    await w.ok(["house", "add", "holder", "L0001", "9", "--name", "Hvozdík Prouzal", "--since", "1975", "--until", "1985"]);
     await w.ok(["house", "add", "holder", "L0001", "9", "--name", "Mlhoslav Lhoták", "--since", "1895"]);
 
     // material while off: kept, no task

@@ -1906,8 +1906,9 @@ export function notWrittenList(changes: readonly Change[]): NotWritten[] {
         ...(c.media?.record ? { record: c.media.record } : {}),
         ...(c.code === "media.unreadable" && c.text ? { name: c.text, part: c.media ? "text" : "data" } : {}),
         ...(c.retractWhy ? { why: c.retractWhy } : {}),
-        // a house of a municipality the research has no place of (core/housesync.ts): its key, municipality and number
-        ...(c.house ? { house: c.house.key, town: c.house.town, number: c.house.house } : {}),
+        // a house of a municipality the research has no place of (core/housesync.ts): its municipality and number, its key
+        // only when it has one (none without a place of the research — never an empty one)
+        ...(c.house ? { ...(c.house.key ? { house: c.house.key } : {}), town: c.house.town, number: c.house.house } : {}),
       };
       return {
         kind: c.kind,
