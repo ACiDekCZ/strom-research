@@ -16,7 +16,7 @@ import { foldText } from "./text.ts";
 import type { Tree } from "./tree.ts";
 
 /** The strom that sets them right. */
-export const HOUSE_NUMBERS_SINCE = "1.39.0";
+export const HOUSE_NUMBERS_SINCE = "1.38.0";
 /** Where the fix keeps what it changed, for its undo (sealed like the rest of quality/). */
 export const HOUSE_NUMBERS_FILE = "quality/house-numbers.json";
 

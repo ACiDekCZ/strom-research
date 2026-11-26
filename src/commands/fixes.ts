@@ -1024,7 +1024,7 @@ register(
       "withdrawn with the reason — never deleted; one citing a record, with people at it or a note of its own beside the\n" +
       "e-mail is left and listed with why (--json: left). One operation, one commit; strom fixes undo contact-residences\n" +
       "puts the residences back and takes off only the e-mails the fix added.\n" +
-      "house-numbers — one house of a municipality written as two before strom 1.39.0 (since then a house is a record of\n" +
+      "house-numbers — one house of a municipality written as two before strom 1.38.0 (since then a house is a record of\n" +
       "its own, strom house): a marker before a number alone taken off (\"čp. 16\", \"Haus Nr. 16\" → \"16\"), a marker before a\n" +
       "street taken off (\"čp. Dlouhá 12\" → \"Dlouhá 12\"), the one house number of a fact's note its house where it has none\n" +
       "(\"Adresa: čp. 13\" → \"13\"; the note stays). The markers are the words of assets/terms/streets.json. A note naming\n" +

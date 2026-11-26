@@ -1079,7 +1079,7 @@ export const CONTACT_RESIDENCES: FixCheck = {
 };
 
 /**
- * Until 1.39.0 one house of a municipality could be two: "16" beside "čp. 16", a house number left in a fact's note
+ * Until 1.38.0 one house of a municipality could be two: "16" beside "čp. 16", a house number left in a fact's note
  * ("Adresa: čp. 13"), a marker before a street ("čp. Dlouhá 12"). Since then a house is a record of its own, keyed by
  * its number as the Strom app reads it (spec 030 K1.5); the houses of the facts are set right by rules
  * (core/housenumberfix.ts), on a person's word alone — a note naming more numbers than one left and said why.
