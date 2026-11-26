@@ -67,7 +67,16 @@ test("media add --half / --crop: a part of an image saved on its own is register
   const whole = await w.run(["media", "view", "B1:3"]);
   assert.equal(whole.code, 2);
   // how to look at it, said (a live run, 2026-11-25: tried again and again): the parts whole, or a half of the whole image
-  assert.match(whole.err, /to look at them: strom media view M0004 M0005; a half or a crop of the whole image: strom media view B0001:3 --half left/);
+  assert.match(whole.err, /to look at them: strom media view M0004 M0005; a half of the whole image: strom media view B0001:3 --half left\|right/);
+  // its halves top and bottom: those are the halves said, never --half left (1126)
+  for (const [f, side, ht] of [["s0004T.jpg", "top", 150], ["s0004B.jpg", "bottom", 160]] as const) {
+    fs.writeFileSync(path.join(w.dir, f), encodeImage(resize(img, 400, ht), "jpeg"));
+    await w.ok(["media", "add", path.join(w.dir, f), "--recordset", "B1", "--image", "4", "--half", side]); // M0006, M0007
+  }
+  const tb = await w.run(["media", "view", "B1:4"]);
+  assert.equal(tb.code, 2);
+  assert.match(tb.err, /a half of the whole image: strom media view B0001:4 --half top\|bottom/);
+  assert.doesNotMatch(tb.err, /--half left/);
   assert.match((await w.ok(["source", "add", "Křest 1850", "--media", "M0005"])).out, /on M0005/);
   assert.match((await w.ok(["source", "add", "Detail 1851", "--media", "B1:2"])).out, /on M0003/, "one part only: that part");
   w.cleanup();
