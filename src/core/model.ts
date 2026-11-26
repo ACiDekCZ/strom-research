@@ -1487,6 +1487,11 @@ export interface House extends BaseRecord {
   /** Made by the person (strom house add, an import with --house): listed although nobody of the tree lived there. */
   byUser?: true;
   /**
+   * Other records (A…) of the same house, as the person joined them in the Strom app (its `_HOUSE` with `1 _SAME`, read
+   * by strom sync): the person's word, never the research's guess.
+   */
+  same?: string[];
+  /**
    * A record of a municipality, not of a house (spec 030 part 2): the skeleton its houses are researched in — what was
    * gone through, what is only by hand or in a reading room, its maps — with no number. Never listed as a house.
    */

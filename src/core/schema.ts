@@ -104,6 +104,8 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     done: S({ max: 40 }),
     sensitive: { t: "strings" },
     byUser: { t: "any" },
+    // other records of the same house the person joined in the app (A…)
+    same: { t: "strings" },
   },
   source: {
     kind: S({ req: true, enum: SOURCE_KINDS }),

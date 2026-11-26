@@ -70,6 +70,7 @@ import { canonicalize } from "./json.ts";
 import { askShorterNote, shorterAsked, shorterWaiting, SHORTER_ORIGIN } from "./shorternote.ts";
 import { appIdBlocks, entryOf, idsAdded, joinIds, livePerson, matchByIds, personIndex, withoutIds, type AddedIds, type IdBlock } from "./originalids.ts";
 import { recordsBySha } from "./shaindex.ts";
+import { applyHouseChange, gedHouses, planHouses, undoHouseAdd, undoHouseEdit, type HouseChange, type SHouse } from "./housesync.ts";
 
 // ── snapshots ────────────────────────────────────────────────────────────────
 
@@ -389,6 +390,8 @@ export interface Snapshot {
   media?: Map<string, SMediaFile>;
   /** Files whose data could not be read: said, never written (media.unreadable). */
   mediaUnreadable?: MediaUnreadable[];
+  /** The houses the Strom app keeps (`0 @Hn@ _HOUSE`, its data version 27; core/housesync.ts), by their xref. */
+  houses?: Map<string, SHouse>;
 }
 
 const OUR_ID = /^P\d{4,}$/;
@@ -1208,6 +1211,8 @@ export function readGedcom(text: string, lang = "en", opts: ReadOptions = {}): S
   const appVersion = fromApp.app ? val(children(head!, "SOUR")[0], "VERS")?.trim() : undefined;
   const surnames = head ? surnameMarksOf(head) : undefined;
   const lines = /^y(es)?$/i.test(val(head, "_STROM_LINES")?.trim() ?? "");
+  // the houses the app keeps (its data version 27): only from the Strom app's file
+  const houses = fromApp.app ? gedHouses(records) : undefined;
   return {
     format: "gedcom",
     ...(appVersion ? { appVersion } : {}),
@@ -1230,6 +1235,7 @@ export function readGedcom(text: string, lang = "en", opts: ReadOptions = {}): S
     ...(sourcesDeleted.length ? { sourcesDeleted } : {}),
     ...(objects?.files.size ? { media: objects.files } : {}),
     ...(unreadable.length ? { mediaUnreadable: unreadable } : {}),
+    ...(houses ? { houses } : {}),
     problems,
   };
 }
@@ -1900,6 +1906,8 @@ export function notWrittenList(changes: readonly Change[]): NotWritten[] {
         ...(c.media?.record ? { record: c.media.record } : {}),
         ...(c.code === "media.unreadable" && c.text ? { name: c.text, part: c.media ? "text" : "data" } : {}),
         ...(c.retractWhy ? { why: c.retractWhy } : {}),
+        // a house of a municipality the research has no place of (core/housesync.ts): its key, municipality and number
+        ...(c.house ? { house: c.house.key, town: c.house.town, number: c.house.house } : {}),
       };
       return {
         kind: c.kind,
@@ -2976,7 +2984,11 @@ export type ChangeKind =
   | "media.attachment.removed"
   | "media.unlink"
   | "source.retract"
-  | "contact.email";
+  | "contact.email"
+  | "house.name"
+  | "house.number"
+  | "house.same"
+  | "house.town";
 
 /** A change of a file of the app's tree (media.*): which file of the send, the place it gets, what of it changes. */
 export interface MediaChange {
@@ -3109,6 +3121,8 @@ export interface Change {
    * (action user), or not, and why (report, code source.retract-skipped).
    */
   retractWhy?: RetractSkipped;
+  /** house.*: what the file says of a house (its `_HOUSE`, core/housesync.ts): a name, a number, two joined, a municipality unknown. */
+  house?: HouseChange;
 }
 
 /** Why a source the app's file says the person deleted is not deleted in the research (spec 117 R4, J7). */
@@ -3140,6 +3154,7 @@ export type NotWrittenCode =
   | "media.unreadable"
   | "source.retract-skipped"
   | "source.retracted"
+  | "house.town"
   | "report";
 
 export interface Plan {
@@ -4387,6 +4402,16 @@ function planned(
     const action = !here || (given && samePoint(given, here)) || mirror ? "set" : "pick";
     push({ kind: "place.coords", action, place: { ...p, ...(mine ? { id: mine.id } : {}), ...(here ? { was: here } : {}) } });
   }
+  // what the person said of a house in the app (its _HOUSE, core/housesync.ts): their name, a number the research lacks,
+  // two houses joined — never anything taken away; a house of a municipality the research has no place of only said
+  for (const h of planHouses(tree, incoming.houses))
+    push({
+      kind: `house.${h.what}`,
+      action: h.what === "town" ? "report" : h.what === "name" ? "user" : "add",
+      ...(h.what === "town" ? { code: "house.town" as const } : {}),
+      text: h.name ?? h.number?.number ?? h.same?.key ?? h.town,
+      house: h,
+    });
   // the bounds of a lineage the user set in the app: where the file says them (_STROM_LINES), against what the research
   // gave the app at _STROM_HEAD when it gave them (an app that keeps them: APP_READS_LINES) — else the file's are the truth
   if (incoming.lines) {
@@ -4637,6 +4662,7 @@ const changeKey = (c: Change) =>
     c.place ? [c.place.name, c.place.lat, c.place.lon] : "",
     (c.cites ?? []).map((x) => [x.source, x.page]),
     c.media ? [c.media.file, c.media.link?.type ?? "", c.media.link?.source ?? "", c.media.fields ?? []] : "",
+    c.house ? [c.house.key, c.house.name ?? "", c.house.number ? [c.house.number.number, c.house.number.from ?? "", c.house.number.to ?? ""] : "", c.house.same?.key ?? ""] : "",
   ]);
 
 /**
@@ -5965,7 +5991,9 @@ export interface Applied {
     | "name.confirm"
     | "event.share"
     | "source.retract"
-    | "contact.edit";
+    | "contact.edit"
+    | "house.add"
+    | "house.edit";
   id: string;
   /**
    * event.edit: the fact before; event.detail: its cause, age and house before (JSON); event.retract, event.status:
@@ -7547,6 +7575,19 @@ export function applySync(
     const r = setLineMark(tree, p.id, c.line!.mark, reason);
     if (r) applied.push({ do: "lineage.set", id: p.id, before: JSON.stringify({ was: r.was, mark: c.line!.mark }) });
   }
+  // what the person said of a house in the app (core/housesync.ts): the person's sync writes it as theirs, any other as
+  // the research's — never over a name the person gave
+  for (const c of plan.changes.filter((x) => x.house && x.action !== "report" && taken(x))) {
+    try {
+      const r = applyHouseChange(tree, c.house!, person ? "user" : "research", reason);
+      for (const id of r.made) applied.push({ do: "house.add", id });
+      for (const e of r.edits) applied.push({ do: "house.edit", id: e.id, before: e.before });
+      if (r.kept) kept(c, `the name of ${c.house!.id ?? c.house!.key} is the user's: changed by nobody but the user — tell the user`, { house: c.house!.id ?? c.house!.key });
+    } catch (e) {
+      if (!(e instanceof UsageError)) throw e;
+      skipped.push({ n: c.n, kind: c.kind, why: e.message, ...(e.code ? { code: e.code } : {}), ...(e.params ? { params: e.params } : {}) });
+    }
+  }
   // the IDs of a family tree the app imported (its blocks, spec 066 K3.2): added to the people and families they are of
   // — each change of them taken, and the people and families this sync made — never one taken off; an agent's sync
   // too (they are no value of anybody's)
@@ -8774,6 +8815,12 @@ export function undoSync(tree: Tree, input: SyncInput, kept?: UndoKept[]): numbe
         undoSurnameChange(tree, a.id === "rejected" ? "rejected" : "groups", b.added ?? undefined, b.removed ?? [], reason);
         break;
       }
+      case "house.edit":
+        undoHouseEdit(tree, a.id, String(a.before ?? "{}"), reason);
+        break;
+      case "house.add":
+        undoHouseAdd(tree, a.id, reason);
+        break;
       case "lineage.set": {
         const b = JSON.parse(String(a.before ?? "{}")) as { was?: LineMark | null; mark?: LineMark | null };
         undoLineMark(tree, a.id, b.mark ?? null, b.was ?? null, reason);

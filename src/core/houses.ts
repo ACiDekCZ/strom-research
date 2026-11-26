@@ -648,6 +648,12 @@ export function houseView(tree: Tree, row: HouseRow): Record<string, unknown> {
     materials,
     ...(h?.sensitive?.length ? { sensitive: h.sensitive } : {}),
   };
+  // the records of the same house the person joined in the app (its _HOUSE _SAME, core/housesync.ts)
+  const same = (h?.same ?? []).map((id) => tree.get<House>(id)).filter((x): x is House => !!x && !x.retracted);
+  if (same.length) {
+    const index = houseIndex(tree);
+    out.same = same.map((x) => ({ id: x.id, key: keyOfHouse(tree, x, index) }));
+  }
   // the skeleton of its municipality (spec 030 part 2): what the house's research stands on
   const town = row.place.id ? townRecord(tree, row.place.id) : undefined;
   if (town) out.town = { id: town.id, ...(town.text ? { text: town.text } : {}), passed: town.passed, manual: town.manual, archiveOnly: town.archiveOnly, maps: town.maps };

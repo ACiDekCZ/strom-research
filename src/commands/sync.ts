@@ -111,6 +111,16 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
     const does = c.takenBack ? "ui.sync.do.taken" : c.action === "report" ? "ui.sync.do.surname.report" : "ui.sync.do.lineage";
     return `${ui(lang, key, { n: c.n, name: name(c.person) })} → ${ui(lang, does)}`;
   }
+  // what the person said of a house in the app (core/housesync.ts): its name, a number, two joined, a municipality unknown
+  if (c.house) {
+    const h = c.house;
+    const no = h.number;
+    const when = no && (no.from || no.to) ? ` (${no.from ?? "?"}–${no.to ?? ""})` : "";
+    const key = h.what === "name" && h.was ? "ui.sync.house.rename" : `ui.sync.house.${h.what}`;
+    const values = { n: c.n, town: truncate(h.town, 80), house: h.house ? houseWords(lang, h.house) : "", name: truncate(h.name ?? "", 80), was: truncate(h.was ?? "", 80), number: no ? houseWords(lang, no.number) : "", when, other: h.same ? houseWords(lang, h.same.house) : "" };
+    const does = c.takenBack ? "ui.sync.do.taken" : h.what === "town" ? "ui.sync.do.house.town" : "ui.sync.do.house";
+    return `${ui(lang, key as UIKey, values)} → ${ui(lang, does)}`;
+  }
   const who = c.partners ? c.partners.map(name).join(" & ") || c.family || "?" : name(c.person);
   // a partner in their age: the given name
   const short = (key: string) => (key.startsWith("x:") ? name(key) : (tree.get<Person>(key)?.names[0]?.given ?? key));

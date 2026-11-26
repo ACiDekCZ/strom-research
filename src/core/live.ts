@@ -749,8 +749,9 @@
 //                          key, place, house, name?, nameBy?, state, at?, task?, work?, question?, persons [P…], years?,
 //                          numbers, location?, timeline, holders, residents, look?, maps?, passed, manual, unknown,
 //                          archiveOnly, materials [{id: I…, kind: own-research | file | memory, title, at, file?}],
-//                          sensitive?, town? {id, text?, passed, manual, archiveOnly, maps} (its municipality's
-//                          skeleton), rev} — every item with its id (n…, e…, h…, r…, p…, o…, u…, a…, m…), a maps[]
+//                          sensitive?, same? [{id: A…, key}] (records of the same house the person joined in the
+//                          app: its _HOUSE _SAME, read by POST /sync), town? {id, text?, passed, manual, archiveOnly,
+//                          maps} (its municipality's skeleton), rev} — every item with its id (n…, e…, h…, r…, p…, o…, u…, a…, m…), a maps[]
 //                          item may name a layer of /status houses.layers (layer: its id), no recent; a house of the
 //                          tree's facts alone too (state none, its lists empty); 404 house.unknown, 503
 //                          research.busy
