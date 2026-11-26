@@ -757,6 +757,14 @@ export const CLAUDE_IMAGE_SAVER = path.join(".claude", "agents", `${IMAGE_SAVER}
 export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), CLAUDE_SCAN_READER, CLAUDE_IMAGE_SAVER, "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md"), GROK_HOOKS, CODEX_RULES, CODEX_HOOKS];
 
 /**
+ * strom's files of the agents that name this computer's folders (the tree's own permissions, hooks, the strom they
+ * start), as git names them (forward slashes) — the old .codex/config.toml too. strom pack leaves them out of the tree
+ * and of its whole history (core/historyfilter.ts): unpacking writes them again for the computer it goes to. The
+ * instructions (.md) stay: a person's notes below the mark go along, and they name no folder of a computer.
+ */
+export const MACHINE_AGENT_FILES = [path.join(".claude", "settings.json"), "opencode.json", path.join(".grok", "config.toml"), GROK_HOOKS, CODEX_RULES, CODEX_HOOKS, CODEX_CONFIG].map((p) => p.split(path.sep).join("/"));
+
+/**
  * strom's files of the agents written for the tree (only what changed: the files written, to commit). `said.shim`: the
  * shim in .strom/bin was written now (never committed: not among the files).
  */

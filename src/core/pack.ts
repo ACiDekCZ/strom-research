@@ -6,6 +6,9 @@
 // gives the same scan again when it is needed (strom fetch puts it back, checked).
 // No ZIP64: a package over 4 GB is refused before anything is written (ZipTooLarge),
 // the whole folder copied takes such a research along.
+// Nothing in it names a folder of this computer: the agents' files that do (the tree's permissions and hooks) are left
+// out of the tree and of every commit of its history (core/historyfilter.ts), the last commit sealed again; unpacking
+// writes them for the computer it goes to.
 // The one who gets it unpacks it with strom: into their trees, the images into
 // their shared folder, the connectors into their plugins, and takes it over.
 
@@ -18,7 +21,7 @@ import { connectorsDir } from "./connector.ts";
 import { mergeCatalog, regionFile, regionIdOk, regionsOfTree, type Catalog } from "./pastevents.ts";
 import { mergePlaceCatalog, placeFile, placeKeyOf, placeKeyOk, type PlaceCatalog } from "./placehistory.ts";
 import { StromError, UsageError } from "./errors.ts";
-import { createKey } from "./seal.ts";
+import { commitSeal, createKey, SEAL_TRAILER, verifyCommitSeal } from "./seal.ts";
 import { safeFolderName } from "./text.ts";
 import { Tree, VERSION } from "./tree.ts";
 import { verifyFull } from "./integrity.ts";
@@ -27,6 +30,8 @@ import { BATCH_ID, listBatches } from "./batches.ts";
 import type { Input, Media, Place, Source } from "./model.ts";
 import type { Env } from "./paths.ts";
 import { workingRel } from "./treemedia.ts";
+import { dropReflogs, historyHas, rewriteWithout } from "./historyfilter.ts";
+import { MACHINE_AGENT_FILES } from "../agents/files.ts";
 
 export const PACK_MANIFEST = "strom-pack.json";
 export const INSTALL_WINDOWS = "irm https://raw.githubusercontent.com/ACiDekCZ/strom-research/main/install/install.ps1 | iex";
@@ -224,10 +229,12 @@ export function writePack(
     const r = git.runGit(tmp, ["clone", "--quiet", "--no-hardlinks", tree.root, clone]);
     if (r.status !== 0) throw new StromError(`could not copy the tree: ${r.stderr.trim()}`);
     git.runGit(clone, ["remote", "remove", "origin"]);
-    git.runGit(clone, ["gc", "--quiet", "--prune=now"]);
-    const commit = git.head(clone) ?? "";
+    const repo = withoutThisComputer(tree, clone, path.join(tmp, "history", folder));
+    dropReflogs(repo);
+    git.runGit(repo, ["gc", "--quiet", "--prune=now"]);
+    const commit = git.runGit(repo, ["rev-parse", "HEAD"]).stdout.trim();
     // over 4 GB (or 65 535 files) is no ZIP strom writes: said before a byte of it is written
-    const sizes = [measure(clone), ...plan.connectors.map((c) => measure(path.join(connectorsDir(shared), c)))];
+    const sizes = [measure(repo), ...plan.connectors.map((c) => measure(path.join(connectorsDir(shared), c)))];
     const bytes = sizes.reduce((s, x) => s + x.bytes, 0) + plan.media.reduce((s, m) => s + m.size, 0);
     const files = sizes.reduce((s, x) => s + x.files, 0) + plan.media.length + plan.batches.length + 8;
     if (bytes > packMax(tree.env) || files >= ZIP_MAX_FILES) throw new ZipTooLarge("the package would be over 4 GB or 65 535 files");
@@ -253,7 +260,7 @@ export function writePack(
     zip.add(opts.readme.name, Buffer.from(opts.readme.text.replace(/\n/g, "\r\n"), "utf8"));
     for (const l of launchers(opts.say)) zip.add(l.name, Buffer.from(l.text, "utf8"), { mode: l.mode });
     zip.add(PACK_MANIFEST, Buffer.from(JSON.stringify(manifest, null, 2) + "\n", "utf8"));
-    addTree(zip, folder, clone);
+    addTree(zip, folder, repo);
     // the batches beside the tree, where strom keeps them (.strom, not its data): unpacking puts them in place
     for (const id of plan.batches) zip.addFile(`${folder}/.strom/batches/${id}.json`, path.join(tree.root, ".strom", "batches", `${id}.json`));
     for (const m of plan.media) zip.addFile(`shared/${m.file}`, path.join(shared, ...m.file.split("/")));
@@ -270,6 +277,40 @@ export function writePack(
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
+}
+
+/**
+ * The copy of the tree without anything that names this computer's folders: the agents' files (MACHINE_AGENT_FILES)
+ * gone from it and from every commit of its history, into a new repository at `to` (the copy as it is when its history
+ * never had one). The last commit sealed again where this computer's key sealed it (the tree's own hash changed): a
+ * backup unpacked on this computer again is the tree as it was, never taken over (`strom trees remove`). The commits
+ * before it keep their old seals — only the last one is checked.
+ */
+function withoutThisComputer(tree: Tree, clone: string, to: string): string {
+  if (!historyHas(clone, MACHINE_AGENT_FILES)) return clone;
+  const before = git.runGit(clone, ["log", "-1", "--format=%T%x00%B"]).stdout;
+  const [treeHash = "", ...rest] = before.split("\0");
+  const sealed = tree.key !== undefined && verifyCommitSeal(tree.key, treeHash.trim(), rest.join("\0"));
+  rewriteWithout(clone, to, MACHINE_AGENT_FILES);
+  if (sealed) reseal(to, tree.key!);
+  return to;
+}
+
+/** The last commit of a repository with its seal made again for its tree as it is now (its branch moved to it). */
+function reseal(dir: string, key: Buffer): void {
+  const failed = (what: string, said: string) => new StromError(`could not seal the copy of the tree (${what}): ${said.trim()}`);
+  const branch = git.runGit(dir, ["symbolic-ref", "-q", "HEAD"]).stdout.trim();
+  const old = git.runGit(dir, ["rev-parse", "HEAD"]).stdout.trim();
+  const treeHash = git.runGit(dir, ["rev-parse", "HEAD^{tree}"]).stdout.trim();
+  const raw = git.runGit(dir, ["cat-file", "commit", "HEAD"]);
+  if (!branch || !old || !treeHash || raw.status !== 0) throw failed("its last commit", raw.stderr);
+  const trailer = new RegExp(`^${SEAL_TRAILER}: [0-9a-f]{32}[ \\t]*$`, "mu");
+  if (!trailer.test(raw.stdout)) throw failed("its last commit", "no seal");
+  const made = git.runGit(dir, ["hash-object", "-t", "commit", "-w", "--stdin"], raw.stdout.replace(trailer, commitSeal(key, treeHash)));
+  const next = made.stdout.trim();
+  if (made.status !== 0 || !next) throw failed("git hash-object", made.stderr);
+  const moved = git.runGit(dir, ["update-ref", branch, next, old]);
+  if (moved.status !== 0) throw failed("git update-ref", moved.stderr);
 }
 
 /** A package given as the ZIP file or the folder a system unpacked it into: its manifest and where it lies. */
