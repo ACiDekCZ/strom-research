@@ -963,12 +963,13 @@ async function archives(ctx: Context, run: Run, lang: string, shared: string | u
       ...switchable.map((c) => {
         const next = via(c) === "browser" ? "direct" : "browser";
         const name = c.manifest.title ?? c.name;
+        // the way it takes now first, then where the item switches it — never an action read as the state
         return {
           key: "s",
           label: t(next === "browser" ? "ui.archives.to.browser" : "ui.archives.to.direct", { title: name }),
           act: async () => {
             out(t(next === "browser" ? "ui.archives.browser.about" : "ui.archives.direct.about"));
-            if (!(await ctx.confirm(t("ui.archives.switch"), true))) return;
+            if (!(await ctx.confirm(t(next === "browser" ? "ui.archives.switch.browser" : "ui.archives.switch.direct"), true))) return;
             if ((await run(["connector", "use", c.name, "--via", next], true)) === 0) out(t(`ui.archives.now.${next}` as UIKey, { title: name }));
           },
         };

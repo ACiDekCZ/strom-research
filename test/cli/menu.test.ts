@@ -505,13 +505,20 @@ test("archives through the browser: the way each downloader takes, switched in t
   const dir = await fakeConnector(w, "archiv-a");
   const manifest = readJsonFile(path.join(dir, "connector.json"));
   fs.writeFileSync(path.join(dir, "connector.json"), JSON.stringify({ ...manifest, routes: ["direct", "browser"], can: [...new Set([...(manifest.can ?? []), "locate"])] }, null, 2));
-  // 8 settings · 4 archives · 3 through the browser · yes · 0 · 0 · 0
-  const r = await w.ok([], { tty: true, answers: ["8", "4", "3", "", "0", "0", "0"] });
+  // 8 settings · 4 archives · 3 through the browser · yes · 3 back directly · yes · 3 through the browser again · yes · 0 · 0 · 0
+  const r = await w.ok([], { tty: true, answers: ["8", "4", "3", "", "3", "", "3", "", "0", "0", "0"] });
   assert.match(r.out, /2 {2}Prohlížeč pro agenta \(Claude in Chrome\): jen pro archivy přes prohlížeč/);
   assert.match(r.out, /• Testovací archiv — snímky přímo, strom hlídá tempo/);
-  assert.match(r.out, /3 {2}Testovací archiv: stahovat raději přes prohlížeč/);
+  // the item says the way it takes now, then where it switches it; the question names where (1126)
+  assert.match(r.out, /3 {2}Testovací archiv: snímky teď přímo · přepnout na prohlížeč/);
+  assert.match(r.out, /Přepnout na prohlížeč\?/);
+  assert.doesNotMatch(r.out, /stahovat raději|Přepnout\?/);
   assert.match(r.out, /✓ Testovací archiv: odteď přes prohlížeč\./);
   assert.match(r.out, /• Testovací archiv — snímky přes prohlížeč/);
+  assert.match(r.out, /3 {2}Testovací archiv: snímky teď přes prohlížeč · přepnout na přímé stahování/);
+  // and back: the question names the way directly; Enter says yes, as before
+  assert.match(r.out, /Přepnout na přímé stahování\?/);
+  assert.match(r.out, /✓ Testovací archiv: odteď přímo/);
   assert.match(r.out, /Chrome k tomu potřebuje rozšíření Claude in Chrome .* tady není v žádném prohlížeči: https:\/\/chromewebstore\.google\.com\/detail\//);
   assert.match((await w.run(["doctor"])).out, /prohlížeč \(Claude in Chrome\)\s+rozšíření není nainstalované \(potřebuje ho Testovací archiv\)/);
   // the extension in Chrome's profile: found
