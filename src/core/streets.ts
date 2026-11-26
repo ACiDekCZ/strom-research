@@ -581,3 +581,51 @@ export function compareHouses(a: string, b: string): number {
 export function houseRowKey(town: string, house: string): string {
   return `${appPlaceKey(town)}|${appHouseKey(house)}`;
 }
+
+/**
+ * The municipality and the house numbers a title names (strom house import: "Lhota čp. 16 (…) – research", "Lhota
+ * čp. 9 a 16", "lhota_cp16"): the words before the first marker of a house number, and every number after it (a short
+ * word between two numbers — "a", "und", "i" — and a marker again pass); without a marker, the words before the first
+ * number and the numbers. Undefined where it names no municipality or no number.
+ */
+export function houseInTitle(title: string): { town: string; numbers: string[] } | undefined {
+  // what is said in brackets and after a dash is the title's, not the house's
+  let text = title.normalize("NFC").replace(/\([^)]*\)|\[[^\]]*\]/gu, " ").split(/\s[–—-]\s|:\s/u)[0]!.trim();
+  const NUM = /^\p{N}+\p{L}?$/u;
+  const read = (t: string, marked: boolean) => {
+    const parts = [...t.matchAll(/\p{N}+\p{L}?(?:\/\p{N}+\p{L}?)?|[\p{L}\p{M}]+\.?|№/gu)].map((m) => ({ w: m[0], at: m.index }));
+    const toks = tokens(t);
+    let first = -1;
+    let skip = 0;
+    if (marked)
+      for (let i = 0; i < toks.length; i++) {
+        const m = markerAt(toks, i);
+        if (m && isNumber(toks[i + m])) {
+          first = toks[i]!.start;
+          skip = toks[i + m - 1]!.end;
+          break;
+        }
+      }
+    else first = skip = parts.find((p) => /^\p{N}/u.test(p.w))?.at ?? -1;
+    if (first < 0) return undefined;
+    const numbers: string[] = [];
+    for (const p of parts.filter((x) => x.at >= skip)) {
+      if (/^\p{N}/u.test(p.w)) {
+        numbers.push(p.w);
+        continue;
+      }
+      const f = foldText(p.w);
+      if (f.replace(/\.$/u, "").length <= 3 || streetTerms().house.some((m) => m.includes(f))) continue;
+      break;
+    }
+    // a word of a marker before it ("Haus Nr. 3"), one written without its dot in a file's name ("lhota cp 16"): not
+    // of the municipality
+    const bare = new Set(streetTerms().house.flat().map((w) => w.replace(/\.$/u, "")));
+    const words = t.slice(0, first).replace(/[\s,;:.]+$/u, "").trim().split(/\s+/u);
+    while (words.length > 1 && bare.has(foldText(words.at(-1)!).replace(/\.$/u, ""))) words.pop();
+    const town = words.join(" ").replace(/[\s,;:]+$/u, "");
+    return town && numbers.length && !NUM.test(town) ? { town, numbers } : undefined;
+  };
+  text = text.replace(/\s+/gu, " ");
+  return read(text, true) ?? read(text.replace(/[_]+/gu, " ").replace(/(?<=\p{L})(?=\p{N})/gu, " "), false);
+}

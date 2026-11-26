@@ -1474,6 +1474,8 @@ function label(tree: Tree, r: AnyRecord): string {
       return r.summary ?? `session ${r.state}`;
     case "media":
       return `image ${r.image ?? "?"}${r.recordset ? ` of ${r.recordset}` : ""}${r.from ? ` (${r.from})` : ""}`;
+    case "house":
+      return `house ${r.house}${r.name ? ` (${r.name})` : ""} at ${r.place}`;
   }
 }
 

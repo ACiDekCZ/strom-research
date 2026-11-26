@@ -14,6 +14,7 @@ import "./census.ts";
 import "./offline.ts";
 import "./people.ts";
 import "./household.ts";
+import "./house.ts";
 import "./surname.ts";
 import "./quality.ts";
 import "./batch.ts";

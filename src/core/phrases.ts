@@ -244,6 +244,10 @@ export const PHRASES = {
   "intake.done.imported": "the leads are checked for obvious mistakes (duplicates, impossible dates) and the first locate/link tasks exist",
   "intake.done.read": "what it adds to the tree is entered as leads citing it (strom source add … --kind family-tree --form authored --input {id}) — or the input is skipped with a reason (strom input skip {id} --reason …)",
   "intake.done": "every person and fact in it is recorded (a source if it is an original document, leads otherwise) and cited — or the input is skipped with a reason (strom input skip I… --reason …)",
+  "house.takeover": "Take over the research of the house {house} ({id})",
+  "house.takeover.why": "The person's own research of the house {id}: what it found is written into the house without searching again; the links it went through are marked gone through already, those it left to go through by hand stay so.",
+  "house.takeover.left": "Not taken, only listed: {list}.",
+  "house.takeover.done": "what the research says of the house is written into {id} (strom house add event|holder|resident|number|location|unknown|archive-only|look|map … --from {input}), each with its certainty and source — or the material is skipped with a reason (strom input skip {input} --reason …)",
 
   "task.answer": "The user answered (to: {asked}): {answer}",
 

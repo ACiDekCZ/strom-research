@@ -10,7 +10,7 @@
 
 import { agentDecided } from "./hypolinks.ts";
 import type { Op, Tree } from "./tree.ts";
-import type { AnyRecord, Conflict, Family, Hypothesis, Input, Lesson, Media, Person, Place, RecordSet, Repository, Research, Search, Session, Source, Task } from "./model.ts";
+import type { AnyRecord, Conflict, Family, House, Hypothesis, Input, Lesson, Media, Person, Place, RecordSet, Repository, Research, Search, Session, Source, Task } from "./model.ts";
 import { conflictTitle, displayName, lifespan } from "./people.ts";
 import { ownerName, cardFact } from "./overview.ts";
 import { phrase, PHRASES, type PhraseKey } from "./phrases.ts";
@@ -258,7 +258,7 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     return t ? short(humanTask(tree, t.what, lang)) : (id ?? "");
   };
   const name = (id: string | undefined): string => {
-    const r = get<Person | Family | Source | RecordSet | Task | Session | Research | Search | Lesson | Hypothesis | Conflict | Place | Repository | Input | Media>(id);
+    const r = get<Person | Family | Source | RecordSet | Task | Session | Research | Search | Lesson | Hypothesis | Conflict | Place | Repository | Input | Media | House>(id);
     if (!r) return id ?? "";
     switch (r.type) {
       case "media": {
@@ -289,6 +289,10 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
         return short(r.question);
       case "place":
         return r.names[0]?.name ?? r.id;
+      case "house": {
+        const town = get<Place>(r.place)?.names[0]?.name;
+        return short(r.name ?? `${town ? `${town} ` : ""}${r.house}`);
+      }
       default:
         return (r as { id: string }).id;
     }
