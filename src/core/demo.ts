@@ -164,7 +164,7 @@ export function unpackDemo(file: string, lang: DemoLang, env: Env): Unpacked {
   const p = demoPaths(env);
   const pack = findPack(file);
   try {
-    if (pack.manifest.tree.lang !== lang) throw new UsageError(`the sample of ${lang} holds a research in ${pack.manifest.tree.lang}`, { code: "demo.lang", hint: "strom demo again" });
+    if (pack.manifest.tree.lang !== lang) throw new UsageError(`the sample of ${lang} holds a research in ${pack.manifest.tree.lang}`, { code: "demo.lang", params: { lang, in: pack.manifest.tree.lang }, hint: "strom demo again" });
     // a sample carries no code: a package with connectors is none of ours
     if (pack.manifest.connectors.length) throw new StromError("the downloaded sample research carries connectors — a sample has none: nothing was set up", { code: "demo.code" });
     return unpack(pack, p.home, p.shared, demoEnv(env));
