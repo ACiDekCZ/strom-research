@@ -61,7 +61,8 @@ const HOUSE_DATE = S({ max: 40 });
 export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
   house: {
     place: R("place", true),
-    house: S({ req: true, max: 100 }),
+    // required of a house, empty in a municipality's record (town: validate.ts checkHouse)
+    house: S({ max: 100 }),
     name: S({ max: 200 }),
     nameBy: S({ enum: HOUSE_NAME_BYS }),
     numbers: {
@@ -98,6 +99,9 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     manual: { t: "array", req: true, of: { ...HOUSE_ITEM, what: S({ req: true, max: 1000 }), url: S({ max: 2000 }), why: S({ max: 500 }) } },
     unknown: { t: "array", req: true, of: { ...HOUSE_ITEM, text: S({ req: true, max: 1000 }), question: R("task") } },
     archiveOnly: { t: "array", req: true, of: { ...HOUSE_ITEM, archive: S({ req: true, max: 300 }), fond: S({ max: 300 }), signature: S({ max: 200 }), what: S({ max: 1000 }), url: S({ max: 2000 }) } },
+    town: { t: "any" },
+    text: S({ max: 2000 }),
+    done: S({ max: 40 }),
     sensitive: { t: "strings" },
     byUser: { t: "any" },
   },
@@ -221,6 +225,8 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     origin: S({ req: true }),
     helps: S({ max: 500 }),
     queueAt: { t: "object", of: { do: S({ req: true, enum: ["next", "last"] }), at: S({ req: true }) } },
+    houses: { t: "refs", to: "house" },
+    asked: S({ max: 40 }),
     retried: { t: "object", of: { at: S({ req: true }), by: S({ req: true, max: 100 }), givenIn: S({ enum: ["app"] }), times: { t: "strings" } } },
     kinds: { t: "strings" },
     proposal: { t: "object", of: { source: R("source", true), text: S({ req: true }), by: S({ req: true, max: 100 }), at: S({ req: true }), why: S({ max: 1000 }), reading: S({ max: 64 }) } },

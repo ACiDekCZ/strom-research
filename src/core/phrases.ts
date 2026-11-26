@@ -248,6 +248,15 @@ export const PHRASES = {
   "house.takeover.why": "The person's own research of the house {id}: what it found is written into the house without searching again; the links it went through are marked gone through already, those it left to go through by hand stay so.",
   "house.takeover.left": "Not taken, only listed: {list}.",
   "house.takeover.done": "what the research says of the house is written into {id} (strom house add event|holder|resident|number|location|unknown|archive-only|look|map … --from {input}), each with its certainty and source — or the material is skipped with a reason (strom input skip {input} --reason …)",
+  "house.town.what": "History of the houses of {town}: the municipality's skeleton",
+  "house.town.where": "the public sources and the allowed archives for {town}",
+  "house.town.why": "The skeleton the houses of the family there are researched on, once for all of them: the municipality's lordship and estate, its parish, its cadastral area, its old names, where its land registers and census sheets are.",
+  "house.town.done": "the skeleton written into the municipality: its summary (strom house add summary --town {place} --text \"…\"), what was gone through, what is only by hand or in a reading room, its maps (strom house add passed|manual|archive-only|map|unknown --town {place} …)",
+  "house.research.what": "History of the house {house}",
+  "house.research.what.more": "History of the house {house} with the neighbouring houses {more}",
+  "house.research.where": "the public sources and the allowed archives for {town}",
+  "house.research.why": "A house where the family lived: its numbers in time and its point on the map, what happened to it, its holders and residents, its look — each claim with its source and certainty.",
+  "house.research.done": "what was found written into {id} (strom house add number|location|event|holder|resident|look|map …), with what was gone through, what is not known and what is only in a reading room (passed, unknown, archive-only)",
 
   "task.answer": "The user answered (to: {asked}): {answer}",
 
@@ -466,6 +475,7 @@ export const PHRASES = {
   "log.setting.name.intake.auto": "Files sent to the research gone through by the agent",
   "log.setting.name.sort.confirm": "Question before the material is sorted",
   "log.setting.name.census": "Census records",
+  "log.setting.name.houses": "House history",
   "log.setting.value.read.sourceTask.ask": "ask first",
   "log.setting.value.read.sourceTask.always": "a task at once",
   "log.setting.value.read.sourceTask.never": "only kept",

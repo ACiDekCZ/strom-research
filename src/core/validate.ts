@@ -382,6 +382,9 @@ function checkHouse(h: Partial<House>, out: Problem[]): void {
     });
   }
   if (h.byUser !== undefined && h.byUser !== true) out.push({ path: "byUser", message: "must be true or left out" });
+  if (h.town !== undefined && h.town !== true) out.push({ path: "town", message: "must be true or left out" });
+  if (h.town && typeof h.house === "string" && h.house.trim()) out.push({ path: "house", message: "a municipality's record has no number" });
+  if (!h.town && (typeof h.house !== "string" || !h.house.trim())) out.push({ path: "house", message: "is required" });
   const events = new Set((Array.isArray(h.timeline) ? h.timeline : []).map((e) => e?.id));
   (Array.isArray(h.sensitive) ? h.sensitive : []).forEach((id, i) => {
     if (!events.has(id)) out.push({ path: `sensitive[${i}]`, message: `"${String(id)}" is no item of the house's timeline` });

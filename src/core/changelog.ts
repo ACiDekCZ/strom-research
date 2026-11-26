@@ -29,7 +29,7 @@ const MODE_SAID: Record<string, PhraseKey> = { "the research is an archive": "lo
 /** The settings of a research said turned on or off (strom config set): each value, which of the two it is. */
 const SETTING_ON_OFF: Record<string, Record<string, "on" | "off">> = {
   ...Object.fromEntries(["stories", "stories.sources", "stories.history", "queue.suggestLines", "queue.sameBook"].map((k) => [k, { yes: "on", no: "off" }])),
-  ...Object.fromEntries(["sync.review", "agent.addons", "experiments.history", "experiments.placeHistory", "experiments.historyPlaces", "intake.auto", "census"].map((k) => [k, { on: "on", off: "off" }])),
+  ...Object.fromEntries(["sync.review", "agent.addons", "experiments.history", "experiments.placeHistory", "experiments.historyPlaces", "intake.auto", "census", "houses"].map((k) => [k, { on: "on", off: "off" }])),
   // the question before a sort: ask — the question on
   "sort.confirm": { ask: "on", no: "off" },
 };

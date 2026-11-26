@@ -133,6 +133,8 @@ export interface UserConfig {
   historyKinds?: string;
   /** Census records as a source of the research (core/census.ts): on, off (default). */
   census?: string;
+  /** The history of the tree's houses looked for by itself (spec 030 part 2, core/houseauto.ts): on, off (default). */
+  houses?: string;
   /**
    * When the person was asked about the history of the places (the setup, the settings, or once at the menu after an
    * update to a strom that has it — never again there, whatever the answer).
@@ -413,6 +415,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "intake.auto", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "files sent to the research — a batch of the Strom app or a phone once whole, a single file of the app, material the person adds (strom intake): off (default — nothing of an agent starts by itself: the files wait in the material unsorted until the person asks: the app's Sort by agent…, strom input batch done --sort, strom intake --sort) or on (tasks for the agent: a batch's sorting tasks of about 25 files each, taken up first; an intake task for a file; a task to read the scan of a source). Turned on by the person alone" },
   { key: "sort.confirm", env: "", tree: true, kind: "choice", choices: ["ask", "no"], description: "the question before files of the material are sorted by readers of the research (strom material sort, the person's ask): ask (default — the person's yes to the paid readings before every sort) or no (sorted at once on the person's own ask, no question about the readings; never by itself, a run nobody watches still asks) — for this tree with --for-tree, else every research on this computer; only you set it, in your terminal or the Strom app on this computer" },
   { key: "census", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "census records as a source of the research: a household in one year shows who lived with whom and where each came from — tasks of kind census and the method's page for them (most archives only show their census sheets: they come by hand, as a screenshot, a task waiting for its images; nothing promises them fetched): on or off (unset: off) — only you turn it on (the menu's settings, the Strom app, strom config set census on in a terminal), for every research on this computer or with --for-tree for one (a tree's own value wins both ways); the agent may propose it once (strom census propose); off is anyone's" },
+  { key: "houses", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "the history of the tree's houses looked for by itself: a municipality's skeleton (its lordship, parish, land registers, maps) once, then the houses where the direct ancestors lived long enough over a hundred years ago, a few at a time after the family research (one house the person asks for comes on top whatever this is: strom house request): on or off (unset: off) — only you turn it on (the menu's settings, the Strom app, strom config set houses on in a terminal), for every research on this computer or with --for-tree for one (a tree's own value wins both ways); off is anyone's — the houses' tasks raised by themselves are set aside, back once on" },
   { key: "mode", env: "", tree: false, kind: "choice", choices: ["research", "archive"], description: "what a new research on this computer is: research (default — an agent works on it; while none is here it waits for one, kept as an archive) or archive (the data come from the Strom app, no agent — the person's choice: the setup wizard asks it with an agent here, the menu's settings) — a research's own: strom mode" },
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
@@ -672,6 +675,11 @@ export function historySwitches(user: UserConfig | undefined, tree: TreeConfig |
 /** Census records as a source (spec 106) as the stores hold them: the tree's own value both ways, else the user's. Unset: off. */
 export function censusSwitch(user: UserConfig | undefined, tree: TreeConfig | undefined): boolean {
   return (readStored(tree, "census", "") ?? readStored(user, "census", "")) === "on";
+}
+
+/** The history of the houses by itself (spec 030 part 2) as the stores hold it: the tree's own value both ways, else the user's. Unset: off. */
+export function housesSwitch(user: UserConfig | undefined, tree: TreeConfig | undefined): boolean {
+  return (readStored(tree, "houses", "") ?? readStored(user, "houses", "")) === "on";
 }
 
 /** Write (or with undefined, remove) a setting in a store. */
@@ -976,6 +984,14 @@ export class Settings {
    */
   census(tree?: TreeConfig): boolean {
     return censusSwitch(this.config, tree);
+  }
+
+  /**
+   * The history of the tree's houses looked for by itself (spec 030 part 2): the tree's strom.json both ways, else the
+   * user's own config — never a variable or a flag. Unset: off.
+   */
+  houses(tree?: TreeConfig): boolean {
+    return housesSwitch(this.config, tree);
   }
 
   /**

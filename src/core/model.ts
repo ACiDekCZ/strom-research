@@ -943,6 +943,16 @@ export interface Task extends BaseRecord {
    */
   queueAt?: { do: "next" | "last"; at: string };
   /**
+   * The other houses (A…) a task of a house works on with its own (spec 030 part 2): neighbouring houses of the same
+   * family in the same municipality, at most two more. Optional: an older strom keeps it and ignores it.
+   */
+  houses?: string[];
+  /**
+   * When the person asked for it (ISO; strom house request, the Strom app's link): such a task is never held while its
+   * kind of work is switched off. Optional: an older strom keeps it and ignores it.
+   */
+  asked?: string;
+  /**
    * The person returned it to the agent from What waits (strom task wake --retry: the menu, the Strom app) — images its
    * archive's browser held back, or that the agent's browser reaches now: the last time (at), by whom, given in the app,
    * and the last times (at most 5, ISO) — the queue counts only the sessions after it, at most RETRY_MAX returns a day
@@ -1454,7 +1464,7 @@ export interface House extends BaseRecord {
   type: "house";
   /** The municipality (L…). */
   place: string;
-  /** The number as written (NFC): "16", "Dlouhá 12", "13/2". */
+  /** The number as written (NFC): "16", "Dlouhá 12", "13/2"; "" in a municipality's record (town). */
   house: string;
   /** Its name after the family (the person's, a research taken in, the research's). */
   name?: string;
@@ -1474,6 +1484,15 @@ export interface House extends BaseRecord {
   sensitive?: string[];
   /** Made by the person (strom house add, an import with --house): listed although nobody of the tree lived there. */
   byUser?: true;
+  /**
+   * A record of a municipality, not of a house (spec 030 part 2): the skeleton its houses are researched in — what was
+   * gone through, what is only by hand or in a reading room, its maps — with no number. Never listed as a house.
+   */
+  town?: true;
+  /** A municipality's short summary: its lordship, estate, parish, cadastral area, where its land registers are. */
+  text?: string;
+  /** The day the municipality's skeleton was done (its task closed done): no task of it is raised again. */
+  done?: string;
   notes: Note[];
 }
 
@@ -1680,6 +1699,8 @@ export interface TreeConfig {
   historyKinds?: string;
   /** Census records as a source for this tree alone, both ways ("on" | "off"; unset: the user's config, else off — spec 106). */
   census?: string;
+  /** The history of the tree's houses looked for by itself (spec 030 part 2): on, off (default). */
+  houses?: string;
   /** The main person of the tree: first in the GEDCOM files, where the Strom app opens. */
   mainPerson?: string;
   /** The entries cut out of their scans for the Strom app: quality, whose, limit in MB. */

@@ -38,6 +38,7 @@ import { now, type Tree } from "./tree.ts";
 import { create, normId, update } from "./records.ts";
 import { recordIndex } from "./placeid.ts";
 import { effectiveState } from "./queue.ts";
+import { Settings } from "./config.ts";
 
 /** What every task of a house begins its origin with. */
 export const HOUSE_TASK_PREFIX = "house:";
@@ -67,6 +68,61 @@ export function houseWork(t: Pick<Task, "origin">): HouseWork | undefined {
 export function houseOfTask(t: Pick<Task, "origin">): string | undefined {
   if (!forHouse(t) || t.origin.startsWith(HOUSE_TOWN_PREFIX)) return undefined;
   return t.origin.slice(t.origin.startsWith(HOUSE_IMPORT_PREFIX) ? HOUSE_IMPORT_PREFIX.length : HOUSE_TASK_PREFIX.length);
+}
+
+/** Every house a task of a house works on: its own and the neighbouring ones it took with it (houses). */
+export function housesOfTask(t: Pick<Task, "origin" | "houses">): string[] {
+  const own = houseOfTask(t);
+  return [...new Set([...(own ? [own] : []), ...(houseWork(t) === "house" ? (t.houses ?? []) : [])])];
+}
+
+/** The municipality (L…) a task of a municipality's skeleton is of, else undefined. */
+export function townOfTask(t: Pick<Task, "origin">): string | undefined {
+  return forHouse(t) && t.origin.startsWith(HOUSE_TOWN_PREFIX) ? t.origin.slice(HOUSE_TOWN_PREFIX.length) : undefined;
+}
+
+/** The origin of a house's research (house:<A…>) and of a municipality's skeleton (house:town:<L…>). */
+export const houseOrigin = (house: string): string => `${HOUSE_TASK_PREFIX}${house}`;
+export const townOrigin = (place: string): string => `${HOUSE_TOWN_PREFIX}${place}`;
+
+/**
+ * A task of a house raised by itself (spec 030 part 2): the research of a house or a municipality's skeleton the
+ * person did not ask for — such a one is held while the houses are off. A takeover, an asked one never.
+ */
+export function houseAutoTask(t: Pick<Task, "origin" | "asked">): boolean {
+  const work = houseWork(t);
+  return (work === "house" || work === "town") && !t.asked;
+}
+
+const openNow = (t: Task, day: string): boolean => t.state === "open" || (t.state === "parked" && !!t.parkedUntil && t.parkedUntil <= day);
+
+/**
+ * Held because the history of the houses is off (spec 030 part 2, as census records): a task of a house raised by
+ * itself, open (or parked until a day gone by) or waiting — never one at work, one the person parked, one asked, a
+ * takeover, nor one the person gave material to (its files, a material of its houses). Nothing is written: back once on.
+ */
+export function houseHeld(t: Task, on: boolean, day: string = today(), material: (t: Task) => boolean = () => false): boolean {
+  if (on || !houseAutoTask(t) || t.files?.length) return false;
+  if (t.state !== "waiting" && !openNow(t, day)) return false;
+  return !material(t);
+}
+
+/** What shows nowhere now: a held task of a house (none while the houses are on). */
+export function houseHidden(tree: Tree, on: boolean, day: string = today()): (t: Task) => boolean {
+  if (on) return () => false;
+  let withMaterial: Set<string> | undefined;
+  const material = (t: Task) => {
+    withMaterial ??= new Set(tree.list<Input>("input").filter((i) => !i.retracted && !i.hidden).flatMap((i) => i.houses ?? []));
+    return housesOfTask(t).some((h) => withMaterial!.has(h));
+  };
+  return (t) => houseHeld(t, on, day, material);
+}
+
+/** How many tasks of houses are held now (0 while on): the menu's settings and the bridge's counts.held. */
+export function housesHeldCount(tree: Tree, on: boolean): number {
+  if (on) return 0;
+  const hidden = houseHidden(tree, on);
+  return tree.list<Task>("task").filter((t) => forHouse(t) && hidden(t)).length;
 }
 
 // ── the houses of the facts ─────────────────────────────────────────────────────────────────────────────────────
@@ -182,12 +238,17 @@ export interface HouseRow {
   materials: string[];
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
-/** Where a house's tasks are: at work, waiting for the person, in the queue, put aside, done; none. */
-function stateOf(tasks: Task[], day: string): Pick<HouseRow, "state" | "at" | "task" | "work" | "question"> {
+/**
+ * Where a house's tasks are: at work, waiting for the person, in the queue, put aside (parked, or held while the
+ * houses are off), done; none.
+ */
+function stateOf(tasks: Task[], day: string, held: (t: Task) => boolean): Pick<HouseRow, "state" | "at" | "task" | "work" | "question"> {
   const live = tasks.filter((t) => !t.retracted && t.state !== "dropped");
-  const by = (s: Task["state"]) => live.filter((t) => effectiveState(t, day) === s).sort((a, b) => a.id.localeCompare(b.id));
+  const by = (s: Task["state"]) => live.filter((t) => effectiveState(t, day) === s && (s === "doing" || s === "done" || !held(t))).sort((a, b) => a.id.localeCompare(b.id));
   const pick = (t: Task | undefined, state: HouseState) => (t ? { state, task: t.id, ...(houseWork(t) ? { work: houseWork(t)! } : {}) } : undefined);
   const waiting = by("waiting")[0];
   const doneAll = by("done").sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? ""));
@@ -196,6 +257,7 @@ function stateOf(tasks: Task[], day: string): Pick<HouseRow, "state" | "at" | "t
     pick(by("doing")[0], "running") ??
     (waiting ? { ...pick(waiting, "waiting")!, question: { id: waiting.id, text: waiting.waitingOn ?? waiting.what } } : undefined) ??
     pick(by("open")[0], "queued") ??
+    pick(live.filter(held).sort((a, b) => a.id.localeCompare(b.id))[0], "held") ??
     pick(by("parked")[0], "held") ??
     pick(doneAll[0], "done") ?? { state: "none" as const };
   return { ...row, ...(at ? { at } : {}) };
@@ -213,15 +275,17 @@ function materialsByHouse(tree: Tree): Map<string, string[]> {
  * Every house of the research: its records (A…) and the houses of the tree's facts, one row each by its key, in the
  * order of their municipality and number. `town`: only the houses of one place record.
  */
-export function houseRows(tree: Tree, opts: { town?: string; index?: HouseIndex } = {}): HouseRow[] {
+export function houseRows(tree: Tree, opts: { town?: string; index?: HouseIndex; on?: boolean } = {}): HouseRow[] {
   const index = opts.index ?? houseIndex(tree);
   const day = today();
   const tasks = tree.list<Task>("task").filter(forHouse);
   const materials = materialsByHouse(tree);
+  const held = houseHidden(tree, opts.on ?? new Settings(tree.env, {}).houses(tree.config), day);
   const rows = new Map<string, HouseRow>();
   const placeView = (town: string, p: Place | undefined) => ({ key: appPlaceKey(town), ...(p ? { id: p.id } : {}), name: p?.names[0]?.name ?? town });
   for (const h of tree.list<House>("house")) {
-    if (h.retracted) continue;
+    // a municipality's record is no house (its skeleton: townView)
+    if (h.retracted || h.town) continue;
     const p = tree.get<Place>(h.place);
     const town = p ? index.townOf(p) : h.place;
     const key = houseRowKey(town, h.house);
@@ -244,11 +308,8 @@ export function houseRows(tree: Tree, opts: { town?: string; index?: HouseIndex 
     else rows.set(key, { key, place: placeView(th.town, th.place), house: th.house, tree: th, persons: th.persons.size, ...(years ? { years } : {}), state: "none", materials: [] });
   }
   for (const row of rows.values()) {
-    const mine = tasks.filter((t) => {
-      const of = houseOfTask(t);
-      return !!of && (of === row.id || of === row.key);
-    });
-    Object.assign(row, stateOf(mine, day));
+    const mine = tasks.filter((t) => housesOfTask(t).some((of) => of === row.id || of === row.key));
+    Object.assign(row, stateOf(mine, day, held));
   }
   const town = opts.town;
   return [...rows.values()]
@@ -317,7 +378,7 @@ export function findTown(tree: Tree, ref: string): Place {
 
 // ── writing ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const EMPTY = (): Pick<House, "numbers" | "timeline" | "holders" | "residents" | "maps" | "passed" | "manual" | "unknown" | "archiveOnly"> => ({
+export const EMPTY = (): Pick<House, "numbers" | "timeline" | "holders" | "residents" | "maps" | "passed" | "manual" | "unknown" | "archiveOnly"> => ({
   numbers: [],
   timeline: [],
   holders: [],
@@ -336,7 +397,7 @@ export function addHouse(tree: Tree, place: Place, house: string, opts: { name?:
   return tree.withTreeLock(() => {
     const index = houseIndex(tree);
     const key = houseRowKey(index.townOf(place), number);
-    const had = tree.list<House>("house").find((h) => !h.retracted && keyOfHouse(tree, h, index) === key);
+    const had = tree.list<House>("house").find((h) => !h.retracted && !h.town && keyOfHouse(tree, h, index) === key);
     if (had) throw new UsageError(`the house is ${had.id} already`, { code: "house.exists", hint: `strom house show ${had.id}` });
     return create<House>(
       tree,
@@ -365,10 +426,40 @@ export function recordOf(tree: Tree, row: HouseRow): House {
   return tree.withTreeLock(() => {
     const index = houseIndex(tree);
     return (
-      tree.list<House>("house").find((h) => !h.retracted && keyOfHouse(tree, h, index) === row.key) ??
+      tree.list<House>("house").find((h) => !h.retracted && !h.town && keyOfHouse(tree, h, index) === row.key) ??
       create<House>(tree, "house", { place: place.id, house: row.house, ...EMPTY() }, (id) => `+${id} house ${row.house} at ${place.id}`)
     );
   });
+}
+
+/** The record of a municipality's skeleton (town), if there is one. */
+export function townRecord(tree: Tree, place: string): House | undefined {
+  return tree.list<House>("house").find((h) => !h.retracted && h.town && h.place === place);
+}
+
+/** The record of a municipality's skeleton: the one it has, or one made now (no number). */
+export function townRecordOf(tree: Tree, place: Place): House {
+  return tree.withTreeLock(
+    () => townRecord(tree, place.id) ?? create<House>(tree, "house", { place: place.id, house: "", town: true, ...EMPTY() }, (id) => `+${id} municipality ${place.id} (its houses' skeleton)`),
+  );
+}
+
+/** A municipality's skeleton as a house shows it, and as strom house show --town gives it. */
+export function townView(tree: Tree, place: Place, rec: House | undefined = townRecord(tree, place.id)): Record<string, unknown> {
+  const tasks = tree.list<Task>("task").filter((t) => townOfTask(t) === place.id && !t.retracted && t.state !== "dropped");
+  const live = tasks.find((t) => t.state !== "done");
+  return {
+    ...(rec ? { id: rec.id } : {}),
+    place: { id: place.id, name: place.names[0]?.name ?? place.id },
+    ...(rec?.text ? { text: rec.text } : {}),
+    passed: rec?.passed ?? [],
+    manual: rec?.manual ?? [],
+    archiveOnly: rec?.archiveOnly ?? [],
+    maps: rec?.maps ?? [],
+    unknown: rec?.unknown ?? [],
+    ...(rec?.done ? { done: rec.done } : {}),
+    ...(live ? { task: live.id, state: live.state } : {}),
+  };
 }
 
 /** The lists of a house that hold items, and the letter of their IDs. */
@@ -557,6 +648,9 @@ export function houseView(tree: Tree, row: HouseRow): Record<string, unknown> {
     materials,
     ...(h?.sensitive?.length ? { sensitive: h.sensitive } : {}),
   };
+  // the skeleton of its municipality (spec 030 part 2): what the house's research stands on
+  const town = row.place.id ? townRecord(tree, row.place.id) : undefined;
+  if (town) out.town = { id: town.id, ...(town.text ? { text: town.text } : {}), passed: town.passed, manual: town.manual, archiveOnly: town.archiveOnly, maps: town.maps };
   return out;
 }
 
