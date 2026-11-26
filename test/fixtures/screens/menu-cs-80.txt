@@ -82,28 +82,6 @@ Enter vrátí do nabídky.
 
 -----
 
-Strom › Nastavení › Průvodce nastavením
-
-Co nastavit?
-  [1]  Všechno, krok za krokem                   průvodce nastavením
-  [2]  Jen model výzkumu (Claude Code)           vlastní model agenta
-  [3]  Terminál pro okna výzkumu                 výchozí systému  z aplikace
-                                                 Strom, předaný rozhovor
-  [4]  Propojení s telefonem                     vypnuto  fotky z telefonu do
-                                                 výzkumu v místní síti
-  [5]  Kdo rozhoduje hypotézy                    Rozhoduje AI
-  [6]  Spouštění agenta z aplikace Strom         s potvrzením
-  [7]  Sčítání lidu v tomto výzkumu              vypnuto
-  [8]  Historie domů v tomto výzkumu             vypnuto
-  [9]  Soubory poslané do výzkumu projde agent   vypnuto
-       sám
-
-  [0]  Zpět
-
-Volba (Enter = 1 Všechno, krok za krokem): 
-
------
-
 Strom › Nastavení › Samostatná práce agenta
 
   [1]  Čas na jeden úkol                     60 min

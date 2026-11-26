@@ -159,7 +159,9 @@ for (const lang of ["cs", "de"]) {
         // the screens of the findings of 26. 11.: the fixes with nothing found, the setup's question, working alone
         for (const where of [/ › (Opravy stromu|Korrekturen von strom)$/u, / › (Průvodce nastavením|Einrichtung)$/u, / › (Samostatná práce agenta|Der Agent allein)$/u])
           assert.ok([...seen.keys()].some((c) => where.test(c)), `${where}: ${[...seen.keys()].join(" | ")}`);
-        pictured(`menu-${lang}-${columns}`, steady([...seen.values()].join("\n\n-----\n\n"), w));
+        // pictured without the setup's question: its items are not the same on each system (the terminal: macOS and
+        // Windows), checked above all the same
+        pictured(`menu-${lang}-${columns}`, steady([...seen].filter(([c]) => !/ › (Průvodce nastavením|Einrichtung)$/u.test(c)).map(([, s]) => s).join("\n\n-----\n\n"), w));
       } finally {
         w.cleanup();
       }

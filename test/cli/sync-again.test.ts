@@ -148,7 +148,7 @@ test("a send taken back that left the day's source of the app's edits uncited: t
     await new Promise((r) => setTimeout(r, 1100));
     // taken back from the menu (Add to the research, last while there is one; found on Windows: only through the app's link)
     const shown = (await w.run(["menu"], { tty: true, answers: ["4", "", "0"] })).out;
-    const key = /^\s*\[(\d+)\]\s+Vrátit poslední poslání z aplikace Strom · /m.exec(shown)?.[1];
+    const key = /^\s*\[(\d+)\]\s+Vrátit poslední poslání z aplikace Strom(?: · | {2,})/m.exec(shown)?.[1];
     assert.ok(key, shown);
     // the person's own choice: never "the Strom app asks" (found on Mac)
     const asked = (await w.run(["menu"], { tty: true, answers: ["4", key, "a", "", "0"] })).out;
@@ -182,7 +182,7 @@ test("taking back a send that corrected a fact says the fact rests again on the 
     assert.equal(sent.applied, 1, JSON.stringify(sent));
     await new Promise((r) => setTimeout(r, 1100));
     const shown = (await w.run(["menu"], { tty: true, answers: ["4", "", "0"] })).out;
-    const key = /^\s*\[(\d+)\]\s+Vrátit poslední poslání z aplikace Strom · /m.exec(shown)?.[1];
+    const key = /^\s*\[(\d+)\]\s+Vrátit poslední poslání z aplikace Strom(?: · | {2,})/m.exec(shown)?.[1];
     assert.ok(key, shown);
     const asked = (await w.run(["menu"], { tty: true, answers: ["4", key, "a", "", "0"] })).out;
     assert.match(asked, /narození: 1871 → 1870/, asked);

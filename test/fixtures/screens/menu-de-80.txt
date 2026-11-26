@@ -92,31 +92,6 @@ Mit Enter zurück zum Menü.
 
 -----
 
-Strom › Einstellungen › Einrichtung
-
-Was einstellen?
-  [1]  Alles, Schritt für Schritt                die Einrichtung
-  [2]  Nur das Modell der Forschung              das eigene des Agenten  Claude
-                                                 Code
-  [3]  Terminal für die Fenster der Forschung    Standard des Systems  aus der
-                                                 Strom-App, ein übergebenes
-                                                 Gespräch
-  [4]  Verbindung mit dem Telefon                aus  Fotos vom Telefon in die
-                                                 Forschung im lokalen Netz
-  [5]  Wer die Hypothesen entscheidet            Die KI entscheidet
-  [6]  Agent aus der Strom-App starten           mit Rückfrage
-  [7]  Volkszählungen in dieser Forschung        aus
-  [8]  Geschichte der Häuser in dieser           aus
-       Forschung
-  [9]  An die Forschung gesendete Dateien sieht  aus
-       der Agent selbst durch
-
-  [0]  Zurück
-
-Auswahl (Enter = 1 Alles): 
-
------
-
 Strom › Einstellungen › Der Agent allein
 
   [1]  Zeit für eine Aufgabe                     60 Min.
