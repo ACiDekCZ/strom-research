@@ -8,7 +8,8 @@ import { register, type CommandDef, type OptionDef } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, table, truncate } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
-import { UsageError } from "../core/errors.ts";
+import { humanCost } from "../cli/human.ts";
+import { NeedsInputError, UsageError } from "../core/errors.ts";
 import {
   HOUSE_CERTAINTIES,
   HOUSE_EVENT_KINDS,
@@ -34,12 +35,17 @@ import {
   listRow,
   recordOf,
   setHouse,
+  townRecordOf,
+  townView,
   type HouseConfirm,
   type HouseRow,
 } from "../core/houses.ts";
 import { ImportQuestions, planImport, writeImport, type ImportQuestion } from "../core/houseimport.ts";
 import { create, listOpt, normId, update } from "../core/records.ts";
 import { isAgent } from "../core/which.ts";
+import { askHouse, HOUSE_GROUP_MAX, houseEstimate, houseTaskForMaterial } from "../core/houseauto.ts";
+import { rankTasks } from "../core/queue.ts";
+import { actsAsArchive } from "../core/state.ts";
 import type { Tree } from "../core/tree.ts";
 
 function oneOf<T extends string>(v: unknown, allowed: readonly T[], name: string): T {
@@ -55,10 +61,48 @@ const text = (v: unknown, name: string, max: number): string => {
 };
 const opt = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.normalize("NFC").trim() : undefined);
 
+/** A municipality's skeleton done or begun (its record done, or a task of it alive). */
+function townBegun(tree: Tree, place: string): boolean {
+  if (tree.list<House>("house").some((h) => !h.retracted && h.town && h.place === place && !!h.done)) return true;
+  return tree.list<Task>("task").some((t) => t.origin === `house:town:${place}` && ["open", "doing", "parked", "waiting"].includes(t.state));
+}
+
+/** A word of a command said back, quoted when it is more than letters, digits and a few marks. */
+const shellWord = (w: string): string => (/^[\p{L}\p{M}\p{N}|._:\/-]+$/u.test(w) ? w : JSON.stringify(w));
+
 /** The state of a house in the research language. */
 const stateWord = (lang: string, s: HouseRow["state"]) => ui(lang, `ui.house.state.${s}`);
 
 // ── list and show ───────────────────────────────────────────────────────────────────────────────────────────────
+
+/** How the house's research came: asked for by the person, or by itself (the history of the houses on); its place in the queue. */
+function taskWords(tree: Tree, row: HouseRow): string {
+  const t = row.task ? tree.get<Task>(row.task) : undefined;
+  if (!t || (row.work !== "house" && row.work !== "town")) return "";
+  const lang = tree.lang;
+  const by = ui(lang, t.asked ? "ui.house.by.asked" : "ui.house.by.auto");
+  let at = 0;
+  if (row.state === "queued") at = rankTasks(tree, tree.list<Task>("task")).findIndex((r) => r.task.id === t.id) + 1;
+  return ` (${by}${at > 0 ? `, ${ui(lang, "ui.house.queue.at", { n: at })}` : ""})`;
+}
+
+/** A municipality's skeleton (strom house show --town). */
+function townText(tree: Tree, v: Record<string, unknown>): string {
+  const lang = tree.lang;
+  const place = v.place as { id: string; name: string };
+  const list = <T>(key: string) => (v[key] as T[] | undefined) ?? [];
+  const part = (key: Parameters<typeof ui>[1], items: string[]) => (items.length ? [ui(lang, key), ...items.map((x) => `  ${x}`)].join("\n") : undefined);
+  return lines(
+    `${v.id ? `${String(v.id)} ` : ""}${ui(lang, "ui.house.town")}: ${place.id} ${place.name}${v.done ? ` — ${ui(lang, "ui.house.town.done", { day: String(v.done) })}` : ""}${v.task ? ` · ${String(v.task)} ${String(v.state)}` : ""}`,
+    v.text ? `${ui(lang, "ui.house.town.summary")}: ${String(v.text)}` : undefined,
+    part("ui.house.maps", list<{ id: string; kind: string; label?: string; url?: string }>("maps").map((m) => `${m.id} ${m.kind}${m.label ? ` ${m.label}` : ""}${m.url ? ` ${m.url}` : ""}`)),
+    part("ui.house.passed", list<{ id: string; what: string; url?: string }>("passed").map((x) => `${x.id} ${x.what}${x.url ? ` ${x.url}` : ""}`)),
+    part("ui.house.manual", list<{ id: string; what: string; url?: string }>("manual").map((x) => `${x.id} ${x.what}${x.url ? ` ${x.url}` : ""}`)),
+    part("ui.house.unknown", list<{ id: string; text: string }>("unknown").map((x) => `${x.id} ${x.text}`)),
+    part("ui.house.archiveOnly", list<{ id: string; archive: string; fond?: string; signature?: string }>("archiveOnly").map((a) => `${a.id} ${[a.archive, a.fond, a.signature].filter(Boolean).join(", ")}`)),
+    !v.id ? ui(lang, "ui.house.empty") : undefined,
+  );
+}
 
 function showText(tree: Tree, row: HouseRow, v: Record<string, unknown>): string {
   const lang = tree.lang;
@@ -67,7 +111,7 @@ function showText(tree: Tree, row: HouseRow, v: Record<string, unknown>): string
   const span = (x: { from?: string; to?: string }) => (x.from || x.to ? ` ${x.from ?? ""}–${x.to ?? ""}` : "");
   const by = (o: HouseOrigin) => (o === "research" ? "" : ` (${ui(lang, `ui.house.origin.${o}`)})`);
   const part = (key: Parameters<typeof ui>[1], items: string[]) => (items.length ? [ui(lang, key), ...items.map((x) => `  ${x}`)].join("\n") : undefined);
-  const head = `${row.id ? `${row.id} ` : ""}${row.place.name} ${row.house}${row.name ? ` „${row.name}“` : ""} — ${stateWord(lang, row.state)}${row.task ? ` ${row.task}` : ""}`;
+  const head = `${row.id ? `${row.id} ` : ""}${row.place.name} ${row.house}${row.name ? ` „${row.name}“` : ""} — ${stateWord(lang, row.state)}${row.task ? ` ${row.task}` : ""}${taskWords(tree, row)}`;
   const people = row.tree ? [...row.tree.persons].sort() : [];
   return lines(
     head,
@@ -127,13 +171,71 @@ register(
     summary: "One house whole: its numbers in time, point, timeline, holders, residents, what was gone through, material",
     group: "sources",
     tree: true,
-    args: [{ name: "house", description: "A…, its key (town|number), or its municipality and number (L… 16, Lhota 16)", required: true, variadic: true }],
-    examples: ["strom house show A0001", 'strom house show "lhota|16" --json', "strom house show L0001 16"],
-    run(ctx, { args }) {
+    args: [{ name: "house", description: "A…, its key (town|number), or its municipality and number (L… 16, Lhota 16); none with --town", required: false, variadic: true }],
+    options: [{ name: "town", type: "string", value: "<L…|name>", description: "the municipality's skeleton instead: its summary, what was gone through, what is only by hand, its maps" }],
+    examples: ["strom house show A0001", 'strom house show "lhota|16" --json', "strom house show L0001 16", "strom house show --town L0001"],
+    run(ctx, { args, opts }) {
       const tree = ctx.tree();
+      const townRef = opt(opts.town);
+      if (townRef && args.length) throw new UsageError("either a house or --town, not both", { code: "house.body", hint: "strom house show --town L0001" });
+      if (townRef) {
+        const v = townView(tree, findTown(tree, townRef));
+        return { text: townText(tree, v), data: { town: v } };
+      }
+      if (!args.length) throw new UsageError("which house?", { code: "house.body", hint: "strom house list" });
       const row = findHouse(tree, args.join(" "));
       const v = houseView(tree, row);
       return { text: showText(tree, row, v), data: { house: v } };
+    },
+  },
+  {
+    path: ["house", "request"],
+    summary: "Look for the history of a house (the person's word): its task first of all, the next session — whatever the setting houses says",
+    group: "sources",
+    tree: true,
+    writes: true,
+    hidden: true,
+    person: "Look for the history of this house (one session of the agent)?",
+    description: [
+      "Its numbers in time and its point on the map, what happened to it, its holders and residents, its look. Its task",
+      "comes first at the next session of strom run; its municipality's skeleton before it when it has none. With the",
+      "history of the houses on, its task waiting in the queue moves first; a house researched already is looked for",
+      "again (what was gone through is not gone through again). Only a house where somebody of the family tree lived,",
+      `its municipality a place record. --with: neighbouring houses of the same family there, in the same session (at most ${HOUSE_GROUP_MAX - 1}).`,
+      "The person's: in a terminal it asks with what it takes (--yes: no question); without one --yes is needed.",
+    ].join("\n"),
+    args: [{ name: "house", description: "A…, its key (town|number), or its municipality and number", required: true, variadic: true }],
+    options: [{ name: "with", type: "string", multiple: true, value: "<house>", description: `a neighbouring house of the same family in the same municipality (A… or its key; at most ${HOUSE_GROUP_MAX - 1})` }],
+    examples: ["strom house request A0001", "strom house request A0001 --with A0002 --yes", 'strom house request "lhota|16"'],
+    refusesFirst(ctx) {
+      if (actsAsArchive(ctx.tree())) throw new UsageError("an archive looks for nothing: its research is the person's alone", { code: "house.archive" });
+    },
+    async run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const ref = args.join(" ");
+      const withRefs = listOpt(opts.with);
+      // checked before the question: a house of the tree, its municipality a place (nothing written)
+      const rows = houseRows(tree, { on: true });
+      const row = findHouse(tree, ref, rows);
+      if (!row.tree?.persons.size) throw new UsageError(`nobody of the tree lived in the house ${row.id ?? row.key} — only such a house is researched`, { code: "house.unknown", hint: "strom house list" });
+      if (!row.place.id) throw new UsageError(`the municipality of the house "${row.key}" is no place record yet`, { code: "house.town", hint: `strom place add "${row.place.name}", then again` });
+      const lang = tree.lang;
+      const label = `${row.place.name} ${row.house}`;
+      const est = houseEstimate(tree);
+      const minutes = est.perHouse.minutes * (1 + withRefs.length) + (townBegun(tree, row.place.id) ? 0 : est.perTown.minutes);
+      const usd = est.perHouse.usd;
+      if (!ctx.yes) {
+        if (!ctx.interactive)
+          throw new NeedsInputError([{ key: "house.request", kind: "consent", question: ui(lang, "ui.house.ask", { house: label }), set: ["strom house request", ...args.map(shellWord), ...withRefs.flatMap((w) => ["--with", shellWord(w)]), "--yes"].join(" ") }]);
+        ctx.io.stdout(`${lines(ui(lang, "ui.house.minutes", { minutes }), usd !== undefined ? ui(lang, "ui.house.usd", { usd: humanCost(usd, lang) }) : undefined)}\n`);
+        if (!(await ctx.confirm(ui(lang, "ui.house.ask", { house: label }), false))) return { text: ui(lang, "ui.house.kept"), data: { house: row.id ?? row.key, asked: false } };
+      }
+      if (tree.dryRun) return { text: `would look for the history of the house ${row.id ?? row.key}`, data: { house: row.id ?? row.key, asked: false } };
+      const out = askHouse(tree, ref, withRefs, ctx.settings);
+      return {
+        text: lines(...tree.written.map((o) => o.summary), ui(lang, out.again ? "ui.house.again" : "ui.house.asked", { house: label }), `${out.task}: strom run takes it next (now: strom run --task ${out.task})`),
+        data: { ...out, asked: true, estimate: { minutes, ...(usd !== undefined ? { usd } : {}), measured: est.measured } },
+      };
     },
   },
   {
@@ -146,7 +248,7 @@ register(
       "Makes the research's record of a house (A…). The municipality is its place record (L…) or the one place of that",
       "name; the number as written (\"16\", \"Dlouhá 12\", \"13/2\"). A municipality of two or more words in quotes.",
       "What the research finds of a house is written by the item commands: strom house add event|holder|resident|",
-      "number|location|passed|manual|unknown|archive-only|look|map|material|name <house> … — a house of the tree's facts",
+      "number|location|passed|manual|unknown|archive-only|look|map|material|name <house> … (a municipality's skeleton: --town, and summary) — a house of the tree's facts",
       "gets its record by the first of them.",
     ].join("\n"),
     args: [
@@ -192,9 +294,18 @@ function target(tree: Tree, ref: string[]): House {
   return recordOf(tree, findHouse(tree, ref.join(" ")));
 }
 
-type ItemRun = (ctx: Context, tree: Tree, h: House, opts: Record<string, unknown>) => { id?: string; what: string };
+type ItemRun = (ctx: Context, tree: Tree, h: House, opts: Record<string, unknown>) => { id?: string; what: string; task?: string };
+
+/**
+ * What a municipality's skeleton holds (spec 030 part 2: its record of the houses' research, no number): what was gone
+ * through, what is only by hand, what is not known, what is only in a reading room, its maps, its summary.
+ */
+const TOWN_KINDS = new Set(["passed", "manual", "unknown", "archive-only", "map", "summary"]);
+const TOWN_OPTION: OptionDef = { name: "town", type: "string", value: "<L…|name>", description: "the municipality's skeleton instead of a house (what its houses' research stands on: no house argument)" };
 
 function itemCommand(kind: string, summary: string, options: OptionDef[], examples: string[], run: ItemRun, description?: string): CommandDef {
+  const town = TOWN_KINDS.has(kind);
+  const only = kind === "summary";
   return {
     path: ["house", "add", kind],
     summary,
@@ -202,20 +313,28 @@ function itemCommand(kind: string, summary: string, options: OptionDef[], exampl
     tree: true,
     writes: true,
     ...(description ? { description } : {}),
-    args: [{ name: "house", description: "A…, its key (town|number), or its municipality and number", required: true, variadic: true }],
-    options,
+    args: only ? [] : [{ name: "house", description: `A…, its key (town|number), or its municipality and number${town ? " (none with --town)" : ""}`, required: !town, variadic: true }],
+    options: town ? [...(only ? [{ ...TOWN_OPTION, description: "the municipality: L… or its name" }] : [TOWN_OPTION]), ...options] : options,
     examples,
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
+      const townRef = town ? opt(opts.town) : undefined;
+      if (townRef && args.length) throw new UsageError("either a house or --town, not both", { code: "house.body", hint: `strom house add ${kind} --town <L…> …` });
+      if (!townRef && (only || !args.length)) throw new UsageError(only ? "missing --town" : "which house?", { code: "house.body", hint: only ? 'strom house add summary --town L0001 --text "…"' : "strom house list" });
+      const place = townRef ? findTown(tree, townRef) : undefined;
       const out = tree.withTreeLock(() => {
-        const h = target(tree, args);
+        const h = place ? townRecordOf(tree, place) : target(tree, args);
         const r = run(ctx, tree, h, opts);
         return { h, ...r };
       });
-      const v = houseView(tree, findHouse(tree, out.h.id));
+      const v = place ? townView(tree, place) : houseView(tree, findHouse(tree, out.h.id));
       return {
-        text: lines(...tree.written.map((o) => o.summary), out.id ? `${out.id} written to ${out.h.id} (${out.what})` : `${out.h.id}: ${out.what}`),
-        data: { house: out.h.id, ...(out.id ? { item: out.id } : {}), view: v },
+        text: lines(
+          ...tree.written.map((o) => o.summary),
+          out.id ? `${out.id} written to ${out.h.id} (${out.what})` : `${out.h.id}: ${out.what}`,
+          out.task ? `${out.task}: the house's research, raised by its material (the history of the houses is on)` : undefined,
+        ),
+        data: { house: out.h.id, ...(place ? { town: place.id } : {}), ...(out.id ? { item: out.id } : {}), ...(out.task ? { task: out.task } : {}), view: v },
       };
     },
   };
@@ -231,6 +350,21 @@ const person = (tree: Tree, v: unknown): string | undefined => {
   return id;
 };
 const span = (opts: Record<string, unknown>) => ({ ...(opt(opts.since) ? { from: opt(opts.since)! } : {}), ...(opt(opts.until) ? { to: opt(opts.until)! } : {}) });
+/**
+ * Today's holders and residents are never written (spec 030 K1.4a, K6.7): an open record (no --until) since a year of
+ * the last HOUSE_RECENT years is refused unless it is a person of the tree (--person).
+ */
+const HOUSE_RECENT = 100;
+function notToday(opts: Record<string, unknown>, person: string | undefined, what: "holder" | "resident"): void {
+  const s = span(opts);
+  const year = Number(/\p{N}{4}/u.exec(s.from ?? "")?.[0] ?? NaN);
+  if (person || s.to || !Number.isFinite(year) || year < new Date().getFullYear() - HOUSE_RECENT) return;
+  throw new UsageError(`a ${what} since ${s.from} with no end is one of today's — today's holders and residents of a house are never written`, {
+    code: "house.body",
+    hint: `one who left or died: --until <year>; a person of the family tree: --person P…; otherwise leave them out`,
+  });
+}
+
 const SPAN: OptionDef[] = [
   { name: "since", type: "string", value: "<year>", description: "from when (a year, a year and month: 1858, 1868-05)", max: 40 },
   { name: "until", type: "string", value: "<year>", description: "until when", max: 40 },
@@ -278,6 +412,7 @@ register(
     ['strom house add holder A0001 --name "<holder>" --person P0001 --since 1858 --until 1890 --how marriage --source S0001 --certainty high'],
     (ctx, tree, h, opts) => {
       const p = person(tree, opts.person);
+      notToday(opts, p, "holder");
       const { id } = addHouseItem(tree, h.id, "holders", {
         name: text(opts.name, "name", 200),
         ...(p ? { person: p } : {}),
@@ -304,6 +439,7 @@ register(
     ['strom house add resident A0001 --name "<resident>" --role lodger --since 1880 --until 1880 --source S0001'],
     (ctx, tree, h, opts) => {
       const p = person(tree, opts.person);
+      notToday(opts, p, "resident");
       const { id } = addHouseItem(tree, h.id, "residents", {
         name: text(opts.name, "name", 200),
         ...(p ? { person: p } : {}),
@@ -490,8 +626,19 @@ register(
     },
   ),
   itemCommand(
+    "summary",
+    "Write the short summary of a municipality's skeleton: its lordship and estate, parish, cadastral area, where its land registers are",
+    [{ name: "text", type: "string", value: "<text>", description: "the summary, in the research language", max: 2000 }],
+    ['strom house add summary --town L0001 --text "<lordship, parish, cadastral area, land registers>"'],
+    (_ctx, tree, h, opts) => {
+      const t = text(opts.text, "text", 2000);
+      setHouse(tree, h.id, (x) => void (x.text = t), "summary");
+      return { what: "summary" };
+    },
+  ),
+  itemCommand(
     "material",
-    "Make a material of the research (I…) one of the house's — a photo of it, a document of it — or write down a memory of it the person told; no task",
+    "Make a material of the research (I…) one of the house's — a photo of it, a document of it — or write down a memory of it the person told; no task while the history of the houses is off (on: a house of the tree with none gets its research)",
     [
       { name: "input", type: "string", multiple: true, value: "<I…>", description: "the material (repeatable)" },
       { name: "memory", type: "string", value: "<text>", description: "a memory of the house as told (a material of its own)", max: 20000 },
@@ -508,7 +655,12 @@ register(
         if (!i || i.type !== "input") throw new UsageError(`no material ${id}`, { code: "house.body" });
         if (!(i.houses ?? []).includes(h.id)) update<Input>(tree, id, "input", (x) => ({ ...x, houses: [...(x.houses ?? []), h.id] }), { op: "input.houses", summary: `${id} of ${h.id}`, targets: [h.id] });
       }
-      if (!memory) return { what: `material ${ids.join(", ")}` };
+      // the history of the houses on: a house of the tree given material gets its research (spec 030 §4.1 answer 7)
+      const raised = () => houseTaskForMaterial(tree, h.id, ctx.settings);
+      if (!memory) {
+        const task = raised();
+        return { what: `material ${ids.join(", ")}`, ...(task ? { task } : {}) };
+      }
       if (memory.length > 20000) throw new UsageError("--memory is longer than 20000 characters", { code: "house.body" });
       // the witness's name only with their consent (spec 030 §2.7)
       const witness = opts["witness-consent"] === true ? opt(opts.witness) : undefined;
@@ -518,7 +670,8 @@ register(
         { name: truncate(memory, 60), text: memory, kind: "text", state: "new", from: isAgent(ctx.env) ? "research" : "user", houses: [h.id], ...(witness ? { witness } : {}) },
         (iid) => `+${iid} input text, a memory of ${h.id}`,
       );
-      return { id: i.id, what: `material ${[...ids, i.id].join(", ")}` };
+      const task = raised();
+      return { id: i.id, what: `material ${[...ids, i.id].join(", ")}`, ...(task ? { task } : {}) };
     },
   ),
   itemCommand(
