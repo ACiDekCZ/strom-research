@@ -98,6 +98,30 @@ function bookNumbers(b: RecordSet): Set<number> {
   return out;
 }
 
+/**
+ * Of the images a waiting task's own text names (its what, else its done-when), those its wait does not hold — said to
+ * the agent when the browser held one back (N1, 1126). Only numbers that can be images of its book count: never one of
+ * the book's title, years or call number; saving once more, only those registered for the book; else only up to the
+ * book's count. Not knowable (no wait, no book, no count, its text naming no image): undefined.
+ */
+export function textBeyondWait(tree: Tree, t: Task, saves: readonly SaveRecord[] = loadSaves(tree.root)): { named: number[]; beyond: number[] } | undefined {
+  const aw = t.awaits;
+  if (!aw?.recordset || !aw.images) return undefined;
+  const b = liveBook(tree, aw.recordset);
+  if (!b) return undefined;
+  const again = !!aw.again || saves.some((r) => r.task === t.id && r.again);
+  const reg = again ? new Set([...registeredImages(tree, aw.recordset), ...registeredImages(tree, b.id)]) : undefined;
+  if (!reg && !(b.images && b.images > 0)) return undefined;
+  const can = (n: number) => (reg ? reg.has(n) : n >= 1 && n <= b.images!);
+  const not = bookNumbers(b);
+  const named = (text: string | undefined) => textNumbers(text ?? "", not).filter(can);
+  const fromWhat = named(t.what);
+  const said = fromWhat.length ? fromWhat : named(t.doneWhen);
+  if (!said.length) return undefined;
+  const want = new Set(parseImageList(aw.images) ?? []);
+  return { named: said, beyond: said.filter((n) => !want.has(n)) };
+}
+
 /** Tasks saving images once more whose wait holds fewer images than their own text names. */
 export function againWaitFixes(tree: Tree): AgainWaitFix[] {
   const saves = loadSaves(tree.root);

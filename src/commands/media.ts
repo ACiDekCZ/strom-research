@@ -9,6 +9,7 @@ import path from "node:path";
 import { register, type Typed } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { counted, lines, moreLine, paginate, runs, runsArg, shellArg, table, truncate } from "../cli/format.ts";
+import { textBeyondWait } from "../core/againwaitfix.ts";
 import { notFound, UsageError } from "../core/errors.ts";
 import type { Clip, Input, Media, RecordSet, Region, Repository, Source, Task } from "../core/model.ts";
 import { makeNote, makeNotes } from "../core/actions.ts";
@@ -1182,13 +1183,23 @@ export function saveBookOf(tree: Tree, t: Task, w: InboxWait | undefined, at: st
 /** What the agent is told of an image its browser held back. */
 function heldLine(ctx: Context, h: SaveRecord, downloads: string): string {
   const since = new Date(h.at).toTimeString().slice(0, 8);
-  const waits = ctx.tree().get<Task>(h.task)?.awaits?.images;
+  const tree = ctx.tree();
+  const t = tree.get<Task>(h.task);
+  const waits = t?.awaits?.images;
+  // what its wait holds is said as its wait; only images its text names beyond it are to be added (N1, 1126)
+  const text = t ? textBeyondWait(tree, t) : undefined;
+  const save = (them: string) => `strom media save ${h.task} --image ${them} --recordset ${h.recordset} --at <their pages> [--again]`;
+  const rest = !text
+    ? `${waits ? `It waits for images ${waits}; any` : "Any"} image it needs beyond those: add them now — ${save("<them>")} — and run no script of them until the person allowed the downloads; go on with other work.`
+    : text.beyond.length
+      ? `Its wait holds images ${waits}; its text names images ${runs(text.beyond)} too, not in its wait yet: add them now — ${save(runsArg(text.beyond))} — and run no script of them until the person allowed the downloads; go on with other work.`
+      : `Its wait (images ${waits}) holds every image its text names: nothing more to save for it now; go on with other work.`;
   return (
     `⚠ image ${h.n} of ${h.recordset} (${h.task}): nothing came into ${ctx.display(downloads)} since strom media save gave its script (${since}). ` +
     `The script answered "strom-result ${h.n}:200:…": the browser held the file back — Chrome saves one file of a site by itself and the next only once the person allows ${h.host} to download several files ` +
     `in the browser profile your browser tool works in — each profile of a browser (and each browser) has its own permission, one given in another does not count ` +
     `(once: the icon at the right end of the address bar, or the site's settings → Automatic downloads). Tell the user exactly that; it is the person's permission — never change the browser's settings yourself, never save the image another way. ` +
-    `${h.task} waits for it meanwhile and what waits says it to the person. The images ${h.task} still needs that are not in its wait${waits ? ` (${waits})` : ""} yet: add them now — strom media save ${h.task} --image <them> --recordset ${h.recordset} --at <their pages> [--again] — and run no script of them until the person allowed the downloads; go on with other work. Once allowed: strom media save ${h.task} --image ${h.n} --at ${h.url}, its script in that tab again, then strom media add --inbox --waiting. ` +
+    `${h.task} waits for it meanwhile and what waits says it to the person. ${rest} Once allowed: strom media save ${h.task} --image ${h.n} --at ${h.url}, its script in that tab again, then strom media add --inbox --waiting. ` +
     `The script answered anything else: tell the user what it said. The browser saves elsewhere: strom config set browser.downloads <folder>.`
   );
 }

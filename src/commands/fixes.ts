@@ -9,7 +9,7 @@
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { resolveCommand } from "../cli/execute.ts";
-import { lines } from "../cli/format.ts";
+import { counted, lines } from "../cli/format.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import { UsageError } from "../core/errors.ts";
 import { isArchive } from "../core/mode.ts";
@@ -453,8 +453,8 @@ const REWRITERS: Record<string, Rewriter> = {
     undo: (tree, config) => undoBookCounts(tree, config),
     ask: "Write each book's count of images as its images on disk 1…N say (another count: strom recordset edit B… --images <n>)?",
     askUndo: "Take off the counts of images the fix wrote on books?",
-    fixed: (key, n, records) => `Fix ${key}: ${n} books' counts of images written as their images on disk 1…N, in ${records} records`,
-    undone: (key, n, left) => `Fix ${key}: undone, ${n} books' counts of images taken off${left ? `, ${left} changed since left` : ""}`,
+    fixed: (key, n, records) => `Fix ${key}: ${n === 1 ? "1 book's count" : `${n} books' counts`} of images written as their images on disk 1…N, in ${counted(records, "record")}`,
+    undone: (key, n, left) => `Fix ${key}: undone, ${n === 1 ? "1 book's count" : `${n} books' counts`} of images taken off${left ? `, ${left} changed since left` : ""}`,
   },
   "again-waits": {
     // one task: what it is, its book, the images its text names its wait did not hold
@@ -467,8 +467,8 @@ const REWRITERS: Record<string, Rewriter> = {
     undo: (tree, config) => undoAgainWaits(tree, config),
     ask: "Let the tasks saving images once more wait for every image their text names (those whose new copy did not come counted missing)?",
     askUndo: "Put the waits of the tasks the fix set right back as they were?",
-    fixed: (key, n, records) => `Fix ${key}: ${n} tasks saving images once more wait for every image their text names, in ${records} records`,
-    undone: (key, n, left) => `Fix ${key}: undone, ${n} waits of tasks put back as they were${left ? `, ${left} changed since left` : ""}`,
+    fixed: (key, n, records) => `Fix ${key}: ${n === 1 ? "1 task saving images once more waits for every image its text names" : `${n} tasks saving images once more wait for every image their text names`}, in ${counted(records, "record")}`,
+    undone: (key, n, left) => `Fix ${key}: undone, ${counted(n, "wait")} of tasks put back as they were${left ? `, ${left} changed since left` : ""}`,
   },
 };
 

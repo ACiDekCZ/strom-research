@@ -127,3 +127,43 @@ test("strom task wait --images writes its wait afresh: nothing saved once more i
     w.cleanup();
   }
 });
+
+test("an image held back by the browser: its wait said as its wait — only images its text names beyond it to be added, none when it holds them all (N1)", opts, async () => {
+  const w = new World();
+  const root = await w.withTree("Lhotákovi");
+  try {
+    await w.ok(["research", "new", "X", "--new-person", "Jan /Lhoták/"]);
+    const downloads = path.join(w.dir, "Stažené soubory");
+    fs.mkdirSync(downloads);
+    await w.ok(["config", "set", "browser.downloads", downloads]);
+    await w.ok(["recordset", "add", "Lhota N 1850–1870", "--url", PAGE(1)]); // B1
+    await w.ok(["task", "add", "Křest Jana Prouzala na snímcích 23–25", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b"]); // T1
+    await w.ok(["allow", "archive", "genbaza.pl", "--way", "browser"], { tty: true });
+    const shared = path.join(w.home, "shared");
+    const first = path.join(shared, "inbox", "lhota-n");
+    fs.mkdirSync(first, { recursive: true });
+    for (const [n, f] of Object.entries(SCANS)) fs.copyFileSync(path.join(fixtures, f), path.join(first, `${n}.jpg`));
+    await w.ok(["media", "add", "--inbox", "lhota-n", "--recordset", "B1"]);
+    const records = path.join(root, ".strom", "browser-saves.json");
+    const aged = () => fs.writeFileSync(records, JSON.stringify((readJsonFile(records) as unknown as { at: number }[]).map((r) => ({ ...r, at: r.at - 60_000 }))));
+    const heldOf = (out: string, n: number) => out.split("\n").find((l) => l.startsWith(`⚠ image ${n} of B0001`)) ?? "";
+
+    // its wait holds 23 alone: only 24–25, named by its text, are to be added
+    await w.ok(["media", "save", "T1", "--image", "23", "--at", PAGE(23), "--again"], { env: CLAUDE });
+    aged();
+    let held = heldOf((await w.ok(["media", "add", "--inbox", "--waiting"], { env: NOW })).out, 23);
+    assert.match(held, /Its wait holds images 23; its text names images 24–25 too, not in its wait yet: add them now — strom media save T0001 --image 24-25 --recordset B0001/, held);
+    assert.doesNotMatch(held, /not in its wait \(/);
+
+    // its wait holds every image its text names: nothing to add
+    await w.ok(["media", "save", "T1", "--image", "24", "--at", PAGE(24), "--again"], { env: CLAUDE });
+    await w.ok(["media", "save", "T1", "--image", "25", "--at", PAGE(25), "--again"], { env: CLAUDE });
+    assert.equal(((await w.ok(["task", "show", "T1", "--json"])).json.task as Task).awaits?.images, "23–25");
+    aged();
+    held = heldOf((await w.ok(["media", "add", "--inbox", "--waiting"], { env: NOW })).out, 23);
+    assert.match(held, /Its wait \(images 23–25\) holds every image its text names: nothing more to save for it now/, held);
+    assert.doesNotMatch(held, /add them now/);
+  } finally {
+    w.cleanup();
+  }
+});

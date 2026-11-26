@@ -63,6 +63,8 @@ test("strom fixes book-counts: a book 1…5 with no count found (one with a gap 
     const r = await w.ok(["fixes", "run", "book-counts", "--lang", "en"], { tty: true, answers: ["1"] });
     assert.match(r.out, /Written: the count of 1 book in 1 record\./u);
     assert.equal(commits(w), n0 + 1, "one commit");
+    const subject = (at: World) => execFileSync("git", ["-C", at.cwd, "log", "-1", "--format=%s"], { encoding: "utf8" }).trim();
+    assert.equal(subject(w), "Fix book-counts: 1 book's count of images written as their images on disk 1…N, in 1 record", "one book said as one");
     const after = await row("B0001");
     assert.equal(after.images, 5);
     assert.equal(after.offer, false, "no longer offered");
@@ -83,6 +85,7 @@ test("strom fixes book-counts: a book 1…5 with no count found (one with a gap 
     const u = await w.ok(["fixes", "undo", "book-counts", "--lang", "en"], { tty: true });
     assert.match(u.out, /Taken off: the count of 1 book/u);
     assert.equal(commits(w), n1 + 1);
+    assert.equal(subject(w), "Fix book-counts: undone, 1 book's count of images taken off");
     assert.equal((await w.ok(["recordset", "show", "B1", "--json"])).json.recordset.images, undefined, "no count again");
     assert.equal((await row("B0001")).offer, true);
     assert.match((await w.ok(["fixes", "undo", "book-counts", "--lang", "en"], { tty: true })).out, /Nothing to take off/u);
