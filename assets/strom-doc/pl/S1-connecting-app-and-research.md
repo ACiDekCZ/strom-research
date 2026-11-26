@@ -58,7 +58,8 @@ samo.
     na plik, którego nie ma na tym komputerze, dlatego został zignorowany.”
   - Drzewo z badania już jest w aplikacji i od ostatniego wczytania nie zmieniło się w aplikacji: aktualizuje się.
     Zmieniło się: aplikacja pyta, czy je **Zaktualizuj**, czy **Otwórz jako kopię**. Przed aktualizacją zapisuje się
-    kopia zapasowa.
+    kopia zapasowa. **Otwórz jako kopię** robi z badania nowe drzewo, które przyjmuje dalsze aktualizacje; drzewo
+    ze zmianami zostaje, jakie jest, od aplikacji 3.32.0 jako kopia bez badania ([S1.10](#S1.10)).
   - Safari nie pozwala stronie internetowej łączyć się z programem na tym komputerze. `strom app` dlatego nigdy nie
     otwiera Safari. Bez odpowiedniej przeglądarki plik przejmuje zainstalowana aplikacja albo można przeciągnąć do
     okna aplikacji plik `output/tree-strom.ged` z folderu badania.
@@ -102,7 +103,7 @@ badania i wersję, z której powstało. Dzięki temu aplikacja wie, dokąd je od
 | Badanie | **Badanie** | drzewo, w którym pracuje agent badania |
 | Archiwum Strom | **Archiwum** | drzewo, które badanie trzyma ze źródłami na dysku, bez agenta |
 | Badanie czeka na agenta | **Archiwum** | badanie, które jeszcze nie ma agenta; aplikacja traktuje je jak archiwum |
-| Kopia | bez oznaczenia | starsza kopia drzewa z badania (**Otwórz jako kopię**, duplikat, drugi import); z badania już się nie aktualizuje |
+| Kopia | bez oznaczenia | kopia drzewa z badania (**Otwórz jako kopię**, kopia całego drzewa, drugi import); z badania się nie aktualizuje, a od aplikacji 3.32.0 jest bez badania ([S1.10](#S1.10)) |
 
 - **Granice:** czy drzewo jest badaniem, czy archiwum, rozstrzyga badanie, nie aplikacja. Przełączyć można tylko
   w badaniu.
@@ -344,8 +345,9 @@ lub `strom live stop`, do wyłączenia komputera albo według ustawienia **Wył�
     120). Działające mosty przejmują je w ciągu minuty. Wartość ustawiona w terminalu pokazuje się jako **Własna
     wartość (N min)**. Gdy nie działa żadne badanie, które przyjmuje ten wybór, aplikacja zamiast opcji pokazuje
     polecenia do terminala.
-  - Na telefonie i tablecie przełącznika nie ma (badanie działa na komputerze). Kopia drzewa z badania przełącznika
-    nie ma.
+  - Na telefonie i tablecie przełącznika nie ma (badanie działa na komputerze). Kopia drzewa z badania ma
+    w Zarządzaniu drzewami przełącznik wyłączony; jego włączenie otwiera **Badanie dla kopii drzewa**
+    ([S1.10.1](#S1.10.1)).
 - **Obsługa:** aplikacja: przełącznik **Badanie włączone** w panelu badania (drzewo nieśledzone na żywo i po
   zakończeniu śledzenia) i w **Zarządzanie drzewami** przy wierszu drzewa; panel badania, gdy badanie nie działa:
   **Włącz**; **Ustawienia** → **Badania na tym komputerze** → **Wyłączanie badania po bezczynności**. Terminal:
@@ -354,3 +356,77 @@ lub `strom live stop`, do wyłączenia komputera albo według ustawienia **Wył�
 - **Obowiązuje od:** aplikacja 3.25.0, badanie 1.29.0. Stan na przełączniku i zdanie po 30 s od aplikacji 3.30.0.
 
 <!-- zdroj: research:src/core/live.ts liveWrite (POST <token>/live {idleMinutes 0…10080} → strom config set live.idleMinutes; {do: stop} → konec stopped, adresa zůstává), liveState (/status live idleMinutes, idleChoices), IDLE_READ_MS 60 s, reviveLive + endedIdle (zpět s prací jen konec idle; bez slova: zpět s menu, prací, aktualizací), stop SIGTERM → signal · src/core/config.ts DEFAULT_LIVE_IDLE_MINUTES 0, LIVE_IDLE_AFTER_MINUTES 120, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES · src/core/links.ts LINK_LIVE_DOS start · src/commands/links.ts startBridge (bez okna) · app:src/ui/research-live-ui.ts researchLiveState (onComputer, link.copy, features live.stop / live.start), fillResearchLiveSlot, fillResearchLiveStart, renderResearchLiveSettings (LIVE_IDLE_FOREVER, LIVE_IDLE_TWO_HOURS, idleCustom), COMMAND_START / COMMAND_STOP · src/ui/research-ui.ts researchLiveSlot (panel po skončení sledování, idle, start) · src/ui/tree-management.ts researchLiveSlotHtml · strings.ts researchLive.* · index.html settings-group-research-live · spec 064 K1.1–K2.3 · 3.30.0: app:cd35804c src/ui/research-live-ui.ts START_CONFIRM_MS 30 s, researchLiveTimedOut (liveSilent, COMMAND_START, retry) · src/ui/switch-pend.ts (turningOn, turningOff) -->
+
+<a id="S1.10"></a>
+## S1.10 Jedno badanie, jedno drzewo: kopia bez badania
+
+Do jednego badania zapisuje tylko jedno drzewo w aplikacji: to, które powstało razem z badaniem albo je przejęło.
+Każda kopia drzewa z badania jest drzewem bez badania. Nic nie wysyła do badania: ani sama, ani przyciskiem, ani przy
+pierwszym zapisie plików.
+
+- **Co jest kopią:** **Kopia całego drzewa** (dawniej **Duplikuj**, [A14.3](A14-trees-and-structure.md#A14.3)),
+  dotychczasowe drzewo po **Otwórz jako kopię** przy drzewie z badania (nowe drzewo z badania przyjmuje jego
+  aktualizacje, drzewo ze zmianami zostaje, jakie jest, jako kopia; [S1.2](#S1.2)), drugie wczytanie pliku JSON tego
+  samego badania, scalenie do nowego drzewa ([A8.10](A8-merging-trees.md#A8.10)) oraz drzewa przywrócone jako nowe
+  z kopii zapasowej wszystkich drzew.
+- **Jak kopia się pokazuje:** w Zarządzaniu drzewami i w kroku 1 kreatora scalania „kopia drzewa „{nazwa}” · bez
+  badania”, z wyłączonym przełącznikiem **Badanie włączone**. Działań badania nie ma; ⋯ oferuje tylko **Włącz
+  badanie…**.
+- **Wysłanie zmian na prośbę badania:** odnośnik, którym badanie prosi o zmiany, wysyła zawsze tylko drzewo, które
+  należy do badania. Pytania, które drzewo wysłać, już nie ma.
+- **Granice:** kopia kopii nosi nazwę tej kopii. Nowe drzewo z wyboru i drzewa z podziału też są bez badania
+  ([A14](A14-trees-and-structure.md#A14)).
+- **Obsługa:** Zarządzanie drzewami ([A14.1](A14-trees-and-structure.md#A14.1)).
+- **Obowiązuje od:** aplikacja 3.32.0. Wcześniej kopia zostawała połączona z badaniem oryginału, tylko się z niego nie
+  aktualizowała.
+
+<!-- zdroj: app:7d4236f8 (134 bod 11, 13: kopie stromu výzkumu nic nezapisuje do výzkumu originálu) · src/tree-manager.ts canSendToResearch (isResearchOwner), duplicateTree copyOf · src/research-owner.ts · src/ui/research-ui.ts sendChangesToResearch (?send= jen vlastník, „Only the research's owner is sent“) · f3c66503 (sloučení do nového stromu a obnovená záloha = kopie bez výzkumu) · src/tree-row.ts treeOriginLine · strings.ts research.copyOf, structure.turnOnResearch · dirigent:prace/_drobnosti/doc.md 134 bod 11+13 -->
+
+<a id="S1.10.1"></a>
+### S1.10.1 Badanie dla kopii drzewa
+
+Kopia może dostać własne, nowe badanie albo przejąć badanie oryginału. Jedno i drugie oferuje okno **Badanie dla kopii
+drzewa**: „„{kopia}” to kopia drzewa „{oryginał}”. Do jednego badania zapisuje tylko jedno drzewo, więc kopia dostanie
+własne, nowe badanie.”
+
+- **Załóż nowe badanie:** pole **Folder nowego badania** ma wstępnie wpisaną nazwę kopii (ze ścieżką, w której badanie
+  na tym komputerze zakłada badania, gdy badanie ją poda). Dalej zakładanie badania przebiega jak przy **Rozpocznij
+  badanie** ([S4](S4-research-from-the-app.md)). Do nowego badania nie trafiają numery osób i źródeł innego badania;
+  kopia dostaje numery nowego badania.
+- **Przejmij badanie drzewa „{oryginał}”…:** tylko gdy oryginał ma badanie; okno mówi wtedy też „Badanie „{numer}”
+  zostaje przy drzewie „{oryginał}”.” Przejęcie potwierdza się ostrzeżeniem: „Drzewo „{oryginał}” zostanie odłączone od
+  badania „{numer}” i przestanie do niego zapisywać. Zapisywać będzie tylko kopia.” i „Oryginał pozostanie drzewem bez
+  badania.”, przycisk **Przejmij badanie**. Przejęcie odbywa się tylko w aplikacji; do badania nic nie jest wysyłane.
+- **Granice:** okno jest tylko na komputerze, na którym można założyć badanie z aplikacji; nie przy drzewie
+  przykładowym.
+- **Obsługa:** Zarządzanie drzewami, przełącznik przy kopii; ⋯ przy kopii → **Włącz badanie…**.
+- **Obowiązuje od:** aplikacja 3.32.0
+
+<!-- zdroj: app:023879dd src/ui/research-adopt-ui.ts showCopyResearchDialog (složka = název kopie, treesRoot, copyResearchStays a Převzít jen u vlastníka originálu, is-danger potvrzení), src/research-owner.ts transferResearchTie (jen v aplikaci), src/research-link.ts (bez REFN P…/S… jiného výzkumu, K5.4) · a236a31e (název složky i přes soubor v Safari, cesta výzkumů) · strings.ts structure.copyResearch*, createResearch, takeOver* · spec 139 K5.1–K5.4 -->
+
+<a id="S1.10.2"></a>
+### S1.10.2 Jednorazowe odłączenie drzew, które dzieliły badanie
+
+Drzewa, które przed aplikacją 3.32.0 dzieliły jedno badanie (starsze kopie albo dwa drzewa tego samego badania), przy
+pierwszym uruchomieniu nowej wersji jeden raz się rozdzielają. Badanie zatrzymuje jedno drzewo, pozostałe są kopiami
+bez badania.
+
+- **Które drzewo zostaje:** drzewo, które nie jest kopią; z kilku takich najstarsze. Jeśli wszystkie są kopiami,
+  najstarsza kopia zostaje, jaka jest, i nadal nic nie zapisuje do badania.
+- **Pozostałe:** przed odłączeniem dostają kopię zapasową **Przed dostosowaniem danych do nowej wersji**
+  ([S6.5](S6-tree-from-another-program.md#S6.5)); dane zostają bez zmian. Zablokowane zaszyfrowane drzewo nie jest
+  czytane ani kopiowane; zmienia się tylko jego wpis w Zarządzaniu drzewami.
+- **Przy pierwszym otwarciu** odłączonego drzewa pokazuje się jeden raz okno **Kopia bez badania**: „Drzewo „{nazwa}”
+  było kopią połączoną z badaniem drzewa „{oryginał}”. Połączenie zostało usunięte, aby do badania zapisywało tylko
+  jedno drzewo. Własne badanie można rozpocząć w Zarządzaniu drzewami.” Gdy kopia wysłała wcześniej zmiany do badania:
+  - jeśli czekają w badaniu: „Wcześniej kopia wysłała zmiany do tego badania ({data}). Czekają w badaniu i można je tam
+    odrzucić.”;
+  - jeśli są zapisane: „…Badanie cofa je jednym krokiem w swoim terminalu:” i polecenie `strom sync undo I0042`
+    z **Kopiuj**; przy znanym materiale także **Cofnij w badaniu**, inaczej `I…` i „I… oznacza numer tej wysyłki
+    w badaniu (pokazuje go strom input list).” ([S2.6](S2-edits-from-the-app.md#S2.6)).
+
+  Okno ma **Zamknij** i, gdzie to możliwe, **Rozpocznij badanie**.
+- **Granice:** naprawa odbywa się raz; starszy rejestr drzew przywrócony z powrotem jest przeglądany ponownie.
+- **Obowiązuje od:** aplikacja 3.32.0
+
+<!-- zdroj: app:e4e3eeea src/tree-manager.ts repairSharedResearchTies (researchTiesRepaired, planSharedTieRepair, backupBeforeTieRepair 'pre-migration' bez čtení zamčeného šifrovaného, detachAsCopy, researchDetached) · src/research-owner.ts planSharedTieRepair (keeper: bez copyOf, nejstarší; jinak nejstarší kopie) · src/ui/research-detached-ui.ts showResearchDetached (jednou, sentAfterCopy pending/undo step, adoptTree) · strings.ts research.detached*, undoStep*, backups label pre-migration · dirigent:prace/_drobnosti/doc.md 134 bod 13 -->

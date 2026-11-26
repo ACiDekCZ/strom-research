@@ -177,7 +177,7 @@
 //                          {id, text}, person?, family?, run?}], runs: [{id, line, way, since, state, paused?, task?}],
 //                          lastWorked?, lines: [{id, n, name, direction, way, state, tasks, waiting, working, since, focus?,
 //                          reason?}], waiting {n, items: [{id, kind, section, phase, what, on?, at, sentAt?, group, person?,
-//                          line?, branch?, retry?, hypothesis?, do: [answer|sent|unsent|retry|line|keep|never|decide]}]},
+//                          line?, branch?, retry? {can, until?, says, n?}, hypothesis?, do: [answer|sent|unsent|retry|line|keep|never|decide]}]},
 //                          people {P…: {name, span?}}} — made of /status for the state now and the app's version (kept
 //                          for both, as /status is), the runs read
 //                          at each ask; texts as the phone's page says them, nothing of an agent, a model, a folder or a
@@ -915,7 +915,7 @@ import { handoffsNow } from "./handoffs.ts";
 import { autoTidy } from "./tidy.ts";
 import { askPhoneOn, endPhoneLater, pairCode, pairUrl, phoneConfig, phoneProbe, phoneRunning, phoneState, phoneSummary, phoneTestPortRefused, phoneTestYesHint, removePhone, restorePhone, revivePhone, stopPhone, type PairedPhone } from "./phone.ts";
 import { qrSvg } from "./qr.ts";
-import { clientOfDevice, deviceEvents, deviceName, devicePairCode, devicePairShown, devicePairUrl, deviceRows, devicesList, devicesOn, hostOf, removeDevice, renameDevice, restoreDevice, type Device, type DeviceRow } from "./devices.ts";
+import { clientOfDevice, deviceEvents, deviceName, devicePairCode, devicePairNow, devicePairShown, devicePairUrl, deviceRows, devicesList, devicesOn, hostOf, removeDevice, renameDevice, restoreDevice, type Device, type DeviceRow } from "./devices.ts";
 import { deviceAppState, ensureDeviceApp, noteDeviceAppSource } from "./deviceapp.ts";
 import { localName } from "./device-gateway.ts";
 import { diskVersion, lastingLauncher, stromLauncher } from "./self.ts";
@@ -8063,10 +8063,11 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   // screens): put back within PHONE_RESTORE_MS
   const devicesTakenOff = new Map<string, { devices: Device[]; at: number; undo: string }>();
   /**
-   * GET phone with the gateway of the devices on: the app for them, the computer's name a device may find it by
-   * (<name>.local, null: at an IP address alone), the devices paired — a row each, the icons of their home screens
-   * folded in — and which of them are here now (seen within a minute and a half: lastSeenAt is written at most once a
-   * minute); stale: a device asking at none of the gateway's addresses now.
+   * GET phone with the gateway of the devices on: the app for them (ready only as the gateway serves it — a copy under
+   * the gate of the app's version is none), the computer's name a device may find it by (<name>.local, null: at an IP
+   * address alone), the devices paired — a row each, the icons of their home screens folded in — and which of them are
+   * here now (seen within a minute and a half: lastSeenAt is written at most once a minute); stale: a device asking at
+   * none of the gateway's addresses now. Its pair: how long the device's code shown holds (qr.svg), none without one.
    */
   const devicesNow = () => {
     const name = localName(env);
@@ -8099,7 +8100,12 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
           noteDeviceAppSource(env, req.headers.origin, appVersionOf(req, new Settings(env, {})));
           void ensureDeviceApp(env);
         }
-        return void phoneNow().then((s) => phoneJson(res, 200, devices ? { ...s, devices: devicesNow() } : s), (e) => failed(req, res, e));
+        // the gateway on: the code that pairs is the device's (qr.svg shows it), never the phone page's code of before
+        const paired = (s: Awaited<ReturnType<typeof phoneNow>>) => {
+          const p = s.state === "on" ? devicePairNow(env) : undefined;
+          return { ...s, pair: p ? { expiresAt: p.expiresAt } : null };
+        };
+        return void phoneNow().then((s) => phoneJson(res, 200, devices ? { ...paired(s), devices: devicesNow() } : s), (e) => failed(req, res, e));
       }
       if (sub === "qr.svg" && !act) {
         const s = phoneState(env);

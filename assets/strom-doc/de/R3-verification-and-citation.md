@@ -681,3 +681,37 @@ verschwindet aus dem Stammbaum, den die App bekommt, und `strom source restore` 
 - **Gilt seit:** Forschung 1.36.0
 
 <!-- zdroj: research:e6bbfb40 src/core/sourceretract.ts (hlavička; DELETED, RETRACT_MOST 50, RETRACT_CONFIRM_MS 15 min, REVIEW_RETRACTED, ACTIVE open/doing/parked/waiting) · src/commands/sourceretract.ts source retract (description, agentMay --dry-run, source.agent, source.retract-changed, requireHumanYes), source restore (description, source.notRetracted, source.notRestorable), ui.source.restore.skipped · src/commands/analysis.ts conflict keep (conflict.notMarked, agent jen říká) · src/commands/sources.ts source list --retracted, source show RETRACTED … the person puts it back · src/core/sync.ts withholdDeleted (spec 117 J6) · assets/lang/cs.json ui.consent.retract, ui.source.retract.would · CHANGELOG.cs.md 1.36.0 · spec 117 K1.1–K1.7, J3 (záloha = historie + citace v prameni) -->
+
+<a id="R3.11"></a>
+## R3.11 Religion als Angabe
+
+Eine Religion, die ein Eintrag bei einer Person nennt (mit einem Wort in der Spalte oder einem Zeichen darin), schreibt
+der Agent als Angabe **Religion** (`RELI`) mit dem zitierten Eintrag und seinem Datum. Er erschließt sie nie.
+
+- **Prüft der Code:**
+  - `strom event add P… RELI` ohne `--cite` schreibt der Agent nicht („a religion is written only with the record that
+    says it of the person“); das Wort eines Menschen bleibt seines;
+  - eine Konfession ist eine Angabe: ein weiterer Eintrag mit derselben Konfession (auch anders geschrieben, „katol.“
+    und „římskokatolické“) fügt nur ein Zitat zu der Angabe hinzu, die die Person schon hat; ohne Zitat wird nichts
+    geschrieben. Eine gewechselte Konfession, oder die erste wieder nach einer anderen, ist eine eigene Angabe (ein
+    Katholik, der übertrat und zurückkehrte, hat drei Angaben);
+  - strom erkennt eine Konfession nur in klaren Formen (tschechisch, deutsch, lateinisch, polnisch, einige in
+    Kyrillisch), Wort für Wort: nie ein Wort, das nur so beginnt („Evangelista“, „Israel“ ohne Punkt), und nicht die
+    Konfession einer Pfarrei, einer Kirche, eines Ritus, eines Kirchenbuchs,
+    einer Schule oder einer Straße („římskokatolická farnost“, „katolický křest“, „Židovská ulice“).
+    Eine Form, die auch ein Name ist („Žid“, „Mos.“, „Kath.“), gilt nur unter der Bezeichnung Religion
+    oder in ihrer Spalte; eine unsichere Lesung („katol. (?)“, „snad“) ist keine;
+  - wessen Konfession es ist, sagt der Eintrag: die Konfession des Vaters, der Mutter oder eines Paten ist nicht die
+    Konfession der Person; bei einer Heirat ist die Konfession des Bräutigams die des Mannes und die der Braut die der
+    Frau;
+  - das Briefing erinnert bei der Arbeit an einer Person an die Religion, die die Abschrift ihres eigenen Eintrags
+    nennt (Geburt, Taufe, Tod, Begräbnis, Heirat; Primärinformation, das Datum innerhalb eines Jahres vom Datum des
+    Eintrags), wenn die Person keine Angabe `RELI` hat. Nie aus dem Eintrag eines Elternteils oder Kindes, aus der
+    Pfarrei, aus einem Buch oder aus einer nicht gelesenen Spalte.
+- **Nur Methodik:** die Religion wird nicht von den Eltern, der Pfarrei, dem Kirchenbuch oder dem Ritus erschlossen,
+  auch nicht aus einem unsicher gelesenen Wort; sie wird so geschrieben, wie der Eintrag sie schreibt.
+- **Bedienung:** Terminal: `strom event add P… RELI --value "<wie der Eintrag schreibt>" --date <Datum des Eintrags>
+  --cite S…`. App: das Ereignis **Konfession** (Spalte der Tabelle [A6.7.2](A6-views.md#A6.7.2)).
+- **Gilt seit:** Forschung 1.37.0
+
+<!-- zdroj: research:89417a7c, 908c7212 (merge a2b9b42c) src/core/religion.ts (ReligionKey, tvary cs/de/la/pl, religionFactFor, sameReligion, religionNamed) · src/commands/people.ts:907-916 event.religion-uncited, religionAgain · src/brief/brief.ts religionLine · assets/method/recording.md:64-66 · CHANGELOG.cs.md 1.37.0 „Náboženství jako údaj“ -->

@@ -3,7 +3,8 @@
 
 Aplikace drží stromy v úložišti prohlížeče na tomto zařízení. Výzkum a Archiv Stromu drží svůj strom ve složce na
 disku tohoto počítače, s prameny, materiálem a historií. Od výzkumu 1.35.0 drží výzkum i portréty, fotky svazků
-a přílohy stromu z aplikace. Kapitola popisuje aplikaci Strom 3.30.0 a výzkum 1.35.0. Jak most mezi nimi strom
+a přílohy stromu z aplikace. Kapitola popisuje aplikaci Strom 3.30.0 a výzkum 1.35.0; změny z novější verze mají
+u sebe její číslo. Jak aplikace drží obrázky v paměti, popisuje [S8.7](#S8.7). Jak most mezi nimi strom
 přenáší, popisuje [S1](S1-connecting-app-and-research.md) a [S2](S2-edits-from-the-app.md).
 
 | Co | Kde je | Trvalá kopie | Ovládání |
@@ -79,8 +80,12 @@ je předá všechny; výzkum každý soubor uloží jednou, podle obsahu, s jeho
 - **Ovládání:** aplikace: zápis stromu (**Poslat**, [S2](S2-edits-from-the-app.md)); **Výzkum u stromu →
   Posílat originály souborů**.
 - **Platí od:** aplikace 3.30.0, výzkum 1.35.0
+- **Od aplikace 3.32.0 (výzkum 1.37.0):** obrázky, které výzkum už má (portrét, fotka svazku, příloha, výřez pramene,
+  který si výzkum umí vyříznout znovu), jdou do výzkumu odkazem, svým otiskem, místo celých dat; odeslání stromu
+  s fotkami je tak mnohonásobně menší. Odeslání, které jmenuje soubor, jejž výzkum nenajde, výzkum odmítne celé dřív,
+  než cokoli uloží, a aplikace ho pošle znovu i s daty. Se starším výzkumem jde všechno s daty jako dřív.
 
-<!-- zdroj: dirigent:spec/108-kde-se-co-uklada (U8, K2.3, K2.6, K2.7) · app:3419afff POST /sync?media=app, 7263f1f6 GET /tree.ged?images=ref&media=app, 402b7d9b, e3e415f6 (X-Strom-Person, originál se štítkem Portrét), 59ff465e · src/research-link.ts carryOverMedia (photoSource ponechaný, base K2.3) · research:0834987b (X-Strom-Family), 3925b84a (_PRIM Y), 815bc90d, 91ab6230, 771d8af0 · research:src/core/treemedia.ts (hlavička) · research:c9a4b614 CHANGELOG.cs.md 1.35.0 -->
+<!-- zdroj: dirigent:spec/108-kde-se-co-uklada (U8, K2.3, K2.6, K2.7) · app:3419afff POST /sync?media=app, 7263f1f6 GET /tree.ged?images=ref&media=app, 402b7d9b, e3e415f6 (X-Strom-Person, originál se štítkem Portrét), 59ff465e · src/research-link.ts carryOverMedia (photoSource ponechaný, base K2.3) · research:0834987b (X-Strom-Family), 3925b84a (_PRIM Y), 815bc90d, 91ab6230, 771d8af0 · research:src/core/treemedia.ts (hlavička) · research:c9a4b614 CHANGELOG.cs.md 1.35.0 · 3.32.0: app:debf50cc src/research-media-ref.ts (sync.mediaRef, media/known, sync.media-ref-unknown → znovu s daty) · CHANGELOG.cs.md 3.32.0 (Menší odesílání do výzkumu) · research:cf8352e2 (1.37.0) CHANGELOG.cs.md 1.37.0 (Odeslání z aplikace lehčí a rychlejší) -->
 
 <a id="S8.4"></a>
 ## S8.4 Ukazatel Jen v prohlížeči
@@ -150,3 +155,41 @@ z archivu stáhnout znovu, rodinné fotky a originály ne.
 - **Platí od:** výzkum 1.35.0
 
 <!-- zdroj: research:31def74a src/commands/pack.ts (ui.pack.images, ui.pack.family, ui.pack.batches, pack.too-large), src/core/pack.ts (bez ZIP64), src/core/zip.ts ZIP_MAX_FILES=0xffff · src/commands/trees.ts:271-287 (záloha výchozí ano, skeny ano jen se zálohou, rodinné ne, název), ui.remove.images.folder · research:771d8af0 (zmenšené kopie v balíku) · assets/lang/cs.json ui.pack.*, ui.remove.*, ui.error.pack.too-large · ui.pack.batches, ui.unpack.batches (v1.35.0) · trees remove: strom pack --all-images · e6bbfb40 ui.pack.which, ui.remove.backup (1.36.0 jen texty) -->
+
+<a id="S8.7"></a>
+## S8.7 Obrázky mimo paměť stromu
+
+Otevřený strom drží v paměti stránky místo obrázků jen odkazy. Obrázek se načte z úložiště prohlížeče, až když je
+vidět. Velký strom s mnoha fotkami se tak vejde do paměti, kterou prohlížeč jedné stránce dává.
+
+- Paměť stránky má strop, který sdílejí všechna okna aplikace. Prohlížeč ho někde uvádí; jinde aplikace počítá
+  s 2 GB, na dotykovém zařízení s 1 GB. Za stropem stránka přestane fungovat.
+- Při měření na smyšleném stromu s 20 000 osobami a 4 000 obrázky zabral otevřený strom asi 55 MB paměti stránky,
+  zhruba tolik co stejný strom bez obrázků (před aplikací 3.32.0 asi 518 MB). Velikost, která se vejde, dnes určují
+  hlavně osoby a jejich údaje.
+- Zpět a Vpřed, uložení stromu i zálohy obrázky nekopírují. Export do souboru (JSON, uložená aplikace, GEDCOM)
+  zapisuje obrázky po několika.
+- **Paměť nemusí stačit:**
+  - když se otevřený strom blíží stropu, aplikace to v hlavním okně řekne trvalým oznámením s radou: zavřít další
+    okna aplikace a odebrat nepotřebné obrázky; u každého stromu jednou, dokud se prohlížeč nezavře;
+  - před výstupem s obrázky, který by mohl strop přesáhnout (soubor stromu, soubor všech stromů, kniha, plakát
+    s portréty), a před načtením velkého souboru se aplikace zeptá: **Pokračovat**, nebo zrušit; kde to jde, nabídne
+    **Vynechat obrázky ze souboru**;
+  - odhad vychází z velikosti stromu, obrázků a počtu otevřených oken, ne z měření prohlížeče; je to varování,
+    ne zákaz.
+- **Obrázky sdílené mezi kopiemi:** každý obrázek je v úložišti prohlížeče jednou, podle obsahu, a sdílí ho všechny
+  stromy, zálohy i kopie, které ho mají. **Kopie celého stromu** ([A14.3](A14-trees-and-structure.md#A14.3)) dá úplnou
+  samostatnou kopii stromu s obrázky, které nezabírají místo podruhé. Smazání kopie nebo zálohy nesmaže obrázek, který používá jiný strom.
+  Obrázek, který už nepoužívá žádný strom, záloha ani otevřené okno, se smaže při úklidu po týdnu.
+- Stejný obrázek ve dvou stromech je při sloučení stejný obrázek, ne rozdíl ([A8](A8-merging-trees.md)).
+- **Hranice:**
+  - kniha, rodinné stránky, plakát, balíček změn a soubor pod heslem drží obrázky v paměti celé, proto se ptají dřív
+    než export po obrázcích;
+  - mez se týká paměti stránky, ne místa na disku: místo v úložišti prohlížeče hlídají zálohy a okno **Kde jsou
+    data** ([S8.1](#S8.1)).
+- **Ovládání:** oznámení „Strom „…“ se blíží mezi paměti, kterou tento prohlížeč aplikaci dává…“; otázka **Paměť
+  nemusí stačit**; **Změnit strukturu…** → **Kopie celého stromu**. Správa stromů má u velikosti takového stromu
+  „· obrázky sdílené“ ([A14.1](A14-trees-and-structure.md#A14.1)).
+- **Platí od:** aplikace 3.32.0; obrázky jednou podle obsahu od aplikace 3.1.0
+
+<!-- zdroj: dirigent:spec/135-obrazky-mimo-pamet-stromu (K1.1–K1.4, P2, P3) · app:c5931983 (strom v paměti drží odkazy), 6b425e41 (úklid poolu dvoufázově po 7 dnech, kořen memory), e6ce052c (proudové výstupy JSON/uložená aplikace), fcc7c21b (GED po obrázcích), e6a0a8c2 (upozornění), 6e55a1dc (sloučení nad odkazy, rovnost obrázků podle obsahu) · src/memory-limit.ts (DEFAULT_LIMIT 2048 MB, TOUCH_LIMIT 1024 MB, odhad z JSON stromu bez obrázků + 25 MB za další okno, OUTPUT_IMAGE_FACTOR / WHOLE_OUTPUT_IMAGE_FACTOR) · src/ui/memory-limit-ui.ts checkMemoryNotice (jednou za relaci a strom, toast hold), outputNearLimit, canLeaveOut · src/media-pool.ts POOL_UNUSED_GRACE_MS (7 dní) · app:2ba2408a (pool obrázků, v3.1.0) · strings.ts memoryLimit.title, notice, output, outputAll, book, poster, leaveOut, import, continue, treeManager.duplicate · dirigent:prace/1122-app-135/karta.md (měření D9a: 20k × 4000 obr. 518 → 55 MB, bez obrázků 53 MB) · dirigent:test/vysledek-1123-scenare-app.md (Duplikovat: samostatná kopie se sdílenými obrázky, smazání kopie nesmaže obrázky jiných) · CHANGELOG.cs.md 3.32.0 (Velké stromy s fotkami) · app:e9f50b62 (Duplikovat nahrazeno Kopií celého stromu ve Změnit strukturu) · 7b967fd8 treeManager.imagesShared -->

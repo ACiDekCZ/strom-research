@@ -3,7 +3,8 @@
 
 Aplikacja trzyma drzewa w pamięci przeglądarki na tym urządzeniu. Badanie i Archiwum Strom trzymają swoje drzewo
 w folderze na dysku tego komputera, ze źródłami, materiałem i historią. Od badania 1.35.0 badanie trzyma też
-portrety, zdjęcia par i załączniki drzewa z aplikacji. Rozdział opisuje aplikację Strom 3.30.0 i badanie 1.35.0. Jak
+portrety, zdjęcia par i załączniki drzewa z aplikacji. Rozdział opisuje aplikację Strom 3.30.0 i badanie 1.35.0;
+zmiany z nowszej wersji mają przy sobie jej numer. Jak aplikacja trzyma obrazy w pamięci, opisuje [S8.7](#S8.7). Jak
 most między nimi przenosi drzewo, opisują [S1](S1-connecting-app-and-research.md) i [S2](S2-edits-from-the-app.md).
 
 | Co | Gdzie jest | Trwała kopia | Obsługa |
@@ -84,8 +85,13 @@ drzewa przekazuje je wszystkie; badanie zapisuje każdy plik raz, według zawart
 - **Obsługa:** aplikacja: zapis drzewa (**Wyślij**, [S2](S2-edits-from-the-app.md)); **Badanie dla drzewa →
   Wysyłanie oryginałów plików**.
 - **Obowiązuje od:** aplikacja 3.30.0, badanie 1.35.0
+- **Od aplikacji 3.32.0 (badanie 1.37.0):** obrazy, które badanie już ma (portret, zdjęcie pary, załącznik, wycinek
+  źródła, który badanie umie wyciąć ponownie), idą do badania odnośnikiem, swoim odciskiem, zamiast całych danych;
+  wysłanie drzewa ze zdjęciami jest więc wielokrotnie mniejsze. Wysyłkę, która wymienia plik, którego badanie nie
+  znajdzie, badanie odrzuci w całości, zanim cokolwiek zapisze, a aplikacja wyśle ją ponownie razem z danymi. Ze
+  starszym badaniem wszystko idzie z danymi jak dotąd.
 
-<!-- zdroj: dirigent:spec/108-kde-se-co-uklada (U8, K2.3, K2.6, K2.7) · app:3419afff POST /sync?media=app, 7263f1f6 GET /tree.ged?images=ref&media=app, 402b7d9b, e3e415f6 (X-Strom-Person, originál se štítkem Portrét), 59ff465e · src/research-link.ts carryOverMedia (photoSource ponechaný, base K2.3) · research:0834987b (X-Strom-Family), 3925b84a (_PRIM Y), 815bc90d, 91ab6230, 771d8af0 · research:src/core/treemedia.ts (hlavička) · research:c9a4b614 CHANGELOG.cs.md 1.35.0 -->
+<!-- zdroj: dirigent:spec/108-kde-se-co-uklada (U8, K2.3, K2.6, K2.7) · app:3419afff POST /sync?media=app, 7263f1f6 GET /tree.ged?images=ref&media=app, 402b7d9b, e3e415f6 (X-Strom-Person, originál se štítkem Portrét), 59ff465e · src/research-link.ts carryOverMedia (photoSource ponechaný, base K2.3) · research:0834987b (X-Strom-Family), 3925b84a (_PRIM Y), 815bc90d, 91ab6230, 771d8af0 · research:src/core/treemedia.ts (hlavička) · research:c9a4b614 CHANGELOG.cs.md 1.35.0 · 3.32.0: app:debf50cc src/research-media-ref.ts (sync.mediaRef, media/known, sync.media-ref-unknown → znovu s daty) · CHANGELOG.cs.md 3.32.0 (Menší odesílání do výzkumu) · research:cf8352e2 (1.37.0) CHANGELOG.cs.md 1.37.0 (Odeslání z aplikace lehčí a rychlejší) -->
 
 <a id="S8.4"></a>
 ## S8.4 Wskaźnik Tylko w przeglądarce
@@ -159,3 +165,44 @@ można z archiwum pobrać ponownie, rodzinnych zdjęć i oryginałów nie.
 - **Obowiązuje od:** badanie 1.35.0
 
 <!-- zdroj: research:31def74a src/commands/pack.ts (ui.pack.images, ui.pack.family, ui.pack.batches, pack.too-large), src/core/pack.ts (bez ZIP64), src/core/zip.ts ZIP_MAX_FILES=0xffff · src/commands/trees.ts:271-287 (záloha výchozí ano, skeny ano jen se zálohou, rodinné ne, název), ui.remove.images.folder · research:771d8af0 (zmenšené kopie v balíku) · assets/lang/cs.json ui.pack.*, ui.remove.*, ui.error.pack.too-large · ui.pack.batches, ui.unpack.batches (v1.35.0) · trees remove: strom pack --all-images · e6bbfb40 ui.pack.which, ui.remove.backup (1.36.0 jen texty) -->
+
+<a id="S8.7"></a>
+## S8.7 Obrazy poza pamięcią drzewa
+
+Otwarte drzewo trzyma w pamięci strony zamiast obrazów tylko odnośniki. Obraz wczytuje się z pamięci przeglądarki
+dopiero wtedy, gdy jest widoczny. Duże drzewo z wieloma zdjęciami zmieści się tak w pamięci, którą przeglądarka daje
+jednej stronie.
+
+- Pamięć strony ma górną granicę, którą dzielą wszystkie okna aplikacji. Niektóre przeglądarki ją podają; gdzie
+  indziej aplikacja liczy z 2 GB, na urządzeniu dotykowym z 1 GB. Za granicą strona przestaje działać.
+- W pomiarze na zmyślonym drzewie z 20 000 osób i 4 000 obrazów otwarte drzewo zajęło około 55 MB pamięci strony,
+  mniej więcej tyle co to samo drzewo bez obrazów (przed aplikacją 3.32.0 około 518 MB). Rozmiar, który się zmieści,
+  określają dziś głównie osoby i ich dane.
+- Cofnij i Ponów, zapis drzewa ani kopie zapasowe nie kopiują obrazów. Eksport do pliku (JSON, aplikacja z danymi,
+  GEDCOM) zapisuje obrazy po kilka naraz.
+- **Pamięci może nie wystarczyć:**
+  - gdy otwarte drzewo zbliża się do granicy, aplikacja mówi to w głównym oknie trwałym powiadomieniem z radą:
+    zamknąć inne okna aplikacji i usunąć niepotrzebne obrazy; przy każdym drzewie raz, dopóki przeglądarka się nie
+    zamknie;
+  - przed wynikiem z obrazami, który mógłby granicę przekroczyć (plik drzewa, plik wszystkich drzew, księga, plakat
+    z portretami), i przed wczytaniem dużego pliku aplikacja zapyta: **Kontynuuj** albo anuluj; gdzie to możliwe,
+    zaproponuje **Pominąć obrazy w pliku**;
+  - szacunek wychodzi z rozmiaru drzewa, obrazów i liczby otwartych okien, nie z pomiaru przeglądarki; to
+    ostrzeżenie, nie zakaz.
+- **Obrazy wspólne dla kopii:** każdy obraz jest w pamięci przeglądarki raz, według zawartości, i dzielą go wszystkie
+  drzewa, kopie zapasowe i kopie, które go mają. **Kopia całego drzewa** ([A14.3](A14-trees-and-structure.md#A14.3))
+  daje pełną, samodzielną kopię drzewa z obrazami, które nie zajmują miejsca drugi raz. Usunięcie kopii lub kopii zapasowej nie usunie obrazu,
+  którego używa inne drzewo. Obraz, którego nie używa już żadne drzewo, kopia zapasowa ani otwarte okno, usuwa się
+  przy porządkowaniu po tygodniu.
+- Ten sam obraz w dwóch drzewach jest przy scalaniu tym samym obrazem, nie różnicą ([A8](A8-merging-trees.md)).
+- **Granice:**
+  - księga, strony rodzinne, plakat, paczka zmian i plik chroniony hasłem trzymają obrazy w pamięci w całości,
+    dlatego pytają wcześniej niż eksport obraz po obrazie;
+  - granica dotyczy pamięci strony, nie miejsca na dysku: miejsca w pamięci przeglądarki pilnują kopie zapasowe
+    i okno **Gdzie są dane** ([S8.1](#S8.1)).
+- **Obsługa:** powiadomienie „Drzewo „…” zbliża się do granicy pamięci, którą ta przeglądarka daje aplikacji…”;
+  pytanie **Pamięci może nie wystarczyć**; **Zmień strukturę…** → **Kopia całego drzewa**. Zarządzanie drzewami ma
+  przy rozmiarze takiego drzewa „· obrazy wspólne” ([A14.1](A14-trees-and-structure.md#A14.1)).
+- **Obowiązuje od:** aplikacja 3.32.0; obrazy raz według zawartości od aplikacji 3.1.0
+
+<!-- zdroj: dirigent:spec/135-obrazky-mimo-pamet-stromu (K1.1–K1.4, P2, P3) · app:c5931983 (strom v paměti drží odkazy), 6b425e41 (úklid poolu dvoufázově po 7 dnech, kořen memory), e6ce052c (proudové výstupy JSON/uložená aplikace), fcc7c21b (GED po obrázcích), e6a0a8c2 (upozornění), 6e55a1dc (sloučení nad odkazy, rovnost obrázků podle obsahu) · src/memory-limit.ts (DEFAULT_LIMIT 2048 MB, TOUCH_LIMIT 1024 MB, odhad z JSON stromu bez obrázků + 25 MB za další okno, OUTPUT_IMAGE_FACTOR / WHOLE_OUTPUT_IMAGE_FACTOR) · src/ui/memory-limit-ui.ts checkMemoryNotice (jednou za relaci a strom, toast hold), outputNearLimit, canLeaveOut · src/media-pool.ts POOL_UNUSED_GRACE_MS (7 dní) · app:2ba2408a (pool obrázků, v3.1.0) · strings.ts memoryLimit.title, notice, output, outputAll, book, poster, leaveOut, import, continue, treeManager.duplicate · dirigent:prace/1122-app-135/karta.md (měření D9a: 20k × 4000 obr. 518 → 55 MB, bez obrázků 53 MB) · dirigent:test/vysledek-1123-scenare-app.md (Duplikovat: samostatná kopie se sdílenými obrázky, smazání kopie nesmaže obrázky jiných) · CHANGELOG.cs.md 3.32.0 (Velké stromy s fotkami) · app:e9f50b62 (Duplikovat nahrazeno Kopií celého stromu ve Změnit strukturu) · 7b967fd8 treeManager.imagesShared -->

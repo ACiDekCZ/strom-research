@@ -644,3 +644,35 @@ the family tree the app gets, and `strom source restore` brings it back together
 - **Since:** research 1.36.0
 
 <!-- zdroj: research:e6bbfb40 src/core/sourceretract.ts (hlavička; DELETED, RETRACT_MOST 50, RETRACT_CONFIRM_MS 15 min, REVIEW_RETRACTED, ACTIVE open/doing/parked/waiting) · src/commands/sourceretract.ts source retract (description, agentMay --dry-run, source.agent, source.retract-changed, requireHumanYes), source restore (description, source.notRetracted, source.notRestorable), ui.source.restore.skipped · src/commands/analysis.ts conflict keep (conflict.notMarked, agent jen říká) · src/commands/sources.ts source list --retracted, source show RETRACTED … the person puts it back · src/core/sync.ts withholdDeleted (spec 117 J6) · assets/lang/cs.json ui.consent.retract, ui.source.retract.would · CHANGELOG.cs.md 1.36.0 · spec 117 K1.1–K1.7, J3 (záloha = historie + citace v prameni) -->
+
+<a id="R3.11"></a>
+## R3.11 Religion as a fact
+
+A religion that a record states of a person (by a word in a column or by a mark in it) is written by the agent as the
+fact **Religion** (`RELI`) with the record cited and its date. It is never inferred.
+
+- **Enforced by the code:**
+  - the agent does not write `strom event add P… RELI` without `--cite` ("a religion is written only with the record
+    that says it of the person"); a person's word stays theirs;
+  - one faith is one fact: another record with the same faith (also written differently, "katol." and
+    "římskokatolické") only adds a citation to the fact the person already has; without a citation nothing is
+    written. A changed faith, or the first one again after another, is a separate fact (a Catholic who converted and
+    came back has three facts);
+  - strom recognises a faith only in clear forms (Czech, German, Latin, Polish, a few in Cyrillic), word by word:
+    never a word that only begins so ("Evangelista", "Israel" without a full stop), nor the faith of a parish, a church,
+    a rite, a register, a school or a street ("římskokatolická farnost", "katolický křest", "Židovská ulice"). A form
+    that is also a name ("Žid", "Mos.", "Kath.") counts only under a label of religion or in its column; an uncertain
+    reading ("katol. (?)", "snad") is none;
+  - whose faith it is, the record says: the faith of the father, the mother or a godparent is not the person's faith;
+    at a marriage the groom's faith is the man's and the bride's the woman's;
+  - the agent's brief, when working on a person, recalls the religion that the transcription of the person's own
+    record states (birth, baptism, death, burial, marriage; primary information, the date within a year of the
+    record's date), when the person has no `RELI` fact. Never from a record of a parent or a child, from a parish,
+    from a book or from a column not read.
+- **Method only:** religion is not inferred from the parents, the parish, the register or the rite, nor from an
+  uncertainly read word; it is written as the record writes it.
+- **Controls:** terminal: `strom event add P… RELI --value "<as the record writes it>" --date <the record's date>
+  --cite S…`. App: the event **Religion** (a column of the table [A6.7.2](A6-views.md#A6.7.2)).
+- **Since:** research 1.37.0
+
+<!-- zdroj: research:89417a7c, 908c7212 (merge a2b9b42c) src/core/religion.ts (ReligionKey, tvary cs/de/la/pl, religionFactFor, sameReligion, religionNamed) · src/commands/people.ts:907-916 event.religion-uncited, religionAgain · src/brief/brief.ts religionLine · assets/method/recording.md:64-66 · CHANGELOG.cs.md 1.37.0 „Náboženství jako údaj“ -->

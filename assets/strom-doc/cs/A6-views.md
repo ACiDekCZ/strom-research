@@ -466,8 +466,8 @@ vypadá, ne strom: funguje i ve stromu jen ke čtení, při sledování výzkumu
 - **Text ve výsečích:** **Jméno a roky** (výchozí) · **Jméno, data a místa** (narození a úmrtí s datem a místem, z
   místa jen část před první čárkou, například „* 22. 11. 1888 Kessenau“; jen kde se vejde) · **Jen jména** (o něco
   větším písmem). „Kde se text nevejde, zkrátí se.“
-- **Portréty** „Ve středu, u rodičů a prarodičů“ (výchozí vypnuto): kulatý portrét ve středu a v prvních dvou
-  prstencích. Chráněná žijící osoba portrét nemá. Text má přednost: portrét, na který by nezbylo místo, se
+- **Portréty** (výchozí vypnuto): kulatý portrét; v aplikaci 3.31.0 („Ve středu, u rodičů a prarodičů“) ve středu
+  a v prvních dvou prstencích, od 3.32.0 v každém prstenci (**Od aplikace 3.32.0** níž). Chráněná žijící osoba portrét nemá. Text má přednost: portrét, na který by nezbylo místo, se
   nekreslí. Během načítání panel řekne „Portréty se načítají (k / n)“; „Ve vějíři zatím nikdo nemá portrét.“
 - **Tři úrovně vzhledu:**
   - **výchozí** vzhled je v **Nastavení → Vějíř** (styl, barvy rodů, text, portréty) a drží ho zařízení: „Každé
@@ -477,6 +477,7 @@ vypadá, ne strom: funguje i ve stromu jen ke čtení, při sledování výzkumu
   - **vzhled výstupu** (plakát, obrázek, tisk) se nepamatuje ([A6.4.3](#A6.4.3)).
 
   Nižší úroveň nikdy nepřepíše vyšší, jen **Uložit jako výchozí**.
+<!-- zdroj 3.32.0: app:a938802d, bcdcab9e, f229be62 src/fan-chart.ts FAN_PORTRAIT_MIN_PX 32, portraitOf (každý prstenec předků i potomků, dPx < portraitMin → nic, fotka se pak ani nežádá; text výseče jako bez portrétu), opts.portrait jen pro výseče v pohledu, ne chráněná osoba · strings.ts fanLook.portraits, portraitsSub · CHANGELOG.cs.md 3.32.0 · dirigent:spec/118 K2.7, K2.8 -->
 - **Patička panelu:** když se vzhled liší od výchozího, „Liší se od výchozího vzhledu.“ s **Uložit jako výchozí**
   („Uloženo jako výchozí vzhled vějíře.“) a **Vrátit na výchozí**; tlačítko **Vzhled** pak nese tečku. Jinak
   „Výchozí vzhled · lze změnit v Nastavení“; odkaz otevře Nastavení u skupiny **Vějíř**.
@@ -484,7 +485,14 @@ vypadá, ne strom: funguje i ve stromu jen ke čtení, při sledování výzkumu
 - **Telefon:** **Barvy** a **Vzhled** jsou záložky jednoho listu zespodu; list se otevře na naposledy použité.
 - **Hranice:** vějíř na stránce osoby se nemění (jen barvy pohlaví).
 - **Ovládání:** lišta vějíře → **Vzhled**; **Nastavení → Vějíř**.
-- **Platí od:** aplikace 3.31.0
+- **Platí od:** aplikace 3.31.0; 3.32.0: portréty v každém prstenci
+- **Od aplikace 3.32.0:** **Portréty** „Předci i potomci, kde je dost místa; přiblížení ukáže další“: kulatý portrét
+  ve středu a v kterékoli výseči kteréhokoli prstence, u předků i (ve vějíři oběma směry) u potomků a partnerů.
+  - Portrét se nakreslí, jen kde má při současném přiblížení průměr aspoň 32 px a text výseče vedle něj řekne totéž
+    co bez něj; jinak výseč portrét nemá. Text má dál přednost.
+  - Přiblížení ukáže portréty vnějších prstenců; fotky se načítají jen pro výseče, které jsou vidět a portrét by
+    ukázaly.
+  - Na plakátu a v tisku má portrét na papíře průměr aspoň 7 mm ([A6.4.3](#A6.4.3)).
 
 <!-- zdroj: app:53ad42f1 src/fan-look.ts (hlavička: tři úrovně, ne úprava stromu, další okno; FAN_LOOK_DEFAULT color/all/years/portraits false), storage-keys.ts FAN_STORAGE_KEYS, FAN_LOOK_SESSION_KEY · 2236bbd4 src/fan-rod-assign.ts (rodScope main: 10 největších, rod středu vždy), src/fan-colors.ts FAN_STYLES, FAN_PATTERNS (vl, hl, grid, dot, dot2, ring, plus, dash), palety světlá/tmavá/tisk · c2dc2520 src/fan-labels.ts (content years/places/names, místo před čárkou), src/fan-chart.ts portréty prstence 1–2, chránění žijící, text má přednost · 2e9d8ad0 Nastavení → Vějíř (index.html settings-group-fan, setFanDefaultLook; vějíř s výchozím vzhledem změnu převezme) · e07ed419 (stránka osoby) · strings.ts fan.look*, style*, scope*, content*, portraits*, lookDiffers, lookIsDefault, lookSaveDefault, lookResetDefault, lookSavedToast, defaultsDesc, textNote, legendOtherGrey, posterColorsMain · SPEC.md 1120-app-vejir-vzhled · spec 118 K1.1–K2.6 · CHANGELOG.cs.md 3.31.0 -->
 
@@ -501,6 +509,10 @@ plakátu** se stejnými volbami jako panel **Vzhled** ([A6.4.2](#A6.4.2)) a s **
 - **Hranice:** vzhled výstupu se nepamatuje; další export začne znovu od vzhledu obrazovky.
 - **Ovládání:** **Export plakátu** → **Vzhled plakátu**.
 - **Platí od:** aplikace 3.31.0
+- **Od aplikace 3.32.0:** se zapnutými **Portréty** plakát i tisk vějíře (i Ctrl+P z pohledu na list A4 na šířku)
+  kreslí portrét tam, kde má na papíře průměr aspoň 7 mm; jinak platí totéž co na obrazovce ([A6.4.2](#A6.4.2)).
+
+<!-- zdroj 3.32.0: app:a938802d, bcdcab9e, f229be62 src/fan-chart.ts FAN_PORTRAIT_MIN_MM 7, renderFanPoster portraitMinPx = 7 mm / mmPerPx (0,26), fanPrintPortraitMinPx (A4 na šířku 277 × 0,85·190 mm, ne pod 32 px) · src/ui/fan-view.ts printing → fanPrintPortraitMinPx · dirigent:spec/118 K2.8 -->
 
 <!-- zdroj: app:2e9d8ad0 src/ui/export-image-ui.ts (PosterLook předvyplněný z obrazovky, náhled toutéž funkcí plakátu, Jako na obrazovce, sloty rodů z obrazovky, telefon jeden řádek), src/fan-look.ts (vzhled výstupu se nepamatuje) · e2e/fan-look-output.spec.ts · strings.ts poster.menu, title, lookTitle, lookPreview, lookOnlyHere, lookAsScreen, lookChanged · SPEC.md 1120-app-vejir-vzhled · spec 118 -->
 

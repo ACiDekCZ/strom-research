@@ -426,7 +426,8 @@ export function imageOfRef(all: Media[], recordset: string, image: number): Medi
   const parts = all.filter((x) => x.recordset === recordset && x.image === image && x.part);
   if (parts.length < 2) return m;
   throw new UsageError(`image ${image} of ${recordset} is registered only in parts: ${parts.map((p) => `${p.id} (part ${regionText(p.part!)})`).join(", ")}`, {
-    hint: `name the part the record is on: ${parts.map((p) => p.id).join(" or ")}`,
+    // to look at it: the parts whole, or a half or a crop of the whole image (shown from the part that covers it)
+    hint: `name the part the record is on: ${parts.map((p) => p.id).join(" or ")} — to look at them: strom media view ${parts.map((p) => p.id).join(" ")}; a half or a crop of the whole image: strom media view ${recordset}:${image} --half left`,
   });
 }
 

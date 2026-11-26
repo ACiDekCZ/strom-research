@@ -535,8 +535,9 @@ schreibgeschützten Stammbaum, beim Verfolgen einer Forschung und in der gespeic
 - **Text in den Segmenten:** **Name und Jahre** (Standard) · **Name, Daten und Orte** (Geburt und Tod mit Datum und
   Ort, vom Ort nur der Teil vor dem ersten Komma, zum Beispiel „* 22.11.1888 Kessenau“; nur wo es passt) · **Nur
   Namen** (in etwas größerer Schrift). „Wo der Text nicht passt, wird er gekürzt.“
-- **Porträts** „In der Mitte, bei Eltern und Großeltern“ (standardmäßig aus): ein rundes Porträt in der Mitte und in
-  den ersten zwei Ringen. Eine geschützte lebende Person hat kein Porträt. Der Text hat Vorrang: ein Porträt, für das
+- **Porträts** (standardmäßig aus): ein rundes Porträt; in App 3.31.0 („In der Mitte, bei Eltern und Großeltern“) in
+  der Mitte und in den ersten zwei Ringen, ab 3.32.0 in jedem Ring (**Ab App 3.32.0** unten). Eine geschützte
+  lebende Person hat kein Porträt. Der Text hat Vorrang: ein Porträt, für das
   kein Platz bliebe, wird nicht gezeichnet. Während des Ladens sagt der Bereich „Porträts werden geladen (k / n)“;
   „Im Fächer hat noch niemand ein Porträt.“
 - **Drei Ebenen der Darstellung:**
@@ -548,6 +549,7 @@ schreibgeschützten Stammbaum, beim Verfolgen einer Forschung und in der gespeic
   - die **Darstellung der Ausgabe** (Plakat, Bild, Druck) wird nicht gespeichert ([A6.4.3](#A6.4.3)).
 
   Eine niedrigere Ebene überschreibt nie eine höhere, nur **Als Standard speichern**.
+<!-- zdroj 3.32.0: app:a938802d, bcdcab9e, f229be62 src/fan-chart.ts FAN_PORTRAIT_MIN_PX 32, portraitOf (každý prstenec předků i potomků, dPx < portraitMin → nic, fotka se pak ani nežádá; text výseče jako bez portrétu), opts.portrait jen pro výseče v pohledu, ne chráněná osoba · strings.ts fanLook.portraits, portraitsSub · CHANGELOG.cs.md 3.32.0 · dirigent:spec/118 K2.7, K2.8 -->
 - **Fuß des Bereichs:** weicht die Darstellung vom Standard ab, „Weicht von der Standarddarstellung ab.“ mit **Als
   Standard speichern** („Als Standarddarstellung des Fächers gespeichert.“) und **Auf Standard zurücksetzen**; die
   Schaltfläche **Darstellung** trägt dann einen Punkt. Sonst „Standarddarstellung · änderbar in den Einstellungen“;
@@ -558,7 +560,17 @@ schreibgeschützten Stammbaum, beim Verfolgen einer Forschung und in der gespeic
   zuletzt benutzten.
 - **Grenzen:** der Fächer auf der Seite der Person ändert sich nicht (nur die Geschlechtsfarben).
 - **Bedienung:** Leiste des Fächers → **Darstellung**; **Einstellungen → Fächer**.
-- **Gilt seit:** App 3.31.0
+- **Gilt seit:** App 3.31.0; 3.32.0: Porträts in jedem Ring
+- **Ab App 3.32.0:** **Porträts** „Vorfahren und Nachkommen, wo Platz ist; Vergrößern zeigt weitere“: ein rundes
+  Porträt in der Mitte und in jedem Segment jedes Rings, bei Vorfahren und (in der Form Beidseitig) auch bei
+  Nachkommen und Partnern.
+  - Ein Porträt wird nur gezeichnet, wo es beim aktuellen Zoom einen Durchmesser von mindestens 32 px hat und der
+    Text des Segments daneben dasselbe sagt wie ohne es; sonst hat das Segment kein Porträt. Der Text hat weiter
+    Vorrang.
+  - Vergrößern zeigt die Porträts der äußeren Ringe; Fotos werden nur für Segmente geladen, die zu sehen sind und ein
+    Porträt zeigen würden.
+  - Auf dem Plakat und im Druck hat ein Porträt auf dem Papier einen Durchmesser von mindestens 7 mm
+    ([A6.4.3](#A6.4.3)).
 
 <!-- zdroj: app:53ad42f1 src/fan-look.ts (hlavička: tři úrovně, ne úprava stromu, další okno; FAN_LOOK_DEFAULT color/all/years/portraits false), storage-keys.ts FAN_STORAGE_KEYS, FAN_LOOK_SESSION_KEY · 2236bbd4 src/fan-rod-assign.ts (rodScope main: 10 největších, rod středu vždy), src/fan-colors.ts FAN_STYLES, FAN_PATTERNS (vl, hl, grid, dot, dot2, ring, plus, dash), palety světlá/tmavá/tisk · c2dc2520 src/fan-labels.ts (content years/places/names, místo před čárkou), src/fan-chart.ts portréty prstence 1–2, chránění žijící, text má přednost · 2e9d8ad0 Nastavení → Vějíř (index.html settings-group-fan, setFanDefaultLook; vějíř s výchozím vzhledem změnu převezme) · e07ed419 (stránka osoby) · strings.ts fan.look*, style*, scope*, content*, portraits*, lookDiffers, lookIsDefault, lookSaveDefault, lookResetDefault, lookSavedToast, defaultsDesc, textNote, legendOtherGrey, posterColorsMain · SPEC.md 1120-app-vejir-vzhled · spec 118 K1.1–K2.6 · CHANGELOG.cs.md 3.31.0 -->
 
@@ -578,6 +590,11 @@ Der Dialog **Als Poster exportieren** (Menü **Poster exportieren**: SVG, PNG, D
   Darstellung des Bildschirms.
 - **Bedienung:** **Poster exportieren** → **Darstellung des Posters**.
 - **Gilt seit:** App 3.31.0
+- **Ab App 3.32.0:** mit eingeschalteten **Porträts** zeichnen Plakat und Druck des Fächers (auch Strg+P aus der
+  Ansicht auf ein A4-Blatt quer) ein Porträt dort, wo es auf dem Papier einen Durchmesser von mindestens 7 mm hat;
+  sonst gilt dasselbe wie auf dem Bildschirm ([A6.4.2](#A6.4.2)).
+
+<!-- zdroj 3.32.0: app:a938802d, bcdcab9e, f229be62 src/fan-chart.ts FAN_PORTRAIT_MIN_MM 7, renderFanPoster portraitMinPx = 7 mm / mmPerPx (0,26), fanPrintPortraitMinPx (A4 na šířku 277 × 0,85·190 mm, ne pod 32 px) · src/ui/fan-view.ts printing → fanPrintPortraitMinPx · dirigent:spec/118 K2.8 -->
 
 <!-- zdroj: app:2e9d8ad0 src/ui/export-image-ui.ts (PosterLook předvyplněný z obrazovky, náhled toutéž funkcí plakátu, Jako na obrazovce, sloty rodů z obrazovky, telefon jeden řádek), src/fan-look.ts (vzhled výstupu se nepamatuje) · e2e/fan-look-output.spec.ts · strings.ts poster.menu, title, lookTitle, lookPreview, lookOnlyHere, lookAsScreen, lookChanged · SPEC.md 1120-app-vejir-vzhled · spec 118 -->
 

@@ -225,8 +225,11 @@ Jahren geboren sind. Verglichen wird ohne Groß- und Kleinschreibung und ohne Di
 - **Bedienung:** **Zwei verschiedene Personen** ([A5.7](#A5.7)); beim Urteil der Forschung **Zusammenführen…**
   ([A5.6.1](#A5.6.1)).
 - **Gilt seit:** App 1.9.9; Jahre aus Taufe und Tod 3.17.0
+- Das Zusammenführen zweier Personen eines Stammbaums ist etwas anderes als das Zusammenführen zweier Stammbäume
+  oder der Import eines Stammbaums in einen Stammbaum ([A8](A8-merging-trees.md)): das führt ein Assistent, und es
+  lässt sich zurücknehmen ([A8.12](A8-merging-trees.md#A8.12)).
 
-<!-- zdroj: app:src/validation.ts:1084 birthYears, :1127 checkPossibleDuplicates STAND_IN_YEARS_SLACK · strings.ts treeManager.valGroupPossibleDuplicate, twoPeople -->
+<!-- zdroj: app:src/validation.ts:1084 birthYears, :1127 checkPossibleDuplicates STAND_IN_YEARS_SLACK · strings.ts treeManager.valGroupPossibleDuplicate, twoPeople · odkaz na A8: spec 134 (dokumentace „A5.6 odkaz“) -->
 
 <a id="A5.6.1"></a>
 ### A5.6.1 Urteil der Forschung

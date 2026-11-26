@@ -14,7 +14,8 @@ Fotka vybraná v úpravě osoby se otevře v editoru **Výřez portrétu**. Rám
 a fotka se pod ním posouvá, přibližuje a otáčí.
 
 - **V editoru:**
-  - **posun** tažením fotky; posun se zastaví, než by v rámečku zůstalo prázdné místo;
+  - **posun** tažením fotky; do aplikace 3.31.0 se posun zastaví, než by v rámečku zůstalo prázdné
+    místo (od 3.32.0 jde přes kraj, viz níž);
   - **Přiblížení** od 100 % (rámeček pokryje kratší stranu fotky) nejvýš do 800 %; výřez má vždy aspoň 128 px
     původní fotky, takže malá fotka se přiblíží méně (nejvýš na dvojnásobek skutečného rozlišení); **Výchozí** vrátí
     úvodní výřez: největší čtverec ze středu;
@@ -45,8 +46,12 @@ a fotka se pod ním posouvá, přibližuje a otáčí.
 - **Od aplikace 3.31.0:** **Vybrat fotku** u osoby, která má fotky k nabídnutí, otevře nejdřív výběr **Portrét
   z fotky** ([A12.2](#A12.2)); soubor z počítače v něm dá **Z počítače…** (na dotyku **Ze zařízení…**). Nová osoba
   a osoba bez takových fotek dostane výběr souboru jako dřív.
+- **Od aplikace 3.32.0:** fotku jde pod rámečkem posunout i přes její kraj (myší, prstem i šipkami) a tam ji
+  přiblížit, takže obličej u kraje fotky může být uprostřed portrétu. Střed rámečku vždy zůstane na fotce. Část
+  portrétu mimo fotku má neutrální světlou barvu, stejně na kartě (i v tmavém režimu), ve vějíři, v knize, v exportu
+  obrázku, v uložených stránkách, v tisku i v GEDCOM. Dřív vyříznuté portréty vypadají jako dosud.
 
-<!-- zdroj: app:327d9734 src/ui/portrait-editor.ts (rámeček, posun, kolečko, dva prsty, ↺ ↻, narovnání s mřížkou, Zrcadlit, náhled karty / Stránka osoby / Rodinné stránky, telefon), src/photo.ts PHOTO_SIZE 256, PORTRAIT_MIN_SOURCE_PX 128, PORTRAIT_MAX_ANGLE 45, PORTRAIT_ANGLE_STEP 0.5, minZoomForAngle, cropToJpeg (bílý podklad) · src/portrait-editor-model.ts isIdentityPortrait (Hotovo beze změny z nového souboru = compressPhoto), isSmallPortrait · app:88859da2 src/ui/person-modal.ts handlePhotoInput → editor, Zrušit/Escape nechá dialog, dialog zavřený bez Uložit nic nenechá, #photo-rotate-left/right odstraněny · app:a2af453a jen ke čtení / zamčená osoba, personGone · app:ef688950 dlouhá jména, telefon na šířku · strings.ts portrait.title, preview, personPage, familyPages, savedCircle, savedRounded, rotate, straighten, zoom, reset, mirror, small, personGone · ZADANI_DEV §1, §9, §10 · 3.31.0: app:c6fbb3ff src/ui/person-modal.ts choosePersonPhoto (#photo-choose-btn; bez currentId → #input-photo), src/ui/portrait-picker-ui.ts openPortraitPicker (prázdný model → portraitPickFile), portraitPickerHtml (fromComputer / fromDevice) · strings.ts labels.photoChoose, portrait.pickTitle, fromComputer, fromDevice · dirigent:prace/1122-app-portret-dev · app:docs/ZADANI_DEV_portret-z-materialu.md §1.2, §1.3 -->
+<!-- zdroj: app:327d9734 src/ui/portrait-editor.ts (rámeček, posun, kolečko, dva prsty, ↺ ↻, narovnání s mřížkou, Zrcadlit, náhled karty / Stránka osoby / Rodinné stránky, telefon), src/photo.ts PHOTO_SIZE 256, PORTRAIT_MIN_SOURCE_PX 128, PORTRAIT_MAX_ANGLE 45, PORTRAIT_ANGLE_STEP 0.5, minZoomForAngle, cropToJpeg (bílý podklad) · src/portrait-editor-model.ts isIdentityPortrait (Hotovo beze změny z nového souboru = compressPhoto), isSmallPortrait · app:88859da2 src/ui/person-modal.ts handlePhotoInput → editor, Zrušit/Escape nechá dialog, dialog zavřený bez Uložit nic nenechá, #photo-rotate-left/right odstraněny · app:a2af453a jen ke čtení / zamčená osoba, personGone · app:ef688950 dlouhá jména, telefon na šířku · strings.ts portrait.title, preview, personPage, familyPages, savedCircle, savedRounded, rotate, straighten, zoom, reset, mirror, small, personGone · ZADANI_DEV §1, §9, §10 · 3.31.0: app:c6fbb3ff src/ui/person-modal.ts choosePersonPhoto (#photo-choose-btn; bez currentId → #input-photo), src/ui/portrait-picker-ui.ts openPortraitPicker (prázdný model → portraitPickFile), portraitPickerHtml (fromComputer / fromDevice) · strings.ts labels.photoChoose, portrait.pickTitle, fromComputer, fromDevice · dirigent:prace/1122-app-portret-dev · app:docs/ZADANI_DEV_portret-z-materialu.md §1.2, §1.3 · 3.32.0: app:5ec53843, 950904bd, 6a3f1550 (1123-app-vyrez-pripojit) isPortraitRegionShape (strana ≤ 1, střed na fotce), plocha mimo fotku #f0e9da pečená do Person.photo, GED bez CROP · CHANGELOG.cs.md 3.32.0 (Portrét přes kraj fotky) · dirigent:test/vysledek-1123-app-vyrez-pripojit.md A -->
 
 <a id="A12.1.1"></a>
 ### A12.1.1 Klávesnice, myš a dotyk v editoru
@@ -135,8 +140,8 @@ Portrét s originálem jde kdykoli vyříznout znovu z celé fotky. Portrét bez
 
 - **S originálem:** editor se otevře nad přílohou nebo fotkou svazku, ze které portrét je, s dnešním výřezem.
 - **Bez originálu** (portrét z doby před aplikací 3.30.0, z importu GEDCOM, ze sloučení bez zdroje, po smazání
-  zdrojové přílohy): editor pracuje s hotovým čtvercem 256 px. Výřez jde jen zmenšit, posunout uvnitř, otočit,
-  narovnat a zrcadlit. Editor to řekne („Celá fotka není uložená, výřez jde jen zmenšit.“) a nabídne **Vybrat fotku
+  zdrojové přílohy): editor pracuje s hotovým čtvercem 256 px. Výřez jde jen zmenšit,
+  posunout uvnitř (od aplikace 3.32.0 i přes kraj), otočit, narovnat a zrcadlit. Editor to řekne („Celá fotka není uložená, výřez jde jen zmenšit.“) a nabídne **Vybrat fotku
   znovu…**: otevře výběr souboru a pak jako nová fotka ([A12.1](#A12.1)). Každá další úprava bez originálu portrét
   zjemňuje; nový výběr fotky to napraví.
 - **Portrét | Celá fotka:** zvětšení portrétu na stránce osoby má dole přepínač **Portrét** | **Celá fotka**, když
@@ -153,8 +158,10 @@ Portrét s originálem jde kdykoli vyříznout znovu z celé fotky. Portrét bez
   portrét…**: otevře pod ⋯ výběr **Portrét z fotky** ([A12.2](#A12.2)) a nový portrét se zapíše hned s **Vrátit**.
   Položka je jen u osoby s portrétem, kterou jde měnit a která má fotku k nabídnutí (počítají se i fotky z výzkumu,
   který neběží). Klik na portrét dál otevře zvětšení.
+- **Od aplikace 3.32.0:** i portrét bez originálu jde posunout přes kraj svého čtverce; plocha mimo něj má
+  neutrální světlou barvu a střed rámečku zůstane na portrétu ([A12.1](#A12.1)).
 
-<!-- zdroj: app:1feae064 src/ui/person-modal.ts #photo-recrop-btn (labels.photoRecrop), editor nad zdrojem s photoSource, jinak squareOnly + chooseAgain → #input-photo · src/ui/person-page-ui.ts item('crop', editCrop) jen canEdit && person.photo, Hotovo = jedna transakce, toast portraitUpdated s Vrátit · app:dab74024 src/ui/image-viewer.ts přepínač Portrét | Celá fotka (jen s existujícím zdrojem), src/person-page.ts portraitLightbox odkaz Celá fotka jen když soubor fotku nese · strings.ts labels.photoRecrop, personPage.moreActions, editCrop, portrait, wholePhoto, portrait.noOriginal, chooseAgain, updated · ZADANI_DEV §2, §10 · 3.31.0: app:3f6c9dfd src/ui/person-page-ui.ts togglePersonPageMenu item('portrait') před crop, personPageCanChangePortrait (shown + researchOnly > 0), runPersonPageMenu → openPortraitPicker pod .pp-more · strings.ts personPage.changePortrait · dirigent:prace/1122-app-portret-dev · app:docs/ZADANI_DEV_portret-z-materialu.md §1.3 -->
+<!-- zdroj: app:1feae064 src/ui/person-modal.ts #photo-recrop-btn (labels.photoRecrop), editor nad zdrojem s photoSource, jinak squareOnly + chooseAgain → #input-photo · src/ui/person-page-ui.ts item('crop', editCrop) jen canEdit && person.photo, Hotovo = jedna transakce, toast portraitUpdated s Vrátit · app:dab74024 src/ui/image-viewer.ts přepínač Portrét | Celá fotka (jen s existujícím zdrojem), src/person-page.ts portraitLightbox odkaz Celá fotka jen když soubor fotku nese · strings.ts labels.photoRecrop, personPage.moreActions, editCrop, portrait, wholePhoto, portrait.noOriginal, chooseAgain, updated · ZADANI_DEV §2, §10 · 3.31.0: app:3f6c9dfd src/ui/person-page-ui.ts togglePersonPageMenu item('portrait') před crop, personPageCanChangePortrait (shown + researchOnly > 0), runPersonPageMenu → openPortraitPicker pod .pp-more · strings.ts personPage.changePortrait · dirigent:prace/1122-app-portret-dev · app:docs/ZADANI_DEV_portret-z-materialu.md §1.3 · 3.32.0: dirigent:prace/_drobnosti/doc.md (1123-app-vyrez-pripojit: platí i pro čtvercový portrét bez originálu) -->
 
 <a id="A12.4"></a>
 ## A12.4 Fotka svazku
@@ -237,6 +244,9 @@ svazků, na stránkách osob a v knize rodu.
   mezi fotky a originály portrétů mezi přílohy.
 - **Ovládání:** Tabulka › Svazky, výběr sloupců; stránka osoby; export **Kniha rodu**.
 - **Platí od:** aplikace 3.30.0
+- **Od aplikace 3.31.0:** Vějíř ukazuje portréty se zapnutými **Portréty** ([A6.4.2](A6-views.md#A6.4.2)); od 3.32.0
+  v každém prstenci, kde je dost místa, a na plakátu a v tisku od 7 mm ([A6.4.3](A6-views.md#A6.4.3)). Fotku svazku
+  vějíř neukazuje.
 
 <!-- zdroj: app:45f7ca2a src/ui/table-view/table-columns.ts:732 uPhoto (group uextra, skrytý, kind thumb), thumbCell (strings.table.yes, sortKey), table-filter.ts presence (withPhoto / withoutPhoto), prohlížeč s Udělat portréty… a Vrátit, telefon (D10) · app:fd1f0c3c src/person-page.ts couplePhotoItems (první v galerii, popisek, počet obrázků, bez skupiny obrázků / žijící partner pod ochranou), rodinné stránky totéž, src/book-blocks.ts couplePhotoHtml (jen parts.media, popisek fields.marriageRow / book.partners + datum), src/book-css.ts .book-photo--couple max-height 110mm · app:50e49518 src/ui/tree-overview.ts a src/attachments.ts: fotka svazku mezi fotkami, originál portrétu je příloha · ZADANI_DEV §5, §8, D10, D12 · strings.ts tableCols.uPhoto, tableFilter.withPhoto, withoutPhoto, table.groups.uextra, personPage.sec.materials, relationships.unionPhotoCaption, book.parts.media -->
 

@@ -201,8 +201,10 @@ Porovnává se bez velikosti písmen a diakritiky. Nález je ve **Stopy** ve sku
     jistě zemřela před narozením (nebo křtem) druhé.
 - **Ovládání:** **Jsou to dvě osoby** ([A5.7](#A5.7)); u verdiktu výzkumu **Sloučit…** ([A5.6.1](#A5.6.1)).
 - **Platí od:** aplikace 1.9.9; roky z křtu a úmrtí 3.17.0
+- Sloučení dvou osob jednoho stromu je jiná věc než sloučení dvou stromů nebo import rodokmenu do stromu
+  ([A8](A8-merging-trees.md)): to vede průvodce a jde odvolat ([A8.12](A8-merging-trees.md#A8.12)).
 
-<!-- zdroj: app:src/validation.ts:1084 birthYears, :1127 checkPossibleDuplicates STAND_IN_YEARS_SLACK · strings.ts treeManager.valGroupPossibleDuplicate, twoPeople -->
+<!-- zdroj: app:src/validation.ts:1084 birthYears, :1127 checkPossibleDuplicates STAND_IN_YEARS_SLACK · strings.ts treeManager.valGroupPossibleDuplicate, twoPeople · odkaz na A8: spec 134 (dokumentace „A5.6 odkaz“) -->
 
 <a id="A5.6.1"></a>
 ### A5.6.1 Verdikt výzkumu

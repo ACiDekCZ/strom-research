@@ -24,6 +24,7 @@ import { byHandOnly, listConnectors, missingConsents } from "../core/connector.t
 import { readableFile } from "../core/readable.ts";
 import { shownSize } from "../image/index.ts";
 import { verifyFast } from "../core/integrity.ts";
+import { writeFileAtomic } from "../core/json.ts";
 import { addReaders } from "../core/session.ts";
 import { READER_MINUTES_HELP } from "../core/reader.ts";
 import { stamp } from "../core/net.ts";
@@ -543,9 +544,10 @@ function finish(ctx: Context, tree: Tree, s: ReadState, ran: ReadState["reports"
   delete s.pid;
   delete s.before;
   let result = buildResult(tree, s);
+  // whole or not at all (written beside, then renamed): /status reads it (readAgain) while a reading ends
   const write = () => {
     fs.mkdirSync(path.dirname(resultPath(tree.root, s.id)), { recursive: true });
-    fs.writeFileSync(resultPath(tree.root, s.id), JSON.stringify(result, null, 2) + "\n");
+    writeFileAtomic(resultPath(tree.root, s.id), JSON.stringify(result, null, 2) + "\n");
   };
   const verified = !tree.dryRun && verifyFast(tree).findings.every((f) => f.level !== "error");
   // a source read again from its original: ended only once it is held against the transcript — the app takes the
@@ -561,9 +563,11 @@ function finish(ctx: Context, tree: Tree, s: ReadState, ran: ReadState["reports"
   };
   if (compares && !verified) unwritten(tree.dryRun ? "a dry run: nothing written to the research" : "the research has errors (strom check): the reading not written to its source");
   let persisted = false;
+  // the result first, then the state: the app takes a reading as ended when its state says done (GET /read/<id>), and
+  // what /status says of the source (readAgain) is read from the result — never a done whose result is not there yet
   const persist = () => {
-    saveState(tree.root, s);
     write();
+    saveState(tree.root, s);
     persisted = true;
   };
   if (!keeps) persist();

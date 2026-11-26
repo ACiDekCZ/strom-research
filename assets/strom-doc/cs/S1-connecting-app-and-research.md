@@ -56,6 +56,8 @@ svůj strom. Poprvé vznikne v aplikaci nový strom, příště se aktualizuje t
     soubor, který není na tomto počítači, proto byl ignorován.“
   - Strom z výzkumu už v aplikaci je a od posledního načtení se v aplikaci nezměnil: aktualizuje se. Změnil se:
     aplikace se zeptá, zda ho **Aktualizovat**, nebo **Otevřít jako kopii**. Před aktualizací se uloží záloha.
+    **Otevřít jako kopii** udělá z výzkumu nový strom, který bere další aktualizace; strom se změnami zůstane, jak je,
+    od aplikace 3.32.0 jako kopie bez výzkumu ([S1.10](#S1.10)).
   - Safari webové stránce spojení s programem na tomto počítači nedovolí. `strom app` proto Safari nikdy neotevře.
     Bez vhodného prohlížeče soubor převezme nainstalovaná aplikace, nebo jde do okna aplikace přetáhnout soubor
     `output/tree-strom.ged` ze složky výzkumu.
@@ -97,7 +99,7 @@ výzkumu a verzi, ze které vznikl. Podle toho aplikace ví, kam ho poslat zpět
 | Výzkum | **Výzkum** | strom, ve kterém pracuje agent výzkumu |
 | Archiv Stromu | **Archiv** | strom, který výzkum drží s prameny na disku, bez agenta |
 | Výzkum čeká na agenta | **Archiv** | výzkum, který zatím nemá agenta; aplikace s ním zachází jako s archivem |
-| Kopie | bez značky | starší kopie stromu z výzkumu (**Otevřít jako kopii**, duplikát, druhý import); z výzkumu se už neaktualizuje |
+| Kopie | bez značky | kopie stromu z výzkumu (**Otevřít jako kopii**, kopie celého stromu, druhý import); z výzkumu se neaktualizuje a od aplikace 3.32.0 je bez výzkumu ([S1.10](#S1.10)) |
 
 - **Hranice:** zda je strom výzkum, nebo archiv, rozhoduje výzkum, ne aplikace. Přepnout jde jen ve výzkumu.
 - **Ovládání:** aplikace: přepínač stromů. Terminál: menu výzkumu.
@@ -322,7 +324,8 @@ počítače, nebo podle nastavení **Vypnout výzkum po nečinnosti**.
     Platí pro všechny stromy na tomto počítači a drží ji výzkum (`live.idleMinutes` 0 nebo 120). Běžící mosty ji
     převezmou do minuty. Hodnota nastavená v terminálu se ukáže jako **Vlastní hodnota (N min)**. Neběží-li výzkum,
     který volbu umí, aplikace místo voleb ukáže příkazy do terminálu.
-  - Na telefonu a tabletu přepínač není (výzkum běží na počítači). Kopie stromu z výzkumu přepínač nemá.
+  - Na telefonu a tabletu přepínač není (výzkum běží na počítači). Kopie stromu z výzkumu má ve Správě stromů
+    přepínač vypnutý; jeho zapnutí otevře **Výzkum pro kopii stromu** ([S1.10.1](#S1.10.1)).
 - **Ovládání:** aplikace: přepínač **Výzkum zapnutý** v panelu výzkumu (strom bez sledování živě a po skončení
   sledování) a ve **Správě stromů** u řádku stromu; panel výzkumu, když výzkum neběží: **Zapnout**; **Nastavení** →
   **Výzkum na tomto počítači** → **Vypnout výzkum po nečinnosti**. Terminál: `strom live start`, `strom live stop`,
@@ -330,3 +333,71 @@ počítače, nebo podle nastavení **Vypnout výzkum po nečinnosti**.
 - **Platí od:** aplikace 3.25.0, výzkum 1.29.0. Stav na přepínači a věta po 30 s od aplikace 3.30.0.
 
 <!-- zdroj: research:src/core/live.ts liveWrite (POST <token>/live {idleMinutes 0…10080} → strom config set live.idleMinutes; {do: stop} → konec stopped, adresa zůstává), liveState (/status live idleMinutes, idleChoices), IDLE_READ_MS 60 s, reviveLive + endedIdle (zpět s prací jen konec idle; bez slova: zpět s menu, prací, aktualizací), stop SIGTERM → signal · src/core/config.ts DEFAULT_LIVE_IDLE_MINUTES 0, LIVE_IDLE_AFTER_MINUTES 120, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES · src/core/links.ts LINK_LIVE_DOS start · src/commands/links.ts startBridge (bez okna) · app:src/ui/research-live-ui.ts researchLiveState (onComputer, link.copy, features live.stop / live.start), fillResearchLiveSlot, fillResearchLiveStart, renderResearchLiveSettings (LIVE_IDLE_FOREVER, LIVE_IDLE_TWO_HOURS, idleCustom), COMMAND_START / COMMAND_STOP · src/ui/research-ui.ts researchLiveSlot (panel po skončení sledování, idle, start) · src/ui/tree-management.ts researchLiveSlotHtml · strings.ts researchLive.* · index.html settings-group-research-live · spec 064 K1.1–K2.3 · 3.30.0: app:cd35804c src/ui/research-live-ui.ts START_CONFIRM_MS 30 s, researchLiveTimedOut (liveSilent, COMMAND_START, retry) · src/ui/switch-pend.ts (turningOn, turningOff) -->
+
+<a id="S1.10"></a>
+## S1.10 Jeden výzkum, jeden strom: kopie bez výzkumu
+
+Do jednoho výzkumu zapisuje jen jeden strom v aplikaci: ten, který s výzkumem vznikl nebo ho převzal. Každá kopie
+stromu z výzkumu je strom bez výzkumu. Nic do výzkumu neposílá: sama, tlačítkem ani prvním zápisem souborů.
+
+- **Co je kopie:** **Kopie celého stromu** (dřív **Duplikovat**, [A14.3](A14-trees-and-structure.md#A14.3)),
+  dosavadní strom po **Otevřít jako kopii** u stromu z výzkumu (nový strom z výzkumu bere jeho aktualizace, strom
+  se změnami zůstane, jak je, jako kopie; [S1.2](#S1.2)), druhé načtení souboru JSON téhož výzkumu, sloučení
+  do nového stromu ([A8.10](A8-merging-trees.md#A8.10)) a stromy obnovené ze zálohy všech stromů jako nové.
+- **Jak se kopie ukáže:** ve Správě stromů a v kroku 1 průvodce sloučením „kopie stromu „{název}“ · bez výzkumu“,
+  s vypnutým přepínačem **Výzkum zapnutý**. Akce výzkumu nemá; ⋯ nabízí jen **Zapnout výzkum…**.
+- **Poslat změny z výzkumu:** odkaz, kterým si výzkum o úpravy řekne, pošle vždy jen strom, který k výzkumu patří.
+  Dotaz, který strom poslat, už není.
+- **Hranice:** kopie kopie nese název té kopie. Nový strom z výběru a stromy z rozdělení jsou také bez výzkumu
+  ([A14](A14-trees-and-structure.md#A14)).
+- **Ovládání:** Správa stromů ([A14.1](A14-trees-and-structure.md#A14.1)).
+- **Platí od:** aplikace 3.32.0. Dřív zůstávala kopie napojená na výzkum originálu, jen se z něj neaktualizovala.
+
+<!-- zdroj: app:7d4236f8 (134 bod 11, 13: kopie stromu výzkumu nic nezapisuje do výzkumu originálu) · src/tree-manager.ts canSendToResearch (isResearchOwner), duplicateTree copyOf · src/research-owner.ts · src/ui/research-ui.ts sendChangesToResearch (?send= jen vlastník, „Only the research's owner is sent“) · f3c66503 (sloučení do nového stromu a obnovená záloha = kopie bez výzkumu) · src/tree-row.ts treeOriginLine · strings.ts research.copyOf, structure.turnOnResearch · dirigent:prace/_drobnosti/doc.md 134 bod 11+13 -->
+
+<a id="S1.10.1"></a>
+### S1.10.1 Výzkum pro kopii stromu
+
+Kopie může dostat vlastní, nový výzkum, nebo převzít výzkum originálu. Obojí nabízí okno **Výzkum pro kopii stromu**:
+„„{kopie}“ je kopie stromu „{originál}“. Do jednoho výzkumu zapisuje jen jeden strom, proto kopie dostane vlastní,
+nový výzkum.“
+
+- **Založit nový výzkum:** pole **Složka nového výzkumu** má předvyplněný název kopie (s cestou, kde výzkum na tomto
+  počítači výzkumy zakládá, když ji výzkum řekne). Dál pokračuje založení výzkumu jako u **Začít výzkum**
+  ([S4](S4-research-from-the-app.md)). Do nového výzkumu nejdou čísla osob a pramenů jiného výzkumu; kopie dostane
+  čísla nového výzkumu.
+- **Převzít výzkum stromu „{originál}“…:** jen když originál výzkum má; okno pak řekne i „Výzkum „{číslo}“ zůstává
+  stromu „{originál}“.“ Převzetí se potvrzuje varováním: „Strom „{originál}“ se od výzkumu „{číslo}“ odpojí
+  a přestane do něj zapisovat. Zapisovat bude jen kopie.“ a „Originál zůstane jako strom bez výzkumu.“, tlačítko
+  **Převzít výzkum**. Převzetí proběhne jen v aplikaci; do výzkumu se nic neposílá.
+- **Hranice:** okno je jen na počítači, kde lze výzkum založit z aplikace; ne u ukázkového stromu.
+- **Ovládání:** Správa stromů, přepínač u kopie; ⋯ u kopie → **Zapnout výzkum…**.
+- **Platí od:** aplikace 3.32.0
+
+<!-- zdroj: app:023879dd src/ui/research-adopt-ui.ts showCopyResearchDialog (složka = název kopie, treesRoot, copyResearchStays a Převzít jen u vlastníka originálu, is-danger potvrzení), src/research-owner.ts transferResearchTie (jen v aplikaci), src/research-link.ts (bez REFN P…/S… jiného výzkumu, K5.4) · a236a31e (název složky i přes soubor v Safari, cesta výzkumů) · strings.ts structure.copyResearch*, createResearch, takeOver* · spec 139 K5.1–K5.4 -->
+
+<a id="S1.10.2"></a>
+### S1.10.2 Jednorázové odpojení stromů, které sdílely výzkum
+
+Stromy, které před aplikací 3.32.0 sdílely jeden výzkum (starší kopie nebo dva stromy téhož výzkumu), se při prvním
+spuštění nové verze jednou rozdělí. Výzkum si nechá jeden strom, ostatní jsou kopie bez výzkumu.
+
+- **Který strom zůstane:** strom, který není kopií; z několika takových nejstarší. Jsou-li všechny kopiemi, nejstarší
+  kopie zůstane, jak je, a do výzkumu dál nic nezapisuje.
+- **Ostatní:** před odpojením dostanou zálohu **Před úpravou dat pro novou verzi** ([S6.5](S6-tree-from-another-program.md#S6.5)),
+  data zůstanou beze změny. Zamčený šifrovaný strom se nečte a nezálohuje; změní se jen jeho záznam ve Správě
+  stromů.
+- **Při prvním otevření** odpojeného stromu se jednou ukáže okno **Kopie bez výzkumu**: „Strom „{název}“ byl kopií
+  napojenou na výzkum stromu „{originál}“. Vazba se zrušila, aby do výzkumu zapisoval jen jeden strom. Vlastní
+  výzkum jde založit ve Správě stromů.“ Když kopie do výzkumu předtím poslala změny:
+  - čekají-li ve výzkumu: „Předtím kopie do toho výzkumu poslala změny ({datum}). Čekají ve výzkumu a jde je tam
+    zahodit.“;
+  - jsou-li zapsané: „…Výzkum je vezme zpět jedním krokem ve svém terminálu:“ a příkaz `strom sync undo I0042`
+    s **Kopírovat**; se známým vstupem i **Vzít zpět ve výzkumu**, jinak `I…` a „I… je číslo toho odeslání ve
+    výzkumu (ukáže ho strom input list).“ ([S2.6](S2-edits-from-the-app.md#S2.6)).
+
+  Okno má **Zavřít** a, kde to jde, **Začít výzkum**.
+- **Hranice:** oprava proběhne jednou; starší rejstřík stromů vrácený zpět se prohlédne znovu.
+- **Platí od:** aplikace 3.32.0
+
+<!-- zdroj: app:e4e3eeea src/tree-manager.ts repairSharedResearchTies (researchTiesRepaired, planSharedTieRepair, backupBeforeTieRepair 'pre-migration' bez čtení zamčeného šifrovaného, detachAsCopy, researchDetached) · src/research-owner.ts planSharedTieRepair (keeper: bez copyOf, nejstarší; jinak nejstarší kopie) · src/ui/research-detached-ui.ts showResearchDetached (jednou, sentAfterCopy pending/undo step, adoptTree) · strings.ts research.detached*, undoStep*, backups label pre-migration · dirigent:prace/_drobnosti/doc.md 134 bod 13 -->

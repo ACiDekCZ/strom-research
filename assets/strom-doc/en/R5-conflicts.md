@@ -234,5 +234,11 @@ the research.
   - a person removed or edited in another window: the app asks **Return to the tree** / **Keep removed**, or **Remove
     from the tree** / **Keep in the tree**. The choice also opens the research in a terminal.
 - **Since:** app 3.11.0 with research 1.14.0
+- **From app 3.32.0 (research 1.37.0):** a conflict of two sends from different browsers shows the sides as **Edit
+  from this browser** and **Edit from Chrome · Mac** (the name of the browser that sent,
+  [S2.2.1](S2-edits-from-the-app.md#S2.2.1)) with the choice **Keep the edit from …** at each; the Research menu and
+  the sentences under the choices speak of both edits. A send that named no browser is "an earlier send" / "the later
+  send".
 
+<!-- zdroj: 3.32.0: app:src/conflict-devices.ts conflictDeviceWords, deviceWords, conflictKeepWords · src/ui/conflict-decide-ui.ts:137-147, 224-303 researchConflictDevices · src/ui/conflict-panel-ui.ts:265 · strings.ts conflict.device, conflict.sideFrom, conflict.keepFrom, conflict.keepNoteFrom, conflict.takeNoteFrom · CHANGELOG.cs.md 3.32.0 Práce s výzkumem -->
 <!-- zdroj: research:src/core/conflicts.ts:48-62 BY_SIDE, sidesOf · app:v3.21.2 research-decide.ts:28-66 DECIDE_FACTS, canDecideInApp · ui/research-removed-ui.ts:97-125 · strings.ts conflict.person.* -->

@@ -5,9 +5,21 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.38.0
+
+*W przygotowaniu: bety do 1.38.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+
+- **Ustawienia badania w historii słowami:** ustawienie zmienione w aplikacji lub w menu pokazuje się w ostatnich
+  zmianach nazwą i wartością w języku badania („Wyłączono w badaniu: Pytanie przed sortowaniem materiałów”), już nie
+  jako klucz (`sort.confirm`).
+- **Agent odnajduje się przy mniejszej liczbie prób:** `strom place find <nazwa>` i `strom place <nazwa>` kierują do
+  `strom place list <nazwa>`; `strom source list --note <tekst>` wypisuje jednym wywołaniem źródła, których notatka coś
+  mówi (na przykład że adres dał rejestr); `strom media view` wyjaśnia, jak obejrzeć obraz zarejestrowany tylko w
+  częściach i jego wycinek.
+
 ## 1.37.0
 
-*W przygotowaniu: bety do 1.37.0-beta.8. Sekcja będzie kompletna z wydaniem.*
+*25.11.2026 · współpracuje z aplikacją Strom 3.32.0.*
 
 - **Wpis archiwum w badaniu nie utrzymuje już portalu z listy stroma:** księga z adresem na portalu, który zna lista
   stroma (Porta fontium, Acta Publica…), nie czyni już portalu tak surowym jak archiwum, pod którym jest zapisana –

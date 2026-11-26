@@ -1859,7 +1859,8 @@ function imageGroups(args: string[], seq: Typed[] | undefined): ImageGroup[] | u
   const bare = groups.find((g) => !g.parts.length);
   if (bare)
     throw new UsageError(`${groupLabel(bare)} has no --${kind} of its own: each --${kind} is of the image named before it`, {
-      hint: `${form} (the same parts of every image: all of them after the last image)`,
+      // a whole view of one image and a part of another (a live run's try, 2026-11-25): two calls, --whole is of all
+      hint: `${form} (the same parts of every image: all of them after the last image) — the image whole: a call of its own, strom media view ${groupLabel(bare)}`,
       code: "view.crop-missing",
     });
   return groups;
@@ -2872,7 +2873,10 @@ register(
       "--crop repeated; --split 2x3 = a grid of overlapping parts), each view with its image, page and --clip. A --crop,\n" +
       "--half, --split or --grid typed after an image among others is of that image alone (B0001:2 --crop … B0001:7\n" +
       "--half right; B0001 --image 2 --crop … B0001 --image 7 --crop …; B0001 2 --crop … 7 --crop …); parts after the\n" +
-      "last image are of every image. At most\n" +
+      "last image are of every image; an image whole beside parts of another: two calls (--whole is of every image).\n" +
+      "An image registered only in parts (its two halves, M0005 and M0006, of B0001:60): the parts whole by their IDs\n" +
+      "(strom media view M0005 M0006); a --half or a --crop of B0001:60 is of the whole image, in its fractions, shown from\n" +
+      "the part that covers it (B0001:60 alone names no view: which part?). At most\n" +
       `${VIEW_MAX_IMAGES} images and ${VIEW_MAX_VIEWS} views in one call: every view stays in the context that opens it.`,
     args: [{ name: "image", description: "M0012, B0001:57 (record set:image), a range B0001:57-60, B0001 with --page, an input I0002, or a page of an input document I0002:3 (a PDF; HEIC and PDF are converted for reading, the original kept); several = several images", required: true, variadic: true }],
     options: [
@@ -2900,6 +2904,8 @@ register(
       "strom media view B0001:2 --crop 0.05,0.10,0.45,0.30 B0001:3 --crop 0.50,0.60,0.45,0.20",
       "strom media view B0001 --page 112 113 --split 2x2",
       "strom media view I0005:2 --half top",
+      "strom media view M0005 M0006",
+      "strom media view B0001:60 --crop 0.55,0.30,0.40,0.20",
     ],
     run(ctx, { args, opts, seq }) {
       // the whole image is what a view is without a part of it (strom read --whole: each image in one view)

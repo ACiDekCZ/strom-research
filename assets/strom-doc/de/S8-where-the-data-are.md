@@ -4,8 +4,9 @@
 Die App hält Stammbäume im Speicher des Browsers auf diesem Gerät. Die Forschung und das Strom-Archiv halten ihren
 Stammbaum in einem Ordner auf dem Datenträger dieses Computers, mit Quellen, Material und Verlauf. Ab der Forschung
 1.35.0 hält die Forschung auch die Porträts, Paarfotos und Anhänge des Stammbaums aus der App. Das Kapitel
-beschreibt die Strom-App 3.30.0 und die Forschung 1.35.0. Wie die Brücke zwischen beiden den Stammbaum überträgt,
-beschreiben [S1](S1-connecting-app-and-research.md) und [S2](S2-edits-from-the-app.md).
+beschreibt die Strom-App 3.30.0 und die Forschung 1.35.0; Änderungen aus einer neueren Version tragen deren Nummer.
+Wie die App Bilder im Speicher hält, beschreibt [S8.7](#S8.7). Wie die Brücke zwischen beiden den Stammbaum
+überträgt, beschreiben [S1](S1-connecting-app-and-research.md) und [S2](S2-edits-from-the-app.md).
 
 | Was | Wo es liegt | Dauerhafte Kopie | Bedienung |
 |---|---|---|---|
@@ -90,8 +91,14 @@ Inhalt, mit ihren Stellen im Stammbaum ([R11.5.1](R11-material-from-the-user.md#
 - **Bedienung:** App: Schreiben des Stammbaums (**Senden**, [S2](S2-edits-from-the-app.md)); **Forschung für diesen
   Stammbaum → Originaldateien senden**.
 - **Gilt seit:** App 3.30.0, Forschung 1.35.0
+- **Ab App 3.32.0 (Forschung 1.37.0):** Bilder, die die Forschung schon hat (ein Porträt, ein Paarfoto, ein Anhang,
+  ein Ausschnitt einer Quelle, den die Forschung selbst wieder ausschneiden kann), gehen als Verweis, über ihren
+  Fingerabdruck, statt der ganzen Daten in die Forschung; das Senden eines Stammbaums mit Fotos ist so um ein
+  Vielfaches kleiner. Eine Sendung, die eine Datei nennt, die die Forschung nicht findet, lehnt die Forschung ganz ab,
+  bevor sie etwas speichert, und die App sendet sie erneut mit den Daten. Mit einer älteren Forschung geht alles wie
+  bisher mit den Daten.
 
-<!-- zdroj: dirigent:spec/108-kde-se-co-uklada (U8, K2.3, K2.6, K2.7) · app:3419afff POST /sync?media=app, 7263f1f6 GET /tree.ged?images=ref&media=app, 402b7d9b, e3e415f6 (X-Strom-Person, originál se štítkem Portrét), 59ff465e · src/research-link.ts carryOverMedia (photoSource ponechaný, base K2.3) · research:0834987b (X-Strom-Family), 3925b84a (_PRIM Y), 815bc90d, 91ab6230, 771d8af0 · research:src/core/treemedia.ts (hlavička) · research:c9a4b614 CHANGELOG.cs.md 1.35.0 -->
+<!-- zdroj: dirigent:spec/108-kde-se-co-uklada (U8, K2.3, K2.6, K2.7) · app:3419afff POST /sync?media=app, 7263f1f6 GET /tree.ged?images=ref&media=app, 402b7d9b, e3e415f6 (X-Strom-Person, originál se štítkem Portrét), 59ff465e · src/research-link.ts carryOverMedia (photoSource ponechaný, base K2.3) · research:0834987b (X-Strom-Family), 3925b84a (_PRIM Y), 815bc90d, 91ab6230, 771d8af0 · research:src/core/treemedia.ts (hlavička) · research:c9a4b614 CHANGELOG.cs.md 1.35.0 · 3.32.0: app:debf50cc src/research-media-ref.ts (sync.mediaRef, media/known, sync.media-ref-unknown → znovu s daty) · CHANGELOG.cs.md 3.32.0 (Menší odesílání do výzkumu) · research:cf8352e2 (1.37.0) CHANGELOG.cs.md 1.37.0 (Odeslání z aplikace lehčí a rychlejší) -->
 
 <a id="S8.4"></a>
 ## S8.4 Die Anzeige Nur im Browser
@@ -170,3 +177,46 @@ lassen sich aus dem Archiv wieder laden, Familienfotos und Originale nicht.
 - **Gilt seit:** Forschung 1.35.0
 
 <!-- zdroj: research:31def74a src/commands/pack.ts (ui.pack.images, ui.pack.family, ui.pack.batches, pack.too-large), src/core/pack.ts (bez ZIP64), src/core/zip.ts ZIP_MAX_FILES=0xffff · src/commands/trees.ts:271-287 (záloha výchozí ano, skeny ano jen se zálohou, rodinné ne, název), ui.remove.images.folder · research:771d8af0 (zmenšené kopie v balíku) · assets/lang/cs.json ui.pack.*, ui.remove.*, ui.error.pack.too-large · ui.pack.batches, ui.unpack.batches (v1.35.0) · trees remove: strom pack --all-images · e6bbfb40 ui.pack.which, ui.remove.backup (1.36.0 jen texty) -->
+
+<a id="S8.7"></a>
+## S8.7 Bilder außerhalb des Speichers des Stammbaums
+
+Ein geöffneter Stammbaum hält im Speicher der Seite statt der Bilder nur Verweise. Ein Bild wird erst aus dem Speicher
+des Browsers geladen, wenn es zu sehen ist. Ein großer Stammbaum mit vielen Fotos passt so in den Speicher, den der
+Browser einer Seite gibt.
+
+- Der Speicher der Seite hat eine Obergrenze, die alle Fenster der App teilen. Mancher Browser nennt sie; sonst rechnet
+  die App mit 2 GB, auf einem Touch-Gerät mit 1 GB. Jenseits der Obergrenze hört die Seite auf zu funktionieren.
+- Bei einer Messung an einem erfundenen Stammbaum mit 20 000 Personen und 4 000 Bildern belegte der geöffnete
+  Stammbaum etwa 55 MB Speicher der Seite, ungefähr so viel wie derselbe Stammbaum ohne Bilder (vor App 3.32.0 etwa
+  518 MB). Die Größe, die hineinpasst, bestimmen heute vor allem die Personen und ihre Angaben.
+- Rückgängig und Wiederholen, das Speichern des Stammbaums und die Sicherungen kopieren keine Bilder. Ein Export in
+  eine Datei (JSON, App mit den Daten, GEDCOM) schreibt die Bilder zu wenigen auf einmal.
+- **Der Speicher reicht womöglich nicht:**
+  - nähert sich der geöffnete Stammbaum der Obergrenze, sagt die App es im Hauptfenster mit einem bleibenden Hinweis
+    und einem Rat: weitere Fenster der App schließen und nicht benötigte Bilder entfernen; bei jedem Stammbaum einmal,
+    bis der Browser geschlossen wird;
+  - vor einer Ausgabe mit Bildern, die die Obergrenze überschreiten könnte (Datei des Stammbaums, Datei aller
+    Stammbäume, Buch, Poster mit Porträts), und vor dem Einlesen einer großen Datei fragt die App: **Fortfahren** oder
+    abbrechen; wo es geht, bietet sie **Bilder nicht in die Datei aufnehmen** an;
+  - die Schätzung geht von der Größe des Stammbaums, der Bilder und der Zahl offener Fenster aus, nicht von einer
+    Messung des Browsers; sie ist eine Warnung, kein Verbot.
+- **Zwischen Kopien geteilte Bilder:** jedes Bild liegt im Speicher des Browsers einmal, nach seinem Inhalt, und alle
+  Stammbäume, Sicherungen und Kopien, die es haben, teilen es. **Kopie des ganzen Stammbaums**
+  ([A14.3](A14-trees-and-structure.md#A14.3)) ergibt eine vollständige eigenständige Kopie des Stammbaums mit Bildern,
+  die keinen zweiten Platz belegen. Das Löschen einer
+  Kopie oder Sicherung löscht kein Bild, das ein anderer Stammbaum verwendet. Ein Bild, das kein Stammbaum, keine
+  Sicherung und kein offenes Fenster mehr verwendet, wird beim Aufräumen nach einer Woche gelöscht.
+- Dasselbe Bild in zwei Stammbäumen ist beim Zusammenführen dasselbe Bild, kein Unterschied
+  ([A8](A8-merging-trees.md)).
+- **Grenzen:**
+  - Buch, Familienseiten, Poster, ein Änderungspaket und eine Datei mit Passwort halten die Bilder ganz im Speicher,
+    darum fragen sie früher als ein Export Bild für Bild;
+  - die Grenze betrifft den Speicher der Seite, nicht den Platz auf dem Datenträger: den Platz im Speicher des Browsers
+    überwachen die Sicherungen und das Fenster **Wo die Daten liegen** ([S8.1](#S8.1)).
+- **Bedienung:** der Hinweis „Der Stammbaum „…“ nähert sich dem Speicher, den dieser Browser der App gibt…“; die
+  Frage **Der Speicher reicht womöglich nicht**; **Struktur ändern…** → **Kopie des ganzen Stammbaums**. Stammbäume
+  verwalten zeigt bei der Größe eines solchen Stammbaums „· Bilder geteilt“ ([A14.1](A14-trees-and-structure.md#A14.1)).
+- **Gilt seit:** App 3.32.0; Bilder einmal nach Inhalt ab App 3.1.0
+
+<!-- zdroj: dirigent:spec/135-obrazky-mimo-pamet-stromu (K1.1–K1.4, P2, P3) · app:c5931983 (strom v paměti drží odkazy), 6b425e41 (úklid poolu dvoufázově po 7 dnech, kořen memory), e6ce052c (proudové výstupy JSON/uložená aplikace), fcc7c21b (GED po obrázcích), e6a0a8c2 (upozornění), 6e55a1dc (sloučení nad odkazy, rovnost obrázků podle obsahu) · src/memory-limit.ts (DEFAULT_LIMIT 2048 MB, TOUCH_LIMIT 1024 MB, odhad z JSON stromu bez obrázků + 25 MB za další okno, OUTPUT_IMAGE_FACTOR / WHOLE_OUTPUT_IMAGE_FACTOR) · src/ui/memory-limit-ui.ts checkMemoryNotice (jednou za relaci a strom, toast hold), outputNearLimit, canLeaveOut · src/media-pool.ts POOL_UNUSED_GRACE_MS (7 dní) · app:2ba2408a (pool obrázků, v3.1.0) · strings.ts memoryLimit.title, notice, output, outputAll, book, poster, leaveOut, import, continue, treeManager.duplicate · dirigent:prace/1122-app-135/karta.md (měření D9a: 20k × 4000 obr. 518 → 55 MB, bez obrázků 53 MB) · dirigent:test/vysledek-1123-scenare-app.md (Duplikovat: samostatná kopie se sdílenými obrázky, smazání kopie nesmaže obrázky jiných) · CHANGELOG.cs.md 3.32.0 (Velké stromy s fotkami) · app:e9f50b62 (Duplikovat nahrazeno Kopií celého stromu ve Změnit strukturu) · 7b967fd8 treeManager.imagesShared -->

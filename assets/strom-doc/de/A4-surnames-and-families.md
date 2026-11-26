@@ -386,3 +386,45 @@ wie bisher.
 - **Gilt seit:** App 3.28.0
 
 <!-- zdroj: app:f5d56ed3 src/picker-distinguish.ts rowKey (shownNameParts + birthNoteText, rok narození jen se showBirthYear, normalizeSearchText), distinguishFeatures (roky * – †, bez roku v řádku a bez části, kterou říká nález; partner první, kterého jiné řádky nemají; rodiče otec, matka, ostatní, bez zástupných; rodiště, jinak poslední bydliště s místem), distinguishLine (nejkratší předpona údajů, kterou nemá nikdo jiný; jinak první známý; jinak distNone), PickerDistinguisher (celý výsledek, i za 50) · src/person-picker.ts renderItem (person-picker-dist, nález na jednom řádku za „ · “, role option, aria-label a title „jméno, rozlišení“) · index.html .person-picker-dist (výpustka, min-width 330 px, telefon 100vw) · všechny new PersonPicker (search.ts, relation-modal.ts, kinship-ui.ts, read-document-ui.ts, tree-management.ts …); PathPersonPicker samostatný · strings.ts personPicker.distNone, distChild, distAnd, distBorn, distLived · app ac34f598 · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §1 · app:1c4b7d19 distinguishLine (údaj shodný u všech ostatních řádků skupiny se vynechá; jinak první známý nesdílený; bez rozlišení vše) · dirigent:spec/085 A4.8.1 -->
+
+<a id="A4.8.2"></a>
+### A4.8.2 Suchbereich: Ganzer Stammbaum, Direkte Linie, In der Ansicht
+
+Die Ergebnisse der Personensuche lassen sich auf die direkte Linie einer Person oder auf die Personen eingrenzen, die
+die Ansicht gerade zeigt. Der Schalter **Suchbereich** ist im Kopf der aufgeklappten Ergebnisse: **Ganzer
+Stammbaum**, **Direkte Linie**, **In der Ansicht**.
+
+- **Direkte Linie** ist die Person selbst, alle ihre Vorfahren und alle ihre Nachkommen, ohne Partner, Geschwister
+  und Platzhalterpersonen. Eine Zeile unter dem Schalter sagt, wessen: „Direkte Linie: Jan Horák · mit Vorfahren und
+  Nachkommen“.
+- **In der Ansicht** sind die Personen, die die Ansicht gerade zeigt: der gezeichnete Stammbaum oder Fächer, die
+  Auswahl auf der Karte, die Zeilen der Tabelle nach dem Filter („In der Ansicht: Tabelle, gefiltert · 24 Personen“).
+- **Wessen Linie:**
+  - in der Werkzeugleiste die Person in der Mitte der Ansicht; auf der Karte und in der Tabelle die Hauptperson des
+    Stammbaums („Direkte Linie: Jan Horák, Hauptperson des Stammbaums · mit Vorfahren und Nachkommen“): die Person aus
+    **Standardperson und -ansicht** ([A6.1.1](A6-views.md#A6.1.1)), ohne sie die erste Person des Stammbaums;
+  - in der Personenauswahl eines Dialogs die Person, aus der sich der Dialog geöffnet hat; in den Materialien die
+    Person des Materials, ohne sie die Hauptperson des Stammbaums.
+- **Grenzen:**
+  - die Eingrenzung ist kein Filter: die Zahl der aktiven Filter ändert sich nicht und für sich hebt sie nichts
+    hervor. Mit einer Suchanfrage oder einem Filter grenzt sie die Ergebnisse, die Hervorhebung im Stammbaum und die
+    Zahlen ein; die Fußzeile der Filterleiste ergänzt „nur direkte Linie“ oder „nur in der Ansicht“, auf dem Telefon
+    sagt die Filterliste „Gesucht wird nur in der direkten Linie: Jan Horák.“;
+  - ein Bereich, den die Auswahl nicht anbieten kann, erscheint nicht, und gesucht wird im ganzen Stammbaum:
+    **Direkte Linie** ohne Person, **In der Ansicht** ohne Ansicht hinter dem Dialog (ein anderer Dialog, eine
+    Personenseite, das Fenster Personenlisten oder Materialien verdeckt sie) und bei einer Ansicht, die den ganzen
+    Stammbaum zeigt (Zeitleiste mit dem ganzen Stammbaum);
+  - wenn im eingegrenzten Bereich niemand ist, sagt das Ergebnis „In der direkten Linie niemand. Im ganzen Stammbaum
+    3 Treffer.“ (oder „In der Ansicht niemand. …“) mit dem Link **Im ganzen Stammbaum suchen**; Enter sucht dort;
+  - die Wahl gilt gemeinsam für die Werkzeugleiste und alle Personenauswahlen, bis die App geschlossen wird. Sie wird
+    nicht gespeichert: nach dem Start ist immer **Ganzer Stammbaum** gewählt.
+- **Wo:** Suche in der Werkzeugleiste; Personenauswahl in den Dialogen zum Hinzufügen einer Beziehung, der Eltern
+  eines Kindes, eines gemeinsamen Ereignisses, **Verwandtschaft finden…**, Zusammenführen zweier Personen; Zuordnen
+  einer Person in den Materialien und im Dialog des Materials.
+- **Bedienung:** Klick auf den Bereich; Alt+←/→ zwischen den Bereichen (die Sprechblase zeigt „(Alt+←/→)“). Die
+  Sprechblase des Bereichs sagt, was die Eingrenzung umfasst („Nur Jan Horák mit Vorfahren und Nachkommen“, „Nur die
+  Personen, die die Ansicht gerade zeigt (24)“). Auf dem Telefon steht die Zahl der Ergebnisse am Ende der Zeile unter
+  dem Schalter.
+- **Gilt seit:** App 3.32.0
+
+<!-- zdroj: app:82cfdbd3 src/search-scope.ts SearchScope, SEARCH_SCOPES, getSearchScope/setSearchScope (jen v paměti, po startu 'tree'), directLineIds (selection ancestors + descendants, bez zástupných), effectiveScope, offeredScopes, narrowIds, stepScope · app:7a72bd1e src/person-picker.ts PickerScopeSource, renderScopeHead (skryté nenabízené rozsahy, titulky, altKeys, lineRef/lineRefMain/viewRef, telefon počet na konci řádku), prázdné zúžení emptyLine/emptyView + searchWhole, Enter · src/ui/search-scope-ui.ts toolbarRefPerson (střed, mapa a tabulka hlavní osoba), mainPerson (defaultPersonId, startupPerson), toolbarViewIds (mapScopePersons, timelineScope 'tree' = null, tableShownPersonIds, getVisiblePersonIds), toolbarScopeSource, viewBehindDialog (stránka osoby, Seznamy osob, Materiály, víc dialogů), dialogScopeSource, materialScopeSource, toolbarScopeNote (footLine/footView, sheetLine/sheetView) · src/ui/search.ts applySearchFilter (zúžení není filtr, zvýraznění a počty) · scope: v relation-modal.ts, relationships-panel.ts, person-events.ts, kinship-ui.ts, merge-ui.ts, materials-window.ts, material-attach-ui.ts, search.ts · strings.ts searchScope.* · app:d5b87792 · dirigent:spec/137 K1, prace/1123-app-137-linie-material (Výsledek, dotazy A1–A2: osa s celým stromem bez V pohledu; bez hlavní osoby první osoba stromu) · ZADANI_UIX_hledani-linie-material-seznam „Rozhodnuto 23. 11.“ bod 4 (bez partnerů) -->

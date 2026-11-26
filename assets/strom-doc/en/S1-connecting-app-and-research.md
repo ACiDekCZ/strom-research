@@ -59,6 +59,8 @@ updated.
   - The tree from the research is already in the app and has not changed in the app since the last load: it is
     updated. It has changed: the app asks whether to **Update** it or **Open as copy**. A backup is saved before the
     update.
+    **Open as copy** makes a new tree from the research that takes the further updates; the tree with the changes
+    stays as it is, from app 3.32.0 as a copy without research ([S1.10](#S1.10)).
   - Safari does not let a web page connect to a program on this computer. `strom app` therefore never opens Safari.
     Without a suitable browser the installed app takes the file over, or the file `output/tree-strom.ged` from the
     research folder can be dragged into the app window.
@@ -102,7 +104,7 @@ its file the number of the research and the version it came from. By that the ap
 | Research | **Research** | a tree in which the research's agent works |
 | Strom archive | **Archive** | a tree the research keeps with sources on the disk, without an agent |
 | Research waiting for an agent | **Archive** | a research that has no agent yet; the app treats it as an archive |
-| Copy | no mark | an older copy of a tree from the research (**Open as copy**, a duplicate, a second import); it is no longer updated from the research |
+| Copy | no mark | a copy of a tree from the research (**Open as copy**, a copy of the whole tree, a second import); it is not updated from the research, and from app 3.32.0 it is without research ([S1.10](#S1.10)) |
 
 - **Limits:** whether a tree is a research or an archive is decided by the research, not by the app. It can be
   switched only in the research.
@@ -340,8 +342,8 @@ state: on when the bridge answers, otherwise off. A bridge switched on runs unti
     hours without work**. It holds for all trees on this computer and the research keeps it (`live.idleMinutes` 0 or
     120). Running bridges take it within a minute. A value set in the terminal shows as **Own value (N min)**. When no
     research that takes the choice is running, the app shows the commands for the terminal instead of the choices.
-  - Phones and tablets have no switch (the research runs on a computer). A copy of a tree from a research has no
-    switch.
+  - Phones and tablets have no switch (the research runs on a computer). A copy of a tree from a research has the
+    switch off in Manage trees; switching it on opens **Research for a copy of a tree** ([S1.10.1](#S1.10.1)).
 - **Controls:** app: the switch **Research on** in the research panel (a tree not followed live, and after following
   ended) and in **Manage trees** at the tree's row; the research panel when the research is not running: **Switch
   on**; **Settings** → **Research on this computer** → **Switch research off when idle**. Terminal: `strom live
@@ -350,3 +352,76 @@ state: on when the bridge answers, otherwise off. A bridge switched on runs unti
 - **Since:** app 3.25.0, research 1.29.0. The state on the switch and the sentence after 30 s since app 3.30.0.
 
 <!-- zdroj: research:src/core/live.ts liveWrite (POST <token>/live {idleMinutes 0…10080} → strom config set live.idleMinutes; {do: stop} → konec stopped, adresa zůstává), liveState (/status live idleMinutes, idleChoices), IDLE_READ_MS 60 s, reviveLive + endedIdle (zpět s prací jen konec idle; bez slova: zpět s menu, prací, aktualizací), stop SIGTERM → signal · src/core/config.ts DEFAULT_LIVE_IDLE_MINUTES 0, LIVE_IDLE_AFTER_MINUTES 120, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES · src/core/links.ts LINK_LIVE_DOS start · src/commands/links.ts startBridge (bez okna) · app:src/ui/research-live-ui.ts researchLiveState (onComputer, link.copy, features live.stop / live.start), fillResearchLiveSlot, fillResearchLiveStart, renderResearchLiveSettings (LIVE_IDLE_FOREVER, LIVE_IDLE_TWO_HOURS, idleCustom), COMMAND_START / COMMAND_STOP · src/ui/research-ui.ts researchLiveSlot (panel po skončení sledování, idle, start) · src/ui/tree-management.ts researchLiveSlotHtml · strings.ts researchLive.* · index.html settings-group-research-live · spec 064 K1.1–K2.3 · 3.30.0: app:cd35804c src/ui/research-live-ui.ts START_CONFIRM_MS 30 s, researchLiveTimedOut (liveSilent, COMMAND_START, retry) · src/ui/switch-pend.ts (turningOn, turningOff) -->
+
+<a id="S1.10"></a>
+## S1.10 One research, one tree: a copy without research
+
+Only one tree in the app writes to a research: the one that was created with the research or took it over. Every copy
+of a tree from a research is a tree without research. It sends nothing to the research: not by itself, not with the
+button, not with the first write of the files.
+
+- **What a copy is:** **Copy of the whole tree** (formerly **Duplicate**, [A14.3](A14-trees-and-structure.md#A14.3)),
+  the existing tree after **Open as copy** at a tree from a research (the new tree from the research takes its updates,
+  the tree with the changes stays as it is, as a copy; [S1.2](#S1.2)), a second load of the JSON file of the same
+  research, a merge into a new tree ([A8.10](A8-merging-trees.md#A8.10)) and trees restored as new ones from the backup
+  of all trees.
+- **How a copy shows:** in Manage trees and in step 1 of the merge guide "copy of the tree “{name}” · no research",
+  with the switch **Research on** off. It has no research actions; ⋯ offers only **Turn on research…**.
+- **Sending changes from the research:** the link through which the research asks for the changes always sends only
+  the tree that belongs to the research. The question which tree to send is gone.
+- **Limits:** a copy of a copy carries the name of that copy. A new tree from a selection and trees from a split are
+  also without research ([A14](A14-trees-and-structure.md#A14)).
+- **Controls:** Manage trees ([A14.1](A14-trees-and-structure.md#A14.1)).
+- **Since:** app 3.32.0. Before, a copy stayed connected to the research of the original; it was only not updated
+  from it.
+
+<!-- zdroj: app:7d4236f8 (134 bod 11, 13: kopie stromu výzkumu nic nezapisuje do výzkumu originálu) · src/tree-manager.ts canSendToResearch (isResearchOwner), duplicateTree copyOf · src/research-owner.ts · src/ui/research-ui.ts sendChangesToResearch (?send= jen vlastník, „Only the research's owner is sent“) · f3c66503 (sloučení do nového stromu a obnovená záloha = kopie bez výzkumu) · src/tree-row.ts treeOriginLine · strings.ts research.copyOf, structure.turnOnResearch · dirigent:prace/_drobnosti/doc.md 134 bod 11+13 -->
+
+<a id="S1.10.1"></a>
+### S1.10.1 Research for a copy of a tree
+
+A copy can get a new research of its own, or take over the research of the original. Both are offered by the window
+**Research for a copy of a tree**: "“{copy}” is a copy of the tree “{original}”. Only one tree writes to a research,
+so the copy gets a new research of its own."
+
+- **Start a new research:** the field **Folder of the new research** is filled in with the name of the copy (with the
+  path where the research on this computer starts researches, when the research tells it). Then starting the research
+  continues as with **Start research** ([S4](S4-research-from-the-app.md)). The numbers of people and sources of
+  another research do not go into the new research; the copy gets the numbers of the new research.
+- **Take over the research of “{original}”…:** only when the original has a research; the window then also says "The
+  research “{number}” stays with the tree “{original}”." Taking over is confirmed with a warning: "The tree
+  “{original}” is unlinked from the research “{number}” and stops writing to it. Only the copy will write." and "The
+  original stays as a tree without research.", the button **Take over research**. Taking over happens only in the
+  app; nothing is sent to the research.
+- **Limits:** the window is only on a computer where a research can be started from the app; not for the sample tree.
+- **Controls:** Manage trees, the switch at a copy; ⋯ at a copy → **Turn on research…**.
+- **Since:** app 3.32.0
+
+<!-- zdroj: app:023879dd src/ui/research-adopt-ui.ts showCopyResearchDialog (složka = název kopie, treesRoot, copyResearchStays a Převzít jen u vlastníka originálu, is-danger potvrzení), src/research-owner.ts transferResearchTie (jen v aplikaci), src/research-link.ts (bez REFN P…/S… jiného výzkumu, K5.4) · a236a31e (název složky i přes soubor v Safari, cesta výzkumů) · strings.ts structure.copyResearch*, createResearch, takeOver* · spec 139 K5.1–K5.4 -->
+
+<a id="S1.10.2"></a>
+### S1.10.2 One-time detaching of trees that shared a research
+
+Trees that shared one research before app 3.32.0 (older copies or two trees of the same research) are split once at
+the first start of the new version. The research keeps one tree; the others are copies without research.
+
+- **Which tree stays:** the tree that is not a copy; of several such, the oldest. When all are copies, the oldest
+  copy stays as it is and still writes nothing to the research.
+- **The others:** before detaching they get the backup **Before the data update of a new version**
+  ([S6.5](S6-tree-from-another-program.md#S6.5)); the data stay unchanged. A locked encrypted tree is not read and not
+  backed up; only its record in Manage trees changes.
+- **At the first opening** of a detached tree the window **Copy without research** shows once: "The tree “{name}” was
+  a copy tied to the research of the tree “{original}”. The tie was removed so that only one tree writes to the
+  research. A research of its own can be started in Manage trees." When the copy sent changes to the research before:
+  - when they wait in the research: "Before that, the copy sent changes to that research ({date}). They wait in the
+    research and can be discarded there.";
+  - when they are written: "…The research takes them back with one step in its terminal:" and the command
+    `strom sync undo I0042` with **Copy**; with a known input also **Take back in the research**, otherwise `I…` and
+    "I… stands for the number of that send in the research (strom input list shows it)."
+    ([S2.6](S2-edits-from-the-app.md#S2.6)).
+
+  The window has **Close** and, where possible, **Start research**.
+- **Limits:** the repair runs once; an older register of trees brought back is looked through again.
+- **Since:** app 3.32.0
+
+<!-- zdroj: app:e4e3eeea src/tree-manager.ts repairSharedResearchTies (researchTiesRepaired, planSharedTieRepair, backupBeforeTieRepair 'pre-migration' bez čtení zamčeného šifrovaného, detachAsCopy, researchDetached) · src/research-owner.ts planSharedTieRepair (keeper: bez copyOf, nejstarší; jinak nejstarší kopie) · src/ui/research-detached-ui.ts showResearchDetached (jednou, sentAfterCopy pending/undo step, adoptTree) · strings.ts research.detached*, undoStep*, backups label pre-migration · dirigent:prace/_drobnosti/doc.md 134 bod 13 -->

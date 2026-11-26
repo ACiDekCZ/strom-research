@@ -337,3 +337,39 @@ Když se ve výsledku hledání opakuje stejné jméno, má každý takový řá
 - **Platí od:** aplikace 3.28.0
 
 <!-- zdroj: app:f5d56ed3 src/picker-distinguish.ts rowKey (shownNameParts + birthNoteText, rok narození jen se showBirthYear, normalizeSearchText), distinguishFeatures (roky * – †, bez roku v řádku a bez části, kterou říká nález; partner první, kterého jiné řádky nemají; rodiče otec, matka, ostatní, bez zástupných; rodiště, jinak poslední bydliště s místem), distinguishLine (nejkratší předpona údajů, kterou nemá nikdo jiný; jinak první známý; jinak distNone), PickerDistinguisher (celý výsledek, i za 50) · src/person-picker.ts renderItem (person-picker-dist, nález na jednom řádku za „ · “, role option, aria-label a title „jméno, rozlišení“) · index.html .person-picker-dist (výpustka, min-width 330 px, telefon 100vw) · všechny new PersonPicker (search.ts, relation-modal.ts, kinship-ui.ts, read-document-ui.ts, tree-management.ts …); PathPersonPicker samostatný · strings.ts personPicker.distNone, distChild, distAnd, distBorn, distLived · app ac34f598 · dirigent:prace/1113-app-drobnosti-1112 · ZADANI_DEV_drobnosti-1112 §1 · app:1c4b7d19 distinguishLine (údaj shodný u všech ostatních řádků skupiny se vynechá; jinak první známý nesdílený; bez rozlišení vše) · dirigent:spec/085 A4.8.1 -->
+
+<a id="A4.8.2"></a>
+### A4.8.2 Rozsah hledání: Celý strom, Přímá linie, V pohledu
+
+Výsledky hledání osoby jde zúžit na přímou linii jedné osoby nebo na osoby, které pohled právě ukazuje. Přepínač
+**Rozsah hledání** je v hlavičce rozbalených výsledků: **Celý strom**, **Přímá linie**, **V pohledu**.
+
+- **Přímá linie** je osoba sama, všichni její předci a všichni její potomci, bez partnerů, sourozenců a
+  zástupných osob. Řádek pod přepínačem řekne čí: „Přímá linie: Jan Horák · s předky a potomky“.
+- **V pohledu** jsou osoby, které pohled právě ukazuje: nakreslený strom nebo vějíř, výběr na mapě, řádky tabulky
+  po filtru („V pohledu: Tabulka po filtru · 24 osob“).
+- **Čí linie:**
+  - v liště nástrojů osoba ve středu pohledu; na mapě a v tabulce hlavní osoba stromu („Přímá linie: Jan Horák,
+    hlavní osoba stromu · s předky a potomky“): osoba z **Výchozí osoba a pohled** ([A6.1.1](A6-views.md#A6.1.1)),
+    bez ní první osoba stromu;
+  - ve výběru osoby v dialogu osoba, ze které se dialog otevřel; v Materiálech osoba materiálu, bez ní hlavní
+    osoba stromu.
+- **Hranice:**
+  - zúžení není filtr: počet aktivních filtrů se nezmění a samo nic nezvýrazní. S dotazem nebo filtrem zúží
+    výsledky, zvýraznění ve stromu i počty; pata panelu filtrů dopíše „jen přímá linie“ nebo „jen v pohledu“, na
+    telefonu list filtrů řekne „Hledá se jen v přímé linii: Jan Horák.“;
+  - rozsah, který výběr nabídnout nemůže, se neukáže a hledá se v celém stromu: **Přímá linie** bez osoby,
+    **V pohledu** bez pohledu za dialogem (zakrývá ho jiný dialog, stránka osoby, okno Seznamy osob nebo
+    Materiály) a u pohledu, který ukazuje celý strom (časová osa s celým stromem);
+  - když v zúženém rozsahu nikdo není, výsledek řekne „V přímé linii nikdo. V celém stromu 3 shody.“ (nebo „V
+    pohledu nikdo. …“) s odkazem **Hledat v celém stromu**; Enter hledá tam;
+  - volba je jedna pro lištu i všechny výběry osoby a platí, dokud se aplikace nezavře. Neukládá se: po spuštění je
+    vždy **Celý strom**.
+- **Kde:** hledání v liště nástrojů; výběr osoby v dialozích přidání vztahu, rodiče dítěte, společné události,
+  **Zjistit vztah**, sloučení dvou osob; přiřazení osoby v Materiálech a v dialogu materiálu.
+- **Ovládání:** klik na rozsah; Alt+←/→ mezi rozsahy (bublina ukazuje „(Alt+←/→)“). Bublina rozsahu řekne, co
+  zúžení drží („Jen osoba Jan Horák, její předci a potomci“, „Jen osoby, které pohled právě ukazuje (24)“). Na
+  telefonu je počet výsledků na konci řádku pod přepínačem.
+- **Platí od:** aplikace 3.32.0
+
+<!-- zdroj: app:82cfdbd3 src/search-scope.ts SearchScope, SEARCH_SCOPES, getSearchScope/setSearchScope (jen v paměti, po startu 'tree'), directLineIds (selection ancestors + descendants, bez zástupných), effectiveScope, offeredScopes, narrowIds, stepScope · app:7a72bd1e src/person-picker.ts PickerScopeSource, renderScopeHead (skryté nenabízené rozsahy, titulky, altKeys, lineRef/lineRefMain/viewRef, telefon počet na konci řádku), prázdné zúžení emptyLine/emptyView + searchWhole, Enter · src/ui/search-scope-ui.ts toolbarRefPerson (střed, mapa a tabulka hlavní osoba), mainPerson (defaultPersonId, startupPerson), toolbarViewIds (mapScopePersons, timelineScope 'tree' = null, tableShownPersonIds, getVisiblePersonIds), toolbarScopeSource, viewBehindDialog (stránka osoby, Seznamy osob, Materiály, víc dialogů), dialogScopeSource, materialScopeSource, toolbarScopeNote (footLine/footView, sheetLine/sheetView) · src/ui/search.ts applySearchFilter (zúžení není filtr, zvýraznění a počty) · scope: v relation-modal.ts, relationships-panel.ts, person-events.ts, kinship-ui.ts, merge-ui.ts, materials-window.ts, material-attach-ui.ts, search.ts · strings.ts searchScope.* · app:d5b87792 · dirigent:spec/137 K1, prace/1123-app-137-linie-material (Výsledek, dotazy A1–A2: osa s celým stromem bez V pohledu; bez hlavní osoby první osoba stromu) · ZADANI_UIX_hledani-linie-material-seznam „Rozhodnuto 23. 11.“ bod 4 (bez partnerů) -->

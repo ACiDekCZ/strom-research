@@ -877,9 +877,10 @@ export function appReadsNameStatus(settings: Settings, version?: string, gate: s
 /**
  * The Strom app version that runs on another device of the home network from the gateway of this computer (spec 094,
  * devices.mode): it pairs by the code after # of the QR code and seals every request to the research (core/devices.ts,
- * strom-device/1). Pending: the app has not said its version yet — the gateway serves no copy of it until it does.
+ * strom-device/1). The app's answer: 3.32.0 (released 2026-11-25) — a copy of this version or newer from the app's site
+ * is served; the devices stay off until the person turns devices.mode on.
  */
-export const APP_DEVICE_MODE: string | undefined = undefined;
+export const APP_DEVICE_MODE: string | undefined = "3.32.0";
 /**
  * The beta of the Strom app that runs on the devices first (its answer: 3.32.0-beta.4): a copy downloaded from the
  * app's beta site (https://beta.stromapp.info) of this version or newer is served before APP_DEVICE_MODE is set — never

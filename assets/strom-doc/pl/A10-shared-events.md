@@ -255,5 +255,9 @@ Jakość danych ([A10.4](#A10.4)).
 - **Obsługa:** brak, odbywa się samo. Kopia zapasowa jest w menu drzewa → **Kopie zapasowe** → **Historia kopii
   zapasowych** ([S6.5](S6-tree-from-another-program.md#S6.5)).
 - **Obowiązuje od:** aplikacja 3.28.0
+- **Od aplikacji 3.32.0:** to samo obowiązuje już przy czytaniu wersji badania: własne wydarzenie z nazwą spisu
+  (`1 EVEN` / `2 TYPE Sčítání lidu`) jest spisem ludności. **Wczytać wersję badania?** nie pokazuje go więc
+  przekreślonego, a parowanie wydarzeń bierze je jako spis ludności ([S2.7.1](S2-edits-from-the-app.md#S2.7.1)).
+  Nazwa z czymś więcej („Spis ludności 1890”) zostaje własnym wydarzeniem.
 
-<!-- zdroj: app:80c2ffb9 src/tree-manager.ts (verze dat 20, migrace), src/snapshots.ts 'pre-migration' · src/shared-events.ts (zahození neplatných shareId) · strings.ts snapshots.pre-migration „Před úpravou dat pro novou verzi“ · test gedcom-census-legacy.test.ts · dirigent:prace/1113-app-085-nalezy Výsledek (Census → census, záloha, NFC, trim, bez roleAt) -->
+<!-- zdroj: app:1319a508 src/ged-parser.ts, src/research-changes.ts (3.32.0, K052) · app:80c2ffb9 src/tree-manager.ts (verze dat 20, migrace), src/snapshots.ts 'pre-migration' · src/shared-events.ts (zahození neplatných shareId) · strings.ts snapshots.pre-migration „Před úpravou dat pro novou verzi“ · test gedcom-census-legacy.test.ts · dirigent:prace/1113-app-085-nalezy Výsledek (Census → census, záloha, NFC, trim, bez roleAt) -->

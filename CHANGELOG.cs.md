@@ -5,9 +5,21 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.38.0
+
+*Připravuje se: bety do 1.38.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Nastavení výzkumu v historii slovy:** nastavení změněné z aplikace nebo z menu se v posledních změnách ukáže
+  názvem a hodnotou v jazyce výzkumu („Vypnuto ve výzkumu: Dotaz před tříděním materiálu“), už ne jako klíč
+  (`sort.confirm`).
+- **Agent se zorientuje s méně pokusy:** `strom place find <jméno>` a `strom place <jméno>` navedou na
+  `strom place list <jméno>`; `strom source list --note <text>` vypíše jedním voláním prameny, jejichž poznámka něco
+  říká (třeba že adresu dal rejstřík); `strom media view` vysvětluje, jak si prohlédnout obrázek registrovaný jen po
+  částech a jeho výřez.
+
 ## 1.37.0
 
-*Připravuje se: bety do 1.37.0-beta.8. Oddíl bude úplný s vydáním.*
+*25. 11. 2026 · patří k aplikaci Strom 3.32.0.*
 
 - **Záznam archivu už nedrží portál ze seznamu stromu:** kniha s adresou na portálu, který seznam stromu zná (Porta
   fontium, Acta Publica…), už nedělá portál tak přísný jako archiv, pod kterým je zapsaná – portál se řídí svými

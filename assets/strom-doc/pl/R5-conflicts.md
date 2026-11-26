@@ -234,5 +234,11 @@ badania.
   - osoba usunięta lub zmieniona w innym oknie: aplikacja pyta **Przywróć do drzewa** / **Zostaw usuniętą** albo
     **Usuń z drzewa** / **Zostaw w drzewie**. Opcja także otwiera badanie w terminalu.
 - **Obowiązuje od:** aplikacja 3.11.0 z badaniem 1.14.0
+- **Od aplikacji 3.32.0 (badanie 1.37.0):** sprzeczność dwóch wysłań z różnych przeglądarek pokazuje strony jako
+  **Zmiana z tej przeglądarki** i **Zmiana z Chrome · Mac** (nazwa przeglądarki, która wysłała,
+  [S2.2.1](S2-edits-from-the-app.md#S2.2.1)) z opcją **Zachowaj zmianę z …** przy każdej; menu Badanie i zdania pod
+  opcjami mówią o obu zmianach. Wysłanie, które nie podało przeglądarki, to „zmiana z wcześniejszego wysłania” /
+  „późniejszego wysłania”.
 
+<!-- zdroj: 3.32.0: app:src/conflict-devices.ts conflictDeviceWords, deviceWords, conflictKeepWords · src/ui/conflict-decide-ui.ts:137-147, 224-303 researchConflictDevices · src/ui/conflict-panel-ui.ts:265 · strings.ts conflict.device, conflict.sideFrom, conflict.keepFrom, conflict.keepNoteFrom, conflict.takeNoteFrom · CHANGELOG.cs.md 3.32.0 Práce s výzkumem -->
 <!-- zdroj: research:src/core/conflicts.ts:48-62 BY_SIDE, sidesOf · app:v3.21.2 research-decide.ts:28-66 DECIDE_FACTS, canDecideInApp · ui/research-removed-ui.ts:97-125 · strings.ts conflict.person.* -->

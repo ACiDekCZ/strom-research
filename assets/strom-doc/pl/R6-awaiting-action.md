@@ -16,8 +16,13 @@ tylko w nim. Lista jest za każdym razem obliczana z badania, nic się do niej n
 - **Obsługa:** aplikacja: sekcja **Czeka na załatwienie** · terminal: menu **Co czeka (n)**, wiersz stanu **Czeka: N** ·
   strona na telefon: **Co czeka · N**.
 - **Obowiązuje od:** badanie 1.3.0. Lista według miejsc załatwienia i w aplikacji od 1.14.0 (aplikacja 3.11.0).
+- **Od badania 1.37.0:** skany, które zapisuje przeglądarka agenta ([R9.5](R9-archives.md#R9.5)), są pracą
+  agenta. Dopóki sesja agenta je zapisuje, zadania nie ma na liście ani w liczbach, etykietach i powiadomieniach;
+  aplikacja Strom pokazuje je jako pracę („agent zapisuje skany (k z n)”, [S4.1](S4-research-from-the-app.md#S4.1)).
+  Na człowieka czeka tylko skan, który przeglądarka zatrzymała, i zapisywanie, którego sesja skończyła się w połowie
+  ([R6.2.1](#R6.2.1)). Wcześniej zapisane oczekiwania pokazują się tak same.
 
-<!-- zdroj: research:src/core/waiting.ts:1-12, waitingFor :303-460 (filtr :321), actsAsArchive (v1.15.0) · src/cli/menu.ts:234, :379 · CHANGELOG.cs.md 1.14.0 · app:src/ui/research-overview-ui.ts research.waiting -->
+<!-- zdroj: research:src/core/waiting.ts:1-12, waitingFor :303-460 (filtr :321), actsAsArchive (v1.15.0) · src/cli/menu.ts:234, :379 · CHANGELOG.cs.md 1.14.0 · app:src/ui/research-overview-ui.ts research.waiting · 1.37.0: research:81de7cdb src/core/waiting.ts savedByAgentNow (ne ve waitingFor ani v počtech; zadržený snímek a sezení, které už úkol nedrží, čekají na člověka), src/core/ownsave.ts agentSaveWait · aae8f1aa src/cli/menu-waiting.ts (terminál Co čeká bez snímků, které ukládá agent) · 1c8a4380 (vlastní čekání agenta na snímek je hned člověka) -->
 
 <a id="R6.1.1"></a>
 ### R6.1.1 Liczba i co jest tylko w terminalu
@@ -69,9 +74,19 @@ Rodzaj oczekiwania wyznacza sekcję, grupę i możliwe akcje: **skany**, **witry
 - **Od badania 1.35.0:** czekania na skany zapisanego inaczej (skany tylko w słowach, kilka ksiąg, księga, której
   badanie nie ma) `strom task wait` nie zapisze, a `strom task audit` takie zadania znajduje i poprawia
   ([R6.9](#R6.9)).
+- **Od badania 1.37.0:** plik, z którego nie da się rozpoznać numeru skanu (`000.jpg`), nie wstrzymuje pozostałych
+  skanów: zostaje w folderze i jest zgłaszany raz. Pliki nazwane inaczej (według aktów, `001-004.jpg`) są przejmowane
+  w kolejności folderu, gdy przez 20 minut nic więcej się nie zapisze; zadanie, do którego przyszła tylko część
+  skanów, wraca po tym samym czasie z tym, co przyszło i czego brakuje ([R9.6](R9-archives.md#R9.6)).
+- **Od badania 1.37.0:** oczekiwanie na skany, które zapisuje przeglądarka agenta, mówi człowiekowi tylko dwie
+  rzeczy: skan zatrzymany przez przeglądarkę („w przeglądarce zezwolić na pobieranie wielu plików z witryny …”)
+  i zapisywanie zatrzymane końcem sesji („zapisywanie przez przeglądarkę agenta zatrzymane na skanie 12 księgi
+  B0003 …: sesja agenta się zakończyła – kontynuuje ją następna sesja; albo skany 12-15 zapisać ręcznie z … do
+  folderu zadania”). Dotyczy to także oczekiwań zapisanych przez starsze badanie.
+  Gdy przeszkoda minęła, człowiek zwraca zadanie agentowi ([R6.7.3](#R6.7.3)).
 - **Obowiązuje od:** badanie 1.0.0. Budzenie po zapisaniu od 1.15.0.
 
-<!-- zdroj: research:src/commands/tasks.ts:1000-1025 (--images, inbox) · src/commands/media.ts:135-170 wakeWaiting · assets/method/waiting.md · app:src/research-waiting.ts:251 waitingActions (folder) · src/ui/research-overview-ui.ts:1023, src/ui/waiting-task-ui.ts:231 · src/strings.ts waitingTask.openFolder -->
+<!-- zdroj: research:62e335eb, 6fee0f71 src/core/inboxwait.ts (000.jpg jednou, pořadí složky po 20 min, částečný příchod) · 81de7cdb src/core/waiting.ts waitOnNow, ownSaveSaid (browser.wait.held, browser.wait.stopped) · src/commands/tasks.ts:1000-1025 (--images, inbox) · src/commands/media.ts:135-170 wakeWaiting · assets/method/waiting.md · app:src/research-waiting.ts:251 waitingActions (folder) · src/ui/research-overview-ui.ts:1023, src/ui/waiting-task-ui.ts:231 · src/strings.ts waitingTask.openFolder -->
 
 <a id="R6.2.2"></a>
 ### R6.2.2 Witryna do sprawdzenia
@@ -193,8 +208,38 @@ wiadomością.
 - **Od badania 1.35.0:** badanie przy pozycji wysyła także jej księgę. Aplikacja 3.30.0 umie pogrupować pozycje według
   księgi ([S4.4.4](S4-research-from-the-app.md#S4.4.4)); w **Co czeka** jest przegląd ksiąg z największą liczbą
   zadań ([R6.8](#R6.8)).
+- **Od badania 1.37.0:** przy pozycji, za którą stoją zadania, wysyła też, ile jej załatwienie pomoże
+  ([R6.4.1](#R6.4.1)).
 
 <!-- zdroj: research:src/core/waiting.ts:73 SECTION_RANK, :75 DECIDE_RANK, :468 together, :478-492 ordered · src/core/waitkind.ts:238 waitGroupOf · assets/lang/cs.json:2313-2320 wait.group.* (:2359) · src/cli/menu-waiting.ts:205-232 · app:strings.ts:11958 waitingFilterLabel -->
+
+<a id="R6.4.1"></a>
+### R6.4.1 Co najbardziej pomoże
+
+Do każdej pozycji, za którą stoją zadania, badanie oblicza, jak bardzo jej załatwienie rozszerzy drzewo
+genealogiczne, i kilkoma słowami mówi dlaczego. Koszt pobrania nie jest ważony; liczy się tylko, o ile drzewo
+urośnie. Nic nie jest czytane, wysyłane ani zapisywane.
+
+- **Wynik:** suma części:
+  - **nowe pokolenie** (+50): osoba, której dotyczy pozycja, stoi na skraju drzewa bez obojga rodziców albo jednego
+    z nich, a badanie do niej zmierza (w zakresie linii, nie za jej granicą, nie przy osobie wstrzymanej, ukończonej
+    ani prawdopodobnie żyjącej, nie przy rodzicu, który jest tylko nieudokumentowany). Część wymienia jedną taką
+    osobę: najwyższe pokolenie w linii, potem najniższe ID;
+  - **linia prosta** (+30): osoba, której dotyczy pozycja, jest przodkiem ludzi, dla których jest badanie;
+  - **zadania** (+10 za każde, najwyżej 10): zadania, które załatwienie uwolni – własne i każde otwarte lub odłożone
+    zadanie, które potrzebuje księgi któregoś z nich. Inne czekające zadania tej samej księgi się nie liczą; każde
+    jest osobną pozycją. Mówi się o tym dopiero od dwóch zadań.
+- **Powód:** części w języku badania połączone „ · ”: „nowe pokolenie: rodzice osoby Jan Horák” (albo „ojciec osoby
+  …”, „matka osoby …”), „linia prosta”, „odblokuje 3 zadania”. Pozycja z jednym zadaniem i niczym więcej ma wynik
+  bez powodu.
+- **Granice:** pozycje bez zadań (opowieści, wysyłki, sprzeczności, miejsca, gałęzie, hipotezy, nowe brzmienia
+  transkrypcji) i pozycje z wynikiem 0 wyniku nie mają. Oblicza się raz dla całego **Co czeka**.
+- **Obsługa:** aplikacja: kolejność **Najbardziej pomocne** w **Czeka na załatwienie**
+  ([S4.4.3](S4-research-from-the-app.md#S4.4.3)). Terminal: `strom task list --state waiting --order gain` (tylko
+  ze `--state waiting`, bez `--book` i `--off-tree`).
+- **Obowiązuje od:** badanie 1.37.0 (aplikacja 3.32.0)
+
+<!-- zdroj: research:44d3f750 src/core/waitgain.ts GAIN_POINTS (generation 50, line 30, task 10), UNBLOCKS_MAX 10, waitGains (edgeReach scope in, ne proof; kinship 0; bookOfTask, bookTasks open + parked; část unblocks od n ≥ 2; bez skóre 0), gainSays · src/core/waiting.ts (gain), src/core/live.ts waiting[].gain, feature waiting.gain · src/commands/tasks.ts task list --order gain (task.order) · assets/lang/cs.json wait.gain.* · CHANGELOG.cs.md 1.37.0 „Co nejvíc pomůže“ · dirigent:spec/105 K4.1 -->
 
 <a id="R6.5"></a>
 ## R6.5 Co można załatwić gdzie
@@ -211,6 +256,9 @@ Decyzje i zgody przyjmuje tylko terminal; przyciski, które ich wymagają, otwie
 - **Obsługa:** terminal: **Co czeka** → grupa (**Tekst wszystkich zapytań naraz**, **Wysłano za całą grupę**,
   **Rozmowa z agentem o całej grupie**) lub pozycja.
 - **Obowiązuje od:** badanie 1.14.0 (aplikacja 3.11.0). Miejsca od 1.25.0.
+- **Od badania 1.37.0 (aplikacja 3.32.0):** aplikacja sama zwraca agentowi zadanie czekające na skany, z którymi
+  agent poradzi sobie sam (**Spróbuj ponownie przez agenta**, także za całą grupę archiwum; [R6.7.3](#R6.7.3),
+  [S4.4.14](S4-research-from-the-app.md#S4.4.14)).
 
 <!-- zdroj: research:src/core/live.ts:60-80 (POST /waiting, /group, PUT /media X-Strom-Task, POST /places/answer, /conflict 403), :2761 · src/core/waiting.ts:78-88 actionsOf · app:src/ui/research-overview-ui.ts · strings.ts:9972, :10078, :11953 -->
 
@@ -241,6 +289,9 @@ człowieka w oknie systemowym albo odrzuca polecenie.
 - **Od badania 1.35.0:** tylko człowiek decyduje też, czy przejąć krótszą notatkę uczestnika z aplikacji
   (`strom sync note`, [S2.3.2](S2-edits-from-the-app.md#S2.3.2)); agent wykonuje tylko odpowiedź człowieka na to
   zadanie.
+- **Od badania 1.37.0:** tylko człowiek także zwraca czekające zadanie agentowi (`strom task wake --retry`,
+  [R6.7.3](#R6.7.3)): w menu **Co czeka** albo w aplikacji Strom przez most. Agentowi i poleceniu strom w sesji
+  agenta badanie polecenie odrzuci.
 
 <!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent; strom help source reading („The person's alone … an agent never decides it“), strom help source proposal („Only the person decides it“) · 1.35.0: research:fb94435f src/commands/sync.ts sync note (person, agentMay s odpovědí), src/core/shorternote.ts decideShorterNote (shorter.person) -->
 
@@ -295,6 +346,61 @@ zadanie do kolejki, a agent przetwarza ją przy następnej pracy.
     wykonana, `strom check` zwraca uwagę na takie zadania.
 
 <!-- zdroj: research:src/commands/media.ts:135-170 wakeWaiting (1.26.0: awaits jen ta kniha, check nikdy, letter/family/web jen waitingOn; 1.27.0: web i singleBook) · src/commands/fixes.ts:835 woken-waits (commit 740e1893) · src/core/archivewait.ts:188 wakeForArchive · src/commands/tasks.ts:880-895 task park · src/core/queue.ts:112 effectiveState · app:src/ui/research-ui.ts:3473-3500 -->
+
+<a id="R6.7.3"></a>
+### R6.7.3 Zwrócić agentowi
+
+Zadanie, które czeka na skany archiwum dostępnego tylko przez przeglądarkę, człowiek zwraca agentowi, gdy przeszkoda
+przeglądarki minęła (na przykład zezwolono na pobieranie albo podłączono rozszerzenie). Nic nie zapisuje się jako
+odpowiedź człowieka, a zadanie trafia od razu na początek kolejki.
+
+- **Których zadań dotyczy:** tylko czekania na skany, z którymi agent poradzi sobie sam:
+  - przeglądarka agenta wstrzymała pobieranie ze strony archiwum (w profilu, w którym agent pracuje, brakuje zgody
+    na pobieranie wielu plików);
+  - zapisywanie przez przeglądarkę agenta zatrzymało się, bo sesja agenta zakończyła się w połowie;
+  - skany do zapisania ręcznie z księgi, do której przeglądarka agenta ma dostęp: archiwum tylko przez przeglądarkę
+    ze zgodą **przez przeglądarkę** ([R9.2](R9-archives.md#R9.2)) albo konektor, którego skany idą przez
+    przeglądarkę;
+  - strona w przeglądarce archiwum, której `strom media save` nie zna (dziś ARON Morawskiego Archiwum Krajowego,
+    `www.mza.cz/aron/…`), tylko ze zgodą **przez przeglądarkę**: agent tylko odczytuje skany z ekranu, żaden się nie
+    zapisuje.
+- **Nigdy:** list, zapytanie do rodziny, sprawdzenie strony, zgoda archiwum, wysłane zapytanie, propozycja
+  transkrypcji, archiwum tylko ręcznie, skany księgi, do której przeglądarka agenta nie ma dostępu, i nic w badaniu,
+  które służy jako archiwum.
+- **Dlaczego czeka teraz:** przy takim zadaniu badanie podaje powód obecnego czekania, nie tekst zapisany wcześniej:
+  wstrzymane pobieranie (ze stroną archiwum), zatrzymane zapisywanie, przeglądarka agenta sięga teraz do archiwum,
+  rozszerzenie Claude in Chrome nie jest podłączone w żadnej przeglądarce albo agent badania jest inny niż Claude
+  Code z rozszerzeniem Claude in Chrome. Zadanie już raz zwrócone, które znów czeka, kończy się „ponowiono 18:40,
+  znów wstrzymane” (albo „znów czeka”); czas starszy niż dzisiejszy jest z dniem. Badanie podaje też liczbę skanów,
+  których zadaniu brakuje, gdy ją zna.
+- **Co robi zwrot:**
+  - zadanie jest znów otwarte i w kolejce trafia od razu na początek, jak wybór **od razu**
+    ([R2.2](R2-lines-and-queue.md#R2.2)); kilka zwróconych naraz idzie między sobą w kolejności kolejki. Wcześniejsze
+    sesje nad zadaniem nie liczą się mu w kolejce (liczą się tylko sesje od zwrotu) i nie czeka za pracą, którą da się
+    zrobić od razu, z powodu skanów, które pobierałby człowiek;
+  - do zadania dochodzi notatka „zwrócone agentowi z Co czeka; czekało na: …” (z aplikacji „… z Co czeka
+    w aplikacji Strom; …”), żeby agent wiedział, czego brakowało. Odpowiedź człowieka się nie zapisuje;
+  - to, co przeglądarka agenta miała dla zadania zapisać i nie zapisała, zostaje odrzucone; następna sesja zapisze to
+    od nowa;
+  - nic się nie uruchamia ani nie płaci: zadanie weźmie trwające badanie (`strom run`), w przeciwnym razie czeka
+    pierwsze w kolejce na następne uruchomienie.
+- **Granice:**
+  - jedno zadanie najwyżej 3× w ciągu 24 godzin. Potem badanie mówi, od kiedy znów można; gdy przyczyna trwa,
+    zadanie znów trafia do **Co czeka** i nie krąży;
+  - kilka zadań wraca wszystkie albo żadne: jedno, którego nie da się zwrócić, zatrzymuje cały zwrot i nic się nie
+    zapisuje;
+  - zwraca tylko człowiek: w terminalu (menu **Co czeka**) albo w aplikacji Strom przez most. Agentowi i poleceniu
+    strom w sesji agenta badanie polecenie odrzuci ([R6.6](#R6.6));
+  - zadanie, którego czekanie w międzyczasie się zmieniło, z aplikacji nie wróci (badanie odmówi i nic nie zapisze).
+- **Obsługa:** terminal: **Co czeka** → pozycja: wiersz **teraz: …** i ostatni wybór **Zwrócić agentowi (N skanów)**
+  (bez znanej liczby **Zwrócić agentowi**); po zwrocie „✓ Zwrócone agentowi, od razu w kolejce: weźmie je trwające
+  badanie, inaczej następne uruchomienie.” Po limicie zamiast wyboru „W ciągu doby zwrócone agentowi już 3× –
+  ponownie od …”. W grupie archiwum z co najmniej dwoma takimi zadaniami **Zwrócić agentowi wszystko (N zadań,
+  M skanów)**. Polecenie: `strom task wake T… [T…] --retry`. Aplikacja: **Spróbuj ponownie przez agenta**
+  ([S4.4.14](S4-research-from-the-app.md#S4.4.14)).
+- **Obowiązuje od:** badanie 1.37.0 (aplikacja 3.32.0)
+
+<!-- zdroj: research:9d626062 src/core/retry.ts retryOf (held, stopped, screen jen se svolením permitted, ruční awaits jen bookBrowserArchive permitted nebo viaConnector; ne letter/family/check/permission, proposal, awaitsCheck, waitPhaseOf ≠ todo, actsAsArchive), RETRY_MAX 3, RETRY_WINDOW_MS 24 h, when (HH:MM dnes, jinak humanWhen) · src/commands/tasks.ts retryWake (task.retry-answer, task.retry-person: isAgent nebo STROM_SESSION bez STROM_FOR_APP, task.not-waiting, task.changed --expect, task.retry-not, task.retry-limit; vše nebo nic pod zámkem; stateChange open, queueAt {do: next, at} stejný čas, retried {at, by, givenIn app, times}, poznámka retry.note/retry.note.app, saves bez taken zahozené) · src/core/queue.ts rankTasks (tried jen sezení po retried.at; returned → ne lacksImages/blocked) · src/cli/menu-waiting.ts (ui.wait.d.retry, ui.wait.a.retry, ui.wait.retry.until, ui.wait.retry.done, skupina back.length ≥ 2 ui.wait.group.retry) · assets/lang/cs.json retry.* · assets/archives.json mza.cz screenOnly /aron/ · src/core/live.ts POST /waiting/<T…> a /group/<key> {"do":"retry"}, feature waiting.retry · strom help task wake · CHANGELOG.cs.md 1.37.0 · dirigent:spec/089 K1.1–K1.5, K1.2b, K2.1, K3.1 -->
 
 <a id="R6.8"></a>
 ## R6.8 Księgi z największą liczbą zadań

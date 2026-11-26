@@ -16,8 +16,13 @@ The list is worked out from the research each time; nothing is written into it.
 - **Controls:** app: the section **Awaiting action** · terminal: the menu **What waits (n)**, the status line
   **Waiting: N** · the page for the phone: **What waits · N**.
 - **Since:** research 1.3.0. The list by where things are dealt with, and in the app, from 1.14.0 (app 3.11.0).
+- **From research 1.37.0:** images the agent's browser saves ([R9.5](R9-archives.md#R9.5)) are the agent's work.
+  While the agent's session saves them, the task is not in the list, nor in the counts, labels and notices; the
+  Strom app shows it as work ("agent saving images (k of n)", [S4.1](S4-research-from-the-app.md#S4.1)). Only an
+  image the browser held back and saving whose session ended mid-way wait for a person ([R6.2.1](#R6.2.1)). Waits
+  written earlier show so by themselves.
 
-<!-- zdroj: research:src/core/waiting.ts:1-12, waitingFor :303-460 (filtr :321), actsAsArchive (v1.15.0) · src/cli/menu.ts:234, :379 · CHANGELOG.cs.md 1.14.0 · app:src/ui/research-overview-ui.ts research.waiting -->
+<!-- zdroj: research:src/core/waiting.ts:1-12, waitingFor :303-460 (filtr :321), actsAsArchive (v1.15.0) · src/cli/menu.ts:234, :379 · CHANGELOG.cs.md 1.14.0 · app:src/ui/research-overview-ui.ts research.waiting · 1.37.0: research:81de7cdb src/core/waiting.ts savedByAgentNow (ne ve waitingFor ani v počtech; zadržený snímek a sezení, které už úkol nedrží, čekají na člověka), src/core/ownsave.ts agentSaveWait · aae8f1aa src/cli/menu-waiting.ts (terminál Co čeká bez snímků, které ukládá agent) · 1c8a4380 (vlastní čekání agenta na snímek je hned člověka) -->
 
 <a id="R6.1.1"></a>
 ### R6.1.1 The count and what is only in the terminal
@@ -71,9 +76,19 @@ archive's permission**, **letter**, **family**, **web**, **other**.
 - **From research 1.35.0:** a wait for images written otherwise (images only in words, several books, a book the
   research does not have) is not written by `strom task wait`, and `strom task audit` finds such tasks and fixes them
   ([R6.9](#R6.9)).
+- **From research 1.37.0:** a file whose image number cannot be told (`000.jpg`) does not hold up the other images:
+  it stays lying and is reported once. Files named otherwise (by entries, `001-004.jpg`) are taken in in the folder's
+  order when nothing more is saved for 20 minutes; a task to which only part of the images came returns after the
+  same time with what came and what is missing ([R9.6](R9-archives.md#R9.6)).
+- **From research 1.37.0:** a wait for images the agent's browser saves tells a person only two things: an image
+  held back by the browser ("downloading several files from … to be allowed in the browser …") and saving stopped
+  by the end of the session ("saving through the agent's browser stopped at image 12 of B0003 …: the agent's session
+  ended — the next session goes on with it; or images 12-15 to be saved by hand from … into the task's folder").
+  This holds also for waits written by an older research.
+  When the obstacle is gone, a person returns the task to the agent ([R6.7.3](#R6.7.3)).
 - **Since:** research 1.0.0. Waking after saving from 1.15.0.
 
-<!-- zdroj: research:src/commands/tasks.ts:1000-1025 (--images, inbox) · src/commands/media.ts:135-170 wakeWaiting · assets/method/waiting.md · app:src/research-waiting.ts:251 waitingActions (folder) · src/ui/research-overview-ui.ts:1023, src/ui/waiting-task-ui.ts:231 · src/strings.ts waitingTask.openFolder -->
+<!-- zdroj: research:62e335eb, 6fee0f71 src/core/inboxwait.ts (000.jpg jednou, pořadí složky po 20 min, částečný příchod) · 81de7cdb src/core/waiting.ts waitOnNow, ownSaveSaid (browser.wait.held, browser.wait.stopped) · src/commands/tasks.ts:1000-1025 (--images, inbox) · src/commands/media.ts:135-170 wakeWaiting · assets/method/waiting.md · app:src/research-waiting.ts:251 waitingActions (folder) · src/ui/research-overview-ui.ts:1023, src/ui/waiting-task-ui.ts:231 · src/strings.ts waitingTask.openFolder -->
 
 <a id="R6.2.2"></a>
 ### R6.2.2 A site to check
@@ -196,8 +211,38 @@ message.
 - **From research 1.35.0:** the research sends with an item also its book. The app 3.30.0 can group the items by book
   ([S4.4.4](S4-research-from-the-app.md#S4.4.4)); **What waits** has an overview of the books with the most tasks
   ([R6.8](#R6.8)).
+- **From research 1.37.0:** at an item with tasks behind it, it also sends how much dealing with it helps
+  ([R6.4.1](#R6.4.1)).
 
 <!-- zdroj: research:src/core/waiting.ts:73 SECTION_RANK, :75 DECIDE_RANK, :468 together, :478-492 ordered · src/core/waitkind.ts:238 waitGroupOf · assets/lang/cs.json:2313-2320 wait.group.* (:2359) · src/cli/menu-waiting.ts:205-232 · app:strings.ts:11958 waitingFilterLabel -->
+
+<a id="R6.4.1"></a>
+### R6.4.1 What helps most
+
+For each item with tasks behind it, the research works out how much dealing with it grows the family tree, and says
+why in a few words. The cost of a download is not weighed; only how much the tree grows counts. Nothing is read,
+sent or written.
+
+- **Score:** the sum of parts:
+  - **a new generation** (+50): the person the item concerns stands at the edge of the tree without both parents or
+    one of them, and the research is heading there (within the line's scope, not beyond its limit, not at a paused,
+    finished or probably living person, not at a parent who is only not documented). The part names one such
+    person: the highest generation in the line, then the lowest ID;
+  - **the direct line** (+30): the person the item concerns is an ancestor of the people the research is for;
+  - **tasks** (+10 for each, at most 10): the tasks dealing with it frees – its own, and each open or parked task that
+    needs the book of one of them. Other waiting tasks of the same book do not count; each is an item of its own.
+    It is said only from two tasks.
+- **Reason:** the parts in the research's language joined by " · ": "a new generation: the parents of Jan Horák"
+  (or "a new generation: the father of …", "a new generation: the mother of …"), "the direct line", "unblocks 3
+  tasks". An item with one task and nothing else has a score without a reason.
+- **Limits:** items without tasks (stories, sends, conflicts, places, branches, hypotheses, new wordings of a
+  transcription) and items with the score 0 have no score. It is worked out once for the whole **What waits**.
+- **Controls:** app: the order **Most helpful** in **Awaiting action** ([S4.4.3](S4-research-from-the-app.md#S4.4.3)).
+  Terminal: `strom task list --state waiting --order gain` (only with `--state waiting`, without `--book` and
+  `--off-tree`).
+- **Since:** research 1.37.0 (app 3.32.0)
+
+<!-- zdroj: research:44d3f750 src/core/waitgain.ts GAIN_POINTS (generation 50, line 30, task 10), UNBLOCKS_MAX 10, waitGains (edgeReach scope in, ne proof; kinship 0; bookOfTask, bookTasks open + parked; část unblocks od n ≥ 2; bez skóre 0), gainSays · src/core/waiting.ts (gain), src/core/live.ts waiting[].gain, feature waiting.gain · src/commands/tasks.ts task list --order gain (task.order) · assets/lang/cs.json wait.gain.* · CHANGELOG.cs.md 1.37.0 „Co nejvíc pomůže“ · dirigent:spec/105 K4.1 -->
 
 <a id="R6.5"></a>
 ## R6.5 What can be dealt with where
@@ -216,6 +261,9 @@ the computer.
 - **Controls:** terminal: **What waits** → the group (**The text of all requests at once**, **Sent for the whole
   group**, **A conversation with the agent about the whole group**) or the item.
 - **Since:** research 1.14.0 (app 3.11.0). Places from 1.25.0.
+- **From research 1.37.0 (app 3.32.0):** the app itself returns to the agent a task waiting for images the agent
+  manages by itself (**Retry with the agent**, also for a whole archive's group; [R6.7.3](#R6.7.3),
+  [S4.4.14](S4-research-from-the-app.md#S4.4.14)).
 
 <!-- zdroj: research:src/core/live.ts:60-80 (POST /waiting, /group, PUT /media X-Strom-Task, POST /places/answer, /conflict 403), :2761 · src/core/waiting.ts:78-88 actionsOf · app:src/ui/research-overview-ui.ts · strings.ts:9972, :10078, :11953 -->
 
@@ -246,6 +294,9 @@ asks the person in a system window, or refuses the command.
 - **From research 1.35.0:** only a person also decides whether to take a participant's shorter note from the app
   (`strom sync note`, [S2.3.2](S2-edits-from-the-app.md#S2.3.2)); the agent only carries out the person's answer to
   that task.
+- **From research 1.37.0:** only a person also returns a waiting task to the agent (`strom task wake --retry`,
+  [R6.7.3](#R6.7.3)): in the menu **What waits** or in the Strom app through the bridge. The research refuses the
+  command to an agent and to a strom inside an agent's session.
 
 <!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent; strom help source reading („The person's alone … an agent never decides it“), strom help source proposal („Only the person decides it“) · 1.35.0: research:fb94435f src/commands/sync.ts sync note (person, agentMay s odpovědí), src/core/shorternote.ts decideShorterNote (shorter.person) -->
 
@@ -301,6 +352,61 @@ the task to the queue, and the agent deals with it in its next work.
     tasks out.
 
 <!-- zdroj: research:src/commands/media.ts:135-170 wakeWaiting (1.26.0: awaits jen ta kniha, check nikdy, letter/family/web jen waitingOn; 1.27.0: web i singleBook) · src/commands/fixes.ts:835 woken-waits (commit 740e1893) · src/core/archivewait.ts:188 wakeForArchive · src/commands/tasks.ts:880-895 task park · src/core/queue.ts:112 effectiveState · app:src/ui/research-ui.ts:3473-3500 -->
+
+<a id="R6.7.3"></a>
+### R6.7.3 Return to the agent
+
+A task that waits for images of an archive reached only through a browser is returned to the agent by a person once
+the obstacle of the browser is gone (for example downloads were allowed or the extension connected). Nothing is
+written as the person's answer, and the task goes first in the queue.
+
+- **Which tasks it concerns:** only waits for images the agent manages by itself:
+  - the agent's browser held back the downloads from the archive's website (the profile the agent works in lacks the
+    permission to download several files);
+  - saving through the agent's browser stopped because the agent's session ended mid-way;
+  - images to be saved by hand from a book the agent's browser may go to: an archive reached only through a browser
+    with the permission **through the browser** ([R9.2](R9-archives.md#R9.2)), or a connector whose images come
+    through the browser;
+  - a page in an archive viewer `strom media save` does not know (today ARON of the Moravian Land Archive,
+    `www.mza.cz/aron/…`), only with the permission **through the browser**: the agent only reads the images from the
+    screen, none is saved.
+- **Never:** a letter, a request to the family, a check of a site, an archive's permission, a request sent, a
+  proposal of a transcript, an archive by hand only, images of a book the agent's browser may not go to, and nothing
+  in a research that serves as an archive.
+- **Why it waits now:** for such a task the research says the reason of the current wait, not a text written
+  earlier: downloads held back (with the archive's website), saving stopped, the agent's browser reaches the archive
+  now, the Claude in Chrome extension is connected in no browser, or the research's agent is other than Claude Code
+  with the Claude in Chrome extension. A task returned before that waits again ends with "tried again 18:40, held
+  back again" (or "waits again"); a time older than today comes with its day. The research also says the number of
+  images the task still misses, when it knows it.
+- **What returning does:**
+  - the task is open again and goes first in the queue, as the choice **Do next** ([R2.2](R2-lines-and-queue.md#R2.2));
+    several returned at once go among themselves in the queue's order. The task's earlier sessions do not count
+    against it in the queue (only the sessions since the return count), and it does not wait behind the work that
+    can be done now because of images a person would download;
+  - the task gets the note "returned to the agent from What waits; it waited on: …" (from the app "… from What waits
+    in the Strom app; …"), so the agent knows what was missing. No answer of the person is written;
+  - what the agent's browser was to save for the task and never did is dropped; the next session saves it anew;
+  - nothing starts and nothing is paid: a running research (`strom run`) takes the task, otherwise it waits first in
+    the queue for the next start.
+- **Limits:**
+  - one task at most 3 times in 24 hours. Then the research says from when it can go again; when the cause lasts,
+    the task ends in **What waits** again and does not loop;
+  - several tasks are returned all or none: one that cannot be returned stops the whole return and nothing is
+    written;
+  - only a person returns it: in the terminal (the menu **What waits**) or in the Strom app through the bridge. The
+    research refuses the command to an agent and to a strom inside an agent's session ([R6.6](#R6.6));
+  - a task whose wait changed in the meantime is not returned from the app (the research refuses and writes
+    nothing).
+- **Controls:** terminal: **What waits** → the item: the line **now: …** and the last choice **Return to the agent
+  (N images)** (without a known number **Return to the agent**); after returning "✓ Returned to the agent, first in
+  the queue: a running research takes it, else the next run." After the limit, in place of the choice "Returned to
+  the agent 3 times within a day — again from …". In an archive's group with at least two such tasks **Return all to
+  the agent (N tasks, M images)**. Command: `strom task wake T… [T…] --retry`. App: **Retry with the agent**
+  ([S4.4.14](S4-research-from-the-app.md#S4.4.14)).
+- **Since:** research 1.37.0 (app 3.32.0)
+
+<!-- zdroj: research:9d626062 src/core/retry.ts retryOf (held, stopped, screen jen se svolením permitted, ruční awaits jen bookBrowserArchive permitted nebo viaConnector; ne letter/family/check/permission, proposal, awaitsCheck, waitPhaseOf ≠ todo, actsAsArchive), RETRY_MAX 3, RETRY_WINDOW_MS 24 h, when (HH:MM dnes, jinak humanWhen) · src/commands/tasks.ts retryWake (task.retry-answer, task.retry-person: isAgent nebo STROM_SESSION bez STROM_FOR_APP, task.not-waiting, task.changed --expect, task.retry-not, task.retry-limit; vše nebo nic pod zámkem; stateChange open, queueAt {do: next, at} stejný čas, retried {at, by, givenIn app, times}, poznámka retry.note/retry.note.app, saves bez taken zahozené) · src/core/queue.ts rankTasks (tried jen sezení po retried.at; returned → ne lacksImages/blocked) · src/cli/menu-waiting.ts (ui.wait.d.retry, ui.wait.a.retry, ui.wait.retry.until, ui.wait.retry.done, skupina back.length ≥ 2 ui.wait.group.retry) · assets/lang/cs.json retry.* · assets/archives.json mza.cz screenOnly /aron/ · src/core/live.ts POST /waiting/<T…> a /group/<key> {"do":"retry"}, feature waiting.retry · strom help task wake · CHANGELOG.cs.md 1.37.0 · dirigent:spec/089 K1.1–K1.5, K1.2b, K2.1, K3.1 -->
 
 <a id="R6.8"></a>
 ## R6.8 Books with the most tasks

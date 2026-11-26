@@ -13,7 +13,7 @@ import type { Op, Tree } from "./tree.ts";
 import type { AnyRecord, Conflict, Family, Hypothesis, Input, Lesson, Media, Person, Place, RecordSet, Repository, Research, Search, Session, Source, Task } from "./model.ts";
 import { conflictTitle, displayName, lifespan } from "./people.ts";
 import { ownerName, cardFact } from "./overview.ts";
-import { phrase, type PhraseKey } from "./phrases.ts";
+import { phrase, PHRASES, type PhraseKey } from "./phrases.ts";
 import { clock } from "./net.ts";
 import { eventName, humanDate, humanPlace, humanTask, humanWhen } from "../cli/human.ts";
 import { UI, ui, type UIKey } from "../cli/ui.ts";
@@ -25,6 +25,38 @@ const QUIET = new Set(["session.metrics", "session.readers", "task.start", "task
 /** The one-line form of an operation, by its kind: {who} a person or family, {name} the record. */
 /** What strom mode logs (core/mode.ts), as the history says it. */
 const MODE_SAID: Record<string, PhraseKey> = { "the research is an archive": "log.mode.archive", "the research works with an agent again": "log.mode.research" };
+
+/** The settings of a research said turned on or off (strom config set): each value, which of the two it is. */
+const SETTING_ON_OFF: Record<string, Record<string, "on" | "off">> = {
+  ...Object.fromEntries(["stories", "stories.sources", "stories.history", "queue.suggestLines", "queue.sameBook"].map((k) => [k, { yes: "on", no: "off" }])),
+  ...Object.fromEntries(["sync.review", "agent.addons", "experiments.history", "experiments.placeHistory", "experiments.historyPlaces", "intake.auto", "census"].map((k) => [k, { on: "on", off: "off" }])),
+  // the question before a sort: ask — the question on
+  "sort.confirm": { ask: "on", no: "off" },
+};
+
+/** The settings of a research said with their number. */
+const SETTING_NUMBERS = new Set(["brief.budget", "run.minutes", "read.parallel", "web.perHost", "queue.offLineShare", "queue.suggestTasks", "search.ageMargin", "books.minTasks", "queue.suggestPersons", "excerpts.mb"]);
+
+/**
+ * A setting of the research changed (the summary strom config set writes: "tree setting <key> = <value>", "tree setting
+ * <key> removed") in the research's language: its name, and what it is now where it can be said in words.
+ */
+export function settingSaid(summary: string, lang: string): string {
+  const m = /^tree setting (\S+)(?: = (.*)| removed)?$/u.exec(summary);
+  if (!m) return "";
+  const key = m[1]!;
+  const value = m[2]?.trim();
+  const nameKey = `log.setting.name.${key}` as PhraseKey;
+  if (!(nameKey in PHRASES)) return phrase(lang, "log.setting", { key });
+  const name = phrase(lang, nameKey);
+  if (value === undefined) return phrase(lang, summary.endsWith(" removed") ? "log.setting.default" : "log.setting", summary.endsWith(" removed") ? { name } : { key: name });
+  const turned = SETTING_ON_OFF[key]?.[value];
+  if (turned) return phrase(lang, turned === "on" ? "log.setting.on" : "log.setting.off", { name });
+  if (SETTING_NUMBERS.has(key) && /^\d+(?:\.\d+)?$/u.test(value)) return phrase(lang, "log.setting.to", { name, value });
+  const valueKey = `log.setting.value.${key}.${value}` as PhraseKey;
+  if (valueKey in PHRASES) return phrase(lang, "log.setting.to", { name, value: phrase(lang, valueKey) });
+  return phrase(lang, "log.setting", { key: name });
+}
 
 const SAID: Record<string, PhraseKey> = {
   "person.add": "log.person.add",
@@ -461,10 +493,10 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       say(phrase(lang, MODE_SAID[o.summary]!));
       continue;
     }
-    // a setting of the research (strom config set): its name, never the English summary
+    // a setting of the research (strom config set): said in words — what was turned on or off, a number, a choice — never
+    // its key nor the English summary (a key strom does not name: the key, as before)
     if (o.op === "config.set") {
-      const m = /^tree setting (\S+)/.exec(o.summary);
-      say(m ? phrase(lang, "log.setting", { key: m[1]! }) : "");
+      say(settingSaid(o.summary, lang));
       continue;
     }
     // the forms of a surname the person made one family (quality/surnames.json): the forms, never the English summary

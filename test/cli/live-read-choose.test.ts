@@ -301,6 +301,8 @@ test("K2.1, K2.2, K3.1, K3.2: the readers to choose, with in POST /read and agai
       fs.writeFileSync(path.join(dir, "first.md"), entry(text));
       const r = json(await ask({ source, ...(taskChoice ? { taskChoice: true } : {}), with: [{ agent: "script" }] }));
       await until(`read again ${source}`, async () => json(await request("GET", `${url}/read/${r.read}`, undefined, app)).state === "done", { ms: 60_000 });
+      // the reading done, /status may still answer from the moment before the source took it: wait for it there too
+      await until(`status of ${source}`, async () => (await readAgain())?.[source]?.read === r.read, { ms: 30_000 });
       return r.read as string;
     };
     const decide = (source: string, read: string, body: unknown) => post(`${url}/sources/${source}/read/${read}/task`, body);

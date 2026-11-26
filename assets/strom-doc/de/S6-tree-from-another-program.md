@@ -185,8 +185,11 @@ angelegt, eingefügt oder zusammengeführt wurde.
 - **Grenzen:** die Karte gibt es nur bei einer Datei eines anderen Programms. Sie ersetzt die früheren Fragen nach dem
   Import (Prüfung, Trennen von Familien).
 - **Gilt seit:** App 3.26.0
+- **Ab App 3.32.0:** die Karte erscheint nach einem Import in einen neuen Stammbaum und nach **In Stammbaum
+  einfügen**. Nach dem Zusammenführen einer Datei in einen bestehenden Stammbaum erscheint sie nicht: die Datenprüfung
+  ist im letzten Schritt des Assistenten (**Stammbaum prüfen**, [A8.11](A8-merging-trees.md#A8.11)).
 
-<!-- zdroj: app:7b0471f8 src/ui/import-next-ui.ts (IMPORT_NEXT_HELP_TOPIC = 'A2', nextCardClosed, :302 verify → showVerifyBulkDialog) · src/import-next.ts IMPORT_NEXT_VERIFY_FEATURES ['verify.bulk'] · strings.ts importNext.* · dirigent:prace/1108-app-066-u5 -->
+<!-- zdroj: app:7b0471f8 src/ui/import-next-ui.ts (IMPORT_NEXT_HELP_TOPIC = 'A2', nextCardClosed, :302 verify → showVerifyBulkDialog) · src/import-next.ts IMPORT_NEXT_VERIFY_FEATURES ['verify.bulk'] · strings.ts importNext.* · dirigent:prace/1108-app-066-u5 · 3.32.0: app:debf50cc src/merge/ui.ts finishDone (afterImport jen u w.newTree s importId), step6Env noNextCard · strings.ts mergeWizard.noNextCard -->
 
 <a id="S6.5"></a>
 ## S6.5 Sicherungen und Zurückgehen in der Zeit
@@ -207,8 +210,25 @@ Zustand vor dem Import lässt sich so zurückkehren.
 - **Ab App 3.27.0:** Die Sicherung **Vor der Anpassung der Daten an eine neue Version** entsteht, bevor die App beim
   Öffnen einen mit einer älteren Version gespeicherten Stammbaum anpasst; derzeit nur, um Quellen zusammenzuführen,
   die sich nur in der Zuverlässigkeit unterschieden ([A2.6.1](A2-loading-a-family-tree.md#A2.6.1)).
+- **Ab App 3.32.0:**
+  - die Sicherungen **Vor dem Import** und **Vor dem Zusammenführen** entstehen immer, auch bei ausgeschaltetem
+    Schalter **Automatische Sicherungen dieses Stammbaums** („Täglich; vor einem Import oder dem Zusammenführen
+    immer.“); die Sicherung **Vor dem Zusammenführen** legt jedes Zusammenführen in einen Stammbaum an, aus jeder
+    Quelle;
+  - die Sicherung **Vor dem Zusammenführen** bleibt, solange sich die Zusammenführung zurücknehmen lässt: die Rotation
+    der Sicherungen löscht sie nicht. Müsste ihretwegen eine andere gehen, fragt der Assistent
+    ([A8.10](A8-merging-trees.md#A8.10));
+  - ohne Sicherung wird die Zusammenführung nicht geschrieben;
+  - das Rückgängigmachen einer Zusammenführung legt eine eigene Sicherung **Vor dem Rückgängigmachen der
+    Zusammenführung** an, ebenfalls immer; die Rotation löscht sie nicht, solange sich die Zusammenführung
+    wiederherstellen lässt;
+  - das Trennen einer Kopie von einer geteilten Forschung legt die Sicherung **Vor der Anpassung der Daten an eine neue
+    Version** an ([S1.10.2](S1-connecting-app-and-research.md#S1.10.2));
+  - eine einzelne Zusammenführung lässt sich auch ohne Wiederherstellen der ganzen Sicherung zurücknehmen:
+    **Zusammenführung zurücknehmen…** ([A8.12](A8-merging-trees.md#A8.12)). Eine Sicherung bringt den ganzen
+    Stammbaum zurück, samt allem, was seit der Zusammenführung geschehen ist.
 
-<!-- zdroj: app:1c9b2392 src/snapshots.ts SnapshotReason pre-import, pre-merge · src/ui/import-export.ts:818, :940 snapshotNow('pre-import') · src/data.ts:892 · src/ui/merge-ui.ts:769 · src/ui/tree-actions.ts:196 · strings.ts snapshots.menu, title, autoLabel, autoHint, inBrowser, budgetNote, createNow, restore, download · 3.27.0: app:5721b016 src/snapshots.ts SnapshotReason pre-migration, src/tree-manager.ts joinQualityOnlySourcesOf, strings.ts pre-migration -->
+<!-- zdroj: app:1c9b2392 src/snapshots.ts SnapshotReason pre-import, pre-merge · src/ui/import-export.ts:818, :940 snapshotNow('pre-import') · src/data.ts:892 · src/ui/merge-ui.ts:769 · src/ui/tree-actions.ts:196 · strings.ts snapshots.menu, title, autoLabel, autoHint, inBrowser, budgetNote, createNow, restore, download · 3.27.0: app:5721b016 src/snapshots.ts SnapshotReason pre-migration, src/tree-manager.ts joinQualityOnlySourcesOf, strings.ts pre-migration · 3.32.0: app:debf50cc src/data.ts:2047 backupBeforeMerge (bez ohledu na automatické zálohy, keepFor), snapshotNow pre-import/pre-merge vždy · src/snapshots.ts planRetention (keepFor se nesmaže), retention · src/merge/write.ts:231 · strings.ts snapshots.autoHint, mergeWizard.backupLine, retentionAsk, backupFailed, vsBackup · spec 134 K0.4 · app:e2a6d712 pre-merge-undo „Před odvoláním sloučení“ (134 N5) · e4e3eeea pre-migration před odpojením kopie -->
 
 <a id="S6.6"></a>
 ## S6.6 Export zurück ins Programm oder zum Teilen
@@ -290,8 +310,13 @@ der Programm-ID. Eine Person, die dieselbe ID hat, aber sonst nicht übereinstim
 - **Bedienung:** **Import → GEDCOM importieren → Mit Vorhandenem zusammenführen** ([A8](A8-merging-trees.md)).
 - **Gilt seit:** App 3.26.0; 3.27.0: eine ID mehrerer Personen im Stammbaum wird nur angeboten; manuelles
   Zusammenführen von Personen verbindet die Notizen (vorher nicht)
+- **Ab App 3.32.0:** **Import → GEDCOM importieren** öffnet den Assistenten **Stammbaum importieren** mit der Wahl
+  **Zu Stammbaum hinzufügen** ([A8.6](A8-merging-trees.md#A8.6)). Dieselbe Datei, erneut zusammengeführt, erkennt der
+  Assistent: er fügt nur die Personen hinzu, die beim letzten Mal ausgelassen wurden, und verdoppelt verbundene
+  Personen nicht. Eine Übereinstimmung von 50–79 wird ohne Entscheidung des Menschen nicht verbunden; die übrigen
+  Paare lassen sich auf einmal als neu hinzufügen oder auslassen ([A8.7](A8-merging-trees.md#A8.7)).
 
-<!-- zdroj: app:7b0471f8 CHANGELOG.cs.md 3.26.0 (Slučování) · src/merge matchSameNamedRelatives, standInsOfKnownFamilies (b3c3ce00) · strings.ts merge reasons partner_of_matched, child_of_matched, parent_of_matched, sibling_of_matched, in_law_of_matched · dirigent:prace/1109-app-slouceni-325, 1109-app-gedy-opravy (N6: značky importu se starému stromu nedoplní), 1109-app-jeden-rodic Výsledek -->
+<!-- zdroj: app:7b0471f8 CHANGELOG.cs.md 3.26.0 (Slučování) · src/merge matchSameNamedRelatives, standInsOfKnownFamilies (b3c3ce00) · strings.ts merge reasons partner_of_matched, child_of_matched, parent_of_matched, sibling_of_matched, in_law_of_matched · dirigent:prace/1109-app-slouceni-325, 1109-app-gedy-opravy (N6: značky importu se starému stromu nedoplní), 1109-app-jeden-rodic Výsledek · 3.32.0: app:debf50cc src/ui/import-export.ts openGedcomGuide, src/merge/ui.ts repeatLine (otisk souboru) · strings.ts mergeWizard.repeat, restAdd, restSkip · CHANGELOG.cs.md 3.32.0 -->
 
 <!-- zdroj: app:1c9b2392 src/merge/matching.ts ID_MATCH_SCORE 100, ID_CANDIDATE_SCORE 60, ID_MAX_YEAR_GAP 3, WEAK_ID_BONUS 25, offerOnlyCap · src/merge/executor.ts:82 AUTO_CONFIRM_SCORE = 80 · src/merge/notes.ts · strings.ts merge reason id „Stejné ID v souboru“ · dirigent:prace/1108-app-066-u8/karta.md Výsledek (FAM se podle ID nepárují; mergePersons neslučuje poznámky) -->
 <!-- zdroj: 3.27.0: app:ffe1da9f src/data.ts mergePersons (notes: mergeNoteText keep+remove; partnership note: mergeNoteText) · app:b5595ca1 src/merge/matching.ts idNamesSeveral, findDirectMatches · app:a5fc9656 src/ged-parser.ts keptMedia, extras OBJE (export zpět jako ostatní _XXX rodiny) · strings.ts personMerge.title „Sloučit osoby“ · CHANGELOG.cs.md 3.27.0 · dirigent:test/vysledek-1109-app-drobnosti-ged.md P1 (dialog poznámku jako konflikt nenabízí: detectFieldConflicts jen jméno, příjmení, narození, úmrtí) -->
@@ -327,3 +352,50 @@ Die Forschung übernimmt einen Stammbaum aus einem anderen Programm mit dem Befe
 - **Gilt seit:** Forschung 1.30.0
 
 <!-- zdroj: research:v1.30.0 CHANGELOG.cs.md 1.30.0 · src/core/import.ts ImportResult.candidates, notTaken · src/commands/intake.ts:300-313 · assets/lang/cs.json ui.intake.candidates, ui.intake.notTaken* · strom help fixes run („readers, proven-originals and origins are set right by themselves once, run again only after strom fixes undo“) · dirigent:prace/1108-vyzkum-066-u3, 1108-vyzkum-066-u8 Výsledek (origins-1, nejisté → user; Gramps bez _UID kandidáti) · research:94d75934 src/core/originfix.ts ORIGINS_TREE_SETTLED origins-tree-1 (podle historie: stejná hodnota hned po převzetí, ne před ním, stejná dnes), settleOrigins · cs.json ui.fixes.origins.example.tree · strom help fixes show -->
+
+<a id="S6.9"></a>
+## S6.9 Die E-Mail einer Person: ein Kontakt, kein Wohnort
+
+Die E-Mail-Adresse einer Person ist ihr **Kontakt**, kein Ereignis und kein Ort, an dem die Person lebte. GEDCOM hält
+sie in einer Adresse unter einem Ereignis: MyHeritage schreibt eine E-Mail als Wohnort (`1 RESI` / `2 EMAIL`), andere
+Programme als `1 EMAIL` direkt bei der Person. Die App und die Forschung machen daraus einen Kontakt der Person.
+
+- **Prüft der Code (App):**
+  - ein Wohnort, der nur einen Kontakt trägt (E-Mail, Telefon, Web, Fax, eine leere Adresse oder eine Adresse nur mit
+    der Bezeichnung „Email“; ohne Datum, Ort, wirkliche Adresse, Notiz, Quelle und Datei), wird als Kontakt der Person
+    geladen, nicht als Ereignis. Ein Wohnort mit etwas Eigenem bleibt ein Wohnort, und seine E-Mail geht in den
+    Kontakt über (nicht mehr als Zeile der Notiz). `1 EMAIL` bei einer Person ist ebenfalls ein Kontakt;
+  - in einem Stammbaum, den eine ältere Version der App gespeichert hat, werden die E-Mail-Zeilen, die der Import
+    dort geschrieben hat, bei jedem Laden in den Kontakt übertragen. Nichts, was ein Mensch geschrieben hat, ändert
+    sich; ein leerer Wohnort bleibt in den Daten, er wird nur in der Liste der Ereignisse nicht gezeigt;
+  - jede Adresse steht einmal im Kontakt (ohne Rücksicht auf Groß- und Kleinschreibung), höchstens 254 Zeichen, ohne
+    Leerzeichen;
+  - der GEDCOM-Export schreibt jede Adresse als `1 RESI` / `2 EMAIL`; **Zurück zu {program}** schreibt ein
+    `1 EMAIL`, das die Datei bei der Person hatte, genauso wie sie ([S6.6](#S6.6));
+  - Schutz lebender Personen ([A7.2](A7-book-pages-and-export.md#A7.2)): eine lebende Person gibt ihren Kontakt nicht
+    in den Export;
+  - die Personenseite zeigt die Adressen als E-Mail-Link nur im Fenster der App; eine in eine Datei gespeicherte Seite
+    hat keinen Kontakt;
+  - in die Forschung geht der Kontakt nur mit einer Forschung,
+    die Kontakte hält; einer älteren Forschung, die ihn als Wohnort ohne Ort lesen würde, wird er nicht gesendet,
+    und die App hält ihn selbst.
+- **Prüft der Code (Forschung):**
+  - E-Mails aus einem Stammbaum (ein Wohnort nur mit einer E-Mail, die ältere Notiz der App „E-Mail: …“) werden zum
+    Kontakt der Person; `strom person show` und die Personenkarte zeigen ihn getrennt von den Angaben. Nie wird daraus
+    ein Ereignis oder ein Wohnort, und der Agent bekommt ihn nicht;
+  - die Synchronisierung mit der App fügt E-Mails hinzu und entfernt sie wie andere Änderungen;
+  - die Prüfung `strom fixes contact-residences` („Kontakte als Wohnorte gespeichert“) findet die Wohnorte, die eine
+    ältere Forschung aus E-Mails gemacht hat. Die Korrektur verschiebt die E-Mails in den Kontakt (jede einmal), zieht
+    einen Wohnort nur mit einem Kontakt mit Begründung zurück und entfernt die Bezeichnung „Email“ aus dem Haus; sie
+    löscht nichts. Ein Wohnort mit einem zitierten Eintrag, mit Personen oder mit einer eigenen Notiz bleibt, wie er
+    ist. Die Korrektur startet nur der Mensch, sie ist kostenlos, und `strom fixes undo contact-residences` nimmt sie
+    zurück.
+- **Daten:** den Kontakt trägt der Stammbaum ab Datenversion 26; ältere Versionen der App öffnen einen solchen
+  Stammbaum nur schreibgeschützt.
+- **Bedienung:** App: Bearbeiten der Person, Abschnitt **Foto und Notizen**, Feld **E-Mail** (mehrere Adressen durch
+  Kommas getrennt); das Feld ist bei eingeschalteten **Einstellungen → Personenkarte → Erweiterte Felder** zu sehen
+  oder wenn die Person eine Adresse hat. Terminal: `strom person show`, `strom fixes show contact-residences`,
+  `strom fixes run contact-residences`, `strom fixes undo contact-residences`.
+- **Gilt seit:** App 3.32.0, Forschung 1.37.0
+
+<!-- zdroj: app:972e73d7 src/person-contact.ts (hlavička: pravidlo RESI jen s kontaktem, 1 EMAIL; cleanEmail EMAIL_MAX 254, bez mezer; sameEmail bez velikosti písmen; isContactResidence, isEmptyResidence, moveContactsIntoPeople při každém načtení), src/ged-exporter.ts contacts (výchozí ano, do výzkumu jen s person.contact; 1 RESI / 2 EMAIL; Zpět do: 1 EMAIL jak byl), src/privacy.ts (žijící bez emails) · app:0603165b index.html #emails-group v Fotografie a poznámky, src/ui/person-modal.ts applyAdvancedFieldVisibility emails-group, emailsFromInput (čárky, středníky, mezery), src/person-page.ts jen c.app, mailto, src/ui/person-events.ts shownEvents (prázdné bydliště skryté) · src/version.ts STROM_DATA_VERSION 26 · strings.ts labels.emails, placeholders.emails, personModal.sectionPhotoNotes · research:ce89202a src/core/live.ts person.contact (1 RESI / 2 EMAIL, nejvýš tři na RESI), src/commands/fixchecks.ts CONTACT_RESIDENCES, src/commands/fixes.ts contact-residences · cs.json ui.fixes.contact-residences.* · CHANGELOG.cs.md 1.37.0 „E-maily osoby jsou kontakt“, app CHANGELOG.cs.md 3.32.0 Data · dirigent:spec/134 K0.10, U11 -->

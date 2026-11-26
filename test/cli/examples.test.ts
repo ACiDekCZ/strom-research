@@ -87,6 +87,12 @@ async function seeded(): Promise<World> {
   const three = decodeImage(fs.readFileSync(path.join(scans, "s0003.jpg")));
   fs.writeFileSync(smaller, encodeImage(resize(three, Math.round(three.width / 2), Math.round(three.height / 2)), "jpeg", 70));
   assert.equal((await w.ok(["media", "add", smaller, "--recordset", "B0001", "--image", "3", "--json"])).json.added[0].id, "M0004", "the copy of the example of media cites");
+  // image 60 registered only in its two halves (M0005, M0006): the examples of media view of an image in parts
+  for (const [side, id] of [["left", "M0005"], ["right", "M0006"]] as const) {
+    const half = path.join(w.dir, `60-${side}.jpg`);
+    fs.writeFileSync(half, encodeImage(resize(three, side === "left" ? 300 : 320, 420), "jpeg", 70));
+    assert.equal((await w.ok(["media", "add", half, "--recordset", "B0001", "--image", "60", "--half", side, "--json"])).json.added[0].id, id);
+  }
   await w.ok(["recordset", "calibrate", "B0001", "--point", "1=110", "--point", "3=114"]);
   // another scan saved as image 3 of B0001, set aside beside it (strom media aside)
   const book = path.join(w.home, "shared", "inbox", inboxFolderFor(Tree.open(w.cwd, w.env).get<RecordSet>("B0001")!));

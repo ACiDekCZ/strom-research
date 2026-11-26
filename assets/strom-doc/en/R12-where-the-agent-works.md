@@ -72,11 +72,11 @@ watches both alike.
 - **Why:** the Claude app runs the research's hooks before its built-in browser too, so strom can judge every address
   as it does for Chrome.
 - **Controls:** the Claude app: the setting **Preferred browser**. Terminal: `strom doctor`, the row **desktop apps'
-  browser** and, at the browser in Chrome, **in a conversation in the Claude app: yes; working alone (strom run):
-  only with Claude Code in the terminal**.
+  browser** and, at the browser in Chrome, **in a conversation in the Claude app: yes; working alone (strom
+  run): only with Claude Code in the terminal**.
 - **Since:** research 1.29.0
 
-<!-- zdroj: research:src/core/browser.ts (matcher mcp__(remote-devices__)?Claude_Browser__*) · src/core/chromehook.ts · src/core/webgate.ts browserGate · src/cli/ui.ts ui.doc.desktop.unwatched, ui.doc.browser.apponly · CHANGELOG.md 1.29.0 · test/vysledek-062-u4-desktop.md kroky 1–3 · test/vysledek-1106-vyzkum-062-desktop.md bod 3 · test/vysledek-desktop-chrome.md bod 4, bod 6 -->
+<!-- zdroj: research:src/core/browser.ts (matcher mcp__(remote-devices__)?Claude_Browser__*) · src/core/chromehook.ts · src/core/webgate.ts browserGate · src/cli/ui.ts ui.doc.desktop.unwatched, ui.doc.browser.apponly (1.37.0: research:91631d2e without the non-existent "--chrome", K051) · CHANGELOG.md 1.29.0 · test/vysledek-062-u4-desktop.md kroky 1–3 · test/vysledek-1106-vyzkum-062-desktop.md bod 3 · test/vysledek-desktop-chrome.md bod 4, bod 6 -->
 
 <a id="R12.3"></a>
 ## R12.3 The Claude app's terminal

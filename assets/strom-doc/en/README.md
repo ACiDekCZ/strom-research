@@ -13,7 +13,7 @@ Parts R (the research), A (the app) and S (the app and the research together) ar
 
 - [R1 The research in brief](R1-research-in-brief.md): how the research works as a whole, on one page
 - [R2 Lines and the queue](R2-lines-and-queue.md): what the agent works on and in what order
-- [R3 Verification and citation](R3-verification-and-citation.md): degrees of certainty, what Proven requires, sources and leads
+- [R3 Verification and citation](R3-verification-and-citation.md): degrees of certainty, what Proven requires, sources and leads, religion as a fact
 - [R4 Places](R4-places.md): identifying places, names and jurisdiction, what a person decides
 - [R5 Conflicts](R5-conflicts.md): how a conflict arises, who decides it, what the agent does not overwrite
 - [R6 Awaiting action](R6-awaiting-action.md): what the research needs from a person and where it is dealt with
@@ -35,11 +35,13 @@ Parts R (the research), A (the app) and S (the app and the research together) ar
 - [A5 Tree check](A5-tree-check.md): what the app watches in the tree, with which thresholds, and Not an error
 - [A6 Views and the choice of people](A6-views.md): Family, Descendants, Timeline, Fan, Map, a family line in the view, Table and a view in a separate window
 - [A7 Book, pages and export](A7-book-pages-and-export.md): who is living, privacy of living people, the family book, pages, saved HTML
-- [A8 Merging trees](A8-merging-trees.md): merging a file, a tree or a view into a new tree, matching people
+- [A8 Merging trees](A8-merging-trees.md): the guide merging a file, a tree or a selection into a tree, matching people, the merge history and undoing a merge
 - [A9 Using the app](A9-using-the-app.md): where things are, readable names of controls, editing while following the research, the agent in the app, the bottom bar on a phone and a tablet
 - [A10 One event of several people](A10-shared-events.md): a household's shared event (Shared with), Make all match, Join into one event, godparents and witnesses in a person's life, merging and older trees
-- [A11 Lists of people](A11-lists-of-people.md): fixed, automatic and checklist, rules, Freeze, manual order, Add to list, Save as list, the date added, ticking off done, exporting a list
+- [A11 Lists of people](A11-lists-of-people.md): fixed, automatic and checklist, rules, custom rule of conditions, family of a person, list templates, Keep by the rule, Freeze, manual order, Add to list, Save as list, the date added, ticking off done, exporting a list
 - [A12 The portrait and the couple's photo](A12-portrait-and-couple-photo.md): the portrait crop editor, the original tagged Portrait, Edit crop, As portrait…, the couple's photo and portraits from it, where they appear, export, GEDCOM and data version 24
+- [A13 Tree statistics](A13-tree-statistics.md): the Statistics window, topics, scope and period of birth, from a value to the Table, CSV export
+- [A14 Managing trees and changing the structure](A14-trees-and-structure.md): Manage trees, pending merges, Change structure…, a new tree from a selection, a copy of the whole tree, splitting, joining into another tree
 
 ## S The app and the research together
 
@@ -48,7 +50,7 @@ Parts R (the research), A (the app) and S (the app and the research together) ar
 - [S3 What the research knows](S3-what-the-research-knows.md): conflicts, hypotheses, searched records and Above the person in the app
 - [S4 Research run from the app](S4-research-from-the-app.md): the research panel and overview, the queue, directions, actions in the terminal
 - [S5 Phone](S5-phone.md): the research page on a phone, pairing, photos in batches
-- [S6 A tree from another program](S6-tree-from-another-program.md): a family tree from MyHeritage, Gramps, FamilySearch and Windows programs: what loads, reliability marks, family-tree facts as leads, the What next card, backups, export back, repeated import
+- [S6 A tree from another program](S6-tree-from-another-program.md): a family tree from MyHeritage, Gramps, FamilySearch and Windows programs: what loads, reliability marks, family-tree facts as leads, the What next card, backups, export back, repeated import, a person's e-mail as a contact
 - [S7 Reliability of facts and verification against the originals](S7-reliability-and-verification.md): marks at facts and on the card, Verify at a fact, at a person and in the tree, verifying in the research's queue, Confirm against the scan, what works with the bridge and without it
 - [S8 Where the data are](S8-where-the-data-are.md): what is only in the browser, what is in the research and in the Strom archive, the tree's photos and attachments in the research, the indicator Only in browser, photos that could not be loaded, the pack and removing a tree
 

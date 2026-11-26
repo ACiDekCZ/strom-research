@@ -172,8 +172,11 @@ what can be done with it next. It shows once after each import, whether the tree
 - **Limits:** the card is only for another program's file. It replaces the earlier questions after an import (the
   check, separating families).
 - **Since:** app 3.26.0
+- **From app 3.32.0:** the card shows after an import into a new tree and after **Insert into tree**. After merging
+  a file into an existing tree it does not show: the data check is in the guide's last step (**Check the tree**,
+  [A8.11](A8-merging-trees.md#A8.11)).
 
-<!-- zdroj: app:7b0471f8 src/ui/import-next-ui.ts (IMPORT_NEXT_HELP_TOPIC = 'A2', nextCardClosed, :302 verify → showVerifyBulkDialog) · src/import-next.ts IMPORT_NEXT_VERIFY_FEATURES ['verify.bulk'] · strings.ts importNext.* · dirigent:prace/1108-app-066-u5 -->
+<!-- zdroj: app:7b0471f8 src/ui/import-next-ui.ts (IMPORT_NEXT_HELP_TOPIC = 'A2', nextCardClosed, :302 verify → showVerifyBulkDialog) · src/import-next.ts IMPORT_NEXT_VERIFY_FEATURES ['verify.bulk'] · strings.ts importNext.* · dirigent:prace/1108-app-066-u5 · 3.32.0: app:debf50cc src/merge/ui.ts finishDone (afterImport jen u w.newTree s importId), step6Env noNextCard · strings.ts mergeWizard.noNextCard -->
 
 <a id="S6.5"></a>
 ## S6.5 Backups and going back in time
@@ -193,8 +196,22 @@ thus be restored.
 - **From app 3.27.0:** the backup **Before the data update of a new version** is made before the app, on opening,
   adjusts a tree saved by an older version; today only to join sources that differed only in reliability
   ([A2.6.1](A2-loading-a-family-tree.md#A2.6.1)).
+- **From app 3.32.0:**
+  - the backups **Before import** and **Before merge** are always made, even with the switch **Automatic backups of
+    this tree** off ("Daily; before an import or a merge always."); every merge into a tree, from any input, takes
+    the backup **Before merge**;
+  - the backup **Before merge** stays while the merge can be undone: the rotation of backups does not delete it. When
+    another one would have to go because of it, the guide asks ([A8.10](A8-merging-trees.md#A8.10));
+  - without a backup the merge is not written;
+  - undoing a merge takes its own backup **Before undoing a merge**, also always; the rotation does not delete it while
+    the merge can be restored;
+  - detaching a copy from a shared research takes the backup **Before the data update of a new version**
+    ([S1.10.2](S1-connecting-app-and-research.md#S1.10.2));
+  - a single merge can be taken back without restoring the whole backup: **Undo the merge…**
+    ([A8.12](A8-merging-trees.md#A8.12)). A backup brings back the whole tree, including everything that has happened
+    since the merge.
 
-<!-- zdroj: app:1c9b2392 src/snapshots.ts SnapshotReason pre-import, pre-merge · src/ui/import-export.ts:818, :940 snapshotNow('pre-import') · src/data.ts:892 · src/ui/merge-ui.ts:769 · src/ui/tree-actions.ts:196 · strings.ts snapshots.menu, title, autoLabel, autoHint, inBrowser, budgetNote, createNow, restore, download · 3.27.0: app:5721b016 src/snapshots.ts SnapshotReason pre-migration, src/tree-manager.ts joinQualityOnlySourcesOf, strings.ts pre-migration -->
+<!-- zdroj: app:1c9b2392 src/snapshots.ts SnapshotReason pre-import, pre-merge · src/ui/import-export.ts:818, :940 snapshotNow('pre-import') · src/data.ts:892 · src/ui/merge-ui.ts:769 · src/ui/tree-actions.ts:196 · strings.ts snapshots.menu, title, autoLabel, autoHint, inBrowser, budgetNote, createNow, restore, download · 3.27.0: app:5721b016 src/snapshots.ts SnapshotReason pre-migration, src/tree-manager.ts joinQualityOnlySourcesOf, strings.ts pre-migration · 3.32.0: app:debf50cc src/data.ts:2047 backupBeforeMerge (bez ohledu na automatické zálohy, keepFor), snapshotNow pre-import/pre-merge vždy · src/snapshots.ts planRetention (keepFor se nesmaže), retention · src/merge/write.ts:231 · strings.ts snapshots.autoHint, mergeWizard.backupLine, retentionAsk, backupFailed, vsBackup · spec 134 K0.4 · app:e2a6d712 pre-merge-undo „Před odvoláním sloučení“ (134 N5) · e4e3eeea pre-migration před odpojením kopie -->
 
 <a id="S6.6"></a>
 ## S6.6 Export back to the program, or to share
@@ -272,8 +289,12 @@ has the same ID but otherwise does not match is only offered.
 - **Controls:** **Import → Import GEDCOM → Merge with existing** ([A8](A8-merging-trees.md)).
 - **Since:** app 3.26.0; 3.27.0: an ID of more people in the tree only offers; a manual merge of people joins
   notes (before it did not)
+- **From app 3.32.0:** **Import → Import GEDCOM** opens the guide **Import a family tree** with the choice **Add to a
+  tree** ([A8.6](A8-merging-trees.md#A8.6)). The guide recognises the same file merged again: it adds only the people
+  left out last time and does not double the joined people. A match of 50–79 is not joined without a person's
+  decision; the remaining pairs can be added as new, or left out, all at once ([A8.7](A8-merging-trees.md#A8.7)).
 
-<!-- zdroj: app:7b0471f8 CHANGELOG.cs.md 3.26.0 (Slučování) · src/merge matchSameNamedRelatives, standInsOfKnownFamilies (b3c3ce00) · strings.ts merge reasons partner_of_matched, child_of_matched, parent_of_matched, sibling_of_matched, in_law_of_matched · dirigent:prace/1109-app-slouceni-325, 1109-app-gedy-opravy (N6: značky importu se starému stromu nedoplní), 1109-app-jeden-rodic Výsledek -->
+<!-- zdroj: app:7b0471f8 CHANGELOG.cs.md 3.26.0 (Slučování) · src/merge matchSameNamedRelatives, standInsOfKnownFamilies (b3c3ce00) · strings.ts merge reasons partner_of_matched, child_of_matched, parent_of_matched, sibling_of_matched, in_law_of_matched · dirigent:prace/1109-app-slouceni-325, 1109-app-gedy-opravy (N6: značky importu se starému stromu nedoplní), 1109-app-jeden-rodic Výsledek · 3.32.0: app:debf50cc src/ui/import-export.ts openGedcomGuide, src/merge/ui.ts repeatLine (otisk souboru) · strings.ts mergeWizard.repeat, restAdd, restSkip · CHANGELOG.cs.md 3.32.0 -->
 <!-- zdroj: app:1c9b2392 src/merge/matching.ts ID_MATCH_SCORE 100, ID_CANDIDATE_SCORE 60, ID_MAX_YEAR_GAP 3, WEAK_ID_BONUS 25, offerOnlyCap · src/merge/executor.ts:82 AUTO_CONFIRM_SCORE = 80 · src/merge/notes.ts · strings.ts merge reason id „Stejné ID v souboru“ · dirigent:prace/1108-app-066-u8/karta.md Výsledek (FAM se podle ID nepárují; mergePersons neslučuje poznámky) -->
 <!-- zdroj: 3.27.0: app:ffe1da9f src/data.ts mergePersons (notes: mergeNoteText keep+remove; partnership note: mergeNoteText) · app:b5595ca1 src/merge/matching.ts idNamesSeveral, findDirectMatches · app:a5fc9656 src/ged-parser.ts keptMedia, extras OBJE (export zpět jako ostatní _XXX rodiny) · strings.ts personMerge.title „Sloučit osoby“ · CHANGELOG.cs.md 3.27.0 · dirigent:test/vysledek-1109-app-drobnosti-ged.md P1 (dialog poznámku jako konflikt nenabízí: detectFieldConflicts jen jméno, příjmení, narození, úmrtí) -->
 
@@ -306,3 +327,46 @@ The research takes over a family tree from another program with the command `str
 - **Since:** research 1.30.0
 
 <!-- zdroj: research:v1.30.0 CHANGELOG.cs.md 1.30.0 · src/core/import.ts ImportResult.candidates, notTaken · src/commands/intake.ts:300-313 · assets/lang/cs.json ui.intake.candidates, ui.intake.notTaken* · strom help fixes run („readers, proven-originals and origins are set right by themselves once, run again only after strom fixes undo“) · dirigent:prace/1108-vyzkum-066-u3, 1108-vyzkum-066-u8 Výsledek (origins-1, nejisté → user; Gramps bez _UID kandidáti) · research:94d75934 src/core/originfix.ts ORIGINS_TREE_SETTLED origins-tree-1 (podle historie: stejná hodnota hned po převzetí, ne před ním, stejná dnes), settleOrigins · cs.json ui.fixes.origins.example.tree · strom help fixes show -->
+
+<a id="S6.9"></a>
+## S6.9 A person's e-mail: a contact, not a residence
+
+A person's e-mail address is their **contact**, not an event nor a place where the person lived. GEDCOM keeps it in an
+address under an event: MyHeritage writes an e-mail as a residence (`1 RESI` / `2 EMAIL`), other programs as `1 EMAIL`
+directly at the person. The app and the research make a contact of the person from it.
+
+- **Enforced by the code (app):**
+  - a residence that carries only a contact (an e-mail, a phone, a web address, a fax, an empty address or an address
+    with only the label "Email"; without a date, a place, a real address, a note, a source and a file) is loaded as
+    the person's contact, not as an event. A residence with something of its own stays a residence and its e-mail
+    goes into the contact (no longer as a line of the note). `1 EMAIL` at a person is a contact too;
+  - a tree saved by an older version of the app has the e-mail lines that the import wrote there turned into the
+    contact at each loading. Nothing a person wrote changes; an empty residence stays in the data, it is only not
+    shown in the list of events;
+  - each address is in the contact once (regardless of upper and lower case), at most 254 characters, without spaces;
+  - the GEDCOM export writes each address as `1 RESI` / `2 EMAIL`; **Back to {program}** writes a `1 EMAIL` that the
+    file had at the person the same way as the file did ([S6.6](#S6.6));
+  - the privacy of living people ([A7.2](A7-book-pages-and-export.md#A7.2)): a living person's contact does not go
+    into an export;
+  - the person page shows the addresses as an e-mail link only in the app's window; a page saved to a file has no
+    contact;
+  - the contact goes to the research only with a research that keeps contacts; an older research, which would read
+    it as a residence without a place, is not sent it, and the app keeps it itself.
+- **Enforced by the code (research):**
+  - e-mails from a family tree (a residence with only an e-mail, the app's older note "E-mail: …") become the
+    person's contact; `strom person show` and the person card show it apart from the facts. It never becomes an event
+    or a residence, and the agent does not get it;
+  - the sync with the app adds and removes e-mails like other edits;
+  - the check `strom fixes contact-residences` ("Contacts kept as residences") finds the residences that an older
+    research made from e-mails. The fix moves the e-mails into the contact (each once), retracts a residence with only
+    a contact with a reason and removes the label "Email" from the house; it deletes nothing. A residence with a cited
+    record, with people or with a note of its own stays as it is. Only a person runs the fix, it is free and
+    `strom fixes undo contact-residences` takes it back.
+- **Data:** a tree carries the contact from data version 26; an older version of the app opens such a tree read-only.
+- **Controls:** app: editing a person, the section **Photo and notes**, the field **E-mail** (more addresses
+  separated by commas); the field is visible with **Settings → Person card → Advanced fields** switched on, or when
+  the person has an address. Terminal: `strom person show`, `strom fixes show contact-residences`,
+  `strom fixes run contact-residences`, `strom fixes undo contact-residences`.
+- **Since:** app 3.32.0, research 1.37.0
+
+<!-- zdroj: app:972e73d7 src/person-contact.ts (hlavička: pravidlo RESI jen s kontaktem, 1 EMAIL; cleanEmail EMAIL_MAX 254, bez mezer; sameEmail bez velikosti písmen; isContactResidence, isEmptyResidence, moveContactsIntoPeople při každém načtení), src/ged-exporter.ts contacts (výchozí ano, do výzkumu jen s person.contact; 1 RESI / 2 EMAIL; Zpět do: 1 EMAIL jak byl), src/privacy.ts (žijící bez emails) · app:0603165b index.html #emails-group v Fotografie a poznámky, src/ui/person-modal.ts applyAdvancedFieldVisibility emails-group, emailsFromInput (čárky, středníky, mezery), src/person-page.ts jen c.app, mailto, src/ui/person-events.ts shownEvents (prázdné bydliště skryté) · src/version.ts STROM_DATA_VERSION 26 · strings.ts labels.emails, placeholders.emails, personModal.sectionPhotoNotes · research:ce89202a src/core/live.ts person.contact (1 RESI / 2 EMAIL, nejvýš tři na RESI), src/commands/fixchecks.ts CONTACT_RESIDENCES, src/commands/fixes.ts contact-residences · cs.json ui.fixes.contact-residences.* · CHANGELOG.cs.md 1.37.0 „E-maily osoby jsou kontakt“, app CHANGELOG.cs.md 3.32.0 Data · dirigent:spec/134 K0.10, U11 -->

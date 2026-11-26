@@ -14,7 +14,7 @@ dauerhaft.
 
 - [R1 Die Forschung im Überblick](R1-research-in-brief.md): wie die Forschung als Ganzes arbeitet, auf einer Seite
 - [R2 Linien und Warteschlange](R2-lines-and-queue.md): woran der Agent arbeitet und in welcher Reihenfolge
-- [R3 Prüfung und Zitation](R3-verification-and-citation.md): Grade der Sicherheit, was für Belegt gelten muss, Quellen und Hinweise
+- [R3 Prüfung und Zitation](R3-verification-and-citation.md): Grade der Sicherheit, was für Belegt gelten muss, Quellen und Hinweise, Religion als Angabe
 - [R4 Orte](R4-places.md): Bestimmung von Orten, Namen und Zugehörigkeit, was der Mensch entscheidet
 - [R5 Widersprüche](R5-conflicts.md): wie ein Widerspruch entsteht, wer ihn entscheidet, was der Agent nicht überschreibt
 - [R6 Wartet auf Bearbeitung](R6-awaiting-action.md): was die Forschung vom Menschen braucht und wo es erledigt wird
@@ -36,11 +36,13 @@ dauerhaft.
 - [A5 Prüfung des Stammbaums](A5-tree-check.md): was die App im Stammbaum überwacht, mit welchen Schwellen, und Kein Fehler
 - [A6 Ansichten und Auswahl der Personen](A6-views.md): Familie, Nachkommen, Zeitleiste, Fächer, Karte, die Stammlinie in der Ansicht, Tabelle und eine Ansicht in einem eigenen Fenster
 - [A7 Buch, Seiten und Export](A7-book-pages-and-export.md): wer lebend ist, Schutz lebender Personen, Familienbuch, Seiten, gespeichertes HTML
-- [A8 Zusammenführen von Stammbäumen](A8-merging-trees.md): Zusammenführen einer Datei, eines Stammbaums oder einer Ansicht in einen neuen Stammbaum, Abgleich der Personen
+- [A8 Zusammenführen von Stammbäumen](A8-merging-trees.md): der Assistent zum Zusammenführen einer Datei, eines Stammbaums oder einer Auswahl in einen Stammbaum, Abgleich der Personen, Verlauf und Rückgängigmachen einer Zusammenführung
 - [A9 Bedienung der App](A9-using-the-app.md): wo was ist, lesbare Namen der Bedienelemente, Bearbeiten beim Verfolgen der Forschung, der Agent in der App, die untere Leiste auf Telefon und Tablet
 - [A10 Ein Ereignis mehrerer Personen](A10-shared-events.md): das gemeinsame Ereignis eines Haushalts (Gemeinsam mit), Angleichen, Zu einem Ereignis verbinden, Paten und Zeugen im Leben einer Person, Zusammenführen und ältere Stammbäume
-- [A11 Personenlisten](A11-lists-of-people.md): feste, automatische Liste und Arbeitsliste, Regeln, Einfrieren, manuelle Reihenfolge, Zur Personenliste hinzufügen, Als Personenliste speichern, das Hinzufügedatum, Erledigtes abhaken, Export einer Liste
+- [A11 Personenlisten](A11-lists-of-people.md): feste, automatische Liste und Arbeitsliste, Regeln, eigene Regel aus Bedingungen, Familie einer Person, Vorlagen für Listen, Nach Regel aktuell halten, Einfrieren, manuelle Reihenfolge, Zur Personenliste hinzufügen, Als Personenliste speichern, das Hinzufügedatum, Erledigtes abhaken, Export einer Liste
 - [A12 Porträt und Paarfoto](A12-portrait-and-couple-photo.md): der Editor für den Porträtausschnitt, das Original mit der Markierung Porträt, Ausschnitt bearbeiten, Als Porträt…, das Paarfoto und Porträts daraus, wo sie erscheinen, Export, GEDCOM und Datenversion 24
+- [A13 Statistik des Stammbaums](A13-tree-statistics.md): das Fenster Statistik, Themen, Umfang und Geburtszeitraum, von einem Wert zur Tabelle, CSV-Export
+- [A14 Stammbäume verwalten und die Struktur ändern](A14-trees-and-structure.md): Stammbäume verwalten, ausstehende Zusammenführungen, Struktur ändern…, neuer Stammbaum aus einer Auswahl, Kopie des ganzen Stammbaums, Aufteilen, Zusammenführen in einen anderen Stammbaum
 
 ## S App und Forschung zusammen
 
@@ -49,7 +51,7 @@ dauerhaft.
 - [S3 Was die Forschung weiß](S3-what-the-research-knows.md): Widersprüche, Hypothesen, Durchsucht und Über der Person in der App
 - [S4 Forschung aus der App gesteuert](S4-research-from-the-app.md): Panel und Forschungsübersicht, Warteschlange, Linien, Aktionen ins Terminal
 - [S5 Telefon](S5-phone.md): Seite der Forschung auf dem Telefon, Koppeln, Fotos in Stapeln
-- [S6 Stammbaum aus einem anderen Programm](S6-tree-from-another-program.md): ein Stammbaum aus MyHeritage, Gramps, FamilySearch und Windows-Programmen: was geladen wird, Zuverlässigkeitsmarken, Angaben aus dem Stammbaum als Hinweise, die Karte Wie weiter, Sicherungen, Export zurück, wiederholter Import
+- [S6 Stammbaum aus einem anderen Programm](S6-tree-from-another-program.md): ein Stammbaum aus MyHeritage, Gramps, FamilySearch und Windows-Programmen: was geladen wird, Zuverlässigkeitsmarken, Angaben aus dem Stammbaum als Hinweise, die Karte Wie weiter, Sicherungen, Export zurück, wiederholter Import, die E-Mail einer Person als Kontakt
 - [S7 Zuverlässigkeit von Angaben und Prüfung an den Originalen](S7-reliability-and-verification.md): Marken an Angaben und auf dem Kärtchen, Prüfen an einer Angabe, bei einer Person und im Baum, Prüfung in der Warteschlange der Forschung, Anhand des Scans bestätigen, was mit der Brücke geht und was ohne sie
 - [S8 Wo die Daten liegen](S8-where-the-data-are.md): was nur im Browser liegt, was in der Forschung und im Strom-Archiv liegt, Fotos und Anhänge des Stammbaums in der Forschung, die Anzeige Nur im Browser, Fotos, die nicht geladen werden konnten, Paket und Entfernen eines Stammbaums
 

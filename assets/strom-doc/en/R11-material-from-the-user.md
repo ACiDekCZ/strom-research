@@ -132,7 +132,9 @@ sorts it by tasks.
   - the agent first looks cheaply through all files of the task (previews in a grid) and sorts each one at once:
     a record (source), a document, a photo, unrelated, and whose it is. It reads in depth only what belongs to the
     research's people;
-  - nothing is recorded about a living person; the file is only sorted;
+  - up to research 1.36.0 nothing was recorded about a living person, the file was only sorted. From 1.37.0 the
+    material of a living person is sorted and recorded as anyone else's; the privacy of living people belongs to the
+    export ([A7.2](A7-book-pages-and-export.md#A7.2));
   - the scans of one book (many numbered images) are not read file by file: they are recorded as a book, and entries
     are read from it as from any book ([R8](R8-reading-scans.md));
   - the task is closed once each of its files is sorted; a further part of the batch is a task of its own.
@@ -149,7 +151,14 @@ sorts it by tasks.
 - **From research 1.36.0:** sorting tasks arise only with `intake.auto` switched on, or when a person asks for the
   batch to be sorted; otherwise the batch is closed without tasks and the files wait in Materials unsorted
   ([R11.6](#R11.6)).
+- **From research 1.37.0:** a file sent from the Strom app (from a batch, and a person's material too) that has no
+  place in the app's tree yet and that `strom input sort` sorts as a record, a document or a photo of people gets
+  a place with them: two partners of one union at the union, otherwise at each person. The app then shows it at the
+  person, not only in the window **Materials**. No place is given to a file that has a place in the tree or whose
+  place was removed in the app, to a hidden one, an unrelated one, the research's own material, nor at a person
+  removed from it.
 
+<!-- zdroj: 1.37.0: research:ce89202a src/commands/intake.ts input sort (MediaLink, pořadí za posledním souborem místa; pár u FAM, jinak u INDI; --json placed; bez místa: má místo nebo odebrané, skrytý, unrelated, vlastní, odebraná osoba) · assets/method/intake.md „Someone living: sort and record as anyone.“ · CHANGELOG.cs.md 1.37.0 „Materiál z aplikace zařazený do stromu“ -->
 <!-- zdroj: research:src/core/batches.ts hlavička, BATCH_TASK_FILES=25 (od v1.12.0), BATCH_IDLE_MS, PHONE_BATCH_IDLE_MS (od v1.18.0) · research:src/commands/intake.ts input batch done (--idle), input sort (unrelated --reason) · research:assets/method/intake.md "A batch from the Strom app" -->
 
 <a id="R11.5"></a>
@@ -276,8 +285,18 @@ written to the research.
 - **Controls:** terminal: `strom material sort I… [--text …] [--queue]`, `strom material show`, `strom material
   cancel`; app: **Sort with the agent…** ([A3.5.8](A3-evidence-in-the-app.md#A3.5.8)).
 - **Since:** research 1.35.0
+- **From research 1.37.0 (sorting without the question):** the setting `sort.confirm`:
+  - `ask` (default): the person's consent to the paid readings before each sorting, as so far;
+  - `no`: `strom material sort` sorts at once when a person asks for it and says that it did not ask (in `--json`
+    `confirm: "no"`). Never by itself; a run nobody watches still asks (and without a person ends with code 4);
+  - only a person in their own terminal sets `no`: `strom config set` asks them ("Sort files of the material by
+    readers of the research at once when asked, without the question about the paid readings? …"). An agent or a
+    command without their terminal gets code 4 and nothing changes. For one research it is also set by the Strom
+    app on this computer after a confirmation in its dialog; the bridge's log says so in one line. Anyone can set it
+    back to `ask` or cancel it, the Strom app too ([S4.4.13](S4-research-from-the-app.md#S4.4.13));
+  - with `--for-tree` it applies to this research, otherwise to this computer. The limits of sorting do not change.
 
-<!-- zdroj: research:acb5d1ce src/core/sort.ts SORT_MOST_FILES=50, SORT_TEXT_MAX=2000, SORT_QUEUE_MAX=3, SORT_PDF_PAGES=10, SORT_FILES_PER_READING=10, typy vazeb person/family/event/source · research:0cc2cfca src/core/sort.ts SORT_LINK_TYPES back, portrait · research:d667304d (souhlas člověka, exit 4) · research:2978645b, 19e525e5, 5b76fb43 (podpis mostu APP_SORT_FROM, platí jednou) · src/commands/material.ts · help material sort · research:ae866bb7 src/core/sort.ts SORT_TEXT_FILE_MAX=20_000, SORT_TEXT_TYPES, isTextFile, textOfFile (UTF-8 / UTF-16 BOM, jinak windows-1252; cut), řádek „read as text (only its first … characters: the file is … KB)“, unproposedOf (nothing-said, nothing-new, dropped, left-out, reader-failed + outcome; said) · src/commands/material.ts filesDone (+ group.length po čtenáři), show „N of M files done“, „no proposal: why (outcome)“ · research:f36b3941 (ve vydání 1.35.0) src/core/sort.ts pokyn čtenáři „unrelated: yes“ (jen soubor zjevně mimo rodinu, nikdy jen nezařazený), YES, keptProposals (unrelated: jen why a sure, ostatní dropped „unrelated“) · src/commands/material.ts show „· unrelated (not of the family)“ · src/core/live.ts GET /material/sort/<id> unrelated?: true („the person hides it, never strom“) · CHANGELOG.md 1.35.0 -->
+<!-- zdroj: research:acb5d1ce src/core/sort.ts SORT_MOST_FILES=50, SORT_TEXT_MAX=2000, SORT_QUEUE_MAX=3, SORT_PDF_PAGES=10, SORT_FILES_PER_READING=10, typy vazeb person/family/event/source · research:0cc2cfca src/core/sort.ts SORT_LINK_TYPES back, portrait · research:d667304d (souhlas člověka, exit 4) · research:2978645b, 19e525e5, 5b76fb43 (podpis mostu APP_SORT_FROM, platí jednou) · src/commands/material.ts · help material sort · research:ae866bb7 src/core/sort.ts SORT_TEXT_FILE_MAX=20_000, SORT_TEXT_TYPES, isTextFile, textOfFile (UTF-8 / UTF-16 BOM, jinak windows-1252; cut), řádek „read as text (only its first … characters: the file is … KB)“, unproposedOf (nothing-said, nothing-new, dropped, left-out, reader-failed + outcome; said) · src/commands/material.ts filesDone (+ group.length po čtenáři), show „N of M files done“, „no proposal: why (outcome)“ · research:f36b3941 (ve vydání 1.35.0) src/core/sort.ts pokyn čtenáři „unrelated: yes“ (jen soubor zjevně mimo rodinu, nikdy jen nezařazený), YES, keptProposals (unrelated: jen why a sure, ostatní dropped „unrelated“) · src/commands/material.ts show „· unrelated (not of the family)“ · src/core/live.ts GET /material/sort/<id> unrelated?: true („the person hides it, never strom“) · CHANGELOG.md 1.35.0 · 1.37.0: research:5520e0ac src/core/config.ts sort.confirm (ask | no, --for-tree), requireHumanYes, assets/lang/cs.json ui.consent.sort.confirm, src/commands/material.ts (no: třídí hned, confirm no v --json; STROM_NONINTERACTIVE se ptá), src/core/live.ts /status sort, POST /settings/sort (403 sort.raise) · CHANGELOG.cs.md 1.37.0 · dirigent:spec/102 U8 -->
 
 <a id="R11.5.4"></a>
 ### R11.5.4 Material through the bridge
@@ -403,3 +422,34 @@ itself (`intake.auto`).
 - **Since:** research 1.36.0
 
 <!-- zdroj: research:da86bbe7, 90f33705 src/core/config.ts:400 intake.auto (tree: true, off|on, výchozí off), :962 intakeAuto · src/commands/setup.ts:1311, :1655-1673 intakeDecision (requireHuman, STROM_FOR_APP bez agenta, off kdokoli) · src/commands/intake.ts:202-225 (--sort, --text vždy úkol), :829-848 input batch done --sort/--no-sort · src/cli/menu-research.ts:110-125 (ui.intake.sort.ask, výchozí ne; ui.intake.done.waits) · src/cli/menu-settings.ts:98, :247-250 · src/core/live.ts:6693 POST /intake, BRIDGE_FEATURES intake.auto · cs.json ui.settings.intake(.about, .on, .off), ui.intake.sort.ask, ui.intake.done.waits · CHANGELOG.cs.md 1.36.0 · dirigent:spec/130 K1.1–K1.3, K2.1, K3.1, K4.1, rozhodnutí 21. 11. · app:docs/ZADANI_VYZKUM_trideni-davek.md (Most, Doplněk K1.3) · app:strings.ts read.menu (položka menu s „…“, titulek read.title bez) · dirigent:prace/1122-app-nalezy-330 -->
+
+<a id="R11.7"></a>
+## R11.7 Material for a list of people
+
+The Strom app can send a scan for a whole list of people (a census sheet, a register page), not for one person
+([A3.5.18](A3-evidence-in-the-app.md#A3.5.18)). The research stores the list as it came, and the agent matches the
+names from the scan to the people on the list first.
+
+- **Enforced by the code:**
+  - the app sends the list first (name, kind: fixed, automatic or checklist, rule, research numbers of the people,
+    how many people the research does not know, time) and each file refers to it. The bridge keeps the list until a
+    file uses it; sending the same list again replaces it. A file referring to a list the research does not have is
+    refused by the bridge, and the app sends the list again;
+  - the input keeps the list as it was sent: it is written into the research (`notes/lists/`, in the history) and no
+    longer changes;
+  - a list of up to 50 people: all its people are people of the input. A longer list is only named; the list of its
+    people is in the list's file and the agent looks them up itself (`strom person show P…`);
+  - the input's task, when one is created ([R11.6](#R11.6)), is named after the list. The agent's brief gives the list
+    (name, kind, rule, number of people, how many the research does not have yet, date sent) and says that each name
+    read is matched to the people on the list first, and only a name that matches none of them is searched for in the
+    whole tree (`strom find "<name>"`);
+  - a scan of a source sent for a list stays an image of the source and keeps the list just the same; the task to read
+    it has the people on the list (up to 50) among the people it concerns;
+  - a list has at most 100,000 people and 2 MB; otherwise the bridge refuses the list;
+  - in a Strom archive the list is only stored with the material, nothing more.
+- **Controls:** the app: **Send material…** → **Concerns** → the list ([A3.5.18](A3-evidence-in-the-app.md#A3.5.18)).
+  Terminal: `strom input show I…` shows the list's line (name, number of people, how many the research does not have,
+  rule, file).
+- **Since:** research 1.37.0 (a scan of a source for a list also 1.37.0)
+
+<!-- zdroj: research:de5f709d src/core/lists.ts (LIST_ID, LIST_PEOPLE 50, LIST_MAX 100 000, LIST_BODY_MAX 2 MB, .strom/lists/<id>.json, notes/lists/<hash>.json, takeList), src/core/live.ts PUT <token>/lists/<id> (list.bad-body 400, list.large 413), X-Strom-List-Ref, media.no-list 404, BRIDGE_FEATURES media.list, src/brief/brief.ts listLine, src/commands/intake.ts (řádek list v input show, --list), src/core/model.ts Input.list · 5f429022 (soubor seznamu jako zapsaná operace, i v archivu) · 778846e6 scanLists (media.list.source: sken pramene, osoby seznamu do 50 v about úkolu, „match each name you read on it to them first … strom find“) · CHANGELOG.md 1.37.0 „Material sent to a list of people“ · dirigent:spec/137 K2.2, K2.4, K2.5 · app:docs/ZADANI_VYZKUM_material-seznam.md (Odpověď výzkumu) -->

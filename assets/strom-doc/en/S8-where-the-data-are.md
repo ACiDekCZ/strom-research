@@ -4,7 +4,8 @@
 The app keeps trees in the browser's storage on this device. The research and the Strom archive keep their tree in a
 folder on the disk of this computer, with sources, material and history. From the research 1.35.0 the research also
 holds the portraits, couples' photos and attachments of the tree from the app. The chapter describes the Strom app
-3.30.0 and the research 1.35.0. How the bridge between them carries the tree is described in
+3.30.0 and the research 1.35.0; changes from a newer version carry its number. How the app keeps images in memory is
+described in [S8.7](#S8.7). How the bridge between them carries the tree is described in
 [S1](S1-connecting-app-and-research.md) and [S2](S2-edits-from-the-app.md).
 
 | What | Where it is | Lasting copy | Controls |
@@ -88,8 +89,13 @@ places in the tree ([R11.5.1](R11-material-from-the-user.md#R11.5.1)).
 - **Controls:** app: writing the tree (**Send**, [S2](S2-edits-from-the-app.md)); **Research for this tree → Send
   original files**.
 - **Since:** app 3.30.0, research 1.35.0
+- **From app 3.32.0 (research 1.37.0):** images the research already has (a portrait, a couple's photo, an attachment,
+  a source excerpt the research can cut out again) go to the research as a reference, by their fingerprint, instead of
+  the whole data; sending a tree with photos is thus many times smaller. A sending that names a file the research does
+  not find is refused whole by the research before it stores anything, and the app sends it again with the data. With
+  an older research everything goes with the data as before.
 
-<!-- zdroj: dirigent:spec/108-kde-se-co-uklada (U8, K2.3, K2.6, K2.7) · app:3419afff POST /sync?media=app, 7263f1f6 GET /tree.ged?images=ref&media=app, 402b7d9b, e3e415f6 (X-Strom-Person, originál se štítkem Portrét), 59ff465e · src/research-link.ts carryOverMedia (photoSource ponechaný, base K2.3) · research:0834987b (X-Strom-Family), 3925b84a (_PRIM Y), 815bc90d, 91ab6230, 771d8af0 · research:src/core/treemedia.ts (hlavička) · research:c9a4b614 CHANGELOG.cs.md 1.35.0 -->
+<!-- zdroj: dirigent:spec/108-kde-se-co-uklada (U8, K2.3, K2.6, K2.7) · app:3419afff POST /sync?media=app, 7263f1f6 GET /tree.ged?images=ref&media=app, 402b7d9b, e3e415f6 (X-Strom-Person, originál se štítkem Portrét), 59ff465e · src/research-link.ts carryOverMedia (photoSource ponechaný, base K2.3) · research:0834987b (X-Strom-Family), 3925b84a (_PRIM Y), 815bc90d, 91ab6230, 771d8af0 · research:src/core/treemedia.ts (hlavička) · research:c9a4b614 CHANGELOG.cs.md 1.35.0 · 3.32.0: app:debf50cc src/research-media-ref.ts (sync.mediaRef, media/known, sync.media-ref-unknown → znovu s daty) · CHANGELOG.cs.md 3.32.0 (Menší odesílání do výzkumu) · research:cf8352e2 (1.37.0) CHANGELOG.cs.md 1.37.0 (Odeslání z aplikace lehčí a rychlejší) -->
 
 <a id="S8.4"></a>
 ## S8.4 The indicator Only in browser
@@ -164,3 +170,42 @@ downloaded from the archive again, the family's photos and originals cannot.
 - **Since:** research 1.35.0
 
 <!-- zdroj: research:31def74a src/commands/pack.ts (ui.pack.images, ui.pack.family, ui.pack.batches, pack.too-large), src/core/pack.ts (bez ZIP64), src/core/zip.ts ZIP_MAX_FILES=0xffff · src/commands/trees.ts:271-287 (záloha výchozí ano, skeny ano jen se zálohou, rodinné ne, název), ui.remove.images.folder · research:771d8af0 (zmenšené kopie v balíku) · assets/lang/cs.json ui.pack.*, ui.remove.*, ui.error.pack.too-large · ui.pack.batches, ui.unpack.batches (v1.35.0) · trees remove: strom pack --all-images · e6bbfb40 ui.pack.which, ui.remove.backup (1.36.0 jen texty) -->
+
+<a id="S8.7"></a>
+## S8.7 Images outside the tree's memory
+
+An open tree keeps in the page's memory only references instead of images. An image is loaded from the browser's
+storage only when it is visible. A large tree with many photos thus fits into the memory the browser gives one page.
+
+- The page's memory has a ceiling shared by all the app's windows. Some browsers state it; elsewhere the app counts on
+  2 GB, on a touch device on 1 GB. Past the ceiling the page stops working.
+- In a measurement on a made-up tree with 20,000 people and 4,000 images, the open tree took about 55 MB of the page's
+  memory, roughly as much as the same tree without images (before app 3.32.0 about 518 MB). The size that fits is now
+  set mainly by the people and their data.
+- Undo and Redo, saving the tree and the backups do not copy images. An export to a file (JSON, the app with data,
+  GEDCOM) writes the images a few at a time.
+- **Memory may not be enough:**
+  - when the open tree is close to the ceiling, the app says so in the main window with a lasting notice and advice:
+    closing the app's other windows and removing images that are not needed; once for each tree until the browser is
+    closed;
+  - before an output with images that could go past the ceiling (the tree's file, the file of all trees, the book,
+    the poster with portraits), and before loading a large file, the app asks: **Continue**, or cancel; where
+    possible, it offers **Leave the images out of the file**;
+  - the estimate comes from the size of the tree, the images and the number of open windows, not from a measurement
+    by the browser; it is a warning, not a ban.
+- **Images shared between copies:** each image is in the browser's storage once, by its content, and is shared by all
+  the trees, backups and copies that have it. **Copy of the whole tree** ([A14.3](A14-trees-and-structure.md#A14.3))
+  gives a complete, separate copy of the tree with images that do not take up space a second time. Deleting a copy or
+  a backup does not delete an image another tree uses. An image no tree, backup or open window uses any longer is deleted at a clean-up after a week.
+- The same image in two trees is the same image when merging, not a difference ([A8](A8-merging-trees.md)).
+- **Limits:**
+  - the book, the family pages, the poster, a package of changes and a password-protected file hold the images in
+    memory whole, so they ask sooner than an export image by image;
+  - the limit concerns the page's memory, not space on the disk: space in the browser's storage is watched by the
+    backups and the window **Where the data is** ([S8.1](#S8.1)).
+- **Controls:** the notice "The tree “…” is close to the memory this browser gives the app…"; the question **Memory
+  may not be enough**; **Change structure…** → **Copy of the whole tree**. Manage trees shows "· images shared" at the
+  size of such a tree ([A14.1](A14-trees-and-structure.md#A14.1)).
+- **Since:** app 3.32.0; images once by content from app 3.1.0
+
+<!-- zdroj: dirigent:spec/135-obrazky-mimo-pamet-stromu (K1.1–K1.4, P2, P3) · app:c5931983 (strom v paměti drží odkazy), 6b425e41 (úklid poolu dvoufázově po 7 dnech, kořen memory), e6ce052c (proudové výstupy JSON/uložená aplikace), fcc7c21b (GED po obrázcích), e6a0a8c2 (upozornění), 6e55a1dc (sloučení nad odkazy, rovnost obrázků podle obsahu) · src/memory-limit.ts (DEFAULT_LIMIT 2048 MB, TOUCH_LIMIT 1024 MB, odhad z JSON stromu bez obrázků + 25 MB za další okno, OUTPUT_IMAGE_FACTOR / WHOLE_OUTPUT_IMAGE_FACTOR) · src/ui/memory-limit-ui.ts checkMemoryNotice (jednou za relaci a strom, toast hold), outputNearLimit, canLeaveOut · src/media-pool.ts POOL_UNUSED_GRACE_MS (7 dní) · app:2ba2408a (pool obrázků, v3.1.0) · strings.ts memoryLimit.title, notice, output, outputAll, book, poster, leaveOut, import, continue, treeManager.duplicate · dirigent:prace/1122-app-135/karta.md (měření D9a: 20k × 4000 obr. 518 → 55 MB, bez obrázků 53 MB) · dirigent:test/vysledek-1123-scenare-app.md (Duplikovat: samostatná kopie se sdílenými obrázky, smazání kopie nesmaže obrázky jiných) · CHANGELOG.cs.md 3.32.0 (Velké stromy s fotkami) · app:e9f50b62 (Duplikovat nahrazeno Kopií celého stromu ve Změnit strukturu) · 7b967fd8 treeManager.imagesShared -->

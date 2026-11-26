@@ -216,5 +216,10 @@ Volbu strany nabídne aplikace jen u otevřeného rozporu z úpravy, který má 
   - osoba odebraná nebo upravená v jiném okně: aplikace se zeptá **Vrátit do stromu** / **Nechat odebranou**,
     nebo **Odebrat ze stromu** / **Nechat ve stromu**. Volba také otevře výzkum v terminálu.
 - **Platí od:** aplikace 3.11.0 s výzkumem 1.14.0
+- **Od aplikace 3.32.0 (výzkum 1.37.0):** rozpor dvou poslání z různých prohlížečů ukáže strany jako **Úprava z
+  tohoto prohlížeče** a **Úprava z Chrome · Mac** (jméno prohlížeče, který poslal, [S2.2.1](S2-edits-from-the-app.md#S2.2.1))
+  s volbou **Ponechat úpravu z …** u každé; menu Výzkum i věty pod volbami mluví o obou úpravách. Poslání, které
+  prohlížeč nejmenovalo, je „úprava z dřívějšího poslání“ / „pozdějšího poslání“.
 
+<!-- zdroj: 3.32.0: app:src/conflict-devices.ts conflictDeviceWords, deviceWords, conflictKeepWords · src/ui/conflict-decide-ui.ts:137-147, 224-303 researchConflictDevices · src/ui/conflict-panel-ui.ts:265 · strings.ts conflict.device, conflict.sideFrom, conflict.keepFrom, conflict.keepNoteFrom, conflict.takeNoteFrom · CHANGELOG.cs.md 3.32.0 Práce s výzkumem -->
 <!-- zdroj: research:src/core/conflicts.ts:48-62 BY_SIDE, sidesOf · app:v3.21.2 research-decide.ts:28-66 DECIDE_FACTS, canDecideInApp · ui/research-removed-ui.ts:97-125 · strings.ts conflict.person.* -->

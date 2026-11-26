@@ -13,8 +13,8 @@ import path from "node:path";
 import { World } from "../helpers.ts";
 import { opts, world } from "./excerpts.helpers.ts";
 import { now, Tree } from "../../src/core/tree.ts";
-import { compareWithSource } from "../../src/core/sourceread.ts";
-import { aboutFor, compareReadings, docPrompt, parseDocReport, type DocEntry } from "../../src/core/document.ts";
+import { compareWithSource, readAgainAll } from "../../src/core/sourceread.ts";
+import { aboutFor, compareReadings, docPrompt, parseDocReport, statePath, type DocEntry } from "../../src/core/document.ts";
 import { locatorOf } from "../../src/commands/document.ts";
 import { BRIDGE_FEATURES } from "../../src/core/live.ts";
 import { gptReader } from "../../src/agents/images.ts";
@@ -223,6 +223,32 @@ test("K6.2–K6.10: a source read again — its entry among its neighbours, held
     assert.match(text, /— NOT written to the research: .*sealed on another computer/u, text);
     assert.match(text, /^next: tell the person the reading again of S0001 is not written to the research/mu);
   } finally {
+    w.cleanup();
+  }
+});
+
+// The app takes a reading as ended once its state says done (GET /read/<id>) and asks /status at once what became of the
+// source (readAgain, read from the reading's result): the result is written whole before the state says done — never
+// a done whose source /status does not know of yet (the flaky live-read-choose of 1.37.0, Linux CI).
+test("a source read again: its result there whole before its state says done — /status knows it the moment the app does", opts, async () => {
+  const { w } = await setUp();
+  const seen: { read: string; readAgain: unknown }[] = [];
+  const rename = fs.renameSync;
+  fs.renameSync = ((from: fs.PathLike, to: fs.PathLike) => {
+    rename(from, to);
+    const file = String(to);
+    if (!file.startsWith(path.dirname(statePath(w.cwd, "D0")))) return;
+    const st = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (st.state === "done" && st.source?.id === "S0001") seen.push({ read: st.id, readAgain: readAgainAll(Tree.open(w.cwd, w.env)).S0001 });
+  }) as typeof fs.renameSync;
+  try {
+    const d = (await w.ok(["document", "read", "--source", "S0001", "--agent", "script", "--json"])).json;
+    assert.equal(d.state, "done");
+    assert.equal(d.source.agree, "differ");
+    assert.ok(seen.length >= 1, "the state said done");
+    for (const s of seen) assert.equal((s.readAgain as { read?: string } | undefined)?.read, d.id, `the state said done, /status: ${JSON.stringify(s.readAgain)}`);
+  } finally {
+    fs.renameSync = rename;
     w.cleanup();
   }
 });

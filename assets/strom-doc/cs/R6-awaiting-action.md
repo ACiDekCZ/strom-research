@@ -15,8 +15,13 @@ Seznam se pokaždé spočítá z výzkumu, nic se do něj nezapisuje.
 - **Ovládání:** aplikace: oddíl **Čeká na vyřízení** · terminál: menu **Co čeká (n)**, stavový řádek **Čeká: N** ·
   stránka pro telefon: **Co čeká · N**.
 - **Platí od:** výzkum 1.3.0. Seznam po místech vyřízení a v aplikaci od 1.14.0 (aplikace 3.11.0).
+- **Od výzkumu 1.37.0:** snímky, které ukládá prohlížeč agenta ([R9.5](R9-archives.md#R9.5)), jsou práce agenta.
+  Dokud je sezení agenta ukládá, úkol v seznamu není, ani v počtech, štítcích a oznámeních; aplikace Strom ho ukáže
+  jako práci („agent ukládá snímky (k z n)“, [S4.1](S4-research-from-the-app.md#S4.1)). Na člověka čeká jen snímek,
+  který prohlížeč zadržel, a ukládání, jehož sezení skončilo uprostřed ([R6.2.1](#R6.2.1)). Dřív zapsaná čekání se tak
+  ukážou samy.
 
-<!-- zdroj: research:src/core/waiting.ts:1-12, waitingFor :303-460 (filtr :321), actsAsArchive (v1.15.0) · src/cli/menu.ts:234, :379 · CHANGELOG.cs.md 1.14.0 · app:src/ui/research-overview-ui.ts research.waiting -->
+<!-- zdroj: research:src/core/waiting.ts:1-12, waitingFor :303-460 (filtr :321), actsAsArchive (v1.15.0) · src/cli/menu.ts:234, :379 · CHANGELOG.cs.md 1.14.0 · app:src/ui/research-overview-ui.ts research.waiting · 1.37.0: research:81de7cdb src/core/waiting.ts savedByAgentNow (ne ve waitingFor ani v počtech; zadržený snímek a sezení, které už úkol nedrží, čekají na člověka), src/core/ownsave.ts agentSaveWait · aae8f1aa src/cli/menu-waiting.ts (terminál Co čeká bez snímků, které ukládá agent) · 1c8a4380 (vlastní čekání agenta na snímek je hned člověka) -->
 
 <a id="R6.1.1"></a>
 ### R6.1.1 Počet a co je jen v terminálu
@@ -64,9 +69,18 @@ určuje oddíl, skupinu a možné akce: **snímky**, **ověřit web**, **svolen�
   ([S4.4.7](S4-research-from-the-app.md#S4.4.7)).
 - **Od výzkumu 1.35.0:** čekání na snímky zapsané jinak (snímky jen ve slovech, víc knih, kniha, kterou výzkum
   nemá) `strom task wait` nezapíše a `strom task audit` takové úkoly najde a opraví ([R6.9](#R6.9)).
+- **Od výzkumu 1.37.0:** soubor, ze kterého nejde poznat číslo snímku (`000.jpg`), ostatní snímky nezdrží: zůstane
+  ležet a ohlásí se jednou. Soubory pojmenované jinak (podle aktů, `001-004.jpg`) se převezmou v pořadí složky, když se
+  20 minut nic dalšího neuloží; úkol, ke kterému přišla jen část snímků, se po stejné době vrátí s tím, co přišlo a co
+  chybí ([R9.6](R9-archives.md#R9.6)).
+- **Od výzkumu 1.37.0:** čekání na snímky, které ukládá prohlížeč agenta, říká člověku jen dvě věci: snímek zadržený
+  prohlížečem („v prohlížeči povolit stahování více souborů z webu …“) a ukládání zastavené koncem sezení („ukládání
+  přes prohlížeč agenta zastaveno na snímku 12 knihy B0003 …: sezení agenta skončilo – pokračuje v něm příští sezení;
+  nebo snímky 12-15 uložit ručně z … do složky úkolu“). Platí to i pro čekání zapsaná starším výzkumem. Když
+  překážka pominula, vrátí člověk úkol agentovi ([R6.7.3](#R6.7.3)).
 - **Platí od:** výzkum 1.0.0. Probuzení po uložení od 1.15.0.
 
-<!-- zdroj: research:src/commands/tasks.ts:1000-1025 (--images, inbox) · src/commands/media.ts:135-170 wakeWaiting · assets/method/waiting.md · app:src/research-waiting.ts:251 waitingActions (folder) · src/ui/research-overview-ui.ts:1023, src/ui/waiting-task-ui.ts:231 · src/strings.ts waitingTask.openFolder -->
+<!-- zdroj: research:62e335eb, 6fee0f71 src/core/inboxwait.ts (000.jpg jednou, pořadí složky po 20 min, částečný příchod) · 81de7cdb src/core/waiting.ts waitOnNow, ownSaveSaid (browser.wait.held, browser.wait.stopped) · src/commands/tasks.ts:1000-1025 (--images, inbox) · src/commands/media.ts:135-170 wakeWaiting · assets/method/waiting.md · app:src/research-waiting.ts:251 waitingActions (folder) · src/ui/research-overview-ui.ts:1023, src/ui/waiting-task-ui.ts:231 · src/strings.ts waitingTask.openFolder -->
 
 <a id="R6.2.2"></a>
 ### R6.2.2 Ověřit web
@@ -179,8 +193,33 @@ skupiny drží pohromadě na místě své první položky, aby šly vyřídit je
 - **Platí od:** výzkum 1.14.0
 - **Od výzkumu 1.35.0:** výzkum u položky posílá i její knihu. Aplikace 3.30.0 umí položky seskupit podle knihy
   ([S4.4.4](S4-research-from-the-app.md#S4.4.4)); v **Co čeká** je přehled knih s nejvíc úkoly ([R6.8](#R6.8)).
+- **Od výzkumu 1.37.0:** u položky, za kterou stojí úkoly, posílá i to, kolik její vyřízení pomůže ([R6.4.1](#R6.4.1)).
 
 <!-- zdroj: research:src/core/waiting.ts:73 SECTION_RANK, :75 DECIDE_RANK, :468 together, :478-492 ordered · src/core/waitkind.ts:238 waitGroupOf · assets/lang/cs.json:2313-2320 wait.group.* (:2359) · src/cli/menu-waiting.ts:205-232 · app:strings.ts:11958 waitingFilterLabel -->
+
+<a id="R6.4.1"></a>
+### R6.4.1 Co nejvíc pomůže
+
+Ke každé položce, za kterou stojí úkoly, výzkum spočítá, jak moc její vyřízení rozšíří rodokmen, a pár slovy řekne
+proč. Cena stažení se nevažuje; počítá se jen, o kolik strom vyroste. Nic se nečte, neposílá ani nezapisuje.
+
+- **Skóre:** součet částí:
+  - **nová generace** (+50): osoba, které se položka týká, stojí na okraji stromu bez obou rodičů nebo jednoho z nich
+    a výzkum k ní míří (v rozsahu linie, ne za její mezí, ne u pozastavené, hotové nebo pravděpodobně žijící osoby,
+    ne u rodiče, který jen není doložený). Část jmenuje jednu takovou osobu: nejvyšší generaci v linii, pak nejnižší ID;
+  - **přímá linie** (+30): osoba, které se položka týká, je předek lidí, pro které výzkum je;
+  - **úkoly** (+10 za každý, nejvýš 10): úkoly, které vyřízení uvolní – vlastní a každý otevřený nebo odložený úkol,
+    který potřebuje knihu některého z nich. Jiné čekající úkoly téže knihy se nepočítají; každý je svou položkou.
+    Řekne se až od dvou úkolů.
+- **Důvod:** části v jazyce výzkumu spojené „ · “: „nová generace: rodiče osoby Jan Horák“ (nebo „otec osoby …“,
+  „matka osoby …“), „přímá linie“, „odblokuje 3 úkoly“. Položka s jedním úkolem a nic dalšího má skóre bez důvodu.
+- **Hranice:** položky bez úkolů (příběhy, odeslání, rozpory, místa, větve, hypotézy, nová znění přepisu) a položky se
+  skóre 0 skóre nemají. Počítá se jednou za celé **Co čeká**.
+- **Ovládání:** aplikace: pořadí **Nejvíc pomůže** v **Čeká na vyřízení** ([S4.4.3](S4-research-from-the-app.md#S4.4.3)).
+  Terminál: `strom task list --state waiting --order gain` (jen se `--state waiting`, bez `--book` a `--off-tree`).
+- **Platí od:** výzkum 1.37.0 (aplikace 3.32.0)
+
+<!-- zdroj: research:44d3f750 src/core/waitgain.ts GAIN_POINTS (generation 50, line 30, task 10), UNBLOCKS_MAX 10, waitGains (edgeReach scope in, ne proof; kinship 0; bookOfTask, bookTasks open + parked; část unblocks od n ≥ 2; bez skóre 0), gainSays · src/core/waiting.ts (gain), src/core/live.ts waiting[].gain, feature waiting.gain · src/commands/tasks.ts task list --order gain (task.order) · assets/lang/cs.json wait.gain.* · CHANGELOG.cs.md 1.37.0 „Co nejvíc pomůže“ · dirigent:spec/105 K4.1 -->
 
 <a id="R6.5"></a>
 ## R6.5 Co jde vyřídit kde
@@ -197,6 +236,9 @@ souhlasy bere jen terminál; tlačítka, která je potřebují, otevřou termin�
 - **Ovládání:** terminál: **Co čeká** → skupina (**Text všech dotazů najednou**, **Odesláno za celou skupinu**,
   **Rozhovor s agentem k celé skupině**) nebo položka.
 - **Platí od:** výzkum 1.14.0 (aplikace 3.11.0). Místa od 1.25.0.
+- **Od výzkumu 1.37.0 (aplikace 3.32.0):** aplikace sama vrátí agentovi úkol čekající na snímky, které agent
+  zvládne sám (**Zkusit znovu přes agenta**, i za celou skupinu archivu; [R6.7.3](#R6.7.3),
+  [S4.4.14](S4-research-from-the-app.md#S4.4.14)).
 
 <!-- zdroj: research:src/core/live.ts:60-80 (POST /waiting, /group, PUT /media X-Strom-Task, POST /places/answer, /conflict 403), :2761 · src/core/waiting.ts:78-88 actionsOf · app:src/ui/research-overview-ui.ts · strings.ts:9972, :10078, :11953 -->
 
@@ -225,6 +267,9 @@ v systémovém okně, nebo příkaz odmítne.
   potvrdil (`strom source proposal`, i jeho vrácení, [R3.4.1](R3-verification-and-citation.md#R3.4.1)).
 - **Od výzkumu 1.35.0:** jen člověk také rozhodne, zda převzít kratší poznámku účastníka z aplikace
   (`strom sync note`, [S2.3.2](S2-edits-from-the-app.md#S2.3.2)); agent provede jen odpověď člověka na ten úkol.
+- **Od výzkumu 1.37.0:** jen člověk také vrací čekající úkol agentovi (`strom task wake --retry`,
+  [R6.7.3](#R6.7.3)): v menu **Co čeká** nebo v aplikaci Strom přes most. Agentovi i stromu uvnitř sezení agenta
+  výzkum příkaz odmítne.
 
 <!-- zdroj: research:src/commands/tasks.ts:897-970 (requireHuman :941, task.check-person :932) · src/commands/archives.ts:586-645 · src/commands/calibrate.ts:320 · src/commands/placeid.ts:343 person · assets/method/waiting.md, narrate.md:26-31 · src/cli/menu-waiting.ts:45 ANSWER_MAX · 1.26.0: userOnly u story approve/discard, offline answer, conflict leave, sync undo/discard (commity 4683a22d, 1189532f, 942c56f9), fixes.ts edit-decisions/woken-waits (person at the terminal) · 1.28.0: analysis.ts hypothesis decide (person), batch.ts def.person (commit 9b12256a) · 1.29.0: setup.ts syncDecisions hypotheses.decide (requireHuman), config.ts hypothesesDecide výchozí agent; strom help source reading („The person's alone … an agent never decides it“), strom help source proposal („Only the person decides it“) · 1.35.0: research:fb94435f src/commands/sync.ts sync note (person, agentMay s odpovědí), src/core/shorternote.ts decideShorterNote (shorter.person) -->
 
@@ -277,6 +322,54 @@ fronty a agent ji zpracuje při další práci.
     v terminálu, v Archivu Stromu není. Dokud neproběhne, `strom check` na takové úkoly upozorní.
 
 <!-- zdroj: research:src/commands/media.ts:135-170 wakeWaiting (1.26.0: awaits jen ta kniha, check nikdy, letter/family/web jen waitingOn; 1.27.0: web i singleBook) · src/commands/fixes.ts:835 woken-waits (commit 740e1893) · src/core/archivewait.ts:188 wakeForArchive · src/commands/tasks.ts:880-895 task park · src/core/queue.ts:112 effectiveState · app:src/ui/research-ui.ts:3473-3500 -->
+
+<a id="R6.7.3"></a>
+### R6.7.3 Vrátit agentovi
+
+Úkol, který čeká na snímky archivu jen přes prohlížeč, vrátí člověk agentovi, když překážka prohlížeče pominula
+(například povolil stahování nebo připojil rozšíření). Nic se nezapíše jako odpověď člověka a úkol jde hned na řadu.
+
+- **Kterých úkolů se týká:** jen čekání na snímky, které agent zvládne sám:
+  - prohlížeč agenta zadržel stahování z webu archivu (v profilu, ve kterém agent pracuje, chybí povolení stahovat
+    více souborů);
+  - ukládání přes prohlížeč agenta se zastavilo, protože sezení agenta skončilo uprostřed;
+  - snímky k uložení ručně z knihy, kam prohlížeč agenta smí: archiv jen přes prohlížeč se svolením **přes
+    prohlížeč** ([R9.2](R9-archives.md#R9.2)), nebo konektor, jehož snímky jdou přes prohlížeč;
+  - stránka v prohlížeči archivu, který `strom media save` neumí (dnes ARON Moravského zemského archivu,
+    `www.mza.cz/aron/…`), jen se svolením **přes prohlížeč**: agent snímky jen přečte z obrazovky, žádný se neuloží.
+- **Nikdy:** dopis, dotaz na rodinu, ověření webu, svolení archivu, odeslaný dotaz, návrh přepisu, archiv jen ručně,
+  snímky knihy, kam prohlížeč agenta nesmí, a nic ve výzkumu, který slouží jako archiv.
+- **Proč čeká teď:** u takového úkolu výzkum říká důvod současného čekání, ne text zapsaný dřív: zadržené stahování
+  (s webem archivu), zastavené ukládání, prohlížeč agenta teď k archivu dosáhne, rozšíření Claude in Chrome není
+  připojené v žádném prohlížeči, nebo agent výzkumu je jiný než Claude Code s rozšířením Claude in Chrome. Úkol už
+  jednou vrácený, který čeká znovu, má na konci „zkoušeno znovu 18:40, zase zadrženo“ (nebo „zase čeká“); starší
+  čas než dnešní je s dnem. Výzkum řekne i počet snímků, které úkolu chybí, když ho zná.
+- **Co vrácení udělá:**
+  - úkol je zase otevřený a ve frontě jde na řadu hned, jako volba **hned** ([R2.2](R2-lines-and-queue.md#R2.2));
+    víc úkolů vrácených najednou mezi sebou v pořadí fronty. Dřívější sezení na úkolu se mu ve frontě nepočítají
+    (počítají se jen sezení od vrácení) a nečeká za prací, kterou jde udělat hned, kvůli snímkům, které by stahoval
+    člověk;
+  - k úkolu přibude poznámka „vráceno agentovi z Co čeká; čekalo na: …“ (z aplikace „… z Co čeká v aplikaci
+    Strom; …“), aby agent věděl, co chybělo. Odpověď člověka se nezapíše;
+  - co měl prohlížeč agenta pro úkol uložit a neuložil, se zahodí; příští sezení to uloží znovu;
+  - nic se nespouští ani neplatí: úkol si vezme běžící výzkum (`strom run`), jinak čeká první ve frontě na příští
+    spuštění.
+- **Hranice:**
+  - jeden úkol nejvýš 3× za 24 hodin. Pak výzkum řekne, od kdy to jde znovu; trvá-li příčina, úkol skončí znovu
+    v **Co čeká** a necyklí;
+  - víc úkolů se vrátí všechny, nebo žádný: jeden, který vrátit nejde, zastaví celé vrácení a nic se nezapíše;
+  - vrátit smí jen člověk: v terminálu (menu **Co čeká**) nebo v aplikaci Strom přes most. Agentovi a stromu
+    uvnitř sezení agenta výzkum příkaz odmítne ([R6.6](#R6.6));
+  - úkol, jehož čekání se mezitím změnilo, se z aplikace nevrátí (výzkum to odmítne a nic nezapíše).
+- **Ovládání:** terminál: **Co čeká** → položka: řádek **teď: …** a poslední volba **Vrátit agentovi (N snímků)**
+  (bez známého počtu **Vrátit agentovi**); po vrácení „✓ Vráceno agentovi, na řadě hned: vezme si ho běžící výzkum,
+  jinak příští spuštění.“ Po limitu místo volby „Za den vráceno agentovi už 3× – znovu až od …“. Ve skupině archivu
+  s nejméně dvěma takovými úkoly **Vrátit agentovi vše (N úkolů, M snímků)**. Příkaz:
+  `strom task wake T… [T…] --retry`. Aplikace: **Zkusit znovu přes agenta**
+  ([S4.4.14](S4-research-from-the-app.md#S4.4.14)).
+- **Platí od:** výzkum 1.37.0 (aplikace 3.32.0)
+
+<!-- zdroj: research:9d626062 src/core/retry.ts retryOf (held, stopped, screen jen se svolením permitted, ruční awaits jen bookBrowserArchive permitted nebo viaConnector; ne letter/family/check/permission, proposal, awaitsCheck, waitPhaseOf ≠ todo, actsAsArchive), RETRY_MAX 3, RETRY_WINDOW_MS 24 h, when (HH:MM dnes, jinak humanWhen) · src/commands/tasks.ts retryWake (task.retry-answer, task.retry-person: isAgent nebo STROM_SESSION bez STROM_FOR_APP, task.not-waiting, task.changed --expect, task.retry-not, task.retry-limit; vše nebo nic pod zámkem; stateChange open, queueAt {do: next, at} stejný čas, retried {at, by, givenIn app, times}, poznámka retry.note/retry.note.app, saves bez taken zahozené) · src/core/queue.ts rankTasks (tried jen sezení po retried.at; returned → ne lacksImages/blocked) · src/cli/menu-waiting.ts (ui.wait.d.retry, ui.wait.a.retry, ui.wait.retry.until, ui.wait.retry.done, skupina back.length ≥ 2 ui.wait.group.retry) · assets/lang/cs.json retry.* · assets/archives.json mza.cz screenOnly /aron/ · src/core/live.ts POST /waiting/<T…> a /group/<key> {"do":"retry"}, feature waiting.retry · strom help task wake · CHANGELOG.cs.md 1.37.0 · dirigent:spec/089 K1.1–K1.5, K1.2b, K2.1, K3.1 -->
 
 <a id="R6.8"></a>
 ## R6.8 Knihy s nejvíc úkoly

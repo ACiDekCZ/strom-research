@@ -13,7 +13,7 @@ Części R (badanie), A (aplikacja) i S (aplikacja i badanie razem) są zatwierd
 
 - [R1 Badanie w skrócie](R1-research-in-brief.md): jak badanie działa jako całość, na jednej stronie
 - [R2 Linie i kolejka](R2-lines-and-queue.md): nad czym agent pracuje i w jakiej kolejności
-- [R3 Weryfikacja i cytowanie](R3-verification-and-citation.md): stopnie pewności, co musi być spełnione dla Udokumentowane, źródła i wskazówki
+- [R3 Weryfikacja i cytowanie](R3-verification-and-citation.md): stopnie pewności, co musi być spełnione dla Udokumentowane, źródła i wskazówki, wyznanie jako fakt
 - [R4 Miejsca](R4-places.md): identyfikacja miejsc, nazwy i przynależność, co rozstrzyga człowiek
 - [R5 Sprzeczności](R5-conflicts.md): jak powstaje sprzeczność, kto ją rozstrzyga, czego agent nie nadpisze
 - [R6 Czeka na załatwienie](R6-awaiting-action.md): czego badanie potrzebuje od człowieka i gdzie się to załatwia
@@ -35,11 +35,13 @@ Części R (badanie), A (aplikacja) i S (aplikacja i badanie razem) są zatwierd
 - [A5 Kontrola drzewa](A5-tree-check.md): czego aplikacja pilnuje w drzewie, z jakimi progami, oraz To nie błąd
 - [A6 Widoki i wybór osób](A6-views.md): Rodzina, Potomkowie, Oś czasu, Wachlarz, Mapa, ród w widoku, Tabela i widok w osobnym oknie
 - [A7 Księga, strony i eksport](A7-book-pages-and-export.md): kto jest żyjący, ochrona żyjących, księga rodu, strony, zapisany HTML
-- [A8 Scalanie drzew](A8-merging-trees.md): scalanie pliku, drzewa lub widoku w nowe drzewo, parowanie osób
+- [A8 Scalanie drzew](A8-merging-trees.md): kreator scalania pliku, drzewa lub wyboru z drzewem, parowanie osób, historia i cofanie scalenia
 - [A9 Obsługa aplikacji](A9-using-the-app.md): gdzie co jest, czytelne nazwy elementów, edycja podczas śledzenia badania, agent w aplikacji, dolny pasek na telefonie i tablecie
 - [A10 Jedno wydarzenie wielu osób](A10-shared-events.md): wspólne wydarzenie gospodarstwa (Razem z), Ujednolić, Połącz w jedno wydarzenie, chrzestni i świadkowie w życiu osoby, scalanie i starsze drzewa
-- [A11 Listy osób](A11-lists-of-people.md): lista stała, automatyczna i robocza, reguły, Zamroź, ręczna kolejność, Dodaj do listy, zapisanie jako listy, data dodania, odhaczanie gotowych, eksport listy
+- [A11 Listy osób](A11-lists-of-people.md): lista stała, automatyczna i robocza, reguły, własna reguła z warunków, rodzina osoby, szablony list, Utrzymuj według reguły, Zamroź, ręczna kolejność, Dodaj do listy, zapisanie jako listy, data dodania, odhaczanie gotowych, eksport listy
 - [A12 Portret i zdjęcie pary](A12-portrait-and-couple-photo.md): edytor kadrowania portretu, oryginał z etykietą Portret, Edytuj kadr, Jako portret…, zdjęcie pary i portrety z niego, gdzie je widać, eksport, GEDCOM i wersja danych 24
+- [A13 Statystyki drzewa](A13-tree-statistics.md): okno Statystyki, tematy, zakres i okres urodzenia, od wartości do Tabeli, eksport CSV
+- [A14 Zarządzanie drzewami i zmiana struktury](A14-trees-and-structure.md): Zarządzanie drzewami, rozpoczęte scalania, Zmień strukturę…, nowe drzewo z wyboru, kopia całego drzewa, podział, połączenie z innym drzewem
 
 ## S Aplikacja i badanie razem
 
@@ -48,7 +50,7 @@ Części R (badanie), A (aplikacja) i S (aplikacja i badanie razem) są zatwierd
 - [S3 Co wie badanie](S3-what-the-research-knows.md): sprzeczności, hipotezy, przeszukano i Nad osobą w aplikacji
 - [S4 Badanie sterowane z aplikacji](S4-research-from-the-app.md): panel i przegląd badania, kolejka, linie, akcje do terminala
 - [S5 Telefon](S5-phone.md): strona badania w telefonie, parowanie, zdjęcia partiami
-- [S6 Drzewo z innego programu](S6-tree-from-another-program.md): drzewo z MyHeritage, Gramps, FamilySearch i programów dla Windows: co się wczytuje, znaczniki wiarygodności, dane z drzewa jako wskazówki, karta Co dalej, kopie zapasowe, eksport z powrotem, ponowny import
+- [S6 Drzewo z innego programu](S6-tree-from-another-program.md): drzewo z MyHeritage, Gramps, FamilySearch i programów dla Windows: co się wczytuje, znaczniki wiarygodności, dane z drzewa jako wskazówki, karta Co dalej, kopie zapasowe, eksport z powrotem, ponowny import, e-mail osoby jako kontakt
 - [S7 Wiarygodność danych i weryfikacja według oryginałów](S7-reliability-and-verification.md): znaczniki przy danych i na karcie, Zweryfikuj przy danej, przy osobie i w drzewie, weryfikacja w kolejce badania, Potwierdź według skanu, co działa z mostem, a co bez niego
 - [S8 Gdzie są dane](S8-where-the-data-are.md): co jest tylko w przeglądarce, co jest w badaniu i w Archiwum Strom, zdjęcia i załączniki drzewa w badaniu, wskaźnik Tylko w przeglądarce, zdjęcia, których nie udało się wczytać, paczka i usunięcie drzewa
 

@@ -61,7 +61,13 @@ s oddíly **Zapsáno** a **Nezapsáno**.
 
 - **Hranice:** když přesný seznam nejde spočítat, pošle se strom, jak je, a výzkum zapíše jen rozdíly.
 - **Platí od:** aplikace 3.14.0
+- **Od aplikace 3.32.0 (výzkum 1.37.0):** poslání říká, ze kterého prohlížeče přišlo: trvalé náhodné id uložené
+  v tom prohlížeči a čitelné jméno z prohlížeče a systému (např. „Chrome · Mac“, nepřekládá se, nic osobního).
+  Obojí jde jen s posláním do výzkumu, exportovaný soubor ho nikdy nenese. Změna v historii výzkumu poslaná z jiného
+  prohlížeče má za sebou „z Chrome · Mac“; vrácené poslání z jiného prohlížeče řekne „Posláno z Chrome · Mac.“. Prohlížeč bez
+  jména zastoupí prvních 8 znaků jeho id. Se starším výzkumem se vše čte jako dosud.
 
+<!-- zdroj: 3.32.0: app:src/device-client.ts (DEVICE_ID_KEY strom-device-id, browserOf, systemOf, deviceNameOf „Chrome · Mac“), src/research-link.ts:5883-5957 1 _STROM_CLIENT / 2 NAME jen při poslání do mostu, src/conflict-devices.ts otherDeviceWords, deviceWords (ID_SHOWN 8), src/ui/research-ui.ts:838-842, src/ui/research-sync-ui.ts:3556-3560 · strings.ts research.fromDevice, research.sentFromDevice · research:3856505e src/core/sync.ts _STROM_CLIENT · spec 094 K2.4 -->
 <!-- zdroj: app:strings.ts changes.willSendTitle, changes.kind*, changes.inexact, changes.writtenSection, changes.notWrittenSection · CHANGELOG.cs.md 3.14.0 -->
 
 <a id="S2.2.2"></a>
@@ -103,6 +109,8 @@ nemění.
   hláškou „Znovu neodesláno: to poslání neneslo osoby tohoto stromu. Úpravy zůstávají tady.“ Samo poslání a odchod
   ze stránky nic nehlásí; čekající úpravy ukazuje značka.
 - **Ukázkový strom** se do výzkumu nikdy nepošle ([S1.3.1](S1-connecting-app-and-research.md#S1.3.1)).
+- **Od aplikace 3.32.0:** kopie stromu z výzkumu se do výzkumu nepošle vůbec, ani tlačítkem. Když si výzkum o úpravy
+  řekne odkazem, pošle se strom, který k výzkumu patří ([S1.10](S1-connecting-app-and-research.md#S1.10)).
 - **Hranice:** malý jiný strom pod propojením výzkumu odmítne od výzkumu 1.34.0 i výzkum sám ([S2.5](#S2.5)).
   Vrácené poslání, které neneslo osoby stromu, aplikace znovu nenabízí ([S2.7](#S2.7)).
 - **Platí od:** aplikace 3.29.0
@@ -354,8 +362,14 @@ dá ve výzkumu“. Archiv Stromu odebrání zrcadlí ([S2.4](#S2.4)).
   - **Upraveno jinde:** **Odebrat ze stromu**, nebo **Nechat ve stromu**.
   Rozhodnutí potvrzuje výzkum. Pak aplikace načte jeho verzi.
 - **Platí od:** výzkum 1.0.0; otázka odebrané osoby od aplikace 3.16.0 (výzkum 1.20.0)
+- **Od aplikace 3.32.0:** totéž platí pro osoby z odvolaného sloučení stromů
+  ([A8.12](A8-merging-trees.md#A8.12)). Sloučení, které do výzkumu ještě neodešlo, se odvolá jen v aplikaci a výzkum
+  nedostane nic. Sloučení už odeslané aplikace odvolá hned a řekne, že výzkum osoby sám nesmaže; když zná zápis
+  výzkumu, který sloučení přinesl, dá krok v terminálu výzkumu `strom sync undo I…` s **Kopírovat**, jinak odkáže
+  sem. Do té doby výzkum při příští verzi osoby vrátí a aplikace je nabídne k odebrání
+  ([A8.13](A8-merging-trees.md#A8.13)).
 
-<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 „What the app no longer has is only reported“, gone :2355 · app:src/ui/research-removed-ui.ts :1-14 · strings.ts sync.notWrittenReport, conflict.person.* · CHANGELOG.cs.md 3.16.0 -->
+<!-- zdroj: research:src/core/sync.ts (v1.25.2) :1-19 „What the app no longer has is only reported“, gone :2355 · app:src/ui/research-removed-ui.ts :1-14 · strings.ts sync.notWrittenReport, conflict.person.* · CHANGELOG.cs.md 3.16.0 · 3.32.0: app:debf50cc src/ui/merge-history-ui.ts (resSent, resUndoStep / resUndoHelp), undoResearchStep (jen záznam I\d+), src/help/topics.ts:38 HELP_LINKS.mergeUndoResearch = 'S2.6' · strings.ts mergeWizard.resSent, resUndoStep, resUndoHelp, resUndoHelpLink, resComesBack, copy · research:src/commands/sync.ts:627 sync undo · spec 134 K9.3 -->
 
 <a id="S2.6.1"></a>
 ### S2.6.1 Pramen smazaný v aplikaci
@@ -435,5 +449,8 @@ změní nebo zmizí.
   kopii**.
 - **Ovládání:** aplikace: **Načíst verzi výzkumu**
 - **Platí od:** aplikace 3.9.0; poznámka po řádcích od 3.29.0; číslo snímku nebo folium navíc od 3.31.0
+- **Od aplikace 3.32.0:** sčítání osoby, které výzkum zapsal jako vlastní událost „Sčítání lidu“ (s výzkumem 1.37.0
+  přichází jako sčítání, [R9.12.3](R9-archives.md#R9.12.3)), se čte jako sčítání, které má strom
+  ([A10.7](A10-shared-events.md#A10.7)). Seznam ho už neukazuje přeškrtnuté a tatáž verze se načte bez dotazu.
 
-<!-- zdroj: app:src/ui/research-load-ui.ts askResearchLoad (ROWS_SHOWN 8, overwrite: sendMode off nebo nezapsané z posledního poslání → loadOverwrite + research.openCopy), src/ui/research-ui.ts:2377 · 03352a9c src/line-diff.ts diffLines (LCS po řádcích, mezery na konci a CRLF nejsou změna), research-load-ui.ts notes · strings.ts sync.loadTitle, loadColChange, loadMore, loadAdded, loadBackupNote, loadOverwrite, loadOverNotWritten · CHANGELOG.cs.md 3.29.0 „Načíst verzi výzkumu?“ · v3.9.0 (loadColChange) · 3.31.0: app:2e68d373 src/research-changes.ts placeNumberAdded, pageMoved, diffValues numbersAdded; src/ui/research-load-ui.ts (věta pod seznamem, nepočítá se); strings.ts sync.loadImageNumbers, loadFolioNumbers · CHANGELOG.cs.md 3.31.0 „Načtení verze výzkumu“ -->
+<!-- zdroj: app:src/ui/research-load-ui.ts askResearchLoad (ROWS_SHOWN 8, overwrite: sendMode off nebo nezapsané z posledního poslání → loadOverwrite + research.openCopy), src/ui/research-ui.ts:2377 · 03352a9c src/line-diff.ts diffLines (LCS po řádcích, mezery na konci a CRLF nejsou změna), research-load-ui.ts notes · strings.ts sync.loadTitle, loadColChange, loadMore, loadAdded, loadBackupNote, loadOverwrite, loadOverNotWritten · CHANGELOG.cs.md 3.29.0 „Načíst verzi výzkumu?“ · v3.9.0 (loadColChange) · 3.31.0: app:2e68d373 src/research-changes.ts placeNumberAdded, pageMoved, diffValues numbersAdded; src/ui/research-load-ui.ts (věta pod seznamem, nepočítá se); strings.ts sync.loadImageNumbers, loadFolioNumbers · CHANGELOG.cs.md 3.31.0 „Načtení verze výzkumu“ · 3.32.0: app:1319a508 src/ged-parser.ts (EVEN / TYPE Sčítání lidu → census), src/research-changes.ts pairEvents · dirigent:K052 -->
