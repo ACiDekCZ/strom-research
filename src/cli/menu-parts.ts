@@ -45,7 +45,7 @@ export function shaped(text: string, opts: { as?: "value" | "extra" | "auto"; to
   let rest: string | undefined;
   const colon = /^(.+?):\s+(.+)$/su.exec(text);
   const bracket = /^(.+?) \(([^()]+)\)$/su.exec(text);
-  const dash = /^(.+?) – (.+)$/su.exec(text);
+  const dash = /^(.+?) [–—] (.+)$/su.exec(text);
   if (colon && !/\([^)]*$/u.test(colon[1]!)) [label, rest] = [colon[1]!, colon[2]!];
   else if (bracket) [label, rest] = [bracket[1]!, bracket[2]!];
   else if (dash) [label, rest] = [dash[1]!, dash[2]!];

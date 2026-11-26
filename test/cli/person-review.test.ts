@@ -134,7 +134,7 @@ test("review of a family and in the research language; the menu offers it", opts
   assert.equal((await w.run(["review", "P1", "--scope", "všichni"])).code, 2);
   // 4 add to the research · 3 review one person · Josef · not the family · not now · Enter · 0 back · 0 quit
   const menu = await w.run(["menu"], { tty: true, answers: ["4", "3", "Josef", "n", "n", "", "0", "0"] });
-  assert.match(menu.out, /Revize osoby: prověřit a doplnit, co o ní víme/);
+  assert.match(menu.out, /Revize osoby {2,}prověřit a doplnit, co o ní víme/);
   w.cleanup();
 });
 
