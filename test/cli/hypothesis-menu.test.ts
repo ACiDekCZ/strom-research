@@ -213,7 +213,7 @@ test("the setup asks who decides the hypotheses only a person at a terminal: no 
     // a person: asked after the stories, nothing chosen yet — the AI recommended and offered (spec 060 K1.6), the
     // default (K1.9): Enter takes it with no second yes
     const keep = await w.ok(["setup"], { tty: true, answers: Array(12).fill("") });
-    assert.match(keep.out, /vyprávění[^]*Kdo rozhoduje hypotézy – nejistá spojení lidí\?[^\n]*\nDoporučeno: rozhoduje AI – [^\n]+\n {2}\[1\] {2}Rozhoduje člověk\n {2}\[2\] {2}Rozhoduje AI \(doporučeno\)\n\n {2}\[0\] {2}[^\n]+\n\nVolba \(Enter = 2[^)]*\):/u, keep.out);
+    assert.match(keep.out, /vyprávění[^]*Kdo rozhoduje hypotézy – nejistá spojení lidí\?[^\n]*\nDoporučeno: rozhoduje AI – [^\n]+\n {2}\[1\] {2}Rozhoduje člověk\n {2}\[2\] {2}Rozhoduje AI {2,}doporučeno\n\n {2}\[0\] {2}[^\n]+\n\nVolba \(Enter = 2[^)]*\):/u, keep.out);
     assert.doesNotMatch(keep.out, /Má hypotézy \(nejistá spojení lidí\) rozhodovat agent sám\?/u, "no second yes");
     impersonal(keep.out);
     assert.equal(await decide(w), "agent");
@@ -222,7 +222,7 @@ test("the setup asks who decides the hypotheses only a person at a terminal: no 
     const chosen = await w.ok(["setup"], { tty: true, answers: ["", "", "", "", "", "", "", "1", "", "", "", "", "", ""] });
     assert.equal(config()["hypotheses.decide"], "person", chosen.out);
     const again = await w.ok(["setup"], { tty: true, answers: Array(12).fill("") });
-    assert.match(again.out, /Rozhoduje AI \(doporučeno\)\n\n {2}\[0\] {2}[^\n]+\n\nVolba \(Enter = 1[^)]*\):/u, again.out);
+    assert.match(again.out, /Rozhoduje AI {2,}doporučeno\n\n {2}\[0\] {2}[^\n]+\n\nVolba \(Enter = 1[^)]*\):/u, again.out);
     assert.equal(await decide(w), "person");
     // the AI where the person was chosen: the second yes — no: the person stays
     // language, folder, research, agent, model, effort, stories · the AI · no · the rest kept
@@ -245,7 +245,7 @@ test("a person's review offers the hypotheses about them: the list with each one
     await w.ok(["hypothesis", "decide", "H2", "--variant", "A", "--decision", "křest S0001 v Lhotě"]);
     // 4 add to the research · 3 review one person · Josef · not the family · the hypotheses · H1 · Decide · A · why · 0 the list
     const r = await w.ok(["menu"], { tty: true, answers: ["4", "3", "Josef", "n", "1", "1", "1", "1", "Křest S0001 jmenuje Václava a Marii", "0", "n", "", "0", "0"] });
-    assert.match(r.out, /^ {2}\[1\] {2}Hypotézy o osobě \(2\)$/mu, r.out);
+    assert.match(r.out, /^ {2}\[1\] {2}Hypotézy o osobě {2,}2$/mu, r.out);
     assert.match(r.out, /^ {2}\[0\] {2}Pokračovat$/mu, r.out);
     assert.match(r.out, /Hypotézy o osobě\n {2}\[1\] {2}H0001 · otevřená · Čí syn je Josef\?\n {2}\[2\] {2}H0002 · rozhodnutá · Kde se Josef narodil\?/u, r.out);
     assert.match(r.out, /✓ Hypotéza je rozhodnutá\./u, r.out);

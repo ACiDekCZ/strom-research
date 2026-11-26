@@ -10,6 +10,7 @@ import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { resolveCommand } from "../cli/execute.ts";
 import { counted, lines } from "../cli/format.ts";
+import { saidLines } from "../cli/screen.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import { UsageError } from "../core/errors.ts";
 import { isArchive } from "../core/mode.ts";
@@ -497,8 +498,21 @@ const rewriterOf = (id: string): Rewriter => {
 /** The places of a municipality with numbers alone after its name, as written: the first few, how many in all. */
 const townPlaces = (town: StreetTown) => (town.places.length > 3 ? `${town.places.slice(0, 3).join(", ")} … (${town.places.length})` : town.places.join(", "));
 
+/** A line of what a check says, and whether it is said before its question (brief: what, how many, what it costs). */
+type Told = readonly [string | undefined, boolean];
+
+/** The lines told, in their order: all of them (strom fixes show), or the brief ones and the rest (behind [?] Details). */
+function told(lines: readonly Told[]): { all: string[]; brief: string[]; more: string[] } {
+  const kept = lines.filter((l): l is readonly [string, boolean] => l[0] !== undefined);
+  return { all: kept.map((l) => l[0]), brief: kept.filter((l) => l[1]).map((l) => l[0]), more: kept.filter((l) => !l[1]).map((l) => l[0]) };
+}
+
 /** A check that rewrites by rules: what it is, what it found, examples, what setting it right does and does not. */
 function rewriteDetail(t: T, s: FixState): string[] {
+  return rewriteTold(t, s).all;
+}
+
+function rewriteTold(t: T, s: FixState): ReturnType<typeof told> {
   const f = s.found;
   const rewrites = f.rewrites ?? [];
   const towns = f.towns ?? [];
@@ -506,51 +520,65 @@ function rewriteDetail(t: T, s: FixState): string[] {
   // a check applied by itself once (verify-originals): what it found then and set right, its examples
   const done = !rewrites.length && !f.unsplit && f.done?.count ? f.done : undefined;
   const shown: unknown[] = done ? done.items : rewrites;
-  return [
-    `${id} · ${t(`ui.fixes.${id}.name` as UIKey)} — ${stateText(t, s)}`,
-    t(`ui.fixes.${id}.what` as UIKey, { since: s.check.since }),
-    rewrites.length || f.unsplit
-      ? t(`ui.fixes.${id}.found` as UIKey, { found: rewrites.length + (f.unsplit ?? 0), split: rewrites.length, unsplit: f.unsplit ?? 0 })
-      : done
-        ? t(`ui.fixes.${id}.found` as UIKey, { found: done.count, split: done.count, unsplit: 0 })
-        : towns.length
-          ? undefined
-          : t("ui.fixes.found.none"),
-    ...shown.slice(0, EXAMPLES).map((r) => rewriterOf(id).example(t, r)),
-    shown.length > EXAMPLES ? t(`ui.fixes.${id}.more` as UIKey, { n: shown.length - EXAMPLES, id }) : undefined,
-    done ? t(`ui.fixes.${id}.done` as UIKey, { n: done.count, records: done.records, id }) : undefined,
+  return told([
+    [`${id} · ${t(`ui.fixes.${id}.name` as UIKey)} — ${stateText(t, s)}`, true],
+    [t(`ui.fixes.${id}.what` as UIKey, { since: s.check.since }), false],
+    [
+      rewrites.length || f.unsplit
+        ? t(`ui.fixes.${id}.found` as UIKey, { found: rewrites.length + (f.unsplit ?? 0), split: rewrites.length, unsplit: f.unsplit ?? 0 })
+        : done
+          ? t(`ui.fixes.${id}.found` as UIKey, { found: done.count, split: done.count, unsplit: 0 })
+          : towns.length
+            ? undefined
+            : t("ui.fixes.found.none"),
+      true,
+    ],
+    // what it changes, as examples: seen before the question
+    ...shown.slice(0, EXAMPLES).map((r) => [rewriterOf(id).example(t, r), true] as const),
+    [shown.length > EXAMPLES ? t(`ui.fixes.${id}.more` as UIKey, { n: shown.length - EXAMPLES, id }) : undefined, true],
+    [done ? t(`ui.fixes.${id}.done` as UIKey, { n: done.count, records: done.records, id }) : undefined, false],
     // what it leaves as it is, each with why
-    ...(f.left ?? []).slice(0, EXAMPLES).map((r) => rewriterOf(id).left?.(t, r) ?? ""),
-    (f.left?.length ?? 0) > EXAMPLES ? t(`ui.fixes.${id}.more` as UIKey, { n: f.left!.length - EXAMPLES, id }) : undefined,
-    // numbers alone after a municipality: each municipality, set right only on a person's word for all of it
-    towns.length ? t("ui.fixes.street-places.bare") : undefined,
-    ...towns.slice(0, EXAMPLES).map((x) => t("ui.fixes.street-places.town", { town: x.town, n: x.fixes.length, places: townPlaces(x) })),
-    towns.length > EXAMPLES ? t(`ui.fixes.${id}.more` as UIKey, { n: towns.length - EXAMPLES, id }) : undefined,
-    rewrites.length || towns.length ? t(`ui.fixes.${id}.does` as UIKey, { id }) : undefined,
-    rewrites.length || towns.length ? t(`ui.fixes.${id}.not` as UIKey, { id }) : undefined,
-  ].filter((l): l is string => l !== undefined);
+    ...(f.left ?? []).slice(0, EXAMPLES).map((r) => [rewriterOf(id).left?.(t, r) ?? "", false] as const),
+    [(f.left?.length ?? 0) > EXAMPLES ? t(`ui.fixes.${id}.more` as UIKey, { n: f.left!.length - EXAMPLES, id }) : undefined, false],
+    // numbers alone after a municipality: each municipality, set right only on a person's word for all of it (asked
+    // one by one after it, each with its own examples)
+    [towns.length ? t("ui.fixes.street-places.bare") : undefined, false],
+    ...towns.slice(0, EXAMPLES).map((x) => [t("ui.fixes.street-places.town", { town: x.town, n: x.fixes.length, places: townPlaces(x) }), false] as const),
+    [towns.length > EXAMPLES ? t(`ui.fixes.${id}.more` as UIKey, { n: towns.length - EXAMPLES, id }) : undefined, false],
+    [rewrites.length || towns.length ? t(`ui.fixes.${id}.does` as UIKey, { id }) : undefined, false],
+    [rewrites.length || towns.length ? t(`ui.fixes.${id}.not` as UIKey, { id }) : undefined, false],
+  ]);
 }
 
 /** What it is, what it found, what setting it right does and does not, and what it would take. */
 function detail(ctx: Context, tree: Tree, t: T, s: FixState): string[] {
-  if (s.check.remedy === "rewrite") return rewriteDetail(t, s);
+  return detailTold(ctx, tree, t, s).all;
+}
+
+/**
+ * Before the question at a person's terminal (spec 144 K6): what it is, how many it found, what it costs — the rest
+ * (what happened, examples, what it does and does not, the narrower stages) behind [?] Details. Paid work stays clear
+ * without it: the cost of each choice stands beside it too.
+ */
+function detailTold(ctx: Context, tree: Tree, t: T, s: FixState): ReturnType<typeof told> {
+  if (s.check.remedy === "rewrite") return rewriteTold(t, s);
   const f = s.found;
   const agent = readerAgent(ctx, tree);
   const values = textValues(t, s);
   const groups = byReading(f.items);
-  return [
-    `${s.check.id} · ${t(`ui.fixes.${s.check.id}.name` as UIKey)} — ${stateText(t, s)}`,
+  return told([
+    [`${s.check.id} · ${t(`ui.fixes.${s.check.id}.name` as UIKey)} — ${stateText(t, s)}`, true],
     // new-model with nothing read with another model: nothing to say what changed
-    !f.models && s.check.id === "new-model" ? t(`ui.fixes.${s.check.id}.idle` as UIKey) : t(`ui.fixes.${s.check.id}.what` as UIKey, values),
-    foundText(t, s),
-    ...groups.slice(0, EXAMPLES).map((g) => exampleText(t, g)),
-    groups.length > EXAMPLES ? t("ui.fixes.more", { n: groups.length - EXAMPLES, id: s.check.id }) : undefined,
-    f.estimated ? t("ui.fixes.estimated.why") : undefined,
-    f.items.length ? t(`ui.fixes.${s.check.id}.does` as UIKey, values) : undefined,
-    f.items.length ? t(`ui.fixes.${s.check.id}.not` as UIKey, values) : undefined,
-    f.items.length ? estimateText(t, estimateOf(ctx, tree, readersOf(f.items)), agent) : undefined,
-    ...stagesText(ctx, tree, t, groups),
-  ].filter((l): l is string => l !== undefined);
+    [!f.models && s.check.id === "new-model" ? t(`ui.fixes.${s.check.id}.idle` as UIKey) : t(`ui.fixes.${s.check.id}.what` as UIKey, values), false],
+    [foundText(t, s), true],
+    ...groups.slice(0, EXAMPLES).map((g) => [exampleText(t, g), false] as const),
+    [groups.length > EXAMPLES ? t("ui.fixes.more", { n: groups.length - EXAMPLES, id: s.check.id }) : undefined, false],
+    [f.estimated ? t("ui.fixes.estimated.why") : undefined, false],
+    [f.items.length ? t(`ui.fixes.${s.check.id}.does` as UIKey, values) : undefined, false],
+    [f.items.length ? t(`ui.fixes.${s.check.id}.not` as UIKey, values) : undefined, false],
+    [f.items.length ? estimateText(t, estimateOf(ctx, tree, readersOf(f.items)), agent) : undefined, true],
+    ...stagesText(ctx, tree, t, groups).map((l) => [l, false] as const),
+  ]);
 }
 
 function stateData(ctx: Context, tree: Tree, s: FixState, all = false) {
@@ -620,16 +648,20 @@ function stateOfCheck(ctx: Context, tree: Tree, id: string): FixState {
 async function runRewrite(ctx: Context, tree: Tree, t: T, s: FixState): Promise<{ decided?: "declined" | "fixed"; changed: number; records: number }> {
   const id = s.check.id;
   const out = (l = "") => ctx.io.stdout(l + "\n");
-  for (const l of detail(ctx, tree, t, s)) out(l);
   const rewrites = s.found.rewrites ?? [];
   const towns = s.found.towns ?? [];
-  if (!rewrites.length && !towns.length) return { changed: 0, records: 0 };
+  // a question follows: what it is, how many and its examples before it, the rest behind [?] Details
+  const said = detailTold(ctx, tree, t, s);
+  const asks = rewrites.length > 0 || towns.length > 0;
+  for (const l of asks ? said.brief : said.all) out(saidLines(l, ctx.style).join("\n"));
+  if (!asks) return { changed: 0, records: 0 };
+  const details = said.more.length ? { details: () => said.more.join("\n") } : {};
   const take: unknown[] = [];
   if (rewrites.length) {
     const choices = [{ label: t(`ui.fixes.${id}.all` as UIKey, { n: rewrites.length }) }, { label: t("ui.fixes.decline") }];
-    const pick = await ctx.choose(t(`ui.fixes.${id}.ask` as UIKey), choices, choices.length, { back: t("ui.fixes.later") });
+    const pick = await ctx.choose(t(`ui.fixes.${id}.ask` as UIKey), choices, choices.length, { back: t("ui.fixes.later"), ...details });
     if (pick === undefined) {
-      out(t("ui.fixes.later.said", { id }));
+      out(saidLines(t("ui.fixes.later.said", { id }), ctx.style).join("\n"));
       return { changed: 0, records: 0 };
     }
     if (pick === 1) {
@@ -652,14 +684,14 @@ async function runRewrite(ctx: Context, tree: Tree, t: T, s: FixState): Promise<
     for (const r of town.fixes.slice(0, EXAMPLES)) out(rewriterOf(id).example(t, r));
     if (town.fixes.length > EXAMPLES) out(t(`ui.fixes.${id}.more` as UIKey, { n: town.fixes.length - EXAMPLES, id }));
     const choices = [{ label: t("ui.fixes.street-places.town.yes", { town: town.town, n: town.fixes.length }) }, { label: t("ui.fixes.street-places.town.no", { town: town.town }) }];
-    const a = await ctx.choose(t("ui.fixes.street-places.town.ask", { town: town.town }), choices, choices.length, { back: t("ui.fixes.later") });
+    const a = await ctx.choose(t("ui.fixes.street-places.town.ask", { town: town.town }), choices, choices.length, { back: t("ui.fixes.later"), ...details });
     if (a === undefined) continue;
     answers[town.key] = { town: town.town, houses: a === 0 };
     if (a === 0) take.push(...town.fixes);
     else kept.push(town.town);
   }
   if (!take.length && !Object.keys(answers).length) {
-    out(t("ui.fixes.later.said", { id }));
+    out(saidLines(t("ui.fixes.later.said", { id }), ctx.style).join("\n"));
     return { changed: 0, records: 0 };
   }
   const r = tree.withTreeLock(() => {
@@ -834,7 +866,7 @@ function requireReady(ctx: Context, tree: Tree, command: string): void {
  * can read here, the person's choice — the one reading now first, each said with whether it read these before; where
  * the one now read them, another one here is recommended. Undefined: later.
  */
-async function chooseReader(ctx: Context, tree: Tree, t: T, s: FixState, model: string | undefined): Promise<Reader | undefined> {
+async function chooseReader(ctx: Context, tree: Tree, t: T, s: FixState, model: string | undefined, details: { details?: () => string } = {}): Promise<Reader | undefined> {
   const now = readerNow(ctx, tree, model);
   if (model || ctx.settings.agent(tree.config).source === "flag") return now;
   // only the agents that can read here (the one now too)
@@ -855,7 +887,7 @@ async function chooseReader(ctx: Context, tree: Tree, t: T, s: FixState, model: 
     value: bare(costText(t, estimateOf(ctx, tree, readersOf(s.found.items), { reader: r }))),
     extra: [readBy(r) ? t("ui.fixes.reader.before") : "", i === pick && pick > 0 ? t("ui.fixes.reader.other") : ""].map(bare).filter(Boolean).join(" · ") || undefined,
   }));
-  const i = await ctx.choose(t("ui.fixes.reader.ask"), choices, pick, { back: t("ui.fixes.later") });
+  const i = await ctx.choose(t("ui.fixes.reader.ask"), choices, pick, { back: t("ui.fixes.later"), ...details });
   return i === undefined ? undefined : readers[i];
 }
 
@@ -876,10 +908,13 @@ async function runCheck(ctx: Context, tree: Tree, t: T, s: FixState, opts: { fir
   const out = (l = "") => ctx.io.stdout(l + "\n");
   let left = byReading(s.found.items).slice(0, opts.first ?? Infinity);
   const done: Reread[] = [];
-  for (const l of detail(ctx, tree, t, s)) out(l);
-  const reader = await chooseReader(ctx, tree, t, s, opts.model);
+  // what it is, how many, what it costs before the question; the rest behind [?] Details (each choice says its cost)
+  const said = detailTold(ctx, tree, t, s);
+  for (const l of said.brief) out(saidLines(l, ctx.style).join("\n"));
+  const details = said.more.length ? { details: () => said.more.join("\n") } : {};
+  const reader = await chooseReader(ctx, tree, t, s, opts.model, details);
   if (!reader) {
-    out(t("ui.fixes.later.said", { id }));
+    out(saidLines(t("ui.fixes.later.said", { id }), ctx.style).join("\n"));
     return { done };
   }
   const rctx = readerContext(ctx, reader);
@@ -910,9 +945,9 @@ async function runCheck(ctx: Context, tree: Tree, t: T, s: FixState, opts: { fir
     ];
     if (!first) out(estimateText(t, est(left), reader.agent, perReading !== undefined));
     // Enter: later — paid work starts on a choice of its own
-    const pick = await ctx.choose(t(first ? "ui.fixes.ask" : "ui.fixes.ask.rest"), choices, choices.length, { back: t(first ? "ui.fixes.later" : "ui.fixes.end") });
+    const pick = await ctx.choose(t(first ? "ui.fixes.ask" : "ui.fixes.ask.rest"), choices, choices.length, { back: t(first ? "ui.fixes.later" : "ui.fixes.end"), ...(first ? details : {}) });
     if (pick === undefined) {
-      out(t("ui.fixes.later.said", { id }));
+      out(saidLines(t("ui.fixes.later.said", { id }), ctx.style).join("\n"));
       return { done };
     }
     if (pick === choices.length - 1) {

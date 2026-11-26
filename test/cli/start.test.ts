@@ -138,7 +138,7 @@ test("the menu: a person can always change their mind — the current choice sug
   await w.ok(["trees", "use", "Novákovi"]);
   // another agent: Enter stays · working alone: 0 · another tree: Enter stays · a new one: 0 · quit
   const r = await w.ok([], { tty: true, answers: ["9", "", "2", "0", "6", "", "6", "3", "0", "0"] });
-  assert.match(r.out, /Který AI agent a kde s ním mluvit\?\n {2}\[1\] {2}OpenAI Codex CLI – v terminálu \(pro zkušenější\)\n\n {2}\[0\] {2}Zpět – zůstat u: Claude Code – v terminálu\n\nVolba \(Enter = 0[^)]*\):/);
+  assert.match(r.out, /Který AI agent a kde s ním mluvit\?\n {2}\[1\] {2}OpenAI Codex CLI – v terminálu {2,}pro zkušenější\n\n {2}\[0\] {2}Zpět – zůstat u: Claude Code – v terminálu\n\nVolba \(Enter = 0[^)]*\):/);
   assert.ok(!fs.existsSync(path.join(w.dir, "codex.calls")), "no other agent started");
   assert.ok(!fs.existsSync(path.join(w.dir, "claude.calls")), "no conversation, no run");
   assert.match(r.out, /Který rodokmen\?\n {2}\[1\] {2}Novákovi .*\n {2}\[2\] {2}Svobodovi .*\n {2}\[3\] {2}nový rodokmen\n {2}\[4\] {2}zabalit „Novákovi“ a poslat někomu \(soubor ZIP\)\n {2}\[5\] {2}rodokmen, který někdo poslal \(soubor ZIP\)\n {2}\[6\] {2}odebrat rodokmen z tohoto počítače\n\n {2}\[0\] {2}Zpět – zůstat u: Novákovi\n\nVolba \(Enter = 1[^)]*\):/);
@@ -323,7 +323,7 @@ test("the agent's desktop app: found, chosen once, opened in the tree folder wit
   w.env.STROM_APP_DIRS = appsWith(w, ["Claude.app", "ChatGPT.app"]);
   // language, folder, the agent and where (Enter = Claude's app), model, stories, level, no shortcut
   const r = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "", "n"] });
-  assert.match(r.out, /Který AI agent a kde s ním mluvit\?\n {2}\[1\] {2}Claude – aplikace \(nejjednodušší\)\n {2}\[2\] {2}Claude Code – v terminálu \(pro zkušenější\)\n {2}\[3\] {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\n\nVolba \(Enter = 1[^)]*\):/);
+  assert.match(r.out, /Který AI agent a kde s ním mluvit\?\n {2}\[1\] {2}Claude – aplikace {2,}nejjednodušší\n {2}\[2\] {2}Claude Code – v terminálu {2,}pro zkušenější\n {2}\[3\] {2}ChatGPT \(Codex\) – aplikace {2,}nejjednodušší\n\nVolba \(Enter = 1[^)]*\):/);
   assert.match(r.out, /✓ AI agent: Claude – aplikace/);
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   assert.equal(cfg().agentWhere, "app");
@@ -360,7 +360,7 @@ test("the app or the terminal: each a line of the agents' list, the app suggeste
   const r = await w.ok(["setup"], { answers: ["cs", "", "", "3", "", "", "", "", "n"] });
   // (its list of models asked for: the CLI started for that alone)
   fs.rmSync(path.join(w.dir, "codex.calls"), { force: true });
-  assert.match(r.out, /Který AI agent a kde s ním mluvit\?\n {2}\[1\] {2}Claude – aplikace \(nejjednodušší\)\n {2}\[2\] {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\n {2}\[3\] {2}OpenAI Codex CLI – v terminálu \(pro zkušenější\)\n\nVolba \(Enter = 1[^)]*\):/);
+  assert.match(r.out, /Který AI agent a kde s ním mluvit\?\n {2}\[1\] {2}Claude – aplikace {2,}nejjednodušší\n {2}\[2\] {2}ChatGPT \(Codex\) – aplikace {2,}nejjednodušší\n {2}\[3\] {2}OpenAI Codex CLI – v terminálu {2,}pro zkušenější\n\nVolba \(Enter = 1[^)]*\):/);
   assert.match(r.out, /✓ AI agent: OpenAI Codex CLI – v terminálu/);
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   assert.equal(cfg().agent, "codex");
@@ -370,7 +370,7 @@ test("the app or the terminal: each a line of the agents' list, the app suggeste
   // this time elsewhere: the other ways, Enter stays; Codex's app this once — the setting stays
   const m = await w.ok([], { tty: true, answers: ["9", "2", "0"] });
   assert.match(m.out, /\[9\] {2}Tentokrát mluvit s jiným agentem nebo jinde/);
-  assert.match(m.out, /Který AI agent a kde s ním mluvit\?\n {2}\[1\] {2}Claude – aplikace \(nejjednodušší\)\n {2}\[2\] {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\n\n {2}\[0\] {2}Zpět – zůstat u: OpenAI Codex CLI – v terminálu\n\nVolba \(Enter = 0[^)]*\):/);
+  assert.match(m.out, /Který AI agent a kde s ním mluvit\?\n {2}\[1\] {2}Claude – aplikace {2,}nejjednodušší\n {2}\[2\] {2}ChatGPT \(Codex\) – aplikace {2,}nejjednodušší\n\n {2}\[0\] {2}Zpět – zůstat u: OpenAI Codex CLI – v terminálu\n\nVolba \(Enter = 0[^)]*\):/);
   assert.match(m.out, /Aplikace ChatGPT \(Codex\) se neotevřela/);
   assert.ok(!fs.existsSync(path.join(w.dir, "codex.calls")), "not the CLI");
   assert.equal(cfg().agentWhere, "terminal");
@@ -400,7 +400,7 @@ test("the app or the terminal: each a line of the agents' list, the app suggeste
   a.env.PATH = pathWith(a, []);
   a.env.STROM_APP_DIRS = appsWith(a, ["Claude.app", "Codex.app"]);
   const o = await a.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "", "n"] });
-  assert.match(o.out, /\n {2}\[1\] {2}Claude – aplikace \(nejjednodušší\)\n {2}\[2\] {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\n\nVolba \(Enter = 1[^)]*\):/);
+  assert.match(o.out, /\n {2}\[1\] {2}Claude – aplikace {2,}nejjednodušší\n {2}\[2\] {2}ChatGPT \(Codex\) – aplikace {2,}nejjednodušší\n\nVolba \(Enter = 1[^)]*\):/);
   assert.doesNotMatch(/mluvit\?\n([^]*?)Volba/.exec(o.out)![1]!, /Claude Code|Codex CLI|terminál/, "no CLI here: none named");
   a.cleanup();
   const one = new World();

@@ -18,8 +18,10 @@ import {
   wrap,
   plain,
   line,
+  saidLines,
   type Style,
 } from "../../src/cli/screen.ts";
+import { shaped } from "../../src/cli/menu-parts.ts";
 
 const tty = (columns: number | undefined, env: Record<string, string | undefined> = {}, platform: NodeJS.Platform = "linux", agent = false): Style =>
   terminalStyle({ tty: true, env, platform, columns: () => columns, agent });
@@ -176,4 +178,59 @@ test("a list: keys right, names in a column of at most 40, counts in one column 
   const flat = listLines(parts, PLAIN);
   assert.ok(flat.some((l) => l.includes("Rodina Lhotákových z Horní Lhoty a z Dolní Lhoty u Lhotic · 3")));
   for (const w of [60, 80, 100]) for (const l of listLines(parts, noColor(w))) assert.ok(shown(l) <= w, `${w}: ${l}`);
+});
+
+test("a long part of the crumbs cut between words with …, any script, decomposed text counted as shown", () => {
+  assert.equal(crumbLine(["Strom", "Co čeká", "Matriční úřad Lhota nad Lhotkou u Horní Lhoty"], PLAIN), "Strom › Co čeká › Matriční úřad Lhota nad Lhotkou…");
+  const nfd = crumbLine(["Strom", "Matriční úřad Lhota nad Lhotkou u Horní Lhoty".normalize("NFD")], PLAIN);
+  assert.equal(nfd.normalize("NFC"), "Strom › Matriční úřad Lhota nad Lhotkou…");
+  const cjk = crumbLine(["Strom", "日本語のテキストはとても長いのでここで切る必要がありますよね本当に長い名前です"], PLAIN).split(" › ")[1]!;
+  assert.ok(shown(cjk) <= 32 && cjk.endsWith("…"), cjk);
+});
+
+test("Enter's prompt: the option's first word whole, without its comma, a short word first with the one after it", () => {
+  assert.equal(shortLabel("Die Forschung mit dem Agenten fortsetzen", 24, true), "Die Forschung");
+  assert.equal(shortLabel("Alles, Schritt für Schritt (die Einrichtung)", 24, true), "Alles");
+  assert.equal(shortLabel("Ve výzkumu pokračovat s agentem a nejlepším modelem", 24, true), "Ve výzkumu");
+  assert.equal(shortLabel("Ano (doporučeno)", 24, true), "Ano");
+});
+
+test("a command a sentence ends with on a line of its own ($ strom …); one in the middle of a sentence stays in it", () => {
+  assert.deepEqual(saidLines("Vrátit, jak bylo: strom fixes undo F1", PLAIN), ["Vrátit, jak bylo:", "  $ strom fixes undo F1"]);
+  assert.deepEqual(saidLines("Vyzkoušet: strom run. Pak dál.", PLAIN), ["Vyzkoušet:", "  $ strom run", "Pak dál."]);
+  assert.deepEqual(saidLines("Jinak (strom fixes show new-model)", PLAIN, { indent: 2 }), ["  Jinak", "    $ strom fixes show new-model"]);
+  assert.deepEqual(saidLines("strom fixes undo F1 zahodí jen to, co se zapsalo", PLAIN), ["strom fixes undo F1 zahodí jen to, co se zapsalo"]);
+  // decomposed and another script before it: the same
+  assert.deepEqual(
+    saidLines("Знову прочитати: strom fixes run new-model".normalize("NFD"), PLAIN).map((l) => l.normalize("NFC")),
+    ["Знову прочитати:", "  $ strom fixes run new-model"],
+  );
+  // wrapped on a terminal, the command never broken
+  const wrapped = saidLines(`${"Dřívější čtení jiným modelem zůstalo otevřené ".repeat(3)}– přečíst znovu: strom fixes run new-model`, noColor(60)).join("\n").split("\n");
+  for (const l of wrapped) assert.ok(shown(l) <= 60, l);
+  assert.equal(wrapped.at(-1), "  $ strom fixes run new-model");
+});
+
+test("a list's detail never cut: wrapped under its own column on a terminal, whole off one", () => {
+  const detail = "dopis k odeslání · Odpověď matriky na žádost o opis křestního zápisu Vojtěcha Lhotáka";
+  const parts = [{ rows: [{ key: "1", name: "Matriční úřad Lhota nad Lhotkou u Horní Lhoty", count: "2", detail }] }];
+  const lines = listLines(parts, noColor(80));
+  for (const l of lines) assert.ok(shown(l) <= 80, l);
+  const words = (t: string) => t.replace(/\s+/gu, " ").trim();
+  const said = lines.map((l) => l.slice(50)).join(" ");
+  assert.equal(words(said), words(detail));
+  assert.ok(listLines(parts, PLAIN).some((l) => l.includes(detail)));
+});
+
+test("an item said as one text: its label, a state in the column of values, a list or a sentence after it", () => {
+  assert.deepEqual(shaped("Čas na jeden úkol: 60 min", { as: "auto" }), { label: "Čas na jeden úkol", value: "60 min", extra: undefined });
+  assert.deepEqual(shaped("Navrhovat linie: zapnuto (nic se nenavrhne, když agent pracuje)", { as: "auto" }), {
+    label: "Navrhovat linie",
+    value: "zapnuto",
+    extra: "nic se nenavrhne, když agent pracuje",
+  });
+  const listed = shaped("Podklady: soubory, složky, texty, vzpomínky rodiny a fotografie", { as: "auto" });
+  assert.equal(listed.value, undefined);
+  assert.equal(listed.extra, "soubory, složky, texty, vzpomínky rodiny a fotografie");
+  assert.deepEqual(shaped("Ano (doporučeno)", { as: "auto" }), { label: "Ano", value: undefined, extra: "doporučeno" });
 });

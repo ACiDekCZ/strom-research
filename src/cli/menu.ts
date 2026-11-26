@@ -269,7 +269,8 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
         return (pendingFixes(tree, env, { kept: true }) ?? (ctx.backupFailed ? undefined : refreshFixesSoon(tree, env, ctx.env)))?.find((f) => !archive || quietCheck(f.check));
       });
       // a fix of strom's said as one; another model reading now, as readings to read again
-      if (fix) out(t(fix.check.id === "new-model" ? "ui.fixes.hint.readings" : "ui.fixes.hint", { name: t(`ui.fixes.${fix.check.id}.name` as UIKey), count: pendingCount(fix) }));
+      // (wrapped on a person's terminal, as the menu's other lines)
+      if (fix) out(line([{ text: t(fix.check.id === "new-model" ? "ui.fixes.hint.readings" : "ui.fixes.hint", { name: t(`ui.fixes.${fix.check.id}.name` as UIKey), count: pendingCount(fix) }), role: "text" }], ctx.style));
       // the scan views tuned before, but for another agent or model: offered again (the settings), never run unasked
       const offer = !archive && ready ? timed("menu.views", () => calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config, tree.root)) : undefined;
       if (offer) out(sentence(t("ui.views.offer", { before: calibrationLabel(offer.before[0]!, t("ui.settings.model.own")), now: calibrationLabel(offer.now, t("ui.settings.model.own")) })));

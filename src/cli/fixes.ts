@@ -15,6 +15,7 @@ import { PROFILES } from "../agents/profiles.ts";
 import { researchUrl } from "../core/stromapp.ts";
 import { openForUser } from "../core/open.ts";
 import { NeedsConsentError, StromError } from "../core/errors.ts";
+import { shaped } from "./menu-parts.ts";
 
 /** Is the person answering here, in this terminal? */
 function personHere(ctx: Context): boolean {
@@ -62,8 +63,8 @@ export async function fixGit(ctx: Context, out: (line: string) => void): Promise
 }
 
 /**
- * No agent on this computer: install Claude Code, show the page about agents, or only an archive for now (nothing
- * changes: a research waits for its agent, kept as an archive). Only a person here decides.
+ * No agent on this computer: install Claude Code, show the page about agents, or only an archive for now ([0], Enter:
+ * nothing changes, a research waits for its agent, kept as an archive). Only a person here decides.
  */
 export async function offerAgent(ctx: Context, out: (line: string) => void): Promise<void> {
   const lang = ctx.uiLang();
@@ -72,7 +73,12 @@ export async function offerAgent(ctx: Context, out: (line: string) => void): Pro
     out(ui(lang, "ui.setup.agent.manual", { url: researchUrl(lang, "agents") }));
     return;
   }
-  const how = await ctx.choose("", [{ label: ui(lang, "ui.setup.agent.install") }, { label: ui(lang, "ui.setup.agent.guide") }, { label: ui(lang, "ui.setup.agent.archive") }], 0);
+  // [0] only an archive for now, nothing installed — Enter too (installing is the person's choice by its number); never
+  // "later" — nothing asks again (K4.4)
+  const how = await ctx.choose("", [shaped(ui(lang, "ui.setup.agent.install")), shaped(ui(lang, "ui.setup.agent.guide"))], 2, {
+    back: ui(lang, "ui.setup.agent.archive"),
+    enter: ui(lang, "ui.setup.agent.archive.enter"),
+  });
   if (how === 0) {
     runInstaller(claudeInstaller(), ctx.env);
     if (agentsHere(ctx.env).some((a) => a.id === "claude")) out(ui(lang, "ui.setup.agent.login"));

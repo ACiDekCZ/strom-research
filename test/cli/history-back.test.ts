@@ -171,7 +171,7 @@ test("the menu: back in time among the ways to look through the family tree — 
     const marie = (await w.ok(["person", "add", "Marie /Lhotáková/", "--sex", "F", "--json"])).json.person.id as string;
     // 5 look through · 7 back in time · 1 the change before the last · y · 0 back · 0 quit
     const r = await w.run([], { tty: true, answers: ["5", "7", "1", "y", "", "0", "0"] });
-    assert.match(r.out, /Návrat v čase \(stav po dřívější změně\)/u);
+    assert.match(r.out, /Návrat v čase {2,}stav po dřívější změně/u);
     assert.match(r.out, /Ke stavu po které změně\?/u);
     assert.match(r.out, /Návrat ke stavu po změně z /u);
     assert.match(r.out, /Výzkum je znovu ve stavu z /u);

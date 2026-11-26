@@ -25,7 +25,7 @@ import { decideSent, startDirection } from "./menu-research.ts";
 import { decideArchive, decideFloor, decideMilder, decideTakeover } from "./menu-archives.ts";
 import { askWhy, changeWarning, decisionOnTree, pickClaim, waitingDo } from "./menu-links.ts";
 import { runs, truncate } from "./format.ts";
-import { crumbLine, keyed, line, listLines, shown, type ListRow, type Span } from "./screen.ts";
+import { crumbLine, keyed, line, listLines, saidLines, shown, type ListRow, type Span } from "./screen.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { Tree } from "../core/tree.ts";
 import type { Conflict, Family, Hypothesis, HypothesisVariant, Media, Person, RecordSet, Research, Source, Task } from "../core/model.ts";
@@ -271,14 +271,16 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
     if (books.length) more.push(t("ui.wait.c.books", { key: `[${keys.books}]`, n: books.length }));
     if (phase === "todo" && sent.length) more.push(t("ui.wait.f.sent", { n: sent.length }));
     if (phase === "sent" && todo.length) more.push(t("ui.wait.f.todo", { n: todo.length }));
-    more.push(t(filter ? "ui.wait.f.unfilter" : "ui.wait.f.back"));
+    // [0] on its own line, last, as on every screen (spec 144 K1), the prompt saying what Enter does
+    const back = t(filter ? "ui.wait.f.unfilter" : "ui.wait.f.back");
     const footer = [
       ...(nav.length ? [line([...keyed(`  ${nav.join("  ")}`), { text: `  ${t("ui.wait.f.range", { range: "10-20" })}`, role: "dim" }], style, 2)] : []),
-      line(keyed(`  ${more.join("  ")}`), style, 2),
+      ...(more.length ? [line(keyed(`  ${more.join("  ")}`), style, 2)] : []),
     ];
-    screen.push("", ...footer, "");
+    const backLine = line(keyed(`  ${back}`), style, 2);
+    screen.push("", ...footer, ...(footer.length ? [""] : []), backLine, "");
     out(screen.join("\n"));
-    const prompt = t(places.length ? "ui.wait.prompt" : "ui.wait.prompt.none");
+    const prompt = t(places.length ? "ui.wait.prompt" : "ui.wait.prompt.none", { label: back.replace(/^\[0\]\s+/u, "") });
 
     // the answer: Enter goes back; anything unknown shows what can be typed again, nothing happens
     for (;;) {
@@ -315,7 +317,7 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
         break;
       }
       if (a === keys.books && books.length) {
-        await guarded(ctx, lang, () => showBooks(ctx, lang, root, books));
+        await inWaiting(ctx, way, () => guarded(ctx, lang, () => showBooks(ctx, lang, root, books)));
         break;
       }
       if (a === keys.all && places.length > PAGE) {
@@ -340,11 +342,23 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
       if (/^\d+$/u.test(a) && Number(a) >= 1 && Number(a) <= places.length) {
         const p = places[Number(a) - 1]!;
         // a place of one: that thing at once
-        await guarded(ctx, lang, async () => (p.items.length === 1 ? thing(ctx, run, lang, root, p.items[0]!) : place(ctx, run, lang, root, p.key, phase, filter, split ? p.only : undefined)));
+        // a thing alone at its place: the way to it with the place's name too
+        await inWaiting(ctx, way, () => guarded(ctx, lang, async () => (p.items.length === 1 ? ctx.within(p.name, () => thing(ctx, run, lang, root, p.items[0]!), p.name) : place(ctx, run, lang, root, p.key, phase, filter, split ? p.only : undefined))));
         break;
       }
-      out(footer.join("\n"));
+      out([...footer, backLine].join("\n"));
     }
+  }
+}
+
+/** What the overview opens, on its way (What waits, its filter): the menu's way, or What waits' own outside it. */
+async function inWaiting<R>(ctx: Context, way: string[], act: () => Promise<R>): Promise<R> {
+  const before = ctx.crumbs;
+  ctx.crumbs = [...way];
+  try {
+    return await act();
+  } finally {
+    ctx.crumbs = before;
   }
 }
 
@@ -366,7 +380,9 @@ export async function showBooks(ctx: Context, lang: string, root: string, rows?:
   if (!books.length) return false;
   const t = translator(lang);
   const shared = ctx.settings.shared()?.value;
-  const screen = ["", `${t("ui.books.title")} · ${books.length}`, ` ${t("ui.books.why")}`];
+  const style = ctx.style;
+  const way = [...(ctx.crumbs.length ? ctx.crumbs : ["Strom", t("ui.menu.waitlist")]), t("ui.books.title")];
+  const screen = ["", crumbLine(way, style), line([{ text: `  ${t("ui.books.n", { n: books.length })} · ${t("ui.books.why")}`, role: "text" }], style, 2), ""];
   for (const [i, r] of books.slice(0, BOOKS_SHOWN).entries()) {
     const counts = [t("ui.books.tasks", { n: r.tasks }), ...(r.waiting ? [t("ui.books.waiting", { n: r.waiting })] : [])];
     const dir = shared ? ctx.display(path.join(shared, "inbox", r.folder)) : `inbox/${r.folder}`;
@@ -378,7 +394,7 @@ export async function showBooks(ctx: Context, lang: string, root: string, rows?:
       `    ${t("ui.books.folder", { dir: `${dir}${path.sep}` })}`,
     );
   }
-  if (books.length > BOOKS_SHOWN) screen.push(` ${t("ui.books.more", { n: books.length - BOOKS_SHOWN })}`);
+  if (books.length > BOOKS_SHOWN) screen.push(...saidLines(`  ${t("ui.books.more", { n: books.length - BOOKS_SHOWN })}`, style));
   ctx.io.stdout(screen.join("\n") + "\n");
   await pause(ctx, lang);
   return true;
@@ -438,10 +454,10 @@ async function place(ctx: Context, run: Run, lang: string, root: string, key: st
         out(t("ui.wait.group.retry.done", { ids: ids.join(", ") }));
       });
     }
-    ctx.io.stdout("\n");
-    const i = await ctx.choose(`${name} · ${t(phase === "todo" ? "ui.wait.todo.n" : "ui.wait.sent.n", { n: items.length })}`, choices, choices.length, { back: t("ui.browse.back") });
+    // the place's screen: the way to it with its name, how many there, its things (drawn again after each act)
+    const i = await ctx.within(name, () => ctx.choose("", choices, choices.length, { back: t("ui.browse.back"), summary: [t(phase === "todo" ? "ui.wait.todo.n" : "ui.wait.sent.n", { n: items.length })], screen: true }), name);
     if (i === undefined) return;
-    await guarded(ctx, lang, async () => void (await acts[i]!()));
+    await ctx.within(name, () => guarded(ctx, lang, async () => void (await acts[i]!())), name);
   }
 }
 
@@ -481,7 +497,9 @@ async function thing(ctx: Context, run: Run, lang: string, root: string, w: Wait
     const sent = it.phase === "sent";
     const inbox = it.inbox as InboxState | undefined;
     const url = typeof it.url === "string" ? it.url : undefined;
-    const lines = ["", ` ${x.id} · ${kindWord(t, kind)} · ${t("ui.wait.prio", { n: x.priority })}`, ` ${humanTask(tree, x.what, lang, { asWritten: true })}`];
+    // the way here on top, each time the screen is drawn (after an act too)
+    const way = ctx.wayHead(true);
+    const lines = ["", ...(way.length ? [...way, ""] : []), ` ${x.id} · ${kindWord(t, kind)} · ${t("ui.wait.prio", { n: x.priority })}`, ` ${humanTask(tree, x.what, lang, { asWritten: true })}`];
     if (x.waitingOn) lines.push(`    ${t("ui.wait.d.on", { on: x.waitingOn })}`);
     if (typeof it.to === "string" && it.to !== it.group.name) lines.push(`    ${t("ui.wait.d.to", { to: it.to })}`);
     lines.push(`    ${t("ui.wait.d.place", { place: it.group.name })}`);
@@ -491,7 +509,8 @@ async function thing(ctx: Context, run: Run, lang: string, root: string, w: Wait
     // the agent could manage it now (spec 089): why it waits now, and when it may be returned again if not now
     const retry = it.retry as RetryView | undefined;
     if (retry) lines.push("", `    ${t("ui.wait.d.retry", { says: retry.says })}`, ...(!retry.can && retry.until ? [`    ${t("ui.wait.retry.until", { max: RETRY_MAX, when: humanWhen(retry.until, lang) })}`] : []));
-    out(lines.join("\n"));
+    // wrapped under their text on a terminal, a command a sentence ends with on a line of its own
+    out(lines.flatMap((l) => (l.includes("\x1b") ? [l] : saidLines(l, ctx.style))).join("\n"));
 
     // what makes sense for its kind: true leaves (it waits no more here), else it is shown again
     const choices: { label: string; act: () => Promise<boolean> }[] = [];
@@ -579,6 +598,9 @@ async function thing(ctx: Context, run: Run, lang: string, root: string, w: Wait
 
 /** A decision: its own screen — an archive's question, a story's new version, the app's send, the reading of scans, a site to check. */
 async function decide(ctx: Context, run: Run, lang: string, root: string, w: Waiting): Promise<void> {
+  // the way here above what the decision says (its question under it, the way not said again)
+  const way = ctx.wayHead();
+  if (way.length) ctx.io.stdout(`\n${way.join("\n")}\n`);
   if (w.conflict) return decideConflictHere(ctx, run, lang, root, w.conflict.id);
   if (w.hypothesis) return void (await decideHypothesis(ctx, run, lang, root, w.hypothesis.id));
   if (w.place) return decidePlace(ctx, run, lang, root, w.place.place.id);
@@ -769,7 +791,9 @@ async function decideProven(ctx: Context, run: Run, lang: string, root: string):
       `    ${t("ui.wait.proven.why")}`,
       ...facts.slice(0, 5).map((f) => `    • ${f.event} · ${eventName(f.kind, lang)}${f.date ? ` ${f.date}` : ""} · ${truncate(owner(f.owner), 60)}`),
       ...(facts.length > 5 ? [`    ${t("ui.wait.proven.more", { n: facts.length - 5 })}`] : []),
-    ].join("\n"),
+    ]
+      .flatMap((l) => saidLines(l, ctx.style))
+      .join("\n"),
   );
   const i = await ctx.choose("", [{ label: t("ui.wait.proven.keep") }, { label: t("ui.wait.proven.lower") }], 2, { back: t("ui.browse.back") });
   if (i === undefined) return;

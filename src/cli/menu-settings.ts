@@ -11,7 +11,7 @@ import type { Context } from "./context.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { lines } from "./format.ts";
 import { claudeHere, LABEL_MAX, pause, shaped, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
-import { shortLabel } from "./screen.ts";
+import { crumbLine, saidLines, shortLabel } from "./screen.ts";
 import { Tree, VERSION } from "../core/tree.ts";
 import { replacedOnDisk } from "../core/self.ts";
 import { modelStep, shortcutName } from "./wizard.ts";
@@ -385,7 +385,8 @@ async function maintenance(ctx: Context, run: Run, lang: string, root: string | 
           key: "3",
           ...shaped(t("ui.maintenance.fixes", { state: waits ? t("ui.maintenance.fixes.waits", { n: waits }) : "" }), { as: "value" }),
           act: async () => {
-            // (an archive: its checks are those that rewrite alone)
+            // (an archive: its checks are those that rewrite alone) — the way here above it: the command runs on its own
+            ctx.io.stdout(`\n${crumbLine(ctx.crumbs, ctx.style)}\n\n`);
             await run(waits ? ["fixes", "run"] : ["fixes"]);
             await pause(ctx, lang);
           },
@@ -687,7 +688,7 @@ async function offLineMenu(ctx: Context, run: Run, lang: string, root: string | 
             const share = ctx.settings.offLineShare(tree);
             const i = await ctx.choose(
               t("ui.alone.offline.pick"),
-              OFF_LINE_CHOICES.map((c) => ({ label: `${t(`ui.alone.offline.${c}` as UIKey)} – ${t(`ui.offline.says.${c}` as UIKey, { share })}${n === undefined ? "" : ` · ${t("ui.offline.tasks", { n })}`}` })),
+              OFF_LINE_CHOICES.map((c) => ({ label: capital(t(`ui.alone.offline.${c}` as UIKey)), extra: `${t(`ui.offline.says.${c}` as UIKey, { share })}${n === undefined ? "" : ` · ${t("ui.offline.tasks", { n })}`}` })),
               OFF_LINE_CHOICES.indexOf(mode),
               { back: t("ui.browse.back") },
             );
@@ -907,7 +908,9 @@ async function hooks(ctx: Context, run: Run, lang: string, shared: string): Prom
 /** Archives: the person's logins to portals (typed here, kept on this computer), and whether downloaders ask first. */
 async function archives(ctx: Context, run: Run, lang: string, shared: string | undefined, root: string | undefined): Promise<void> {
   const t = translator(lang);
-  const out = (line: string) => ctx.io.stdout(line + "\n");
+  // what an item says before its question: wrapped under its text on a person's terminal, a line apart from the question
+  const out = (said: string) => ctx.io.stdout(said.split("\n").flatMap((l) => saidLines(l, ctx.style)).join("\n") + "\n");
+  const about = (said: string) => out(`${said}\n`);
   await subMenu(ctx, lang, () => {
     ctx.settings.reload();
     const saved = loadLogins(ctx.env);
@@ -939,8 +942,8 @@ async function archives(ctx: Context, run: Run, lang: string, shared: string | u
           : t("ui.browser.noext", { names, url: CLAUDE_IN_CHROME_URL });
     const withLogin = connectors.filter((c) => c.manifest.login);
     const title = connectors.length
-      ? [t("ui.archives.title"), ...lines, "", ...(browserLine ? [browserLine] : []), t(withLogin.length ? "ui.archives.login.how" : "ui.archives.login.nobody")].join("\n")
-      : t("ui.archives.empty");
+      ? [t("ui.archives.title"), ...lines, "", ...(browserLine ? [browserLine] : []), t(withLogin.length ? "ui.archives.login.how" : "ui.archives.login.nobody"), ""].join("\n")
+      : `${t("ui.archives.empty")}\n`;
     // A downloader that can take either way: switched here (the agents' permissions follow).
     const switchable = connectors.filter((c) => via(c) !== "manual" && routesOf(c).includes("browser") && routesOf(c).includes("direct"));
     const items: Item[] = [
@@ -948,7 +951,7 @@ async function archives(ctx: Context, run: Run, lang: string, shared: string | u
         key: "1",
         ...shaped(t("ui.archives.consent", { state: t(consent ? "ui.settings.on" : "ui.settings.off") }), { as: "value", to: t(consent ? "ui.switch.off" : "ui.switch.on") }),
         act: async () => {
-          out(t("ui.archives.consent.about"));
+          about(t("ui.archives.consent.about"));
           // off: the command asks the person's yes itself (Enter says no) — asked once
           if (consent) await run(["config", "set", "connectors.consent", "off"], true);
           else if (await ctx.confirm(t("ui.archives.consent.on"), false)) await run(["config", "set", "connectors.consent", "on"], true);
@@ -964,7 +967,7 @@ async function archives(ctx: Context, run: Run, lang: string, shared: string | u
                 to: t(always ? "ui.archives.agentbrowser.archives" : "ui.archives.agentbrowser.always"),
               }),
               act: async () => {
-                out(t("ui.archives.agentbrowser.about"));
+                about(t("ui.archives.agentbrowser.about"));
                 if (await ctx.confirm(t(always ? "ui.archives.agentbrowser.off" : "ui.archives.agentbrowser.on"), false))
                   await run(always ? ["config", "unset", "agent.browser"] : ["config", "set", "agent.browser", "always"], true);
               },
@@ -982,7 +985,7 @@ async function archives(ctx: Context, run: Run, lang: string, shared: string | u
           value: t(next === "browser" ? "ui.archives.way.direct" : "ui.archives.way.browser"),
           extra: `→ ${t(next === "browser" ? "ui.archives.way.to.browser" : "ui.archives.way.to.direct")}`,
           act: async () => {
-            out(t(next === "browser" ? "ui.archives.browser.about" : "ui.archives.direct.about"));
+            about(t(next === "browser" ? "ui.archives.browser.about" : "ui.archives.direct.about"));
             if (!(await ctx.confirm(t(next === "browser" ? "ui.archives.switch.browser" : "ui.archives.switch.direct"), false))) return;
             if ((await run(["connector", "use", c.name, "--via", next], true)) === 0) out(t(`ui.archives.now.${next}` as UIKey, { title: name }));
           },
@@ -1009,4 +1012,9 @@ async function archives(ctx: Context, run: Run, lang: string, shared: string | u
       : [];
     return { title, items: [...items.slice(0, 9 - books.length), ...books] };
   });
+}
+
+/** A state said as an option's label: its first letter a capital ("never" → "Never"). */
+function capital(s: string): string {
+  return s.charAt(0).toLocaleUpperCase() + s.slice(1);
 }

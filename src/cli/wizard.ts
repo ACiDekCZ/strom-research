@@ -31,6 +31,7 @@ import type { TreeConfig } from "../core/model.ts";
 import { adoptSeal, foundTrees, offerAdopt } from "./seal.ts";
 import { knownTreesIn, Tree } from "../core/tree.ts";
 import { isAgent } from "../core/which.ts";
+import { shaped } from "./menu-parts.ts";
 
 export interface WizardResult {
   home: string;
@@ -55,6 +56,16 @@ function shortcutExists(ctx: Context, lang: string): boolean {
  * steps asked as for a research, nothing asked of research or an archive (the person chose it).
  */
 export async function setupWizard(ctx: Context, opts: { research?: boolean } = {}): Promise<WizardResult> {
+  // its prompts in the language chosen at its first step (never "Volba (Enter = 1 Research)"): as long as it asks
+  const before = ctx.langShown;
+  try {
+    return await wizardSteps(ctx, opts);
+  } finally {
+    ctx.langShown = before;
+  }
+}
+
+async function wizardSteps(ctx: Context, opts: { research?: boolean }): Promise<WizardResult> {
   const s = ctx.settings;
   const cfg = s.config;
   const out = (line = "") => ctx.io.stdout(line + "\n");
@@ -71,6 +82,7 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
       break;
     }
   }
+  ctx.langShown = lang;
   // Run again: each choice can be left as it is (0), the current one suggested.
   const keep = first ? {} : { back: ui(lang, "ui.keep") };
   // 2. Where the research lives.
@@ -142,10 +154,10 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
   const quiet = fromApp && installed.length === 0;
   if (fromApp && installed.length)
     archiveFirst =
-      (await ctx.choose(ui(lang, "ui.setup.fromapp"), [{ label: ui(lang, "ui.setup.fromapp.archive") }, { label: ui(lang, "ui.setup.fromapp.agent", { agent: agentName() }) }], cfg.mode === "archive" ? 0 : 1)) === 0;
+      (await ctx.choose(ui(lang, "ui.setup.fromapp"), [shaped(ui(lang, "ui.setup.fromapp.archive")), shaped(ui(lang, "ui.setup.fromapp.agent", { agent: agentName() }))], cfg.mode === "archive" ? 0 : 1)) === 0;
   else if (installed.length && !archived && !opts.research) {
     const now = cfg.mode === "archive" ? 1 : 0;
-    archiveFirst = ((await ctx.choose(ui(lang, "ui.setup.newmode"), [{ label: ui(lang, "ui.setup.newmode.agent", { agent: agentName() }) }, { label: ui(lang, "ui.setup.newmode.archive") }], now, keep)) ?? now) === 1;
+    archiveFirst = ((await ctx.choose(ui(lang, "ui.setup.newmode"), [shaped(ui(lang, "ui.setup.newmode.agent", { agent: agentName() })), shaped(ui(lang, "ui.setup.newmode.archive"))], now, keep)) ?? now) === 1;
     chosen = true;
   }
   if (archiveFirst && installed.length) cfg.agent ??= installed[0];
@@ -201,7 +213,7 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
 
   // 5b. Stories of the ancestors for the family book: on unless the person says no (an agent writes them).
   if (agent) {
-    const si = await ctx.choose(ui(lang, "ui.setup.stories"), [{ label: ui(lang, "ui.setup.stories.yes") }, { label: ui(lang, "ui.setup.stories.no") }], cfg.stories === "no" ? 1 : 0, keep);
+    const si = await ctx.choose(ui(lang, "ui.setup.stories"), [shaped(ui(lang, "ui.setup.stories.yes")), shaped(ui(lang, "ui.setup.stories.no"))], cfg.stories === "no" ? 1 : 0, keep);
     cfg.stories = (si ?? (cfg.stories === "no" ? 1 : 0)) === 1 ? "no" : "yes";
   }
 
@@ -219,7 +231,7 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
     const stored = ownHypotheses ? readStored(tree, "hypotheses.decide", agent) : readStored(cfg, "hypotheses.decide", agent);
     const was = stored === "person" ? 0 : 1;
     const ai = ui(lang, "ui.setup.model.recommended", { model: ui(lang, "ui.hypotheses.decide.agent") });
-    const hi = await ctx.choose(`${ui(lang, "ui.setup.hypotheses")}\n${ui(lang, "ui.setup.hypotheses.recommended")}`, [{ label: ui(lang, "ui.hypotheses.decide.person") }, { label: ai }], was, keep);
+    const hi = await ctx.choose(`${ui(lang, "ui.setup.hypotheses")}\n${ui(lang, "ui.setup.hypotheses.recommended")}`, [shaped(ui(lang, "ui.hypotheses.decide.person")), shaped(ai)], was, keep);
     // the agent deciding them where the person decided: what it means, and the person's second yes (no: as it was)
     if (hi === undefined || (hi === 1 && was !== 1 && !(await ctx.confirm(ui(lang, "ui.consent.hypotheses.agent"), false)))) ownHypotheses = false;
     else writeStored(cfg, "hypotheses.decide", agent, hi === 1 ? "agent" : "person");
@@ -230,7 +242,7 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
   let level = now;
   if (agent) {
     const labels = { ask: ui(lang, "ui.setup.level.ask"), auto: ui(lang, "ui.setup.level.auto"), full: ui(lang, "ui.setup.level.full") };
-    const li = await ctx.choose(ui(lang, "ui.setup.level"), PERMISSION_LEVELS.map((l) => ({ label: labels[l] })), PERMISSION_LEVELS.indexOf(now), keep);
+    const li = await ctx.choose(ui(lang, "ui.setup.level"), PERMISSION_LEVELS.map((l) => shaped(labels[l])), PERMISSION_LEVELS.indexOf(now), keep);
     level = PERMISSION_LEVELS[li ?? PERMISSION_LEVELS.indexOf(now)]!;
     if (level === "full" && now !== "full") {
       out(ui(lang, "ui.setup.level.warn"));
@@ -243,7 +255,7 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
   // conversation loads them always. Only for an agent that has the switches.
   if (agent && ADDON_SWITCHES.includes(agent)) {
     const was = cfg.agentAddons === "on" ? 1 : 0;
-    const ai = await ctx.choose(`${ui(lang, "ui.setup.addons")}\n${ui(lang, "ui.alone.addons.about")}`, [{ label: ui(lang, "ui.setup.addons.yes") }, { label: ui(lang, "ui.setup.addons.no") }], was, keep);
+    const ai = await ctx.choose(`${ui(lang, "ui.setup.addons")}\n${ui(lang, "ui.alone.addons.about")}`, [shaped(ui(lang, "ui.setup.addons.yes")), shaped(ui(lang, "ui.setup.addons.no"))], was, keep);
     if ((ai ?? was) === 1) cfg.agentAddons = "on";
     else delete cfg.agentAddons;
   }
@@ -270,7 +282,7 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
     const tree = ctx.hasTree() ? ctx.tree().config : undefined;
     ownStoryHistory = readStored(tree, "stories.history", agent) !== undefined;
     const was = (ownStoryHistory ? readStored(tree, "stories.history", agent) : readStored(cfg, "stories.history", agent)) === "no" ? 1 : 0;
-    const hi = await ctx.choose(ui(lang, "ui.setup.stories.history"), [{ label: ui(lang, "ui.setup.stories.history.yes") }, { label: ui(lang, "ui.setup.stories.history.no") }], was, keep);
+    const hi = await ctx.choose(ui(lang, "ui.setup.stories.history"), [shaped(ui(lang, "ui.setup.stories.history.yes")), shaped(ui(lang, "ui.setup.stories.history.no"))], was, keep);
     if (hi === undefined) ownStoryHistory = false;
     else writeStored(cfg, "stories.history", agent, hi === 1 ? "no" : undefined);
   }
@@ -484,7 +496,7 @@ export async function askStromApp(ctx: Context, lang: string, back: string | und
   const answers = ["install", "later", "no"] as const;
   const i = await ctx.choose(
     ui(lang, ctx.archiveHere() ? "ui.setup.stromapp.archive" : "ui.setup.stromapp"),
-    [{ label: ui(lang, "ui.setup.stromapp.install") }, { label: ui(lang, "ui.setup.stromapp.later") }, { label: ui(lang, "ui.setup.stromapp.no") }],
+    [shaped(ui(lang, "ui.setup.stromapp.install")), shaped(ui(lang, "ui.setup.stromapp.later")), shaped(ui(lang, "ui.setup.stromapp.no"))],
     said === "no" ? 2 : said === "yes" ? 1 : 0,
     back ? { back } : {},
   );

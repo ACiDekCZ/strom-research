@@ -205,7 +205,7 @@ test("the setup wizard: several agents — the user picks; full needs a second y
   // (high), no stories, who decides the hypotheses (Enter), level 3 (full) — then "no" to the warning, no shortcut
   const r = await w.ok(["setup"], { answers: ["en", "", "", "2", "3", "1", "2", "", "3", "n", "", "n"] });
   assert.match(r.out, /Which model should do the research in OpenAI Codex CLI\?/);
-  assert.match(r.out, /Which AI agent, and where to talk with it\?\n {2}\[1\] {2}Claude Code — in the terminal \(for experienced users\)\n {2}\[2\] {2}OpenAI Codex CLI — in the terminal/);
+  assert.match(r.out, /Which AI agent, and where to talk with it\?\n {2}\[1\] {2}Claude Code — in the terminal {2,}for experienced users\n {2}\[2\] {2}OpenAI Codex CLI — in the terminal/);
   assert.match(r.out, /The research needs a strong model .* in OpenAI Codex CLI, choose its best model/);
   assert.match(r.out, /Should the agent also write stories of the ancestors/);
   assert.match(r.out, /The agent will be able to run any program/);

@@ -123,7 +123,7 @@ test("the menu: the settings of this computer — the agent working alone, a hoo
   const r = await w.ok([], { tty: true, answers: ["8", "2", "1", "90", "2", "1", "12", "a", "0", "3", "1", "a", "0", "7", "a", "4", "1", "a", "0", "0", "0"] });
   assert.match(r.out, /Strom › Nastavení \(na tomto počítači\)\n\n {2}\[1\] {2}Průvodce nastavením {2,}Jazyk, agent, model/);
   assert.match(r.out, /Samostatná práce agenta {2,}90 min na úkol · podmínka: Claude usage 12\n/);
-  assert.match(r.out, /Zpráva do telefonu: zapnuto/);
+  assert.match(r.out, /Zpráva do telefonu {2,}zapnuto/);
   assert.match(r.out, / \[7\] {2}Remote Control v aplikaci Claude {2,}rozhovory i samostatná práce {2,}rozhovor s agentem i z mobilu {2,}→ vypnout\n/);
   assert.match(r.out, /Stahovače se ptají, než začnou {2,}zapnuto {2,}→ vypnout\n/);
   const c = config();
@@ -144,9 +144,9 @@ test("the menu: the history of the places in the settings of working alone — h
   const config = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   // 8 settings · 2 working alone · 4 history · 1 how often: 2 rare · 0 back · 0 back · 0 back · 0 quit
   const r = await w.ok([], { tty: true, answers: ["8", "2", "4", "1", "2", "0", "0", "0", "0"] });
-  assert.match(r.out, / \[4\] {2}Dějiny: vypnuto\n/u);
+  assert.match(r.out, / \[4\] {2}Dějiny {2,}vypnuto\n/u);
   assert.match(r.out, /Hledat i události dějin v místech předků[^\n]*Jak často:\n {2}\[1\] {2}občas – zhruba každé 5\. sezení \(výchozí\)\n {2}\[2\] {2}zřídka – zhruba každé 10\. sezení\n {2}\[3\] {2}jen když rodinný výzkum nemá co dělat\n {2}\[4\] {2}vypnuto – dějiny se nehledají\n\n {2}\[0\] {2}Zpět\n/u);
-  assert.match(r.out, / \[4\] {2}Dějiny: zřídka – zhruba každé 10\. sezení\n/u);
+  assert.match(r.out, / \[4\] {2}Dějiny {2,}zřídka – zhruba každé 10\. sezení\n/u);
   assert.equal(config().experimentsHistory, "on");
   assert.equal(config().experimentsHistoryPace, "rare");
   // 0: nothing changes; then off — the pace kept for next time
@@ -307,8 +307,8 @@ test("the settings: at most nine items and 0, each at a number of its own — wh
 test("the menu without an AI agent: the research waits for it, kept as an archive — item 1 gets one, item 2 keeps it only an archive, nothing offered that needs it, nothing of Claude's; the numbers stay", opts, async () => {
   const w = await world();
   fs.rmSync(path.join(w.dir, "bin", "claude"));
-  // 1 get an agent: 3 later · Enter · 4 add to the archive · 1 material · 2 what is known · the text · 0 · 8 settings · 0 · 0
-  const r = await w.ok([], { tty: true, answers: ["1", "3", "", "4", "1", "2", "Babička Anna pocházela z Kolína.", "0", "8", "0", "0"] });
+  // 1 get an agent: 0 later · Enter · 4 add to the archive · 1 material · 2 what is known · the text · 0 · 8 settings · 0 · 0
+  const r = await w.ok([], { tty: true, answers: ["1", "0", "", "4", "1", "2", "Babička Anna pocházela z Kolína.", "0", "8", "0", "0"] });
   assert.match(r.out, /Výzkum čeká na AI agenta: dokud na počítači žádný není, data z aplikace Strom se ukládají jako v Archivu Stromu\./);
   assert.match(r.out, / \[1\] {2}Nainstalovat nebo vybrat AI agenta\n {2}\[2\] {2}Nechat jen jako Archiv Stromu {2,}ukládat data z aplikace Strom\n {2}\[3\] {2}Co čeká/, "the same numbers as with an agent");
   assert.doesNotMatch(r.out, /Nechat agenta pracovat samotného|Tento výzkum pracuje s agentem/);
@@ -347,7 +347,7 @@ test("the menu: what waits for the person — what to do for each, the folder fo
   // 3 what waits · 2 the place of the images (one thing: its detail at once) · 2 its folder · 0 back · 1 the other ·
   // 1 an answer · the link (kept with the task: no conversation offered) · 0 back · 0 quit
   const r = await w.ok([], { tty: true, answers: ["3", "2", "2", "0", "1", "1", "https://archive.example.org/book/77", "0", "0"] });
-  assert.match(r.out, /\nStrom › Co čeká\n {2}k vyřízení 2\n {2}Druh: {2}\[s\] snímky 1 {2}\[w\] web 1\n\n {2}\[1\] {2}Ostatní {14}1 {2}Kde jsou zapsány křty obce Týnec\n {2}\[2\] {2}archive\.example\.org {2}1 {2}Křest Jana\n\n {2}\[0\] zpět\n\nVolba \(číslo skupiny, Enter = zpět\):/);
+  assert.match(r.out, /\nStrom › Co čeká\n {2}k vyřízení 2\n {2}Druh: {2}\[s\] snímky 1 {2}\[w\] web 1\n\n {2}\[1\] {2}Ostatní {14}1 {2}Kde jsou zapsány křty obce Týnec\n {2}\[2\] {2}archive\.example\.org {2}1 {2}Křest Jana\n\n {2}\[0\] {2}Zpět\n\nVolba \(číslo skupiny, Enter = 0 Zpět\):/);
   assert.match(r.out, /\n T0002 · snímky · priorita 3\n Křest Jana\n {4}Čeká na: snímky 9–10 knihy Žďár\n {4}Kde: archive\.example\.org\n {4}Čeká od [^\n]+\n {4}Uložit ručně: snímky 9–10 z Žďár N 1784–1820 · https:\/\/archive\.example\.org\/book\/5359\n {4}uložit je do .+inbox\/B0001 Žďár N 1784–1820\/\n/);
   assert.match(r.out, /\n {2}\[1\] {2}Otevřít archiv\n {2}\[2\] {2}Otevřít složku \(uloženo 0\/2\)\n {2}\[3\] {2}Nejde to – napsat proč\n {2}\[4\] {2}Rozhovor s agentem\n\n {2}\[0\] {2}Zpět\n/);
   assert.match(r.out, /Složka: .+inbox\/B0001 Žďár N 1784–1820 – až tam snímky budou/);
@@ -395,7 +395,7 @@ test("the menu, where it could go wrong: an empty folder, strom's own folder, a 
   const s = await w.ok([], { tty: true, answers: ["8", "2", "2", "1", "hodně", "10,5", "100", "15", "a", "1", "30", "0", "0", "0"] });
   assert.equal(s.out.match(/Čekám celý počet bodů od 0 do 99/g)?.length, 3);
   assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).runGate, "claude-usage 15");
-  assert.match(s.out, /Čas na jeden úkol: 30 min/);
+  assert.match(s.out, /Čas na jeden úkol {2,}30 min/);
   assert.equal((await w.ok(["config", "get", "run.minutes", "--json"])).json.value, 30);
   // a long answer to what waits is asked again, shorter
   await w.ok(["task", "add", "Kde je kniha", "--level", "locate", "--where", "archiv", "--why", "křest", "--done-when", "odkaz"]);

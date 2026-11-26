@@ -30,14 +30,17 @@ export interface Item {
 /** The longest label of an item (spec 144): what it is; the rest goes to its value or after it. */
 export const LABEL_MAX = 40;
 
+/** The longest state an item's text says that shaped's auto takes as its value (longer: said after it). */
+const VALUE_MAX = 24;
+
 /**
  * An item's text as a screen shows it (spec 144): what it is as the label, the rest beside it — "Hooks: on" → Hooks ·
  * value "on"; "Settings: agent, archives" → Settings · faint "agent, archives"; "Tune the scans (tuned 3. 11.)" → value
  * "tuned 3. 11." with `as: "value"`. A label longer than LABEL_MAX gives its aside in brackets to the rest. A switch
  * says where it switches to (`to`): faint after the state, "→ switch to the browser".
  */
-export function shaped(text: string, opts: { as?: "value" | "extra"; to?: string | undefined; swap?: boolean } = {}): Pick<Item, "label" | "value" | "extra"> {
-  const as = opts.as ?? "extra";
+export function shaped(text: string, opts: { as?: "value" | "extra" | "auto"; to?: string | undefined; swap?: boolean } = {}): Pick<Item, "label" | "value" | "extra"> {
+  let as = opts.as ?? "extra";
   let label = text;
   let rest: string | undefined;
   const colon = /^(.+?):\s+(.+)$/su.exec(text);
@@ -58,6 +61,21 @@ export function shaped(text: string, opts: { as?: "value" | "extra"; to?: string
       label = (label.slice(0, m.index) + label.slice(m.index + m[0].length)).trim();
       aside = m[1];
     }
+  }
+  // auto: a state (a word or two, a number) is the value, what an item holds (a list, a sentence) said after it — a
+  // state with its own aside in brackets: the state the value, the aside after it ("on (nothing proposed while …)")
+  // (an aside in brackets of the whole text is said after it: "Yes (recommended)" — a count the value: "Hypotheses (3)")
+  if (as === "auto" && rest) {
+    const own = /^(.+?) \(([^()]+)\)$/su.exec(rest);
+    const state = own ? own[1]! : rest;
+    const bracketed = !colon && bracket && !/^\p{N}+$/u.test(rest);
+    if (!bracketed && [...state].length <= VALUE_MAX && !/[,;]/u.test(state)) {
+      as = "value";
+      if (own) {
+        rest = state;
+        aside = aside ? `${own[2]!} · ${aside}` : own[2]!;
+      }
+    } else as = "extra";
   }
   const value = as === "value" ? rest : undefined;
   const said = [as === "extra" ? rest : undefined, aside].filter(Boolean).join(" · ");
@@ -92,7 +110,8 @@ export async function subMenu(ctx: Context, lang: string, build: () => { title?:
     // Enter goes back: an item here changes or starts something, a person picks it by its number
     const i = await ctx.choose(
       title ?? "",
-      all.map((it) => ({ key: it.key === "0" || opts.fixed ? it.key : String(++n), label: it.label, value: it.value, extra: it.extra })),
+      // an item said as one text ("Time for one task: 30 min"): its label, its state in the column of values
+      all.map((it) => ({ key: it.key === "0" || opts.fixed ? it.key : String(++n), ...(it.value || it.extra || it.key === "0" ? { label: it.label, value: it.value, extra: it.extra } : shaped(it.label, { as: "auto" })) })),
       all.length - 1,
       { screen: true },
     );

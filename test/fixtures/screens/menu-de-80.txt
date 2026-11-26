@@ -1,3 +1,25 @@
+Strom Ahnenforschung X.Y.Z
+Stammbaum: Lhotákovi · Personen: 0
+Tipp: Die Forschung lässt sich in der Strom-App als Stammbaum ansehen und live
+verfolgen, während der Agent arbeitet – Auswahl 7.
+
+  [1]  Die Forschung mit dem Agenten beginnen
+  [2]  Den Agenten allein arbeiten lassen
+  [3]  Was wartet
+  [4]  Die Forschung erweitern  Unterlagen, eine neue Linie, eine Person prüfen,
+                                Änderungen aus der Strom-App
+  [5]  Den Stammbaum ansehen    Überblick, Personen, Vorfahren, Neues
+  [6]  Stammbaum anlegen · einen schicken oder empfangen
+  [7]  Die Strom-App            die Forschung als Stammbaum, live verfolgt
+  [8]  Einstellungen            Agent, allein arbeiten, Nachrichten, Archive,
+                                Wartung
+
+  [0]  Beenden
+
+Auswahl (Enter = 1 Die Forschung): 
+
+-----
+
 Strom › Einstellungen (auf diesem Computer)
 
   [1]  Einrichtung                         Sprache, Agent, Modell, was der Agent
@@ -45,6 +67,7 @@ Downloader der Archive auf diesem Computer:
 Keiner braucht eine Anmeldung – die Archive sind frei zugänglich. Eine Anmeldung
 erscheint hier nur bei einem Downloader eines Portals mit Konto (etwa einem
 bezahlten).
+
   [1]  Downloader fragen nach, bevor sie laufen · aus  → einschalten
   [2]  Der Browser für den Agenten         nur für Archive über den Browser
                                            Claude in Chrome  → in jeder Sitzung

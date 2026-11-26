@@ -289,10 +289,10 @@ test("the menu: the history's kinds, one number each — off for this computer's
     const config = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
     // 8 settings · 2 working alone · 4 history · 2 kinds · 6 law off · 0 · 0 · 0 · 0 · 0 quit
     const r = await w.ok([], { tty: true, answers: ["8", "2", "4", "2", "6", "0", "0", "0", "0", "0"] });
-    assert.match(r.out, / \[2\] {2}Druhy dějin: všechny\n/u);
+    assert.match(r.out, / \[2\] {2}Druhy dějin {2,}všechny\n/u);
     assert.match(r.out, / \[3\] {2}Srovnat dějiny s nastavením\n/u);
-    assert.match(r.out, / \[6\] {2}zákon: zapnuto\n/u);
-    assert.match(r.out, / \[6\] {2}zákon: vypnuto\n/u);
+    assert.match(r.out, / \[6\] {2}zákon {2,}zapnuto\n/u);
+    assert.match(r.out, / \[6\] {2}zákon {2,}vypnuto\n/u);
     assert.equal(config().historyKinds, "all,-law");
     await w.ok([], { tty: true, answers: ["8", "2", "4", "2", "6", "0", "0", "0", "0", "0"] });
     assert.equal(config().historyKinds, "all");

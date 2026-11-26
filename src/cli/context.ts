@@ -27,7 +27,7 @@ import { stateOf, treeAgentHere } from "../core/state.ts";
 import { canShowDialog, systemDialog, WAIT_SECONDS, type ChoiceText, type DialogText } from "../core/dialog.ts";
 import { UI, ui, type UIKey } from "./ui.ts";
 import { DEFAULT_LIMIT } from "./format.ts";
-import { crumbLine, line, optionLines, PLAIN, shortLabel, type Option, type Style } from "./screen.ts";
+import { crumbLine, line, optionLines, PLAIN, saidLines, shortLabel, type Option, type Style } from "./screen.ts";
 
 export interface IO {
   stdout: (s: string) => void;
@@ -194,6 +194,17 @@ export class Context {
       this.crumbs.length = before;
       this.crumbSaid = undefined;
     }
+  }
+
+  /**
+   * The way to the screen above a block a screen prints itself before its question (What waits' thing, a decision):
+   * its line, said once for this way (each time with `again` — the screen drawn again after an act); none outside the menu.
+   */
+  wayHead(again = false): string[] {
+    const way = this.crumbs.join(" › ");
+    if (!this.crumbs.length || (!again && this.crumbSaid === way)) return [];
+    this.crumbSaid = way;
+    return [crumbLine(this.crumbs, this.style)];
   }
 
   /** Can we ask the user a question right now? */
@@ -467,11 +478,9 @@ export class Context {
       said.push(crumbLine(this.crumbs, style, aside), "");
       this.crumbSaid = way;
     }
-    for (const [i, l] of lines.entries()) {
-      const hang = (/^\s*/u.exec(l)?.[0].length ?? 0) + (/^\s*[•·-] /u.test(l) ? 2 : 0);
-      said.push(line([{ text: l, role: i === 0 && !/^\s/u.test(l) ? "heading" : "text" }], style, hang));
-    }
-    for (const s of opts.summary ?? []) said.push(line([{ text: `  ${s}`, role: "text" }], style, 2));
+    // a command a sentence ends with on a line of its own (spec 144 K2)
+    for (const [i, l] of lines.entries()) said.push(...saidLines(l, style, { role: i === 0 && !/^\s/u.test(l) ? "heading" : "text" }));
+    for (const s of opts.summary ?? []) said.push(...saidLines(s, style, { indent: 2 }));
     // [?] Details before the back option
     const shownOptions: Option[] = options.map((o, i) => ({ key: keys[i]!, label: o.label, value: o.value, extra: o.extra }));
     if (opts.details) {
@@ -489,7 +498,7 @@ export class Context {
       const a = (await this.choiceAnswer(prompt, fallback)).trim();
       if (a === "?" && opts.details && !keys.includes("?")) {
         // the longer text, then the same question again (its options stay above)
-        this.io.stdout(`\n${opts.details().split("\n").map((l) => line([{ text: l ? `  ${l}` : "", role: "text" }], style, 2)).join("\n")}\n\n`);
+        this.io.stdout(`\n${saidLines(opts.details(), style, { indent: 2 }).join("\n")}\n\n`);
         continue;
       }
       const i = keys.indexOf(a);

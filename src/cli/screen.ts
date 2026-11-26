@@ -230,12 +230,32 @@ export function optionLines(options: readonly Option[], style: Style): string[] 
   return out;
 }
 
-/** The way to this screen: Strom › Settings › Maintenance — the last part bold, `more` faint after it. */
+/** The longest a part of the way to a screen is (a longer name: cut between its words, … after it). */
+export const CRUMB_MAX = 32;
+
+/** A part of the way cut to CRUMB_MAX: whole words, … at its end. */
+export function crumbPart(text: string, max = CRUMB_MAX): string {
+  const s = text.split("\n")[0]!.trim();
+  if (shown(s) <= max) return s;
+  let out = "";
+  for (const w of s.split(/\s+/u)) {
+    if (shown(out ? `${out} ${w}` : w) > max - 1) break;
+    out = out ? `${out} ${w}` : w;
+  }
+  // no word fits (a script without spaces): as many characters as fit as shown
+  if (!out) for (const c of s) {
+    if (shown(out + c) > max - 1) break;
+    out += c;
+  }
+  return `${out.replace(/[\s,;:·–—-]+$/u, "")}…`;
+}
+
+/** The way to this screen: Strom › Settings › Maintenance — the last part bold, `more` faint after it; long parts cut. */
 export function crumbLine(parts: readonly string[], style: Style, more?: string): string {
   const spans: Span[] = [];
   for (const [i, p] of parts.entries()) {
     if (i) spans.push({ text: " › ", role: "crumb" });
-    spans.push({ text: p, role: i === parts.length - 1 ? "crumbLast" : "crumb" });
+    spans.push({ text: crumbPart(p), role: i === parts.length - 1 ? "crumbLast" : "crumb" });
   }
   if (more) spans.push({ text: ` ${more}`, role: "dim" });
   return line(spans, style, 2);
@@ -251,6 +271,72 @@ export function commandLine(command: string, style: Style, indent = 4): string {
   return paint([{ text: " ".repeat(indent), role: "text" }, { text: `$ ${command}`, role: "command" }], style);
 }
 
+/** A line of a person's text: a sentence, or a command to copy on a line of its own (apart). */
+export interface Said {
+  text: string;
+  command?: boolean;
+}
+
+/**
+ * A text as a screen of the menu says it (spec 144 K2): a command a sentence ends with — "Undo it: strom fixes undo F1",
+ * "… (strom recordset show S1)", "→ strom update", one after another split by " · " — on a line of its own under the
+ * words that say what it does; a command the sentence goes on after stays in it (it is coloured there). The words
+ * keep their indent, the command is indented two more.
+ */
+export function apart(text: string): Said[] {
+  const out: Said[] = [];
+  for (const raw of text.split("\n")) {
+    const indent = /^\s*/u.exec(raw)![0];
+    let rest = raw.slice(indent.length);
+    const said: Said[] = [];
+    let words = "";
+    for (;;) {
+      const found = commandsIn(rest).find(([s, e]) => {
+        const before = rest.slice(0, s).trimEnd();
+        const after = rest.slice(e);
+        const opens = !before || /[:→(]$/u.test(before) || /(?:^|\s)[-–—]$/u.test(before);
+        const ends = (/^\)?[.;]?\s*(?:$|·\s)/u.test(after) || /^\)?[.;]\s+\p{Lu}/u.test(after)) && (!/^\)/u.test(after) || /\($/u.test(before));
+        return opens && ends;
+      });
+      if (!found) break;
+      const [s, e] = found;
+      let before = rest.slice(0, s).trimEnd();
+      if (/\($/u.test(before)) before = before.slice(0, -1).trimEnd();
+      const head = words + before;
+      if (head.trim()) said.push({ text: head.trimEnd() });
+      said.push({ text: rest.slice(s, e), command: true });
+      words = "";
+      rest = rest.slice(e).replace(/^\)?[.;]?\s*(?:·\s*)?/u, "");
+      if (!rest) break;
+    }
+    if (!said.length) {
+      out.push({ text: raw });
+      continue;
+    }
+    if (rest.trim()) said.push({ text: rest });
+    for (const x of said) out.push(x.command ? { text: x.text, command: true } : { text: indent + x.text });
+  }
+  return out;
+}
+
+/** A person's text drawn (apart): its sentences wrapped under their indent, its commands on lines of their own. */
+export function saidLines(text: string, style: Style, opts: { role?: Role; indent?: number } = {}): string[] {
+  const lines: string[] = [];
+  let last = opts.indent ?? 0;
+  for (const s of apart(text)) {
+    if (s.command) {
+      lines.push(commandLine(s.text, style, last + 2));
+      continue;
+    }
+    const pad = " ".repeat(opts.indent ?? 0);
+    const l = s.text ? pad + s.text : "";
+    last = (/^\s*/u.exec(l)?.[0].length ?? 0);
+    const hang = last + (/^\s*[•·-] /u.test(l) ? 2 : 0);
+    lines.push(line([{ text: l, role: opts.role ?? "text" }], style, hang));
+  }
+  return lines;
+}
+
 /** The label of an option as Enter's prompt and a crumb say it: up to its first aside (" (", ": ", " · ", " – "). */
 export function shortLabel(label: string, max = 28, firstWord = false): string {
   let s = label.split("\n")[0]!;
@@ -258,9 +344,16 @@ export function shortLabel(label: string, max = 28, firstWord = false): string {
   if (cut) s = s.slice(0, cut.index);
   s = s.trim();
   if (shown(s) <= max) return s;
-  // a prompt says the option's first word (Enter = 1 Continue), whole
-  const word = s.split(/\s+/u)[0]!;
-  if (firstWord && shown(word) <= max) return word;
+  // a prompt says the option's first word (Enter = 1 Continue), whole, without its comma — a short word first (an
+  // article, "Die Forschung …") with the word after it
+  const all = s.split(/\s+/u);
+  let word = "";
+  for (const w of all) {
+    word = word ? `${word} ${w}` : w;
+    if ([...w.replace(/[\p{P}]+$/u, "")].length > 3 || /[\p{P}]$/u.test(w)) break;
+  }
+  word = word.replace(/[,;:.]+$/u, "");
+  if (firstWord && word && shown(word) <= max) return word;
   const words = s.split(/\s+/u);
   let out = "";
   for (const w of words) {
@@ -375,7 +468,8 @@ const NAME_MAX = 40;
 /**
  * A list's rows under headings: `   [1]  Name             2  detail`, the keys aligned right, the counts in one
  * column on the right of the names (a heading's count in it too); a name longer than the column wraps within it on a
- * terminal, off one it stays whole and its count follows after ` · `. The detail is cut to the screen (never off one).
+ * terminal, off one it stays whole and its count follows after ` · `. The detail is never cut: on a terminal it wraps
+ * under itself (or, with no room beside the count, under the name).
  */
 export function listLines(parts: readonly { heading?: { text: string; aside?: string | undefined; count: string } | undefined; rows: readonly ListRow[] }[], style: Style): string[] {
   const all = parts.flatMap((p) => p.rows);
@@ -400,10 +494,17 @@ export function listLines(parts: readonly { heading?: { text: string; aside?: st
       const keySpans: Span[] = [{ text: " ".repeat(2 + keyw - r.key.length - 2), role: "text" }, { text: `[${r.key}]`, role: "key" }, { text: "  ", role: "text" }];
       const count = " ".repeat(countw - shown(r.count)) + r.count;
       const room = Number.isFinite(width) ? width - (lead + col + 2 + countw + 2) : Infinity;
-      const detail = r.detail === undefined || room < 4 ? undefined : Number.isFinite(room) ? cut(r.detail, room) : r.detail;
-      const tail: Span[] = [{ text: count, role: "value" }, ...(detail ? [{ text: `  ${detail}`, role: "dim" as const }] : [])];
+      // the detail whole: wrapped under itself where the row has room, else under the name (never cut: what the place
+      // holds is what a person picks it by)
+      const under = lead + col + 2 + countw + 2;
+      const detailAt = room >= 20 ? under : lead;
+      const details = r.detail === undefined ? [] : Number.isFinite(width) ? wrap([{ text: r.detail, role: "dim" }], width - detailAt, 0).map(plain) : [r.detail];
+      const firstDetail = room >= 20 ? details.shift() : undefined;
+      const tail: Span[] = [{ text: count, role: "value" }, ...(firstDetail ? [{ text: `  ${firstDetail}`, role: "dim" as const }] : [])];
+      const rest = () => details.map((d) => paint([{ text: " ".repeat(detailAt), role: "text" }, { text: d, role: "dim" }], style).trimEnd());
       if (shown(r.name) <= col) {
         out.push(paint([...keySpans, { text: r.name + " ".repeat(col - shown(r.name) + 2), role: "text" }, ...tail], style).trimEnd());
+        out.push(...rest());
         continue;
       }
       if (!Number.isFinite(width)) {
@@ -413,7 +514,19 @@ export function listLines(parts: readonly { heading?: { text: string; aside?: st
       }
       const lines = wrap([{ text: r.name, role: "text" }], col, 0).map((l) => plain(l));
       out.push(paint([...keySpans, { text: lines[0]! + " ".repeat(Math.max(0, col - shown(lines[0]!)) + 2), role: "text" }, ...tail], style).trimEnd());
-      for (const l of lines.slice(1)) out.push(" ".repeat(lead) + l.trimEnd());
+      // the name's further lines, the detail's beside them (under its column)
+      const names = lines.slice(1);
+      const details2 = rest();
+      if (detailAt === under) {
+        for (let k = 0; k < Math.max(names.length, details2.length); k++) {
+          const n = names[k] ?? "";
+          const d = details[k];
+          out.push((" ".repeat(lead) + n + (d ? " ".repeat(Math.max(1, under - lead - shown(n))) + paint([{ text: d, role: "dim" }], style) : "")).trimEnd());
+        }
+      } else {
+        for (const l of names) out.push(" ".repeat(lead) + l.trimEnd());
+        out.push(...details2);
+      }
     }
   }
   return out;

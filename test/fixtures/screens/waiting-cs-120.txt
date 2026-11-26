@@ -1,0 +1,131 @@
+Strom výzkum X.Y.Z
+Rodokmen: Lhotákovi · osob: 1
+Čeká: 3
+Čtení ke čtení znovu čekají na rozhodnutí: Dřívější čtení jiným modelem (1) — Nastavení → Údržba →
+Opravy
+Tip: výzkum jde prohlížet jako rodokmen v aplikaci Strom a sledovat ho živě, když agent pracuje –
+volba 7.
+
+  [1]  Pokračovat ve výzkumu s agentem
+  [2]  Nechat agenta pracovat samotného
+  [3]  Co čeká             3
+  [4]  Rozšířit výzkum     podklady, nová linie, revize osoby, úpravy z aplikace Strom
+  [5]  Prohlížet rodokmen  přehled, osoby, předkové, co je nového
+  [6]  Založit rodokmen · poslat nebo přijmout
+  [7]  Aplikace Strom      výzkum jako rodokmen, sledovaný živě
+  [8]  Nastavení           agent, samostatná práce, zprávy, archivy, údržba
+
+  [0]  Konec
+
+Volba (Enter = 1 Pokračovat): 
+
+-----
+
+Strom › Co čeká
+  k vyřízení 3
+  Druh:  [a] archivy a úřady 2  [o] rodina 1
+
+  [1]  Matriční úřad Lhota nad Lhotkou u Horní   2  dopis k odeslání
+       Lhoty
+  [2]  Rodina                                    1  Vzpomínky na Lhotu
+
+  [0]  Zpět
+
+Volba (číslo skupiny, Enter = 0 Zpět): 
+
+-----
+
+Strom › Co čeká › Matriční úřad Lhota nad Lhotkou…
+
+  k vyřízení 2
+  [1]  Opis zápisu Lhota 1 · dopis · priorita 3
+  [2]  Opis zápisu Lhota 2 · dopis · priorita 3
+  [3]  Odesláno za celou skupinu
+  [4]  Rozhovor s agentem k celé skupině
+
+  [0]  Zpět
+
+Volba (Enter = 0 Zpět): 
+
+-----
+
+Strom › Co čeká › Rodina
+
+ T0003 · rodina · priorita 3
+ Vzpomínky na Lhotu
+    Čeká na: Vzpomínky rodiny.
+    Kde: Rodina
+    Čeká od D. M.
+
+  [1]  Odesláno
+  [2]  Odpovědět textem
+  [3]  Přidat soubor
+  [4]  Rozhovor s agentem
+
+  [0]  Zpět
+
+Volba (Enter = 0 Zpět): 
+
+-----
+
+Strom › Nastavení (na tomto počítači)
+
+  [1]  Průvodce nastavením                Jazyk, agent, model, co smí agent sám, příběhy
+  [2]  Samostatná práce agenta            60 min na úkol · podmínka: žádná
+  [3]  Zprávy o tom, co se uloží (hooky)  žádné
+  [4]  Archivy                            přihlášení, souhlas se stahováním
+  [5]  Výzkum, nebo jen Archiv Stromu     výzkum: hledání v matrikách a archivech
+  [6]  Vyladit čtení snímků               výchozí velikosti
+  [7]  Remote Control v aplikaci Claude   vypnuto  rozhovor s agentem i z mobilu  → zapnout
+  [8]  Údržba                             kontrola instalace, místo na disku, opravy, zálohy
+  [9]  Nápověda                           příkazy pro člověka
+
+  [0]  Zpět
+
+Volba (Enter = 0 Zpět): 
+
+-----
+
+Strom › Nastavení › Údržba
+
+  [1]  Kontrola instalace
+  [2]  Místo na disku    strom si vedle výzkumu drží 1 kB
+  [3]  Opravy stromu     čeká 1
+  [5]  Co zálohovat      celou složku výzkumu, nebo zabalit
+  [6]  Nahlásit problém  jeden soubor ZIP k odeslání (nic o lidech z rodokmenu)
+
+  [0]  Zpět
+
+Volba (Enter = 0 Zpět): 
+
+-----
+
+Strom › Nastavení › Údržba › Opravy stromu
+
+new-model · Dřívější čtení jiným modelem — 1 čtení čeká na rozhodnutí
+Nalezeno: 1 čtení (1 místo) — 1 s nepřečtenými místy
+Náročnost: levné · 1 volání čtenáře · asi 1 min (podle počtu volání čtenáře: tady nejsou dřívější
+čtenáři, podle kterých odhadnout)
+
+Napravit?
+  [1]  Všechna  1 čtení (1 místo) · levné, asi 1 min
+  [2]  Ne: nechat, jak je (už se nenabídne)
+  [?]  Podrobnosti
+
+  [0]  Později
+
+Volba (Enter = 0 Později): 
+
+----- [?]
+
+
+  Dřívější čtení jsou z modelu Claude Code · m-old (1 čtení); teď se čte modelem Claude Code ·
+  m-new. Jiný model může přečíst jinak nebo víc: kde v dřívějším čtení něco zůstalo otevřené, může
+  se vyplatit přečíst ho znovu. Který z nich čte lépe, se nehádá.
+    YYYY-MM-DD-M0001-1 · M0001 (B0001:1) · Claude Code · m-old · dříve 2 nejistá místa
+  Napravení: každé čtení se přečte znovu modelem Claude Code · m-new tak, jak se ptalo (stejná
+  otázka, stejná část snímku; dokument: tytéž stránky a části jako nové vlastní čtení). Nové čtení
+  stojí vedle dřívějšího; kde se liší nebo nové přečte víc, vznikne úkol obě porovnat.
+  Nic se nepřepíše ani nesmaže: dřívější čtení, prameny a údaje zůstávají, jak jsou. Čtení, ve
+  kterých nic nezůstalo otevřené, se znovu nečtou. Ptá se jednou pro Claude Code · m-new: pozdější
+  čtení dalším modelem se zeptá znovu.

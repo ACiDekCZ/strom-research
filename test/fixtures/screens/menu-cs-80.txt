@@ -63,6 +63,7 @@ Stahovače archivů na tomto počítači:
 
 Žádný z nich přihlášení nepotřebuje – archivy jsou volně přístupné. Přihlášení
 se tu objeví jen u stahovače portálu s účtem (třeba placeným).
+
   [1]  Stahovače se ptají, než začnou      vypnuto  → zapnout
   [2]  Prohlížeč pro agenta (Claude in Chrome) · jen pro archivy přes prohlížeč
        → v každém sezení

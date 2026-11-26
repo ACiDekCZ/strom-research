@@ -10,6 +10,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { World, fakeConnector, hasGit } from "../helpers.ts";
 import { main } from "../../src/cli/main.ts";
+import { encodeImage } from "../../src/image/index.ts";
 import { shown, terminalStyle } from "../../src/cli/screen.ts";
 
 const opts = { skip: !hasGit };
@@ -34,6 +35,35 @@ async function world(): Promise<World> {
   return w;
 }
 
+/**
+ * The same with things waiting: two letters to one office of a long name (a place of its own, its crumb cut), the
+ * family (one thing: the thing itself), and an earlier reading by another model left open (fixes: new-model).
+ */
+async function waitingWorld(): Promise<World> {
+  const w = await world();
+  await w.ok(["research", "new", "Předci Vojtěcha", "--new-person", "Vojtěch /Lhoták/", "--sex", "M", "--born", "1902"]);
+  await w.ok(["recordset", "add", "Lhota N 1840–1860", "--kinds", "baptism"]);
+  const scans = path.join(w.dir, "skeny");
+  fs.mkdirSync(scans);
+  fs.writeFileSync(path.join(scans, "s0001.jpg"), encodeImage({ width: 400, height: 300, channels: 3, data: new Uint8Array(400 * 300 * 3).fill(200) }, "jpeg"));
+  await w.ok(["media", "add", scans, "--recordset", "B1"]);
+  const readings = path.join(w.cwd, "notes", "readings");
+  fs.mkdirSync(readings, { recursive: true });
+  fs.writeFileSync(
+    path.join(readings, `${new Date(Date.now() - 3_600_000).toISOString().slice(0, 10)}-M0001-1-1.md`),
+    "# Reading M0001 · batch 1 of 1\nStrom: 1.19.0\nAgent: claude\nModel: m-old\nImages: M0001\nQuestion: Přepsat zápis celý; nejisté označit [?]\n\n## Image 1 · M0001\nresult: found\nentries:\n- Jan Lhoták [?], Lhota [?]\n",
+  );
+  w.env.STROM_MODEL_VISION = "m-new";
+  let n = 0;
+  const waiting = async (what: string, ...how: string[]) => {
+    await w.ok(["task", "add", what, "--level", "request", "--where", "matrika Lhota", "--why", "rodiče", "--done-when", "odpověď", "--about", "P1", "--priority", "3", "--anyway"]);
+    await w.ok(["task", "wait", `T${++n}`, ...how]);
+  };
+  for (let i = 1; i <= 2; i++) await waiting(`Opis zápisu Lhota ${i}`, "--kind", "letter", "--to", "Matriční úřad Lhota nad Lhotkou u Horní Lhoty", "--on", "Odpověď matriky na žádost.");
+  await waiting("Vzpomínky na Lhotu", "--kind", "family", "--on", "Vzpomínky rodiny.");
+  return w;
+}
+
 /** The menu on a terminal of `columns` without colours, answered by `answers`: what it wrote. */
 async function terminal(w: World, answers: string[], columns: number, lang: string): Promise<string> {
   let out = "";
@@ -49,7 +79,7 @@ function screens(out: string): string[] {
   const lines = out.split("\n");
   let start = -1;
   for (const [i, l] of lines.entries()) {
-    if (/^Strom( › |$)|^Strom (výzkum|Research|Forschung) /u.test(l)) start = i;
+    if (/^Strom( › |$)|^Strom (výzkum|Research|Forschung|Ahnenforschung) /u.test(l)) start = i;
     if (start >= 0 && /^(Volba|Auswahl)\b/u.test(l)) {
       all.push(lines.slice(start, i + 1).join("\n"));
       start = -1;
@@ -65,7 +95,8 @@ function steady(text: string, w: World): string {
     .join("<dir>")
     .replace(/\b\d+\.\d+\.\d+(?:-beta\.\d+)?\b/gu, "X.Y.Z")
     .replace(/\b\d{4}-\d{2}-\d{2}\b/gu, "YYYY-MM-DD")
-    .replace(/\b\d{1,2}\. ?\d{1,2}\. ?\d{4}\b/gu, "D. M. YYYY");
+    .replace(/\b\d{1,2}\. ?\d{1,2}\. ?\d{4}\b/gu, "D. M. YYYY")
+    .replace(/\b\d{1,2}\. ?\d{1,2}\.(?!\s?\d)/gu, "D. M.");
 }
 
 function checked(screen: string, columns: number, where: string): void {
@@ -113,6 +144,43 @@ for (const lang of ["cs", "de"]) {
         for (const [where, s] of seen) checked(s, columns, `${lang} ${columns} ${where}`);
         assert.ok([...seen.keys()].some((c) => / › .+ › /u.test(c)), `three levels said: ${[...seen.keys()].join(" | ")}`);
         pictured(`menu-${lang}-${columns}`, steady([...seen.values()].join("\n\n-----\n\n"), w));
+      } finally {
+        w.cleanup();
+      }
+    });
+  }
+}
+
+// What waits: its places · a place of its own (two letters) · the family's one thing; the fixes from maintenance, the
+// question before and what [?] Details says after it
+const WAITING = [["3", "1", "0", "0", "0"], ["3", "2", "0", "0", "0"], ["8", "8", "3", "?", "0", "", "0", "0", "0"]];
+
+for (const lang of ["cs", "de"]) {
+  for (const columns of [80, 120]) {
+    test(`What waits and the fixes in ${lang} at ${columns} columns: the place's name in the crumbs, cut; before the question what, how many and the cost, the rest behind [?]`, opts, async () => {
+      const w = await waitingWorld();
+      try {
+        const outs = [];
+        for (const walk of WAITING) outs.push(await terminal(w, walk, columns, lang));
+        const seen = new Map<string, string>();
+        for (const s of outs.flatMap(screens)) if (!seen.has(s.split("\n")[0]!)) seen.set(s.split("\n")[0]!, s);
+        for (const [where, s] of seen) checked(s, columns, `${lang} ${columns} ${where}`);
+        const crumbs = [...seen.keys()];
+        // the office's long name cut whole words in the crumbs, the screen of the family's thing with its crumbs too
+        assert.ok(crumbs.some((c) => / › Matriční úřad Lhota nad Lhotkou…$/u.test(c)), crumbs.join(" | "));
+        assert.ok(crumbs.some((c) => / › (Rodina|Familie)$/u.test(c)), crumbs.join(" | "));
+        // the fixes: their way above them, three lines before the question, [?] before [0], the rest only after [?]
+        const fixes = seen.get(crumbs.find((c) => / › (Opravy stromu|Korrekturen von strom)$/u.test(c))!)!;
+        assert.ok(fixes, crumbs.join(" | "));
+        assert.match(fixes, /\n {2}\[\?\] {2}(Podrobnosti|Details)\n\n {2}\[0\]/u);
+        const before = fixes.split("\n").filter((l) => l && !/^Strom/u.test(l)).findIndex((l) => /^(Napravit|Beheben)\?/u.test(l));
+        assert.ok(before >= 3 && before <= 5, fixes);
+        const details = outs[2]!.slice(outs[2]!.indexOf(fixes.split("\n").at(-1)!) + fixes.split("\n").at(-1)!.length);
+        assert.match(details, /m-old/u);
+        assert.doesNotMatch(fixes, /m-old \(1/u);
+        for (const l of details.split("\n")) assert.ok(shown(l) <= columns, `wider than ${columns}: ${l}`);
+        const told = details.slice(0, details.search(/\n(Volba|Auswahl)/u));
+        pictured(`waiting-${lang}-${columns}`, steady([...seen.values()].join("\n\n-----\n\n") + "\n\n----- [?]\n" + told, w));
       } finally {
         w.cleanup();
       }

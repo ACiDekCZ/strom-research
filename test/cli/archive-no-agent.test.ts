@@ -232,8 +232,8 @@ test("K3.1 switch research on in an archive with no agent: the agent offered fir
   await w.ok(["init", "Archiv", "--mode", "archive"]);
   w.cwd = w.treeDir("Archiv");
   const before = commits(w);
-  // 1 switch research on · 3 later · Enter · 0
-  const r = await w.ok([], { tty: true, answers: ["1", "3", "", "0"] });
+  // 1 switch research on · 0 later · Enter · 0
+  const r = await w.ok([], { tty: true, answers: ["1", "0", "", "0"] });
   assert.match(r.out, /Na tomto počítači zatím není agent, se kterým pracovat/);
   assert.match(r.out, /Archiv Stromu zůstává beze změny: výzkum jde zapnout, až bude na počítači AI agent\./);
   assert.equal(stored(w.cwd), "archive");
@@ -282,7 +282,7 @@ test("K2.1 an archive with an agent here stays one: started again, strom updated
 test("K2.2 + K2.4 the setup with an agent here asks research or only an archive; with none it asks nothing and sets nothing", opts, async () => {
   const w = new World();
   noAgent(w);
-  const question = /Čím má být nový výzkum na tomto počítači\?\n\s+\[1\]\s+Výzkum s agentem Claude Code: hledá předky v matrikách a archivech \(doporučeno\)\n\s+\[2\]\s+Jen Archiv Stromu – ukládat data z aplikace Strom\n(?:\n\s+\[0\]\s+Nechat, jak je\n)?\nVolba \(Enter = (\d) /u;
+  const question = /Čím má být nový výzkum na tomto počítači\?\n\s+\[1\]\s+Výzkum s agentem Claude Code {2,}hledá předky v matrikách a archivech \(doporučeno\)\n\s+\[2\]\s+Jen Archiv Stromu {2,}ukládat data z aplikace Strom\n(?:\n\s+\[0\]\s+Nechat, jak je\n)?\nVolba \(Enter = (\d) /u;
   // no agent here: nothing asked, nothing set (the research waits for its agent)
   const none = await w.ok(["setup"], { tty: true, answers: Array(20).fill("") });
   assert.doesNotMatch(none.out, /Čím má být nový výzkum/);
