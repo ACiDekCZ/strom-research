@@ -358,6 +358,54 @@ test("house import: never guessed — a municipality of two places, a number the
   assert.equal(open(w2).list<Input>("input").length, 1);
 });
 
+test("house import: a file of two houses, one not in the tree — the house said adds to the one its heading names (K8.2); taken again with --house: taken already", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  await w.ok(["place", "add", "Lhota", "--kind", "village"]); // L0001
+  const who = (await w.ok(["person", "add", "Kapradin /Lhoták/", "--json"])).json.person.id as string;
+  await w.ok(["event", "add", who, "RESI", "--date", "1850", "--place", "Lhota", "--house", "9"]);
+  const file = path.join(w.dir, "Lhota čp. 9 a 12.md");
+  fs.writeFileSync(file, "# Lhota čp. 9 a 12 – rešerše\n\nDatum: 2026-04-01\n\n[Kronika Lhoty](https://kronika.example.org/lhota/9)\n");
+  const r = await w.run(["house", "import", file, "--json"], AGENT);
+  assert.equal(r.code, 3, r.out + r.err);
+  const q = JSON.parse(r.out).questions as { number: string; set: string }[];
+  assert.deepEqual(q.map((x) => x.number), ["12"]);
+  assert.equal(q[0]!.set, `strom house import "${file}" --house "Lhota čp. 9 a 12.md=L0001 12"`);
+  // the command said: both houses get the research, never only the one not in the tree
+  const ok = await w.ok(["house", "import", file, "--house", "Lhota čp. 9 a 12.md=L0001 12", "--json"], AGENT);
+  const ids = (ok.json.taken[0].houses as { id: string }[]).map((h) => h.id);
+  const nine = findHouse(open(w), "Lhota 9");
+  const twelve = findHouse(open(w), "Lhota 12");
+  assert.deepEqual(ids.sort(), [nine.id!, twelve.id!].sort());
+  assert.deepEqual(open(w).list<Input>("input")[0]!.houses!.sort(), ids);
+  assert.deepEqual(open(w).get<House>(nine.id!)!.passed.map((x) => x.url), ["https://kronika.example.org/lhota/9"]);
+  // the same again with its --house: said taken already, as without it
+  const again = await w.ok(["house", "import", file, "--house", "Lhota čp. 9 a 12.md=L0001 12", "--json"], AGENT);
+  assert.deepEqual(again.json.taken, []);
+  const input = open(w).list<Input>("input")[0]!.id;
+  assert.deepEqual(again.json.skipped.map((s: any) => [s.why, s.input]), [["known", input]]);
+  assert.match((await w.ok(["house", "import", file, "--house", "Lhota čp. 9 a 12.md=L0001 12", "--lang", "cs"], AGENT)).out, new RegExp(`už převzato \\(${input}\\)`, "u"));
+  assert.equal(open(w).list<Input>("input").length, 1);
+  // two houses not in the tree: each question's command names both
+  const two = path.join(w.dir, "Lhota čp. 14 a 15.md");
+  fs.writeFileSync(two, "# Lhota čp. 14 a 15 – rešerše\n\n[Kronika](https://kronika.example.org/lhota/14)\n");
+  const both = JSON.parse((await w.run(["house", "import", two, "--json"], AGENT)).out).questions as { set: string }[];
+  assert.equal(both.length, 2);
+  for (const x of both) assert.match(x.set, /--house "Lhota čp\. 14 a 15\.md=L0001 1[45]" --house "Lhota čp\. 14 a 15\.md=L0001 1[45]"$/u);
+  // a terminal asks for the one not in the tree: both houses again (the link house&do=import asks the same way)
+  const w2 = new World();
+  await w2.withTree("Lhotákovi");
+  await w2.ok(["place", "add", "Lhota", "--kind", "village"]);
+  const p2 = (await w2.ok(["person", "add", "Kapradin /Lhoták/", "--json"])).json.person.id as string;
+  await w2.ok(["event", "add", p2, "RESI", "--date", "1850", "--place", "Lhota", "--house", "9"]);
+  const f2 = path.join(w2.dir, "Lhota čp. 9 a 12.md");
+  fs.copyFileSync(file, f2);
+  await w2.ok(["house", "import", f2], { tty: true, answers: ["1"] });
+  assert.deepEqual(open(w2).list<House>("house").map((x) => x.house).sort(), ["12", "9"]);
+  assert.equal(open(w2).list<Input>("input")[0]!.houses!.length, 2);
+  valid(w);
+});
+
 test("house import and the houses: decomposed names and text, a municipality in a non-Latin script", opts, async () => {
   const w = new World();
   await w.withTree("Lhotákovi");

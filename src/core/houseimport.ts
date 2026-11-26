@@ -8,7 +8,7 @@
 // Which house a file is of is read from its first heading and its name (core/streets.ts houseInTitle): its
 // municipality matched to one place record, each number to a house of it. Never guessed: what is not clear is a
 // question — asked at a terminal, else the whole import is refused before anything is written with the exact command
-// that says it (--house <file>=<house>, --skip <file>). A file of no house is not taken, and the import says so; a
+// that says it (--house <file>=<house>, --skip <file>; a house said adds to those its heading names clearly). A file of no house is not taken, and the import says so; a
 // folder's images and map data in its subfolders and a web page beside it are not taken either, only listed in the task.
 
 import fs from "node:fs";
@@ -241,8 +241,19 @@ export function planImport(tree: Tree, paths: string[], opts: { assign?: { file:
     const said = (opts.assign ?? []).filter((a) => names(file, a.file));
     const had = known.get(sha);
     const add = (targets: ImportTarget[]) => plan.files.push({ file, name, text, sha, research, targets });
+    const found = (research.title ? houseInTitle(research.title) : undefined) ?? houseInTitle(path.basename(file, path.extname(file)));
+    const read = found ? readHouses(tree, rows, found) : undefined;
     if (said.length) {
-      add(said.map((a) => targetOf(tree, rows, a.house)));
+      // the person's --house adds to the houses its heading names clearly (K8.2: a file of more houses is of them all)
+      const targets: ImportTarget[] = [];
+      for (const t of [...(read?.clear ?? []), ...said.map((a) => targetOf(tree, rows, a.house))])
+        if (!targets.some((x) => targetKey(x) === targetKey(t))) targets.push(t);
+      // taken before for these very houses: nothing again, said as without --house
+      if (had?.houses?.length && targets.every((t) => "row" in t && !!t.row.id && had.houses!.includes(t.row.id))) {
+        plan.skipped.push({ file, name, why: "known", input: had.id });
+        continue;
+      }
+      add(targets);
       continue;
     }
     // taken before as it is: nothing again (its houses kept)
@@ -250,40 +261,66 @@ export function planImport(tree: Tree, paths: string[], opts: { assign?: { file:
       plan.skipped.push({ file, name, why: "known", input: had.id });
       continue;
     }
-    const found = (research.title ? houseInTitle(research.title) : undefined) ?? houseInTitle(path.basename(file, path.extname(file)));
-    if (!found) {
+    if (!found || !read) {
       plan.skipped.push({ file, name, why: "no-house" });
       continue;
     }
     const ask = (q: Omit<ImportQuestion, "file" | "name" | "set">, set: string) => plan.questions.push({ file, name, ...q, set });
-    const cmd = (house: string) => `strom house import ${shellArg(file)} --house ${shellArg(`${name}=${house}`)}`;
-    const places = placesNamed(tree, found.town);
-    if (places.length === 0) {
+    const cmd = (houses: string[]) => `strom house import ${shellArg(file)} ${houses.map((h) => `--house ${shellArg(`${name}=${h}`)}`).join(" ")}`;
+    if (!read.places.length) {
       // the facts write it, but no place record is of it: a house of it has no record to be
       const inTree = rows.filter((r) => !r.place.id && r.place.key === appPlaceKey(found.town));
-      ask({ why: inTree.length ? "town-not-a-place" : "town-unknown", town: found.town, candidates: [] }, `strom place add ${shellArg(found.town)} — then ${cmd(`<L…> ${found.numbers[0]}`)}`);
+      ask({ why: inTree.length ? "town-not-a-place" : "town-unknown", town: found.town, candidates: [] }, `strom place add ${shellArg(found.town)} — then ${cmd([`<L…> ${found.numbers[0]}`])}`);
       continue;
     }
-    const targets: ImportTarget[] = [];
-    let open = false;
-    for (const number of found.numbers) {
-      const hk = appHouseKey(number);
-      const matches = rows.filter((r) => !!r.place.id && places.some((p) => p.id === r.place.id) && (appHouseKey(r.house) === hk || r.key.split("|")[1] === hk));
-      if (places.length === 1 && matches.length === 1) {
-        targets.push({ row: matches[0]! });
-        continue;
-      }
-      open = true;
-      const label = (r: HouseRow) => `${r.id ?? r.key} ${r.place.name} ${r.house}${r.name ? ` (${r.name})` : ""}${r.persons ? ` · ${r.persons}` : ""}`;
-      const candidates = [
-        ...matches.map((r) => ({ house: r.id ?? r.key, label: label(r) })),
-        ...places.filter((p) => !matches.some((r) => r.place.id === p.id)).map((p) => ({ house: `${p.id} ${number}`, label: `${p.id} ${p.names[0]?.name ?? ""} ${number}`, make: { place: p.id, house: number } })),
-      ];
-      ask({ why: places.length > 1 ? "town-ambiguous" : "house-unknown", town: found.town, number, candidates }, candidates.map((c) => cmd(c.house)).join(" | "));
+    if (!read.open.length) {
+      add(read.clear);
+      continue;
     }
-    if (!open) add(targets);
+    // each open number a question; its command names every open house of the file at once (the others of the same
+    // place), so that none of them is lost — those its heading names clearly come by themselves
+    for (const o of read.open) {
+      const others = read.open.filter((x) => x !== o);
+      const sets = o.candidates.map((c) => {
+        const with_ = others.map((x) => x.candidates.filter((y) => y.place === c.place));
+        return cmd([c.house, ...(with_.every((w) => w.length === 1) ? with_.map((w) => w[0]!.house) : [])]);
+      });
+      ask({ why: read.places.length > 1 ? "town-ambiguous" : "house-unknown", town: found.town, number: o.number, candidates: o.candidates.map(({ place: _p, ...c }) => c) }, sets.join(" | "));
+    }
   }
   return plan;
+}
+
+/** A target's identity: the house it is of, or the one to make. */
+const targetKey = (t: ImportTarget) => ("row" in t ? t.row.key : `${t.make.place.id}|${appHouseKey(t.make.house)}`);
+
+/** The houses a file's heading names: those clear (one place, one house), those open with what each may be. */
+function readHouses(
+  tree: Tree,
+  rows: HouseRow[],
+  found: { town: string; numbers: string[] },
+): { places: Place[]; clear: ImportTarget[]; open: { number: string; candidates: (ImportQuestion["candidates"][number] & { place: string })[] }[] } {
+  const places = placesNamed(tree, found.town);
+  const clear: ImportTarget[] = [];
+  const open: { number: string; candidates: (ImportQuestion["candidates"][number] & { place: string })[] }[] = [];
+  if (!places.length) return { places, clear, open };
+  const label = (r: HouseRow) => `${r.id ?? r.key} ${r.place.name} ${r.house}${r.name ? ` (${r.name})` : ""}${r.persons ? ` · ${r.persons}` : ""}`;
+  for (const number of found.numbers) {
+    const hk = appHouseKey(number);
+    const matches = rows.filter((r) => !!r.place.id && places.some((p) => p.id === r.place.id) && (appHouseKey(r.house) === hk || r.key.split("|")[1] === hk));
+    if (places.length === 1 && matches.length === 1) {
+      clear.push({ row: matches[0]! });
+      continue;
+    }
+    open.push({
+      number,
+      candidates: [
+        ...matches.map((r) => ({ house: r.id ?? r.key, label: label(r), place: r.place.id! })),
+        ...places.filter((p) => !matches.some((r) => r.place.id === p.id)).map((p) => ({ house: `${p.id} ${number}`, label: `${p.id} ${p.names[0]?.name ?? ""} ${number}`, make: { place: p.id, house: number }, place: p.id })),
+      ],
+    });
+  }
+  return { places, clear, open };
 }
 
 /** The import refused for its questions (no terminal to ask): exit 3, each question with the command that says it. */

@@ -777,7 +777,7 @@ register({
   ].join("\n"),
   args: [{ name: "path", description: "a file or a folder of a research", required: true, variadic: true }],
   options: [
-    { name: "house", type: "string", multiple: true, value: "<file>=<house>", description: "the house of a file: A…, its key, or <L…|municipality> <number> (made where it is none yet); repeatable, a file of two houses twice" },
+    { name: "house", type: "string", multiple: true, value: "<file>=<house>", description: "a house of a file besides those its heading names clearly: A…, its key, or <L…|municipality> <number> (made where it is none yet); repeatable, two houses not in the tree twice" },
     { name: "skip", type: "string", multiple: true, value: "<file>", description: "a file not to take (repeatable)" },
   ],
   examples: ["strom house import ~/Research/House", 'strom house import ~/Research/House --house "notes.md=A0001" --skip draft.md'],
