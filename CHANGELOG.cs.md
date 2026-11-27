@@ -12,13 +12,17 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   Nastavení → Archivy), výzva říká, co udělá Enter, a příkaz k opsání stojí na vlastním řádku; v terminálu, který to
   umí, jsou klávesy a příkazy zvýrazněné. Kde má pracovat agent, stojí první fronta úkolů s tím, co je v ní na řadě;
   jen jedna linie výzkumu je o krok dál.
-- **Nastavení výzkumu v historii slovy:** nastavení změněné z aplikace nebo z menu se v posledních změnách ukáže
-  názvem a hodnotou v jazyce výzkumu („Vypnuto ve výzkumu: Dotaz před tříděním materiálu“), už ne jako klíč
+- **Materiál roztříděný jednou, nastavení výzkumu slovy:** soubor, kterému poslední třídění navrhlo název, druh,
+  datum nebo osoby a který je už má podle návrhu, se počítá za hotový a znovu se netřídí; co člověk o návrhu rozhodl
+  v aplikaci Strom (přijato, odmítnuto a proč), zůstane u třídění. Nastavení změněné z aplikace nebo z menu se
+  v posledních změnách ukáže názvem a hodnotou v jazyce výzkumu („Vypnuto ve výzkumu: Dotaz před tříděním materiálu“), už ne jako klíč
   (`sort.confirm`).
 - **Agent se zorientuje s méně pokusy:** `strom place find <jméno>` a `strom place <jméno>` navedou na
   `strom place list <jméno>`; `strom source list --note <text>` vypíše jedním voláním prameny, jejichž poznámka něco
   říká (třeba že adresu dal rejstřík); `strom media view` vysvětluje, jak si prohlédnout obrázek registrovaný jen po
-  částech a jeho výřez.
+  částech a jeho výřez; u eBadatelny (SOA Praha) se agent drží limitů archivu, platných pro člověka
+  i automatizovaný systém (nejvýš 2 snímky za sekundu, jeden ZIP naráz, 10 ZIPů za 24 hodin), a nikdy nenavrhne cestu,
+  jak je obejít.
 - **Zápisy člověka v terminálu už neodmítá převzaté sezení agenta:** když sezení agenta převzal jiný běh, zápisy
   člověka v terminálu a v menu (Údržba → Místo na disku, `strom tidy`, `strom history align`…) prošly až po týdnu; teď
   projdou hned. Agent, jehož sezení bylo, je odmítnut dál.

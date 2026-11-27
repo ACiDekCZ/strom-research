@@ -12,13 +12,17 @@ The changes of each version in short. The full notes and the install lines are o
   downloader takes in Settings → Archives), the prompt says what Enter does, and a command to type stands on a line of
   its own; on a terminal that can, keys and commands are highlighted. Where an agent is to work, the task queue stands
   first with what is next in it; one line of the research alone is a step further.
-- **A research's settings said in words in its history:** a setting changed from the app or the menu shows in the
-  recent changes by its name and value in the research's language ("Turned off in the research: Question before the
+- **Material sorted once, a research's settings in words:** a file whose last sorting proposed a title, kind, date or
+  people and which already has them as proposed counts as done and is not sorted again; what the person decided on a
+  proposal in the Strom app (taken over, refused, and why) is kept with the sorting. A setting changed from the app or
+  the menu shows in the recent changes by its name and value in the research's language ("Turned off in the research: Question before the
   material is sorted"), no longer as its key (`sort.confirm`).
 - **The agent finds its way with fewer tries:** `strom place find <name>` and `strom place <name>` point to
   `strom place list <name>`; `strom source list --note <text>` lists in one call the sources whose note says something
   (that a register gave the address, for one); `strom media view` says how to look at an image registered only in
-  parts, and at a crop of it.
+  parts, and at a crop of it; at eBadatelna (SOA Praha) the agent keeps to the archive's limits for a person and an
+  automated system alike (at most 2 images a second, one ZIP at a time, 10 ZIPs in 24 hours) and never suggests a way
+  past them.
 - **A person's writes in the terminal no longer refused for an agent's session:** where an agent's session was taken
   over by another run, the person's own writes in the terminal and the menu (Maintenance → Disk space, `strom tidy`,
   `strom history align`…) passed only a week later; they pass at once. The agent whose session it was is still

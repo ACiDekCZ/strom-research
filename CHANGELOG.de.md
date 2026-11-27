@@ -13,13 +13,17 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Enter tut, und ein Befehl zum Abschreiben steht in einer eigenen Zeile; in einem Terminal, das es kann, sind Tasten
   und Befehle hervorgehoben. Wo ein Agent arbeiten soll, steht die Aufgabenliste zuerst mit dem, was darin als
   Nächstes kommt; nur eine Linie der Forschung liegt einen Schritt weiter.
-- **Einstellungen der Forschung im Verlauf in Worten:** eine in der App oder im Menü geänderte Einstellung erscheint
-  in den letzten Änderungen mit Namen und Wert in der Sprache der Forschung („In der Forschung ausgeschaltet:
+- **Material einmal sortiert, Einstellungen der Forschung in Worten:** eine Datei, der die letzte Sortierung einen
+  Titel, eine Art, ein Datum oder Personen vorschlug und die sie schon wie vorgeschlagen hat, gilt als erledigt und
+  wird nicht neu sortiert; was der Mensch in der Strom-App über einen Vorschlag entschied (übernommen, abgelehnt und
+  warum), bleibt bei der Sortierung. Eine in der App oder im Menü geänderte Einstellung erscheint in den letzten Änderungen mit Namen und Wert in der Sprache der Forschung („In der Forschung ausgeschaltet:
   Rückfrage vor dem Sortieren des Materials“), nicht mehr als Schlüssel (`sort.confirm`).
 - **Der Agent findet sich mit weniger Versuchen zurecht:** `strom place find <Name>` und `strom place <Name>` führen
   zu `strom place list <Name>`; `strom source list --note <Text>` listet mit einem Aufruf die Quellen, deren Notiz
   etwas sagt (etwa dass ein Register die Adresse gab); `strom media view` erklärt, wie ein nur in Teilen registriertes
-  Bild und ein Ausschnitt davon anzusehen sind.
+  Bild und ein Ausschnitt davon anzusehen sind; bei der eBadatelna (SOA Praha) hält sich der Agent an die Grenzen
+  des Archivs, die für Menschen und automatisierte Systeme gleich gelten (höchstens 2 Bilder pro Sekunde, ein ZIP auf
+  einmal, 10 ZIPs in 24 Stunden), und schlägt nie einen Weg an ihnen vorbei vor.
 - **Einträge eines Menschen im Terminal nicht mehr wegen einer übernommenen Agenten-Sitzung abgelehnt:** wurde die
   Sitzung eines Agenten von einem anderen Lauf übernommen, gingen die eigenen Einträge im Terminal und im Menü
   (Wartung → Speicherplatz, `strom tidy`, `strom history align`…) erst nach einer Woche durch; jetzt sofort. Der

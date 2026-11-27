@@ -12,13 +12,17 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   (także sposób pobierania w Ustawienia → Archiwa), wiersz wyboru mówi, co robi Enter, a polecenie do przepisania stoi
   w osobnym wierszu; w terminalu, który to potrafi, klawisze i polecenia są wyróżnione. Tam, gdzie ma pracować agent,
   pierwsza stoi kolejka zadań z tym, co jest w niej następne; tylko jedna linia badania jest krok dalej.
-- **Ustawienia badania w historii słowami:** ustawienie zmienione w aplikacji lub w menu pokazuje się w ostatnich
-  zmianach nazwą i wartością w języku badania („Wyłączono w badaniu: Pytanie przed sortowaniem materiałów”), już nie
+- **Materiał posortowany raz, ustawienia badania słowami:** plik, któremu ostatnie sortowanie zaproponowało tytuł,
+  rodzaj, datę lub osoby i który ma je już zgodnie z propozycją, liczy się jako gotowy i nie jest sortowany ponownie;
+  to, co człowiek zdecydował o propozycji w aplikacji Strom (przyjęto, odrzucono i dlaczego), zostaje przy
+  sortowaniu. Ustawienie zmienione w aplikacji lub w menu pokazuje się w ostatnich zmianach nazwą i wartością w języku badania („Wyłączono w badaniu: Pytanie przed sortowaniem materiałów”), już nie
   jako klucz (`sort.confirm`).
 - **Agent odnajduje się przy mniejszej liczbie prób:** `strom place find <nazwa>` i `strom place <nazwa>` kierują do
   `strom place list <nazwa>`; `strom source list --note <tekst>` wypisuje jednym wywołaniem źródła, których notatka
   coś mówi (na przykład że adres dał rejestr); `strom media view` wyjaśnia, jak obejrzeć obraz zarejestrowany tylko w
-  częściach i jego wycinek.
+  częściach i jego wycinek; przy eBadatelnie (SOA Praha) agent trzyma się limitów archiwum, jednakowych dla człowieka
+  i systemu automatycznego (najwyżej 2 skany na sekundę, jeden ZIP naraz, 10 ZIP-ów w ciągu 24 godzin), i nigdy nie
+  proponuje sposobu ich obejścia.
 - **Zapisy człowieka w terminalu nie są już odrzucane z powodu przejętej sesji agenta:** gdy sesję agenta przejął inny
   przebieg, zapisy człowieka w terminalu i w menu (Konserwacja → Miejsce na dysku, `strom tidy`,
   `strom history align`…) przechodziły dopiero po tygodniu; teraz od razu. Agent, do którego sesja należała, jest
