@@ -155,7 +155,7 @@ test("story list: whose stories there are, a draft, a new version waiting", opts
     const out = (await w.ok(["story", "list"])).out;
     assert.match(out, /^P0001 +Řehoř Šťastný.* +draft +\d{4}-\d\d-\d\d +Syn chalupníka$/m);
     assert.match(out, /^P0002 +Анна Петрова.* +final +\d{4}-\d\d-\d\d/m);
-    assert.match(out, /strom story show <P…\|F…>/);
+    assert.match(out, /strom story show <P…\|F…\|A…>/);
     await w.ok(["story", "set", "P2", "--text", "Анна родилась в 1860 году в деревне."]);
     const waiting = (await w.ok(["story", "list", "--draft", "--json"])).json.stories;
     assert.deepEqual(waiting.map((s: any) => [s.id, s.status, !!s.draft]), [["P0001", "draft", false], ["P0002", "final", true]]);
