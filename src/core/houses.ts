@@ -25,8 +25,10 @@ import {
   type Event,
   type Family,
   type House,
+  type HouseItem,
   type HouseOrigin,
   type HouseSource,
+  type HouseUnknown,
   type Input,
   type Person,
   type Place,
@@ -34,6 +36,7 @@ import {
 } from "./model.ts";
 import { appHouseKey, appPlaceKey, compareHouses, houseRowKey, splitStreet } from "./streets.ts";
 import { foldText } from "./text.ts";
+import { phrase } from "./phrases.ts";
 import crypto from "node:crypto";
 import { now, type Tree } from "./tree.ts";
 import { create, normId, update } from "./records.ts";
@@ -527,8 +530,9 @@ export function nextItemId(h: House, list: HouseList): string {
 
 type ItemOf<L extends HouseList> = NonNullable<House[L]>[number];
 
-/** Add an item to a list of a house: its ID given, who wrote it, when. */
-export function addHouseItem<L extends HouseList>(tree: Tree, houseId: string, list: L, item: Omit<ItemOf<L>, "id" | "at" | "origin"> & { origin?: HouseOrigin }, what: string): { house: House; id: string } {
+/** Add an item to a list of a house: its ID given, who wrote it, when — or in the place of one of the research's own (replaces). */
+export function addHouseItem<L extends HouseList>(tree: Tree, houseId: string, list: L, item: Omit<ItemOf<L>, "id" | "at" | "origin"> & { origin?: HouseOrigin }, what: string, replaces?: string): { house: House; id: string } {
+  if (replaces) return replaceHouseItem(tree, houseId, list, replaces, item, what);
   let id = "";
   const house = update<House>(
     tree,
@@ -543,6 +547,52 @@ export function addHouseItem<L extends HouseList>(tree: Tree, houseId: string, l
     { op: "house.item", summary: `${houseId} +${what}` },
   );
   return { house, id };
+}
+
+/**
+ * Write an item in the place of one of the research's own (spec 145 T7: what a source's reading says in the place of a
+ * claim taken over unread): its ID stays, the rest is the new item's. The person's item, one of a research taken in, a
+ * number the person confirmed or said is another house are never replaced — refused with what to do instead.
+ */
+export function replaceHouseItem<L extends HouseList>(tree: Tree, houseId: string, list: L, replaces: string, item: Omit<ItemOf<L>, "id" | "at" | "origin"> & { origin?: HouseOrigin }, what: string): { house: House; id: string } {
+  const h = tree.get<House>(houseId);
+  const old = ((h?.[list] ?? []) as (HouseItem & { confirmed?: string; notSame?: string })[]).find((x) => x.id === replaces);
+  if (!h || !old) throw new UsageError(`no ${replaces} in the ${list} of ${houseId}`, { code: "house.body", hint: `strom house show ${houseId}` });
+  if (old.origin !== "research" || old.confirmed || old.notSame)
+    throw new UsageError(`${houseId} ${replaces} is ${old.origin === "user" || old.confirmed || old.notSame ? "the person's word" : "of a research taken in"}: it stays`, {
+      code: "house.confirmed",
+      hint: `write what the source says as an item of its own (without --replaces)`,
+    });
+  const house = update<House>(
+    tree,
+    houseId,
+    "house",
+    (x) => {
+      const items = (x[list] ?? []) as unknown[];
+      const i = items.findIndex((y) => (y as HouseItem).id === replaces);
+      items[i] = { id: replaces, origin: item.origin ?? "research", at: now().slice(0, 10), ...stripEmpty(item) };
+      return x;
+    },
+    { op: "house.item", summary: `${houseId} ${replaces} ${what} anew` },
+  );
+  return { house, id: replaces };
+}
+
+/**
+ * The research's own word that nothing more of a house's look is found automatically (written by its look check none,
+ * spec 145 T1): gone once the check holds no more — another check, or a task of its look raised by material given
+ * after (N5). The person's word, a question to them, the research's other words of its look stay.
+ */
+export function noMoreLook(h: House, lang: string): HouseUnknown | undefined {
+  if (h.lookCheck?.next !== "none") return undefined;
+  const said = phrase(lang, "house.look.unknown", { why: h.lookCheck.text }).slice(0, 1000);
+  return (h.unknown ?? []).find((u) => u.about === "look" && u.origin === "research" && !u.question && u.text === said);
+}
+
+/** Drop the research's "no more of its look automatically" from a house being changed (noMoreLook). */
+export function dropNoMoreLook(x: House, lang: string): void {
+  const own = noMoreLook(x, lang);
+  if (own) x.unknown = x.unknown.filter((u) => u !== own);
 }
 
 /** Change what is one of a house (its name, its point, its look). */

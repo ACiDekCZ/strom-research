@@ -31,6 +31,7 @@ import {
   addHouse,
   addHouseItem,
   confirmHouse,
+  dropNoMoreLook,
   findHouse,
   findTown,
   freeLicence,
@@ -312,6 +313,9 @@ const SOURCE_OPTIONS: OptionDef[] = [
   { name: "url", type: "string", value: "<address>", description: "a web address it is from (a chronicle, a map, an article)" },
   { name: "from", type: "string", value: "<I…>", description: "the material it was read from: a research of the person's own taken in (origin import)" },
 ];
+/** What a source's reading says in the place of a claim of the research's own taken over unread (spec 145 T7). */
+const REPLACES: OptionDef = { name: "replaces", type: "string", value: "<item>", description: "an item of the research's own this one takes the place of, its ID kept (what a source read now says of a claim taken over unread); the person's items stay" };
+const replaces = (opts: Record<string, unknown>) => opt(opts.replaces);
 const CERTAINTY: OptionDef = { name: "certainty", type: "string", value: "<level>", description: `${HOUSE_CERTAINTIES.join(", ")} (default medium)` };
 
 /** Who writes an item: the material of the person's own research (--from), the person at a terminal, the research. */
@@ -438,8 +442,9 @@ register(
       CERTAINTY,
       { name: "sensitive", type: "boolean", description: "of the 20th century and sensitive (a confiscation, an expulsion): shared outputs hide it" },
       ...SOURCE_OPTIONS,
+      REPLACES,
     ],
-    ['strom house add event A0001 --kind fire --date 1868-05 --text "<what the chronicle says>" --certainty medium --url https://example.org/chronicle', "strom house add event A0001 --kind transfer --date 1781 --text \"<who bought it>\" --source S0001 --locator \"fol. 12\" --certainty high"],
+    ['strom house add event A0001 --kind fire --date 1868-05 --text "<what the chronicle says>" --certainty medium --url https://example.org/chronicle', "strom house add event A0001 --kind transfer --date 1781 --text \"<who bought it>\" --source S0001 --locator \"fol. 12\" --certainty high", 'strom house add event A0001 --replaces e1 --kind fire --date 1905-11 --text "<what the source read now says>" --source S0002 --locator "<page>" --certainty medium'],
     (ctx, tree, h, opts) => {
       const o = originOf(ctx, tree, opts);
       const { house, id } = addHouseItem(tree, h.id, "timeline", {
@@ -450,8 +455,8 @@ register(
         ...(sources(tree, opts) ? { sources: sources(tree, opts)! } : {}),
         ...(o.material ? { material: o.material } : {}),
         origin: o.origin,
-      }, "event");
-      if (opts.sensitive === true) setHouse(tree, house.id, (x) => void (x.sensitive = [...(x.sensitive ?? []), id]), `${id} sensitive`);
+      }, "event", replaces(opts));
+      if (opts.sensitive === true && !house.sensitive?.includes(id)) setHouse(tree, house.id, (x) => void (x.sensitive = [...(x.sensitive ?? []), id]), `${id} sensitive`);
       return { id, what: String(opts.kind) };
     },
   ),
@@ -465,6 +470,7 @@ register(
       { name: "how", type: "string", value: "<how>", description: HOUSE_HOLDER_HOWS.join(", ") },
       CERTAINTY,
       ...SOURCE_OPTIONS,
+      REPLACES,
     ],
     ['strom house add holder A0001 --name "<holder>" --person P0001 --since 1858 --until 1890 --how marriage --source S0001 --certainty high'],
     (ctx, tree, h, opts) => {
@@ -478,7 +484,7 @@ register(
         certainty: certainty(opts),
         ...(sources(tree, opts) ? { sources: sources(tree, opts)! } : {}),
         origin: originOf(ctx, tree, opts).origin,
-      }, "holder");
+      }, "holder", replaces(opts));
       return { id, what: text(opts.name, "name", 200) };
     },
   ),
@@ -492,6 +498,7 @@ register(
       ...SPAN,
       CERTAINTY,
       ...SOURCE_OPTIONS,
+      REPLACES,
     ],
     ['strom house add resident A0001 --name "<resident>" --role lodger --since 1880 --until 1880 --source S0001'],
     (ctx, tree, h, opts) => {
@@ -505,7 +512,7 @@ register(
         ...(opts.certainty !== undefined ? { certainty: certainty(opts) } : {}),
         ...(sources(tree, opts) ? { sources: sources(tree, opts)! } : {}),
         origin: originOf(ctx, tree, opts).origin,
-      }, "resident");
+      }, "resident", replaces(opts));
       return { id, what: text(opts.name, "name", 200) };
     },
   ),
@@ -519,6 +526,7 @@ register(
       { name: "proposed", type: "boolean", description: "the same family under two numbers: a renumbering the person confirms (strom house confirm)" },
       { name: "text", type: "string", value: "<text>", description: "why: what shows it is the same house", max: 1000 },
       ...SOURCE_OPTIONS,
+      REPLACES,
     ],
     ['strom house add number A0001 --number 9 --until 1850 --proposed --text "<the same family under no. 9 and no. 16>" --source S0001'],
     (ctx, tree, h, opts) => {
@@ -531,7 +539,7 @@ register(
         ...(opt(opts.text) ? { text: opt(opts.text)! } : {}),
         ...(sources(tree, opts) ? { sources: sources(tree, opts)! } : {}),
         origin: originOf(ctx, tree, opts).origin,
-      }, "number");
+      }, "number", replaces(opts));
       return { id, what: `no. ${String(opts.number)}${proposed ? ", proposed: the person confirms it" : ""}` };
     },
   ),
@@ -690,6 +698,8 @@ register(
         tree,
         h.id,
         (x) => {
+          // a check that finds more: the research's own "no more automatically" of an earlier one is gone (N5)
+          if (next !== "none") dropNoMoreLook(x, tree.lang);
           x.lookCheck = { next, text: why, ...(task ? { task } : {}), at: now(), origin };
           const own = had && had.origin === "research" && !had.question ? (x.unknown ?? []).find((u) => u.id === had.id) : undefined;
           if (own && said) own.text = said;

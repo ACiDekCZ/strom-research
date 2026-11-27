@@ -22,6 +22,26 @@ The task closes only once the list was gone through (strom counts the
 searches and the pages of the session): never close it early, and never chase
 the time — what is left goes into the same line.
 <!-- end -->
+<!-- for house-town house-research -->
+## Taken over, never read (the brief says which)
+
+A claim of the house written on a source nobody of the research has read,
+whose source has an address on the web (a municipality's history as a PDF, a
+page): **read it now**, at that address. Then write what it says in the
+claim's place — confirmed, made more exact or corrected — with the place in it
+(`--locator`: the page, the section) and the certainty the kind of source gives
+(a municipality's history or a chronicle: `medium` at most), and one line that
+it was gone through. The document is not kept (its address stays); no task or
+question of it. An address that does not open (gone, behind a login): only that
+line, the claim stays as it is. The person's claim is never replaced: what the
+source says goes beside it.
+
+    house add event A0001 --replaces e1 --kind fire --date 1905-11 --text "<what the source says, the houses it names>" --source S0002 --locator "<p. 4>" --certainty medium
+    house add passed A0001 --source S0002 --url https://example.org/history.pdf --found yes --what "<read: the fire confirmed, it spread from the next house>"
+    house add passed A0001 --source S0002 --url https://example.org/history.pdf --found no --what "<unavailable: the address, the day>"
+
+The task closes only once each of them is read or said unavailable.
+<!-- end -->
 <!-- for house-town -->
 ## A municipality's skeleton (once for all its houses)
 

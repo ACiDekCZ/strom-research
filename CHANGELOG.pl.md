@@ -28,7 +28,9 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   Badanie domu przechodzi listę źródeł jego kraju (w Czechach rejestr adresów, nazwy miejscowe, cieki wodne,
   ortofotomapy, topografie) i zapisuje do domu tylko to, co coś powiedziało; jego wygląd idzie jako osobne zadanie
   tylko tam, gdzie jest o nim więcej do przeczytania (ustawienie „Wygląd domów”, domyślnie włączone); dom można
-  omówić z agentem z aplikacji Strom.
+  omówić z agentem z aplikacji Strom. Informację przejętą ze starszego badania, której źródło jest w sieci
+  (historia gminy w PDF), badanie domu odczyta i potwierdzi lub poprawi z miejscem w źródle; adres, który się nie
+  otwiera, zostaje jednym wierszem w tym, co przejrzano.
 - **`strom demo`:** strom wypróbowany na przykładowym badaniu zmyślonej rodziny (cs, en, de, pl), z dala od własnych
   drzew i ustawień, otwarty w aplikacji Strom; wszystko w nim można przejrzeć, nic nie proponuje agenta;
   `strom demo --remove` je usuwa.

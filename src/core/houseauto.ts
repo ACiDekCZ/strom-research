@@ -8,6 +8,7 @@
 import { UsageError } from "./errors.ts";
 import type { House, Input, Person, Place, Search, Session, Task } from "./model.ts";
 import {
+  dropNoMoreLook,
   findHouse,
   forHouse,
   houseIndex,
@@ -18,6 +19,7 @@ import {
   housesStatus,
   houseWork,
   recordOf,
+  setHouse,
   townOfTask,
   townOrigin,
   townRecord,
@@ -35,7 +37,8 @@ import { Settings } from "./config.ts";
 import { actsAsArchive } from "./state.ts";
 import { phrase } from "./phrases.ts";
 import { foldText } from "./text.ts";
-import type { Tree } from "./tree.ts";
+import { now, type Tree } from "./tree.ts";
+import { unreadClaimLine, unreadWebClaims } from "./houseunread.ts";
 
 /** How many groups of houses raised by themselves are open at once (their municipalities' tasks besides). */
 export const HOUSE_AUTO_OPEN = 3;
@@ -308,6 +311,8 @@ export function houseDoneLacks(tree: Tree, t: Task, settings: Settings = new Set
     if (!h?.look && !h?.unknown.some((u) => u.about === "look")) lacks.push(`${id}: its short look — strom house add look ${id} --text "…" --certainty …, or nothing of it known: ${look ? `strom house add look-check ${id} --next none --text "<why>" (strom writes what is not known of it)` : `strom house add unknown ${id} --look --text "<why not known>"`}`);
     if (look && !(h?.lookCheck && h.lookCheck.at.slice(0, 10) >= since)) lacks.push(`${id}: the look check — strom house add look-check ${id} --next material|picture|source|none --text "…"`);
   }
+  // a claim on a source with a web address nobody of the research read, not gone through (spec 145 T7)
+  for (const c of unreadWebClaims(tree, recs)) lacks.push(`${c.house}: taken over unread — ${unreadClaimLine(c, work === "town" ? `--town ${town}` : c.house)}`);
   const measured = sessions.filter((s) => MEASURED_AGENTS.has(s.agent ?? ""));
   if (measured.length) {
     let n = 0;
@@ -487,7 +492,16 @@ export function houseTaskForMaterial(tree: Tree, houseId: string, settings: Sett
     // its research done: the material is for its look (spec 145 T1), with the look of the houses on
     const rec = row.state === "done" && settings.housesLook(tree.config) ? tree.get<House>(houseId) : undefined;
     const place = rec ? tree.get<Place>(rec.place) : undefined;
-    if (rec && place) return createLookTask(tree, [rec], place, phrase(tree.lang, "house.look.material"), new Date().toISOString()).id;
+    if (rec && place) {
+      const id = createLookTask(tree, [rec], place, phrase(tree.lang, "house.look.material"), new Date().toISOString()).id;
+      // its check said no more automatically: the material says otherwise now (N5) — the research's own word of it gone
+      if (rec.lookCheck?.next === "none")
+        setHouse(tree, rec.id, (x) => {
+          dropNoMoreLook(x, tree.lang);
+          x.lookCheck = { next: "material", text: phrase(tree.lang, "house.look.material"), at: now(), origin: "research" };
+        }, "look check: material given after its research");
+      return id;
+    }
     return askHouse(tree, houseId, [], settings, { top: false }).task;
   });
 }
@@ -506,6 +520,7 @@ export function houseBrief(tree: Tree, t: Task): string | undefined {
     const rows = houseRows(tree, { town: place.id, on: true });
     const out = [`## The municipality ${place.id} ${placeName(place)}: the skeleton of its houses`];
     out.push(...townLines(rec));
+    out.push(...unreadLines(tree, [rec], `--town ${place.id}`));
     const auto = new Set(houseAuto(tree, rows).houses.map((a) => a.key));
     const ours = rows.filter((r) => r.tree?.persons.size);
     if (ours.length) out.push(`houses of the tree here: ${ours.map((r) => `${r.house}${auto.has(r.key) ? "*" : ""}`).join(", ")} (* researched by itself)`);
@@ -536,6 +551,7 @@ export function houseBrief(tree: Tree, t: Task): string | undefined {
     if (h?.passed.length) out.push(`  gone through already (never again): ${h.passed.map((x) => `${x.what}${x.url ? ` <${x.url}>` : ""}`).join("; ")}`);
     if (h?.manual.length) out.push(`  by hand only (the person's, never opened): ${h.manual.map((x) => `${x.what}${x.url ? ` <${x.url}>` : ""}`).join("; ")}`);
     if (h?.unknown.length) out.push(`  not known: ${h.unknown.map((x) => x.text).join("; ")}`);
+    if (work === "house") out.push(...unreadLines(tree, [h]));
     // its look so far, and why a task of its look follows the research (spec 145 T1)
     if (work === "look") {
       if (h?.look) out.push(`  its look so far: ${h.look.text} [${h.look.certainty}]${h.look.images?.length ? ` (${h.look.images.length} picture(s))` : ""}`);
@@ -552,6 +568,19 @@ export function houseBrief(tree: Tree, t: Task): string | undefined {
   }
   out.push(...sourceChecklist(tree, first?.place.id, work));
   return out.join("\n");
+}
+
+/**
+ * The claims of a house (or a municipality's record) on a source with a web address nobody of the research read (spec
+ * 145 T7): to read in this task — what it says in their place, or one line that the address does not open. Never a task.
+ */
+function unreadLines(tree: Tree, recs: (House | undefined)[], ref?: string): string[] {
+  const claims = unreadWebClaims(tree, recs);
+  if (!claims.length) return [];
+  return [
+    "  taken over unread (its source on the web, nobody of the research read it) — read each now; the certainty by the kind of source (a municipality's history, a chronicle: medium at most); the document is not kept, its address stays:",
+    ...claims.map((c) => `    ${unreadClaimLine(c, ref)}`),
+  ];
 }
 
 function townLines(rec: House | undefined): string[] {

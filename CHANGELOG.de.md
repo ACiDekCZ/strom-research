@@ -30,7 +30,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Die Forschung eines Hauses geht eine Liste der Quellen seines Landes durch (in Tschechien das Adressregister, die
   Flurnamen, die Gewässer, die Orthofotos, die Topographien) und schreibt ins Haus nur, was etwas sagte; sein Aussehen
   folgt als eigene Aufgabe nur, wo es mehr darüber zu lesen gibt (Einstellung „Aussehen der Häuser“, standardmäßig
-  an); ein Haus lässt sich aus der Strom-App mit dem Agenten besprechen.
+  an); ein Haus lässt sich aus der Strom-App mit dem Agenten besprechen. Eine aus einer älteren Forschung übernommene
+  Angabe, deren Quelle im Web steht (die Geschichte einer Gemeinde als PDF), liest die Forschung des Hauses und
+  bestätigt oder berichtigt sie mit der Stelle in der Quelle; eine Adresse, die sich nicht öffnet, bleibt eine Zeile
+  dessen, was durchgegangen wurde.
 - **`strom demo`:** strom an einer Beispielforschung einer erfundenen Familie ausprobiert (cs, en, de, pl), getrennt
   von den eigenen Stammbäumen und Einstellungen und in der Strom-App geöffnet; alles darin lässt sich durchsehen,
   nichts bietet einen Agenten an; `strom demo --remove` löscht sie.

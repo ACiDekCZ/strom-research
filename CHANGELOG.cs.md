@@ -26,7 +26,9 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   ukázat letecké snímky z 50. let (Česko).
   Výzkum domu prochází seznam pramenů jeho země (v Česku adresní registr, pomístní jména, vodní toky, ortofota,
   topografie) a do domu zapisuje jen to, co něco řeklo; podoba domu následuje jako vlastní úkol jen tam, kde je o ní
-  co dál číst (nastavení „Podoba domů“, výchozí zapnuto); dům jde z aplikace Strom probrat s agentem.
+  co dál číst (nastavení „Podoba domů“, výchozí zapnuto); dům jde z aplikace Strom probrat s agentem. Údaj převzatý ze
+  staršího výzkumu, jehož pramen je na webu (historie obce v PDF), výzkum domu přečte a potvrdí nebo opraví s místem
+  v prameni; adresa, která se neotevře, zůstane jednou řádkou v tom, co se prošlo.
 - **`strom demo`:** strom vyzkoušený na ukázkovém výzkumu smyšlené rodiny (cs, en, de, pl), mimo vlastní stromy
   a nastavení, otevřený v aplikaci Strom; všechno v něm jde prohlédnout, nic nenabízí agenta; `strom demo --remove` ho
   smaže.
