@@ -361,6 +361,11 @@ export interface Story {
   note?: string;
   /** What it left out on purpose of the version before it, and why (strom story set --drop). */
   dropped?: { ref: string; why: string }[];
+  /**
+   * A house's story (spec 145 T4): every fact the house had when it was written (its items, the facts of its people),
+   * cited or not — written again only once the house brings more than these. Optional (no SCHEMA_VERSION raised).
+   */
+  seen?: string[];
   at: string;
   by: string;
   /**
@@ -379,6 +384,7 @@ export interface StoryDraft {
   history?: string[];
   note?: string;
   dropped?: { ref: string; why: string }[];
+  seen?: string[];
   at: string;
   by: string;
 }
@@ -1555,6 +1561,11 @@ export interface House extends BaseRecord {
   fieldNames?: HouseFieldName[];
   /** The day the municipality's skeleton was done (its task closed done): no task of it is raised again. */
   done?: string;
+  /**
+   * The story of the house (spec 145 T4), as a person's: its facts are the house's items (n…, e…, h…, r…) and the facts
+   * of the tree's people in it (E…). Optional (no SCHEMA_VERSION raised).
+   */
+  story?: Story;
   notes: Note[];
 }
 

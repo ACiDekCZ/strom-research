@@ -15,6 +15,7 @@ A story is written from the facts, for the family.
   subheadings, "- " bullet lines, **bold** and *italic* — the Strom app shows
   anything else (links, tables, quotes, numbered lists) as plain text. The
   title goes in --title, not as a "# " line in the text.
+<!-- for person-story -->
 - Write it to a file in notes/, then `strom story set P… --text @notes/story-P….md
   --title "…" --fact E… --fact E… --source S… --note "what is inferred"`: every fact it leans on goes
   in --fact, every source of its background in --source. A couple's story goes on the family (F…).
@@ -35,3 +36,29 @@ A story is written from the facts, for the family.
   it: written again (more facts, a better reading), the new version waits
   beside it and the approved one stays until the user decides. Tell them what
   is new in it; they approve it or keep the old one.
+<!-- end -->
+<!-- for house-story -->
+- The story of a house: its holders and the families in it over the
+  generations, what happened to it (a fire, a rebuilding, a division, a sale),
+  its numbers in time and where it stood, its look, what the municipality
+  lived from — from what the research found of the house and its
+  municipality, given in the brief. Nothing looked up again.
+- Every statement rests on an item of the house — n… its numbers, e… its
+  events, h… its holders, r… its residents — or on a fact E… of the tree's
+  people in it; all of them go in --fact. The municipality's background as a
+  source with --source S… (its skeleton cites them).
+- An item marked medium, guess or lead is told as uncertain ("probably",
+  "according to an index not yet checked"); a number that is not the same
+  house is left out. Gaps stay gaps: what was not found is said so.
+- People of the last hundred years: their name and role in the house, no
+  more (no illness, no court case, no divorce); the Strom app decides what of
+  living people it shows or shares.
+- Write it to a file in notes/, then `strom story set A… --text
+  @notes/story-A….md --title "…" --fact h1 --fact e2 --fact E… --source S…
+  --note "what is inferred"`. Written again: `strom story show A…` first,
+  each fact and source of that version stays (or goes with `--drop "h… <why>"`).
+- A person's own life is their own story's: in the house's story the
+  person in a sentence, with their years in the house.
+- It stays a draft until the user approves it themselves; an approved one is
+  locked and the new version waits beside it — as a person's story.
+<!-- end -->

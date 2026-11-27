@@ -263,6 +263,12 @@ export const PHRASES = {
   "house.look.done": "what more was found of the look written into {id} (strom house add look …, each with its source), or what of it can only be found by hand (strom house add unknown {id} --look …, manual …)",
   "house.look.unknown": "look: no more automatically – {why}",
   "house.look.material": "material was given to the house after its research",
+  "house.story.what": "Write the story of the house {house}",
+  "house.story.more.what": "Add to the story of the house {house}: {count, plural, one {# new fact} other {# new facts}}",
+  "house.story.where": "what the research found of the house and its municipality (strom house show {id})",
+  "house.story.why": "The house is researched and tells enough: {generations, plural, one {# generation} other {# generations}} of the tree in it, {people, plural, one {# holder or resident} other {# holders and residents}} with sources; the family reads it in the Strom app's family book",
+  "house.story.why.asked": "Asked for: the story of the house from what its research found ({generations, plural, one {# generation} other {# generations}} of the tree in it, {people, plural, one {# holder or resident} other {# holders and residents}} with sources)",
+  "house.story.done": "strom story set {id} with every fact it rests on (--fact: the house's items n…, e…, h…, r… and the facts E… of its people), what is uncertain said so — a draft until the user approves it",
 
   "task.answer": "The user answered (to: {asked}): {answer}",
 

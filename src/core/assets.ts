@@ -71,7 +71,12 @@ export const CENSUS_CONDITIONS = ["census", "census-off"] as const;
  */
 export const HOUSE_CONDITIONS = ["house-takeover", "house-town", "house-research", "house-look"] as const;
 export type HouseCondition = (typeof HOUSE_CONDITIONS)[number];
-const CONDITIONS: readonly string[] = [...METHOD_CONDITIONS, ...CENSUS_CONDITIONS, ...HOUSE_CONDITIONS];
+/**
+ * The parts of the method of writing a story that are a house's (spec 145 T4: the task story:house:<A…>) or a person's
+ * and a couple's (every other story) — narrate.md alone, house.md is a house's research.
+ */
+export const STORY_CONDITIONS = ["house-story", "person-story"] as const;
+const CONDITIONS: readonly string[] = [...METHOD_CONDITIONS, ...CENSUS_CONDITIONS, ...HOUSE_CONDITIONS, ...STORY_CONDITIONS];
 
 const MARK = /^<!-- for ([^>]*?) -->$/u;
 const END = "<!-- end -->";
@@ -95,7 +100,9 @@ export function methodPage(text: string, level: string | undefined, conditions: 
       const census = when.filter((w) => (CENSUS_CONDITIONS as readonly string[]).includes(w));
       const held = !census.length || census.some((w) => conditions.includes(w));
       // no level (a brief with no task): the whole page, but the part of a task linking hypotheses
-      keep = !level ? held && (!levels.length || levels.some((l) => l !== METHOD_LINKS)) : ((!levels.length || levels.includes(level)) && (!when.length || when.some((w) => conditions.includes(w))) && held);
+      // a person's story (person-story) is every story but a house's: held unless the brief says house-story
+      const has = (w: string) => conditions.includes(w) || (w === "person-story" && !conditions.includes("house-story"));
+      keep = !level ? held && (!levels.length || levels.some((l) => l !== METHOD_LINKS)) : ((!levels.length || levels.includes(level)) && (!when.length || when.some(has)) && held);
       continue;
     }
     if (line === END) {

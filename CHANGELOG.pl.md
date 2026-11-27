@@ -26,7 +26,10 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 - **Historia domów:** `strom house` prowadzi zapis każdego domu, w którym rodzina mieszkała – jego numery w czasie,
   właścicieli, mieszkańców, co się z nim działo, jego miejsce na mapie i co dla niego przejrzano; domy przodków w
   linii prostej badanie bada tylko przy włączonym ustawieniu „Historia domów”, a pojedynczy dom można zamówić zawsze,
-  także z aplikacji Strom. Nad miejscem domu aplikacja może pokazać zdjęcia lotnicze z lat 50. (Czechy).
+  także z aplikacji Strom. Nad miejscem domu aplikacja może pokazać zdjęcia lotnicze z lat 50. (Czechy). Zbadany dom,
+  który mówi dość (dwa pokolenia drzewa albo trzech właścicieli i mieszkańców ze źródłami), dostaje przy włączonych
+  opowieściach swoją opowieść, każda informacja ze źródłem, niepewne powiedziane jako niepewne; szkic do
+  zatwierdzenia, potem nigdy nieprzepisywana; `strom house story` i aplikacja zamawiają ją w każdej chwili.
 - **Badanie domu:** przechodzi listę źródeł jego kraju (w Czechach rejestr adresów, nazwy miejscowe, cieki wodne,
   ortofotomapy, topografie) i zapisuje do domu tylko to, co coś powiedziało; gmina zachowuje swoje zdjęcia (tylko na
   wolnej licencji, z tym, co pokazują) i nazwy miejscowe, każdy dom krótki opis wyglądu i sprawdzenie, czy jest o nim

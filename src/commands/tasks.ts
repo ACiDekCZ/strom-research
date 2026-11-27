@@ -138,7 +138,7 @@ export function waitingLines(tree: Tree, where: { shared?: string; display?: (p:
   const agents = all.length ? savedByAgentNow(tree, all) : new Set<string>();
   const w = all.filter((t) => t.state === "waiting" && !agents.has(t.id));
   // the new versions of stories the user approved: they decide (the lock)
-  const stories = storiesToApprove(tree).map((s) => s.id);
+  const stories = storiesToApprove(tree, { houses: true }).map((s) => s.id);
   const storyLine = stories.length ? `  ${ui(tree.lang, "ui.wait.stories", { ids: stories.join(" ") })}` : undefined;
   // trees the Strom app sent on its own: the user writes or throws them away (the menu), never the agent
   const sent = receivedPending(tree.root);

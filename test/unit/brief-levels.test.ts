@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import "../../src/commands/index.ts";
-import { assetPath, CENSUS_CONDITIONS, HOUSE_CONDITIONS, HOUSE_TAKEOVER, methodFor, methodPage, METHOD_CONDITIONS, METHOD_LINKS } from "../../src/core/assets.ts";
+import { assetPath, CENSUS_CONDITIONS, HOUSE_CONDITIONS, STORY_CONDITIONS, HOUSE_TAKEOVER, methodFor, methodPage, METHOD_CONDITIONS, METHOD_LINKS } from "../../src/core/assets.ts";
 import { commandSheet } from "../../src/brief/sheet.ts";
 import { TASK_LEVELS } from "../../src/core/model.ts";
 import { guideText } from "../../src/commands/guide.ts";
@@ -15,7 +15,7 @@ const sheet = (level: string) => commandSheet(level, { connectors: [{ name: "exa
 const line = (text: string, command: string) => text.split("\n").find((l) => l.startsWith(`  strom ${command} `)) ?? "";
 
 test("method pages: every mark names levels or conditions, is closed, and none nests", () => {
-  const known = new Set<string>([...TASK_LEVELS, METHOD_LINKS, ...METHOD_CONDITIONS, ...CENSUS_CONDITIONS, ...HOUSE_CONDITIONS]);
+  const known = new Set<string>([...TASK_LEVELS, METHOD_LINKS, ...METHOD_CONDITIONS, ...CENSUS_CONDITIONS, ...HOUSE_CONDITIONS, ...STORY_CONDITIONS]);
   for (const file of fs.readdirSync(assetPath("method")).filter((f) => f.endsWith(".md"))) {
     let open = false;
     for (const l of fs.readFileSync(assetPath("method", file), "utf8").split("\n")) {

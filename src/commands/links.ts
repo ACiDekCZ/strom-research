@@ -10,7 +10,7 @@ import { Context } from "../cli/context.ts";
 import { lines } from "../cli/format.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import { readJsonIfExists } from "../core/json.ts";
-import type { AppClient, Conflict, Person, Research, Source, Task, TreeConfig } from "../core/model.ts";
+import type { AppClient, Conflict, House, Person, Place, Research, Source, Task, TreeConfig } from "../core/model.ts";
 import { Tree } from "../core/tree.ts";
 import { LinkError, linkHandlerState, linkScheme, linkStateText, linkText, parseLink, registerLinks, titleLinkWindow, unregisterLinks, type Link, type TakenLink } from "../core/links.ts";
 import { noteHandoff } from "../core/handoffs.ts";
@@ -415,6 +415,12 @@ async function inTerminal(ctx: Context, link: TreeLink, at?: string) {
     }
     case "story": {
       const { approveStory, coupleStory } = await import("../cli/menu-links.ts");
+      // the story of a house (spec 145 T4): said by its municipality and number
+      if ("house" in link) {
+        const h = tree.get<House>(link.house);
+        if (!h || h.type !== "house" || h.retracted || h.town) return said("ui.link.nohouse", { house: link.house });
+        return end(await approveStory(ctx, run, treeLang, root, h, `${tree.get<Place>(h.place)?.names[0]?.name ?? h.place} ${h.house}`, link.do));
+      }
       if (!link.partner) return end(await approveStory(ctx, run, treeLang, root, person!, who(person!), link.do));
       const partner = personOf(root, ctx, link.partner);
       if (!partner) return said("ui.link.noperson", { person: link.partner });
@@ -791,7 +797,7 @@ register(
       "  the agent only on the user's yes in the terminal, back to the user at once.\n" +
       "strom-research://hypotheses?tree=<id>&do=accept&ids=H0007,H0009 — the agent's proposals taken (at most 50): listed, then\n" +
       "  the user's yes in the terminal.\n" +
-      "strom-research://story?tree=<id>&person=P0012[&partner=P0013]&do=final|keep — the story approved (strom story approve), of a couple with partner=.\n" +
+      "strom-research://story?tree=<id>&person=P0012[&partner=P0013]&do=final|keep — the story approved (strom story approve), of a couple with partner=; a house's with house=A0003 in place of person=.\n" +
       "strom-research://sync-undo?tree=<id>&intake=I0042 — a sending from the app taken back (strom sync undo).\n" +
       "strom-research://sync?tree=<id>&do=show[&intake=R…] — a tree the app sent that waits: shown, then written or thrown away.\n" +
       "strom-research://direction?tree=<id>&id=G0002&do=pause|done|resume — a direction paused, ended (the reason asked) or\n" +

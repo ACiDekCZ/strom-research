@@ -5,6 +5,7 @@
 // A house the person asks for (strom house request, the Strom app's link house&do=search) comes on top whatever the
 // setting says. Off: the tasks raised by themselves are held (core/houses.ts houseHeld), nothing written.
 
+import { houseStoryFacts, houseStoryOf, raiseHouseStories } from "./housestory.ts";
 import { UsageError } from "./errors.ts";
 import type { House, Input, Person, Place, Search, Session, Task } from "./model.ts";
 import {
@@ -366,7 +367,12 @@ function townTask(tree: Tree, place: Place, tasks: Task[], asked?: string): { ta
  */
 export function raiseHouseTasks(tree: Tree, settings: Settings = new Settings(tree.env, {})): string[] {
   if (tree.dryRun || !settings.houses(tree.config) || actsAsArchive(tree)) return [];
-  return tree.withTreeLock(() => {
+  // the story of each house researched (spec 145 T4), after its last step — with the stories on (core/housestory.ts)
+  return tree.withTreeLock(() => [...raiseResearch(tree), ...raiseHouseStories(tree, settings)]);
+}
+
+function raiseResearch(tree: Tree): string[] {
+  {
     const tasks = tree.list<Task>("task").filter(forHouse);
     let open = tasks.filter((t) => LIVE.has(t.state) && houseWork(t) === "house" && !t.asked).length;
     if (open >= HOUSE_AUTO_OPEN) return [];
@@ -394,7 +400,7 @@ export function raiseHouseTasks(tree: Tree, settings: Settings = new Settings(tr
       open++;
     }
     return made;
-  });
+  }
 }
 
 /**
@@ -512,6 +518,8 @@ export function houseTaskForMaterial(tree: Tree, houseId: string, settings: Sett
  * material, the neighbouring houses of the task.
  */
 export function houseBrief(tree: Tree, t: Task): string | undefined {
+  const story = houseStoryOf(t);
+  if (story) return houseStoryBrief(tree, story);
   const work = houseWork(t);
   if (work === "town") {
     const place = tree.get<Place>(townOfTask(t) ?? "");
@@ -567,6 +575,45 @@ export function houseBrief(tree: Tree, t: Task): string | undefined {
     out.push(...townLines(town));
   }
   out.push(...sourceChecklist(tree, first?.place.id, work));
+  return out.join("\n");
+}
+
+/**
+ * What the story of a house is written from (spec 145 T4): each fact it may rest on by its ID — the house's items with
+ * their certainty and sources, the facts of the tree's people in it —, its look, what is not known, and its
+ * municipality's skeleton. Given, never looked up again.
+ */
+function houseStoryBrief(tree: Tree, id: string): string | undefined {
+  const h = tree.get<House>(id);
+  if (!h || h.type !== "house" || h.retracted) return undefined;
+  const row = houseRows(tree, { town: h.place, on: true }).find((r) => r.id === h.id);
+  const facts = houseStoryFacts(tree, h, row);
+  const place = tree.get<Place>(h.place);
+  const out = [`## The house ${h.id}: ${place ? placeName(place) : h.place} ${h.house}${h.name ? ` (${h.name})` : ""} — what its story is written from (every --fact one of these)`];
+  const year = new Date().getUTCFullYear();
+  const cite = (e: { citations?: { source: string; locator?: string }[] }) => (e.citations?.length ? ` ← ${e.citations.map((c) => `${c.source}${c.locator ? ` ${c.locator}` : ""}`).join(", ")}` : " (no source)");
+  const items = [...facts.values()].filter((e) => !/^E\d+$/u.test(e.id));
+  if (items.length) out.push("### Its items", ...items.map((e) => `  ${e.id} ${e.kind}${e.date ? ` ${e.date}` : ""}${e.value ? `: ${e.value}` : ""} [${e.status}]${cite(e)}`));
+  const byPerson = new Map<string, string[]>();
+  for (const { owner, event } of row?.tree?.events ?? []) {
+    if (event.retracted) continue;
+    for (const p of owner.type === "person" ? [owner.id] : owner.partners) byPerson.set(p, [...(byPerson.get(p) ?? []), `${event.id} ${event.kind}${event.date ? ` ${event.date}` : ""}${event.status ? ` [${event.status}]` : ""}`]);
+  }
+  if (byPerson.size) {
+    out.push("### The tree's people in it (their facts E…)");
+    for (const [p, list] of [...byPerson].sort((a, b) => a[0].localeCompare(b[0]))) {
+      const person = tree.get<Person>(p);
+      const n = person?.names[0];
+      const born = person?.events.find((e) => !e.retracted && (e.kind === "BIRT" || e.kind === "CHR"))?.date;
+      const by = born ? Number(/\d{4}/u.exec(born)?.[0]) : NaN;
+      const recent = !person?.events.some((e) => !e.retracted && ["DEAT", "BURI", "CREM"].includes(e.kind)) && (!Number.isFinite(by) || year - by < 110);
+      out.push(`  ${p} ${n ? `${n.given} ${n.surname}`.trim() : ""}${recent ? " (maybe living: name and role only)" : ""}: ${list.join("; ")}`);
+    }
+  }
+  if (h.look) out.push(`its look: ${h.look.text} [${h.look.certainty}]`);
+  if (h.unknown.length) out.push(`not known: ${h.unknown.map((x) => x.text).join("; ")}`);
+  if (h.story) out.push(`its story so far (${h.story.draft ? "a new version waits for the user" : h.story.status}): strom story show ${h.id} — each fact and source of it stays, or goes with --drop`);
+  out.push(`### The municipality ${h.place} ${place ? placeName(place) : ""}`, ...townLines(townRecord(tree, h.place)));
   return out.join("\n");
 }
 

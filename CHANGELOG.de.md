@@ -28,7 +28,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   im Lauf der Zeit, Besitzer, Bewohner, was mit ihm geschah, seinen Ort auf der Karte und was dafür durchgesehen
   wurde; die Häuser der direkten Vorfahren erforscht die Forschung nur mit eingeschalteter Einstellung „Geschichte der
   Häuser“, ein einzelnes Haus lässt sich immer anfordern, auch aus der Strom-App. Über dem Ort eines Hauses darf die
-  App die Luftbilder der 1950er-Jahre zeigen (Tschechien).
+  App die Luftbilder der 1950er-Jahre zeigen (Tschechien). Ein erforschtes Haus, das genug erzählt (zwei Generationen
+  des Stammbaums oder drei Besitzer und Bewohner mit Quellen), bekommt bei eingeschalteten Erzählungen seine
+  Erzählung, jede Angabe mit Quelle, Unsicheres als unsicher gesagt; ein Entwurf bis zur Freigabe, danach nie
+  umgeschrieben; `strom house story` und die App fordern sie jederzeit an.
 - **Die Forschung eines Hauses:** sie geht eine Liste der Quellen seines Landes durch (in Tschechien das
   Adressregister, die Flurnamen, die Gewässer, die Orthofotos, die Topographien) und schreibt ins Haus nur, was etwas
   sagte; eine Gemeinde behält ihre Bilder (nur unter freier Lizenz, mit dem, was sie zeigen) und ihre Flurnamen, jedes
