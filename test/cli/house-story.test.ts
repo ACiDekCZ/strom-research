@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import { World, hasGit } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { Settings } from "../../src/core/config.ts";
+import { APP_SHOWS_HOUSE_STORY, APP_SHOWS_HOUSE_STORY_BETA, appShowsHouseStory } from "../../src/core/stromapp.ts";
 import { forHouse, houseRows, housesOfTask, houseView, houseWork } from "../../src/core/houses.ts";
 import { HOUSE_STORY_PREFIX, houseStoryOf, houseStoryReach, raiseHouseStories } from "../../src/core/housestory.ts";
 import { forStory } from "../../src/core/stories.ts";
@@ -227,4 +228,15 @@ test("on demand below the threshold; written from the house's facts, a draft, ap
   } finally {
     w.cleanup();
   }
+});
+
+test("the gate APP_SHOWS_HOUSE_STORY: off for the production app until its 3.33.0 is out (an unknown version never); its beta and development copies from 3.33.0-beta.5", () => {
+  const prod = new Settings({ STROM_APP_URL: "https://stromapp.info/run/" }, {});
+  const beta = new Settings({ STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
+  assert.equal(APP_SHOWS_HOUSE_STORY, undefined, "set when the app's 3.33.0 is out (strom:je-venku-brany)");
+  assert.equal(APP_SHOWS_HOUSE_STORY_BETA, "3.33.0-beta.5");
+  for (const v of [undefined, "3.32.0", "3.33.0-beta.5", "3.33.0", "9.0.0", "nonsense"]) assert.equal(appShowsHouseStory(prod, v), false, String(v));
+  for (const v of [undefined, "3.33.0", "9.0.0"]) assert.equal(appShowsHouseStory(prod, v, "3.33.0"), v !== undefined, `gate 3.33.0: ${v}`);
+  for (const v of ["3.32.0", "3.33.0-beta.4"]) assert.equal(appShowsHouseStory(beta, v), false, `beta ${v}`);
+  for (const v of ["3.33.0-beta.5", "3.33.0-beta.6", "3.33.0", "9.0.0"]) assert.equal(appShowsHouseStory(beta, v), true, `beta ${v}`);
 });

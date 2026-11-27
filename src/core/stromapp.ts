@@ -1216,10 +1216,10 @@ export function noticeStromApp(settings: Settings, env: Env, opts: { look?: bool
  * domě"): a story of a house waiting for the person in the bridge's waiting (kind story with house: its key, no person) —
  * an older app takes a story's item for a person's. Undefined until that app is out (strom:je-venku-brany); the house's
  * story in GET /houses/<ref>, POST /houses/story and feature house.story are there for every app (an older one ignores
- * them). Beta and development copies from APP_SHOWS_HOUSE_STORY_BETA (undefined: today's).
+ * them). Beta and development copies from APP_SHOWS_HOUSE_STORY_BETA (the app's 3.33.0-beta.5 shows it; undefined: today's).
  */
 export const APP_SHOWS_HOUSE_STORY: string | undefined = undefined;
-export const APP_SHOWS_HOUSE_STORY_BETA: string | undefined = undefined;
+export const APP_SHOWS_HOUSE_STORY_BETA: string | undefined = "3.33.0-beta.5";
 
 /** Does the Strom app of this version show a house's story waiting for the person (the bridge's waiting, kind story with house)? */
 export function appShowsHouseStory(settings: Settings, version?: string, gate: string | undefined = APP_SHOWS_HOUSE_STORY, beta: string | undefined = APP_SHOWS_HOUSE_STORY_BETA): boolean {
