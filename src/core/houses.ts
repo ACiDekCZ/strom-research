@@ -13,6 +13,7 @@
 // takeover of a research of the person's own), house:town:<L…> (the skeleton of a municipality), house:look:<A…> (the
 // look of a house, after its research where its look check says there is more to find: spec 145 T1) — forHouse below.
 
+import { HOUSE_STORY_PREFIX, houseStoryView } from "./housestory.ts";
 import { AmbiguousError, UsageError } from "./errors.ts";
 import {
   HOUSE_CERTAINTIES,
@@ -737,6 +738,10 @@ export function houseView(tree: Tree, row: HouseRow): Record<string, unknown> {
     materials,
     ...(h?.sensitive?.length ? { sensitive: h.sensitive } : {}),
   };
+  // its story (spec 145 T4): the text, approved or a draft, a new version beside it, its task — the app shows it, keeps
+  // the living out of what it shares (house-privacy) by its people
+  const story = h ? houseStoryView(tree, h) : undefined;
+  if (story) out.story = story;
   // the records of the same house the person joined in the app (its _HOUSE _SAME, core/housesync.ts)
   const same = (h?.same ?? []).map((id) => tree.get<House>(id)).filter((x): x is House => !!x && !x.retracted);
   if (same.length) {
@@ -813,7 +818,8 @@ export const researchHouses = (rows: HouseRow[]): HouseRow[] => rows.filter((r) 
 export function housesRev(tree: Tree, rows: HouseRow[] = houseRows(tree)): string {
   const hash = crypto.createHash("sha256");
   for (const r of researchHouses(rows)) hash.update(`${r.key}\u0000${r.id ?? ""}\u0000${r.state}\u0000${r.task ?? ""}\u0000${r.at ?? ""}\u0000${r.question?.text ?? ""}\u0000${r.record?.updated ?? ""}\u0000${r.materials.join(",")}\n`);
-  for (const t of tree.list<Task>("task").filter(forHouse).sort((a, b) => a.id.localeCompare(b.id))) hash.update(`${t.id}\u0000${t.updated}\u0000${t.state}\n`);
+  // the tasks of houses and the stories of houses (GET /houses/<ref> story.task, spec 145 T4)
+  for (const t of tree.list<Task>("task").filter((x) => forHouse(x) || x.origin?.startsWith(HOUSE_STORY_PREFIX)).sort((a, b) => a.id.localeCompare(b.id))) hash.update(`${t.id}\u0000${t.updated}\u0000${t.state}\n`);
   for (const i of tree.list<Input>("input")) if (i.houses?.length) hash.update(`${i.id}\u0000${i.updated}\n`);
   // the skeletons of the municipalities (GET /houses/<key> town): a house's answer changes with its municipality's
   for (const h of tree.list<House>("house")) if (h.town) hash.update(`town\u0000${h.id}\u0000${h.updated}\u0000${h.retracted ? 1 : 0}\n`);

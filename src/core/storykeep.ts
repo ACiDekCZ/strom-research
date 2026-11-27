@@ -120,8 +120,8 @@ export function storySources(tree: Tree, v: Pick<StoryVersion, "facts" | "source
 }
 
 /** A fact as one line: its kind, date and place, how sure it is. */
-export function factLine(tree: Tree, id: string): string {
-  const e = eventOf(tree, id);
+export function factLine(tree: Tree, id: string, events?: Map<string, Event>): string {
+  const e = events ? events.get(id) : eventOf(tree, id);
   if (!e) return `${id} (no longer exists)`;
   return `${e.id} ${e.kind}${e.date ? ` ${e.date}` : ""}${e.place ? ` ${e.place}` : ""} [${e.status}]`;
 }
@@ -136,16 +136,16 @@ export function sourceLine(s: Pick<StorySource, "id" | "title" | "url">): string
  * since goes by itself), a source of its background or one its text named that no fact of the new one cites, a link
  * its text gave that the new one gives nowhere (in its text, or as the address of a source it rests on).
  */
-export function storyLosses(tree: Tree, before: StoryVersion, after: StoryVersion, dropped: string[]): StoryLoss[] {
+export function storyLosses(tree: Tree, before: StoryVersion, after: StoryVersion, dropped: string[], events?: Map<string, Event>): StoryLoss[] {
   const drop = new Set(dropped.map((d) => (/^https?:/iu.test(d) ? linkKey(d) : d.toUpperCase())));
   const out: StoryLoss[] = [];
   for (const f of before.facts) {
-    if (after.facts.includes(f) || drop.has(f)) continue;
-    const e = eventOf(tree, f);
+    if (after.facts.includes(f) || drop.has(f) || drop.has(f.toUpperCase())) continue;
+    const e = events ? events.get(f) : eventOf(tree, f);
     if (!e || e.retracted) continue;
-    out.push({ ref: f, kind: "fact", what: factLine(tree, f), keep: `--fact ${f}` });
+    out.push({ ref: f, kind: "fact", what: factLine(tree, f, events), keep: `--fact ${f}` });
   }
-  const kept = storySources(tree, after);
+  const kept = storySources(tree, after, events);
   const keptIds = new Set([...kept.map((s) => s.id), ...sourcesNamed(tree, words(after))]);
   const wanted = new Set([...(before.sources ?? []), ...sourcesNamed(tree, words(before))]);
   for (const id of wanted) {
@@ -167,15 +167,15 @@ export function storyLosses(tree: Tree, before: StoryVersion, after: StoryVersio
  * The facts of a version told from a lead (no record read: an index, an older research, a page not read) whose
  * source the text does not name — by its ID, its address or its title: the reader would not see where it comes from.
  */
-export function leadsUnnamed(tree: Tree, v: StoryVersion): { fact: string; sources: StorySource[] }[] {
+export function leadsUnnamed(tree: Tree, v: StoryVersion, events?: Map<string, Event>): { fact: string; sources: StorySource[] }[] {
   const text = words(v);
   const folded = foldText(text);
   const named = new Set(sourcesNamed(tree, text));
   const links = new Set(linksIn(text).map(linkKey));
-  const all = storySources(tree, v);
+  const all = storySources(tree, v, events);
   const out: { fact: string; sources: StorySource[] }[] = [];
   for (const f of v.facts) {
-    const e = eventOf(tree, f);
+    const e = events ? events.get(f) : eventOf(tree, f);
     if (!e || e.retracted || e.status !== "lead") continue;
     const its = all.filter((s) => s.facts.includes(f));
     if (!its.length) continue;

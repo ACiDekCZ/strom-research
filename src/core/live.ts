@@ -833,6 +833,20 @@
 //                          strom chat --house (the house, its skeleton, the house method, its list of sources loaded);
 //                          what it finds goes into the house (the bridge's events, as any change), a follow-up task only
 //                          when the person asks for one.
+//                          The story of a house (spec 145 T4, feature house.story, only where the research has its
+//                          agent): GET /houses/<ref> story {status: draft|final|null, title?, text, facts, sources?, at,
+//                          people: [{id, died}] (the tree's people it names: the living kept out of what the app shares),
+//                          draft? (a new version beside an approved one: title?, text, facts, sources?, at, people),
+//                          task? {id, state}} — none when the house has neither a story nor its task. It comes by itself
+//                          (the setting stories on) after a house's last research step when the house tells enough.
+//   POST <token>/houses/story  {house: <key|A…>}: the story of a house asked for — strom house story --yes (the person's
+//                          word in the app): its task on top of the queue, never an agent started — {house (as GET
+//                          /houses/<ref>), task, made, head, parent}. 404 house.unknown, 400 house.body (+ reasonCode
+//                          house.story.none: nothing of the house written yet), 409 house.archive (+ reasonCode), 423
+//                          locked, 503 research.busy (+ Retry-After), 507 disk.full, 500 house.failed. Approving it or
+//                          keeping the approved one: the link strom-research://story?tree=…&house=A…&do=final|keep (the
+//                          person in the terminal, as a person's story); the bridge's waiting has it (kind story, house:
+//                          its key, no person) only for an app from APP_SHOWS_HOUSE_STORY.
 //   POST <token>/intake    {"auto": true|false} (exactly): what the app sends gone through by the agent by itself — a
 //                          batch once whole, a file of no batch as it comes, the same file again with more said of it, a
 //                          file shown again (spec 130 K1.3) — strom config set intake.auto on|off --for-tree, the person's decision
@@ -1013,7 +1027,7 @@ import { findsForApp, treeFinds } from "./phone-finds.ts";
 import { glanceLocked, glanceOf, withAsking, withRuns, type Glance } from "./glance.ts";
 import { askingNow } from "./deviceagent.ts";
 import { forPhone } from "./phone-watch.ts";
-import { APP_READS_NAME_STATUS, APP_READS_NAME_STATUS_BETA, APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appReadsMainCitation, appReadsNameStatus, appSendsUncite, appDecidesHypotheses, appOpensLinks, appShowsOrigin, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
+import { APP_READS_NAME_STATUS, APP_READS_NAME_STATUS_BETA, APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appReadsMainCitation, appReadsNameStatus, appSendsUncite, appDecidesHypotheses, appOpensLinks, appShowsHouseStory, appShowsOrigin, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
 import { suggestSurnames } from "./surnames.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
 import { askOf, qualityRev, readDismissed } from "./quality.ts";
@@ -2101,13 +2115,13 @@ const MEDIA_REF_UNKNOWN = "sync.media-ref-unknown";
 /** How many hashes POST /media/known takes at once. */
 export const MEDIA_KNOWN_MAX = 5000;
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "origin.import", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.accepted", "material.decided", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "house", "house.material", "house.confirm", "house.import", "house.auto", "house.request", "house.chat", "house.look", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sync.mediaRef", "person.contact", "media.list", "media.list.source", "waiting.gain", "sort.confirm", "working.saving", "waiting.retry", "sort.confirm.app", "run.confirm", "finds", "finds.person", "glance", "people.search", "waiting.import"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "origin.import", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.accepted", "material.decided", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "house", "house.material", "house.confirm", "house.import", "house.auto", "house.request", "house.chat", "house.look", "house.story", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sync.mediaRef", "person.contact", "media.list", "media.list.source", "waiting.gain", "sort.confirm", "working.saving", "waiting.retry", "sort.confirm.app", "run.confirm", "finds", "finds.person", "glance", "people.search", "waiting.import"] as const;
 
 /**
  * What only a research with its agent here does (accepts.read: none in an archive, nor where it waits for its agent);
  * finds: what an agent found, which an archive never says (GET finds answers none there).
  */
-const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort", "material.decided", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sort.confirm", "sort.confirm.app", "run.confirm", "finds", "finds.person", "house.import", "house.request", "house.chat"]);
+const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort", "material.decided", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sort.confirm", "sort.confirm.app", "run.confirm", "finds", "finds.person", "house.import", "house.request", "house.chat", "house.story"]);
 const withoutAgent = (features: readonly string[]): readonly string[] => features.filter((f) => !AGENT_FEATURES.has(f));
 /**
  * The sample research (strom demo, spec 143 K2.2): looked through as a research, but nothing that starts or offers an
@@ -3410,6 +3424,8 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
       shared: settings.shared()?.value,
       claude: () => settings.agent(tree.config).value === "claude" && agentsHere(env).some((a) => a.id === "claude" && a.cli),
       stories: appShowsStoryDrafts(settings, version),
+      // a house's story among them only for an app that shows one (spec 145 T4: an older one takes it for a person's)
+      houseStories: appShowsHouseStory(settings, version),
       // the hypotheses, for an app that decides one by a pick (spec 074 V13): as the menu's What waits has them
       ...(appDecidesHypotheses(settings, version) ? { hypothesesApp: { open: settings.hypothesesDecide(tree.config) === "person" } } : {}),
       scopes: all,
@@ -4413,8 +4429,8 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       return;
     }
     // census records as a source (spec 106)
-    if (req.method === "POST" && t === token && what === "houses" && (sub === "confirm" || sub === "material" || sub === "request") && !act) {
-      writeFor(req, res, origin, sub === "confirm" ? houseConfirmWrite() : sub === "material" ? houseMaterialWrite() : houseRequestWrite());
+    if (req.method === "POST" && t === token && what === "houses" && (sub === "confirm" || sub === "material" || sub === "request" || sub === "story") && !act) {
+      writeFor(req, res, origin, sub === "confirm" ? houseConfirmWrite() : sub === "material" ? houseMaterialWrite() : sub === "story" ? houseStoryWrite() : houseRequestWrite());
       return;
     }
     // the history of the houses by itself (spec 030 part 2, feature house.auto)
@@ -7437,6 +7453,35 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         const rows = houseRows(now);
         const row = houseByRef(now, String(data.house), rows);
         return { house: listRow(row), task: data.task, state: "queued", ...(typeof data.town === "string" ? { town: data.town } : {}), head: h, parent: before };
+      },
+      refused: houseRefused,
+    };
+  };
+
+  /**
+   * The story of a house asked for in the app (POST /houses/story {house: <key|A…>}; spec 145 T4): strom house story
+   * --yes — the person's word given in the app — its task on top of the queue, the bridge starting no agent: {house: <the
+   * house whole, as GET /houses/<ref>>, task, made, head, parent}. 404 house.unknown, 400 house.body (reasonCode
+   * house.story.none: nothing of it written), 409 house.archive (reasonCode: its state).
+   */
+  const houseStoryWrite = (): AppWrite => {
+    let before = "";
+    return {
+      what: "the story of a house asked for",
+      codes: HOUSE_WRITE_CODES,
+      busyStatus: 503,
+      ask(tree, body) {
+        if (Object.keys(body).some((k) => k !== "house")) return { code: 400, body: refusal(`the body: {"house": "<its key or A…>"}`, "house.body") };
+        const row = houseOfBody(tree, body);
+        if ("code" in row) return row;
+        if (actsAsArchive(tree)) return houseArchive(tree);
+        if (!row.id) return { code: 400, body: { ...refusal(`nothing of the house "${row.key}" is written yet — its story is written from its research`, "house.body"), reasonCode: "house.story.none" } };
+        before = head(root);
+        return { args: ["house", "story", "--yes", "--", row.id] };
+      },
+      done(tree, data, h) {
+        const now = Tree.open(tree.root, env);
+        return { house: houseAnswer(now, String(data.house)), task: data.task, made: data.made === true, head: h, parent: before };
       },
       refused: houseRefused,
     };

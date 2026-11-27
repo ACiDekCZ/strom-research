@@ -33,7 +33,10 @@ The changes of each version in short. The full notes and the install lines are o
 - **The history of the houses:** `strom house` keeps a record of each house the family lived in — its numbers in time,
   holders, residents, what happened to it, its place on the map and what was gone through for it; the research looks
   into the houses of direct ancestors only with the setting "House history" on, and one house can always be asked for,
-  also from the Strom app. Over a house's place the app may show the aerial photos of the 1950s (Czechia).
+  also from the Strom app. Over a house's place the app may show the aerial photos of the 1950s (Czechia). A house
+  researched that tells enough (two generations of the tree, or three holders and residents with sources) gets its
+  story with the stories on, each claim with its source, the uncertain said so; a draft until approved, then never
+  rewritten; `strom house story` and the app ask for one at any time.
 - **A house's research:** it goes through a list of sources for its country (in Czechia the address register, the
   field names, the water courses, the orthophotos, the topographies) and writes into the house only what said
   something; a municipality keeps its pictures (only under a free licence, with what they show) and its field names,

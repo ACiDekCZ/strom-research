@@ -113,6 +113,8 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     byUser: { t: "any" },
     // other records of the same house the person joined in the app (A…)
     same: { t: "strings" },
+    // the story of the house (spec 145 T4): validate.ts checkStory, its facts the house's items and E…
+    story: { t: "any" },
   },
   source: {
     kind: S({ req: true, enum: SOURCE_KINDS }),

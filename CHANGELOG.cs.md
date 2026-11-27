@@ -32,7 +32,9 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 - **Historie domů:** `strom house` vede záznam každého domu, kde rodina žila – jeho čísla v čase, držitele, obyvatele,
   co se s ním dělo, jeho místo na mapě a co se pro něj prošlo; domy přímých předků výzkum zkoumá jen se zapnutým
   nastavením „Historie domů“ a jednotlivý dům jde vyžádat vždy, i z aplikace Strom. Nad místem domu smí aplikace
-  ukázat letecké snímky z 50. let (Česko).
+  ukázat letecké snímky z 50. let (Česko). Prozkoumaný dům, který řekne dost (dvě generace stromu, nebo tři držitelé a
+  obyvatelé s prameny), dostane se zapnutými vyprávěními své vyprávění, každý údaj s pramenem, nejisté řečeno jako
+  nejisté; koncept do schválení, pak se už nepřepíše; `strom house story` a aplikace ho vyžádají kdykoli.
 - **Výzkum domu:** prochází seznam pramenů jeho země (v Česku adresní registr, pomístní jména, vodní toky, ortofota,
   topografie) a do domu zapisuje jen to, co něco řeklo; obec si drží své obrázky (jen pod svobodnou licencí, s tím, co
   ukazují) a pomístní jména, každý dům krátkou podobu a kontrolu, zda je o ní co dál číst; podoba domu následuje jako

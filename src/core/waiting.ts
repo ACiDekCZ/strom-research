@@ -20,7 +20,7 @@ import { asideFiles, inboxState, type AsideFile, type InboxState } from "./inbox
 import { bookOfTask } from "./books.ts";
 import fs from "node:fs";
 import path from "node:path";
-import { CHECK_ANSWERS, type Conflict, type Family, type Hypothesis, type Person, type RecordSet, type Repository, type Task } from "./model.ts";
+import { CHECK_ANSWERS, type Conflict, type Family, type House, type Hypothesis, type Person, type Place, type RecordSet, type Repository, type Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { SENDABLE, firstUrlIn, institutionGroup, taskUrlOf, repoAtHost, waitGroupOf, waitKindOf, waitPhaseOf, type WaitGroup, type WaitKind, type WaitPhase } from "./waitkind.ts";
 import { archiveQuestions, archiveWaitingItems, levelWords } from "./archiveasks.ts";
@@ -31,7 +31,7 @@ import { receivedPending, type Received } from "./sync.ts";
 import { tuneQuestions, type Question } from "./tuneask.ts";
 import { Settings } from "./config.ts";
 import { censusHidden } from "./census.ts";
-import { houseHidden } from "./houses.ts";
+import { houseHidden, keyOfHouse } from "./houses.ts";
 import { aboutPeople, hypothesisPeople, scopes, type Scope } from "./directions.ts";
 import { pickableInApp } from "./hypolinks.ts";
 import { lineOf, offLineView, type BranchView } from "./offline.ts";
@@ -141,6 +141,12 @@ export type WaitingJson = WaitingFields & { order: number } & Record<string, unk
 type Unordered = Omit<Waiting, "item"> & { item: WaitingFields & Record<string, unknown> };
 
 /** One thing that waits: the app's item, and what it is (for the terminal). */
+/** A house as a person reads it: its municipality and number, its name. */
+function houseName(tree: Tree, h: House): string {
+  const p = tree.get<Place>(h.place);
+  return `${p?.names[0]?.name ?? h.place} ${h.house}${h.name ? ` (${h.name})` : ""}`;
+}
+
 export interface Waiting {
   item: WaitingJson;
   task?: Task;
@@ -207,6 +213,8 @@ export interface WaitingOptions {
   claude?: () => boolean;
   /** The new versions of approved stories (the bridge: only for an app that shows them). Default: yes. */
   stories?: boolean;
+  /** The stories of houses among them (spec 145 T4; the bridge: only for an app that shows them, APP_SHOWS_HOUSE_STORY). Default: yes. */
+  houseStories?: boolean;
   /** The trees the Strom app sent, waiting in the inbox (the terminal). */
   sends?: boolean;
   /** The questions about the reading of scans that are due (the terminal): the settings to ask them with. */
@@ -558,9 +566,28 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
     }
   // a new version of an approved story: whose (a couple's: person and partner), since when
   if (o.stories !== false)
-    for (const s of storiesToApprove(tree)) {
-      const rec = tree.get<Person | Family>(s.id);
+    for (const s of storiesToApprove(tree, { houses: o.houseStories !== false })) {
+      const rec = tree.get<Person | Family | House>(s.id);
       if (!rec) continue;
+      // a house's story (spec 145 T4): the house named, its key for the app — no person
+      if (rec.type === "house") {
+        out.push({
+          story: rec.id,
+          item: {
+            id: rec.id,
+            what: ui(lang, "ui.waiting.story.house", { house: houseName(tree, rec) }),
+            on: "",
+            at: s.at,
+            kind: "story",
+            section: "decide",
+            group: { key: "stories", name: phrase(lang, "wait.group.stories"), kind: "other" },
+            phase: "todo",
+            actions: [],
+            house: keyOfHouse(tree, rec),
+          },
+        });
+        continue;
+      }
       const people = rec.type === "family" ? rec.partners : [rec.id];
       const name = (id: string) => {
         const p = tree.get<Person>(id);

@@ -264,6 +264,8 @@ export type Link =
   | { action: "hypotheses"; tree: string; decide: (typeof LINK_HYPOTHESES_DECIDE)[number] }
   | { action: "hypotheses"; tree: string; do: (typeof LINK_HYPOTHESES_DOS)[number]; ids: string }
   | { action: "story"; tree: string; person: string; partner?: string; do: (typeof LINK_STORY_DOS)[number] }
+  // the story of a house (spec 145 T4): by its record alone (A…)
+  | { action: "story"; tree: string; house: string; do: (typeof LINK_STORY_DOS)[number] }
   | { action: "sync-undo"; tree: string; intake: string }
   | { action: "sync"; tree: string; do: (typeof LINK_SYNC_DOS)[number]; intake?: string }
   | { action: "direction"; tree: string; id: string; do: (typeof LINK_DIRECTION_DOS)[number] }
@@ -389,6 +391,12 @@ function linkParts(text: string | undefined, scheme: string): Link {
     case "review":
     case "research":
     case "story": {
+      // the story of a house (spec 145 T4): its record alone, no person with it
+      if (action === "story" && q.has("house")) {
+        const house = (q.get("house") ?? "").toUpperCase();
+        if (!HOUSE_ID.test(house) || person) throw new LinkError("no house named");
+        return { action, tree: id, house, do: oneOf(q, "do", LINK_STORY_DOS) };
+      }
       if (!person) throw new LinkError("no person named");
       if (action === "review") return { action, tree: id, person, scope: oneOf(q, "scope", LINK_SCOPES, "person") };
       if (action === "research") return { action, tree: id, person, direction: oneOf(q, "direction", LINK_DIRECTIONS, "ancestors") };

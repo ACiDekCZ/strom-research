@@ -10,7 +10,7 @@
 // together alone (the wedding, the household, the homes, the children, the
 // widowhood); what the partners' stories tell is referred to, never told again.
 
-import type { Event, Family, Person, Research, Task } from "./model.ts";
+import type { Event, Family, House, Person, Research, Task } from "./model.ts";
 import { researchPeople } from "./frontier.ts";
 import { displayName, familiesAsPartner, lifespan } from "./people.ts";
 import { phrase } from "./phrases.ts";
@@ -167,8 +167,9 @@ function due(rec: Person | Family, facts: Event[], narrate: Task[]): Event[] | u
 }
 
 /** The new versions of approved stories that wait for the user (the lock): whose, and since when. */
-export function storiesToApprove(tree: Tree): { id: string; at: string }[] {
-  return [...tree.list<Person>("person"), ...tree.list<Family>("family")]
+export function storiesToApprove(tree: Tree, opts: { houses?: boolean } = {}): { id: string; at: string }[] {
+  // a house's (spec 145 T4) only where asked: the Strom app's waiting shows one from its gate on (APP_SHOWS_HOUSE_STORY)
+  return [...tree.list<Person>("person"), ...tree.list<Family>("family"), ...(opts.houses ? tree.list<House>("house") : [])]
     .filter((r) => !r.retracted && r.story?.status === "final" && r.story.draft)
     .map((r) => ({ id: r.id, at: r.story!.draft!.at }))
     .sort((a, b) => a.at.localeCompare(b.at));

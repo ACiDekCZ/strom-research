@@ -28,7 +28,7 @@ import { runs, truncate } from "./format.ts";
 import { crumbLine, keyed, line, listLines, saidLines, shown, type ListRow, type Span } from "./screen.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { Tree } from "../core/tree.ts";
-import type { Conflict, Family, Hypothesis, HypothesisVariant, Media, Person, RecordSet, Research, Source, Task } from "../core/model.ts";
+import type { Conflict, Family, House, Hypothesis, HypothesisVariant, Media, Person, Place as PlaceRecord, RecordSet, Research, Source, Task } from "../core/model.ts";
 import { transcriptMark, userReading } from "../core/readers.ts";
 import { phrase, type PhraseKey } from "../core/phrases.ts";
 import { agentDecided } from "../core/hypolinks.ts";
@@ -1146,8 +1146,10 @@ export async function decideTranscript(ctx: Context, run: Run, lang: string, roo
 
 /** Whose story it is, for the person: "Jan Novák (*1905) [P0001]", a couple by both. */
 function storyOf(tree: Tree, id: string): string {
-  const r = tree.get<Person | Family>(id);
+  const r = tree.get<Person | Family | House>(id);
   if (r?.type === "person") return label(r);
+  // a house's (spec 145 T4): its municipality and number
+  if (r?.type === "house") return `${tree.get<PlaceRecord>(r.place)?.names[0]?.name ?? r.place} ${r.house}${r.name ? ` (${r.name})` : ""} [${r.id}]`;
   if (r?.type === "family")
     return r.partners
       .map((p) => tree.get<Person>(p))
@@ -1164,7 +1166,7 @@ function storyOf(tree: Tree, id: string): string {
 export async function decideStory(ctx: Context, run: Run, lang: string, root: string, id: string, who: string, how?: "final" | "keep"): Promise<boolean> {
   const t = translator(lang);
   const out = (line: string) => ctx.io.stdout(line + "\n");
-  const draft = Tree.open(root, ctx.env).get<Person | Family>(id)?.story?.draft;
+  const draft = Tree.open(root, ctx.env).get<Person | Family | House>(id)?.story?.draft;
   if (!draft) {
     out(t("ui.waiting.gone"));
     return false;
