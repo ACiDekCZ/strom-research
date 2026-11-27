@@ -47,7 +47,8 @@ import { listConnectors } from "../core/connector.ts";
 import { bookBrowserArchive, personBrowserNote } from "../core/browserhelp.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { placeQuestions } from "../core/placesview.ts";
-import { inApp, requestFile, requestTexts, waitingFor, waitingSplit, type Waiting, type WaitSection } from "../core/waiting.ts";
+import { importWaiting, inApp, requestFile, requestTexts, waitingFor, waitingSplit, type Waiting, type WaitSection } from "../core/waiting.ts";
+import { sendInput, sendPlan } from "../core/sendimport.ts";
 import { keepWaiting, keptWaiting, waitingStamp, type WaitCount } from "../core/waitkept.ts";
 import { viewModel } from "../core/viewsizes.ts";
 import { offeredBooks, type BookRow } from "../core/books.ts";
@@ -65,7 +66,7 @@ const NO_REPLY_DAYS = 30;
 /** The sections, in the order of the app's chips. */
 const SECTIONS: readonly WaitSection[] = ["decide", "images", "letter", "family", "web", "other"];
 /** The kinds a word is said for (anything else: "other"). */
-const KINDS = ["images", "letter", "family", "web", "check", "permission", "takeover", "milder", "story", "send", "tune", "aside", "conflict", "hypothesis", "place", "branch", "proven", "transcript", "other"] as const;
+const KINDS = ["images", "letter", "family", "web", "check", "permission", "takeover", "milder", "story", "send", "tune", "aside", "conflict", "hypothesis", "place", "branch", "proven", "transcript", "import", "other"] as const;
 
 type T = ReturnType<typeof translator>;
 
@@ -607,6 +608,7 @@ async function decide(ctx: Context, run: Run, lang: string, root: string, w: Wai
   if (w.place) return decidePlace(ctx, run, lang, root, w.place.place.id);
   if (w.branch) return decideBranch(ctx, run, lang, root, w.branch.id);
   if (w.proven) return decideProven(ctx, run, lang, root);
+  if (w.importSend) return decideImport(ctx, run, lang, root, w.item.id);
   if (w.send) return void (await decideSent(ctx, run, lang, root, w.send));
   if (w.tune) return decideTune(ctx, run, lang, w.tune);
   if (w.aside) return decideAside(ctx, run, lang, root, w.aside);
@@ -799,6 +801,38 @@ async function decideProven(ctx: Context, run: Run, lang: string, root: string):
   const i = await ctx.choose("", [{ label: t("ui.wait.proven.keep") }, { label: t("ui.wait.proven.lower") }], 2, { back: t("ui.browse.back") });
   if (i === undefined) return;
   await run(["fixes", "review", "proven-originals", i === 0 ? "keep" : "lower"], true);
+}
+
+/**
+ * A send of the Strom app that added many people as the person's own (1127): did they come of a family tree? Its day,
+ * how many, three names, what a family tree's mark means and what changes (strom sync as-import's preview, from the
+ * history) — yes: strom sync as-import I… --apply (the research backed up first), no: --own (never asked again). Nothing
+ * spent; 0 leaves it waiting.
+ */
+async function decideImport(ctx: Context, run: Run, lang: string, root: string, id: string): Promise<void> {
+  const t = translator(lang);
+  const out = (line = "") => ctx.io.stdout(line + "\n");
+  const tree = Tree.open(root, ctx.env);
+  const x = importWaiting(tree, id)?.importSend;
+  // meanwhile answered (in the app, another terminal): said, nothing asked
+  if (!x) return void out(t("ui.wait.import.gone"));
+  const plan = sendPlan(tree, sendInput(tree, x.input));
+  out(
+    [
+      "",
+      ` ${id} · ${kindWord(t, "import")} · ${t("ui.wait.since", { day: humanDay(x.at, lang) })}`,
+      ` ${t("ui.waiting.import", { day: humanDay(x.at, lang), n: x.persons })}`,
+      `    ${t("ui.wait.import.samples", { names: x.samples.map((p) => `${p.name} [${p.id}]`).join(", ") })}`,
+      `    ${t("ui.wait.import.why")}`,
+      `    ${t("ui.wait.import.change", { n: plan.change.values, stay: plan.stay.values })}`,
+      `    ${t("ui.wait.import.cmd", { input: x.input })}`,
+    ]
+      .flatMap((l) => saidLines(l, ctx.style))
+      .join("\n"),
+  );
+  const i = await ctx.choose("", [{ label: t("ui.wait.import.yes") }, { label: t("ui.wait.import.no") }], 2, { back: t("ui.browse.back") });
+  if (i === undefined) return;
+  await run(["sync", "as-import", x.input, i === 0 ? "--apply" : "--own"]);
 }
 
 /**

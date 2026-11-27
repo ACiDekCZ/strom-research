@@ -100,6 +100,8 @@ export interface UserConfig {
   queueSuggestPersons?: number;
   /** The books most tasks need (spec 105): how many tasks a book needs to be offered to download (books.minTasks). */
   booksMinTasks?: number;
+  /** The people one send of the Strom app adds from which What waits asks whether they came of a family tree (sync.importAsk; 0 never). */
+  syncImportAsk?: number;
   /** Years either side of a date estimated from an age a search has to cover (search.ageMargin; spec 131). */
   searchAgeMargin?: number;
   /** After a session in a book on disk, the next task of that book (queue.sameBook): no (default) or yes. */
@@ -310,6 +312,8 @@ export const BOOKS_MIN_TASKS = 5;
 export const BOOKS_MIN_TASKS_MAX = 999;
 /** Years either side of a date estimated from an age that a search has to cover (search.ageMargin; spec 131). */
 export const AGE_MARGIN = 5;
+/** What waits asks whether a send of the Strom app came of a family tree once it added so many people (sync.importAsk; 1127). */
+export const IMPORT_ASK = 20;
 /** search.ageMargin at most (a whole number of years). */
 export const AGE_MARGIN_MAX = 30;
 
@@ -371,6 +375,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "stories.sources", env: "STROM_STORIES_SOURCES", tree: true, kind: "choice", choices: ["yes", "no"], description: "before a story is written, a search beyond the registers — newspapers, directories, military, land and court records, graves, the history of the place — so the story can tell more, every word still on a record: yes (default, while stories are on), no (the story from what the research found)" },
   { key: "stories.history", env: "STROM_STORIES_HISTORY", tree: true, kind: "choice", choices: ["yes", "no"], description: "the history of the places (experiments.history) in the stories: the events of their time at the ancestors' places, each with its source, told as the background of the life — never as what the person did: yes (default, while the history is on), no (the stories without it); an approved story is never rewritten for it" },
   { key: "sync.edits", env: "STROM_SYNC_EDITS", tree: true, kind: "choice", choices: ["conflict", "user"], description: "your edits in the Strom app (or another program's file) to a fact a record proves, taken by strom sync: conflict (default — the research keeps the record's, a conflict for you to decide) or user (your edit wins, the record's fact is withdrawn with the reason)" },
+  { key: "sync.importAsk", env: "", tree: true, kind: "number", description: `the people one send of the Strom app adds with no mark of an import (an older app's) from which What waits asks whether they came of a family tree taken over — an import or a merge in the app — and not of your own edits (strom sync as-import): default ${IMPORT_ASK}, a whole number, 0 never` },
   // Read from the config files only (the user's or the tree's) — no variable: turning it off is the user's decision.
   { key: "sync.review", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "what the Strom app sends: off (default — written at once: additions, the leads corrected, a record's fact changed a conflict for you to decide; strom sync undo takes a send back) or on (each send waits for your word: the menu's What waits for you) — an archive writes always" },
   // Read from the config files only (the user's or the tree's) — no variable: what a reading again asks of the person is theirs.
@@ -455,6 +460,7 @@ const FIELDS: Record<string, string> = {
   "queue.suggestPersons": "queueSuggestPersons",
   "queue.sameBook": "queueSameBook",
   "books.minTasks": "booksMinTasks",
+  "sync.importAsk": "syncImportAsk",
   "search.ageMargin": "searchAgeMargin",
   "connectors.consent": "connectorsConsent",
   "browser.downloads": "browserDownloads",
@@ -638,6 +644,11 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
       // years either side of an estimated date: its range said for 0 and a word too, as for 31
       if (def.key === "search.ageMargin" && (!Number.isInteger(n) || n < 1 || n > AGE_MARGIN_MAX))
         throw new UsageError(`${def.key} is a whole number of years from 1 to ${AGE_MARGIN_MAX}`, { hint: `years either side of a date estimated from an age — strom config set search.ageMargin ${AGE_MARGIN} --for-tree` });
+      // the people of a send asked about: a whole number, 0 never
+      if (def.key === "sync.importAsk") {
+        if (!v || !Number.isInteger(n) || n < 0) throw new UsageError(`${def.key} is a whole number, 0 or more`, { hint: `the people a send of the Strom app adds before What waits asks whether they came of a family tree; 0: never — strom config set sync.importAsk ${IMPORT_ASK} --for-tree` });
+        return n;
+      }
       if (!Number.isFinite(n) || n <= 0) throw new UsageError(`${def.key} must be a positive number`);
       if (def.key === "queue.offLineShare" && (!Number.isInteger(n) || n < 2)) throw new UsageError(`${def.key} is a whole number from 2`, { hint: `one task off the lines in so many sessions — strom config set queue.offLineShare ${OFF_LINE_SHARE}` });
       if ((def.key === "queue.suggestTasks" || def.key === "queue.suggestPersons") && !Number.isInteger(n)) throw new UsageError(`${def.key} is a whole number from 1`);
@@ -1140,6 +1151,15 @@ export class Settings {
    */
   hypothesesDecide(tree?: TreeConfig): "person" | "agent" {
     return this.resolve("hypotheses.decide", tree)?.value === "person" ? "person" : "agent";
+  }
+
+  /**
+   * The people one send of the Strom app adds from which What waits asks whether they came of a family tree (sync.importAsk,
+   * 1127): a whole number, 0 never; default IMPORT_ASK.
+   */
+  importAsk(tree?: TreeConfig): number {
+    const n = Number(this.resolve("sync.importAsk", tree)?.value ?? IMPORT_ASK);
+    return Number.isInteger(n) && n >= 0 ? n : IMPORT_ASK;
   }
 
   syncEdits(tree?: TreeConfig): "conflict" | "user" {

@@ -53,9 +53,10 @@ import { loadSaves, type SaveRecord } from "./browser.ts";
 import { heldTasks } from "./holdsview.ts";
 import { retryOf, type RetryCache } from "./retry.ts";
 import { runs } from "../cli/format.ts";
+import { importOffers, type ImportOffer } from "./sendimport.ts";
 
 /** What waits: a task's kind, a question about an archive, a story, and the terminal's own (a send of the app, a question about the reading of scans). */
-export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune" | "aside" | "conflict" | "place" | "branch" | "hypothesis" | "proven" | "transcript";
+export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune" | "aside" | "conflict" | "place" | "branch" | "hypothesis" | "proven" | "transcript" | "import";
 export type WaitSection = "decide" | "images" | "letter" | "family" | "web" | "other";
 /** What a link of the Strom app does with an item (strom-research://task?…&do=): answer, a file to it, the request's text, the folder, sent, a conversation. */
 export type WaitAction = "answer" | "file" | "note" | "folder" | "images" | "sent" | "chat";
@@ -77,6 +78,8 @@ const SECTION: Record<string, WaitSection> = {
   place: "decide",
   branch: "decide",
   proven: "decide",
+  // a send of the Strom app that added many people as the person's own: did they come of a family tree? (1127)
+  import: "decide",
   // a new wording proposed for a transcript the person read (core/proposal.ts): theirs to take or keep
   transcript: "decide",
   images: "images",
@@ -93,7 +96,7 @@ export function sectionOf(kind: string): WaitSection {
 /** To be done: the decisions, then images and sites, then letters and the family, then the rest. */
 const SECTION_RANK: Record<WaitSection, number> = { decide: 0, images: 1, web: 1, letter: 2, family: 2, other: 3 };
 /** Among the decisions: the person's own edits first, the archives (they hold work up), then the rest. */
-const DECIDE_RANK: Record<string, number> = { send: 0, conflict: 0, hypothesis: 0, permission: 1, takeover: 2, milder: 3, check: 4, story: 5, place: 5, branch: 5, proven: 5, aside: 4, tune: 6, transcript: 0 };
+const DECIDE_RANK: Record<string, number> = { send: 0, conflict: 0, hypothesis: 0, permission: 1, takeover: 2, milder: 3, check: 4, story: 5, place: 5, branch: 5, proven: 5, aside: 4, tune: 6, transcript: 0, import: 0 };
 
 /** The actions each kind of task allows (those links do now: ACTIONS_OFFERED). */
 function actionsOf(kind: WaitingKind, phase: WaitPhase, note: boolean, inbox: boolean): WaitAction[] {
@@ -156,6 +159,8 @@ export interface Waiting {
   branch?: BranchView;
   /** The facts a person made proven without the original record, waiting for a look (core/provenfix.ts): one item for all. */
   proven?: ProvenLeft[];
+  /** A send of the Strom app that added many people as the person's own: whether they came of a family tree (1127). */
+  importSend?: ImportOffer;
   /** A hypothesis an agent proposes how to decide, or (the person deciding them) an open one with no proposal: the person decides it (the terminal). */
   hypothesis?: Hypothesis;
   /** Shown only in the terminal: the Strom app never gets it (/status `waiting` asks for none of these — TERMINAL_ONLY). */
@@ -655,6 +660,10 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
         },
       });
   }
+  // a send of the Strom app that added many people as the person's own (an older app marked no import): did they come
+  // of a family tree taken over — an import, a merge in the app? (1127; sync.importAsk) The person's data, no agent and
+  // no network: asked in an archive too
+  out.push(...importItems(tree));
   // what the Strom app sent on its own, waiting to be written or thrown away: the person's own edits
   if (o.sends)
     for (const r of receivedPending(tree.root))
@@ -760,6 +769,44 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
     }
   }
   return ordered(out);
+}
+
+/**
+ * The sends of the Strom app What waits asks about (1127): W-S-<I…>, the person's answer in the terminal (strom sync
+ * as-import I… --apply | --own) or in the app (POST /waiting/W-S-I… {do: import|own}); with `only`, that send's alone.
+ */
+function importItems(tree: Tree, only?: string): Unordered[] {
+  const lang = tree.lang;
+  return importOffers(tree, new Settings(tree.env, {}).importAsk(tree.config), only).map((x) => ({
+    importSend: x,
+    item: {
+      id: `W-S-${x.input}`,
+      what: ui(lang, "ui.waiting.import", { day: humanDay(x.at, lang), n: x.persons }),
+      on: "",
+      at: x.at,
+      kind: "import",
+      section: "decide",
+      group: { key: "app", name: phrase(lang, "wait.group.app"), kind: "other" },
+      phase: "todo",
+      actions: ["answer"],
+      input: x.input,
+      day: x.day,
+      persons: x.persons,
+      samples: x.samples,
+    },
+  }));
+}
+
+/** The send What waits asks about by its item (W-S-I…), while it waits; none: answered, or no longer asked. */
+export function importWaiting(tree: Tree, id: string): Waiting | undefined {
+  const m = /^W-S-(I\d+)$/iu.exec(id.trim());
+  if (!m) return undefined;
+  return ordered(importItems(tree, m[1]!.toUpperCase()))[0];
+}
+
+/** What waits in an archive for the Strom app (its /status): the sends asked about alone — the rest is none there. */
+export function archiveWaiting(tree: Tree): Waiting[] {
+  return ordered(importItems(tree));
 }
 
 /** The items of one place together, where its first stands. */

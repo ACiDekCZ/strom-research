@@ -615,7 +615,7 @@ export function launchedFrom(env: Env, tty: boolean): Record<string, unknown> {
 const CONFIG_PLAIN = [
   "lang", "mode", "stromVersion", "lastVersion", "lastChannel", "npmChannel", "stories", "runGate", "runConfirm", "archivePace", "readApp", "briefBudget", "runMinutes", "runParallel",
   "taskHold", "archiveHold", "archiveWait",
-  "webPerHost", "readParallel", "queueStrategy", "queueOffLine", "queueOffLineShare", "queueSuggestLines", "queueSuggestTasks", "queueSuggestPersons", "queueSameBook", "booksMinTasks",
+  "webPerHost", "readParallel", "queueStrategy", "queueOffLine", "queueOffLineShare", "queueSuggestLines", "queueSuggestTasks", "queueSuggestPersons", "queueSameBook", "booksMinTasks", "syncImportAsk",
   "connectorsConsent", "browserDownloads", "experimentsHistory", "experimentsHistoryPace", "experimentsHistoryPlaces", "experimentsPlaceHistory",
   "historyKinds", "historyAsked", "stromApp", "links", "shortcut", "appBrowser", "terminal", "updates", "excerptsQuality", "excerptsFor", "excerptsMb",
   "tuneTranscripts", "tuneAuto", "liveIdleMinutes", "stromAppFollow",

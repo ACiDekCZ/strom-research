@@ -115,6 +115,61 @@ export function importAnswered(tree: Tree, input: string): SendAnswer | undefine
   return readFile(tree).answers.filter((a) => a.input === input).pop()?.answer;
 }
 
+/**
+ * A send What waits asks about (1127, feature waiting.import): "did these people come of a family tree?" — a sync of the
+ * Strom app (not taken back) that added at least `least` people (sync.importAsk), at least one of them with a name still
+ * the person's own and nothing more ({by: "user"}) that cites a send of the app, and no answer yet (neither --apply nor
+ * --own). Worked out cheaply, without the history (/status asks often): the preview (sendPlan) reads the history.
+ */
+export interface ImportOffer {
+  input: string;
+  /** When the send came (its input's time) and its day (YYYY-MM-DD). */
+  at: string;
+  day: string;
+  /** The people the send added. */
+  persons: number;
+  /** Three of them whose name is still as the send wrote it (the person's own), in the order it added them. */
+  samples: { id: string; name: string }[];
+}
+
+/** The sends What waits asks about, oldest first (none with `least` 0); with `only`, that send alone. */
+export function importOffers(tree: Tree, least: number, only?: string): ImportOffer[] {
+  if (!Number.isInteger(least) || least < 1) return [];
+  const inputs = only ? [tree.get<SyncInput>(only)].filter((i): i is SyncInput => !!i) : tree.list<SyncInput>("input");
+  const sends = inputs.filter((i) => i.type === "input" && !!i.sync && !i.sync.undone && (i.sync.applied?.length ?? 0) >= least);
+  if (!sends.length) return [];
+  const answered = new Set(readFile(tree).answers.map((a) => a.input));
+  const known = new Map<string, boolean>();
+  /** A source of a send of the app (its input a sync's): the day's "Edits in the Strom app". */
+  const ofSend = (id: string) => {
+    let v = known.get(id);
+    if (v === undefined) {
+      const src = tree.get<Source>(id);
+      const i = src?.type === "source" && src.input ? tree.get<SyncInput>(src.input) : undefined;
+      v = !!i && i.type === "input" && !!i.sync;
+      known.set(id, v);
+    }
+    return v;
+  };
+  const out: ImportOffer[] = [];
+  for (const input of sends) {
+    if (answered.has(input.id)) continue;
+    const added = [...new Set((input.sync!.applied ?? []).filter((a) => a.do === "person.add" && /^P\d+$/u.test(a.id)).map((a) => a.id))];
+    if (added.length < least) continue;
+    const samples: ImportOffer["samples"] = [];
+    for (const id of added) {
+      const p = tree.get<Person>(id);
+      if (!p || p.type !== "person" || p.retracted || p.mergedInto) continue;
+      if (!p.names.some((n) => plainUser(n.origin) && !n.confirmed && !n.was && (n.citations ?? []).some((c) => ofSend(c.source)))) continue;
+      samples.push({ id, name: displayName(p) });
+      if (samples.length === 3) break;
+    }
+    if (!samples.length) continue;
+    out.push({ input: input.id, at: input.created, day: dayOf(input), persons: added.length, samples });
+  }
+  return out.sort((a, b) => a.at.localeCompare(b.at) || byId(a.input, b.input));
+}
+
 const withAnswer = (f: SendImportsFile, input: string, answer: SendAnswer): SendImportsFile => ({
   ...f,
   answers: [...f.answers.filter((a) => a.input !== input), { input, answer, at: now() }],

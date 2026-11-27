@@ -35,7 +35,7 @@ const SETTING_ON_OFF: Record<string, Record<string, "on" | "off">> = {
 };
 
 /** The settings of a research said with their number. */
-const SETTING_NUMBERS = new Set(["brief.budget", "run.minutes", "read.parallel", "web.perHost", "queue.offLineShare", "queue.suggestTasks", "search.ageMargin", "books.minTasks", "queue.suggestPersons", "excerpts.mb"]);
+const SETTING_NUMBERS = new Set(["brief.budget", "run.minutes", "read.parallel", "web.perHost", "queue.offLineShare", "queue.suggestTasks", "search.ageMargin", "books.minTasks", "queue.suggestPersons", "excerpts.mb", "sync.importAsk"]);
 
 /**
  * A setting of the research changed (the summary strom config set writes: "tree setting <key> = <value>", "tree setting

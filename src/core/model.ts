@@ -1748,6 +1748,8 @@ export interface TreeConfig {
   queueSuggestPersons?: number;
   /** The tasks a book needs to be offered to download by hand (books.minTasks; spec 105). */
   booksMinTasks?: number;
+  /** The people one send of the Strom app adds from which What waits asks whether they came of a family tree (sync.importAsk; 1127). */
+  syncImportAsk?: number;
   /** Years either side of a date estimated from an age a search has to cover (search.ageMargin; spec 131). */
   searchAgeMargin?: number;
   /** After a session in a book on disk, the next task of that book first: no (default) or yes (queue.sameBook). */

@@ -465,6 +465,7 @@ export const PHRASES = {
   "log.setting.name.stories.history": "History of the places in the stories",
   "log.setting.name.sync.edits": "Changes from the Strom app",
   "log.setting.name.sync.review": "Review of what comes from the Strom app",
+  "log.setting.name.sync.importAsk": "People of one send from the Strom app before asking whether they came from a family tree",
   "log.setting.name.read.sourceTask": "A new reading that differs from the transcript",
   "log.setting.name.hypotheses.decide": "Who decides the hypotheses",
   "log.setting.name.main.person": "Main person of the tree",
