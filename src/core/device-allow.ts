@@ -150,8 +150,8 @@ function writeAllowed(what: string, sub: string | undefined, act: string | undef
       // closed, and sorted by the agent at once when asked (K3.15: sort.confirm the app's dialog, as on the computer)
       return only(n === 3 && act === "done", "batch");
     case "material":
-      // a sort asked, one cancelled (K3.15)
-      if (sub === "sort") return only(n === 2 || (n === 4 && rest === "cancel"), "material.sort");
+      // a sort asked, one cancelled (K3.15); what the person decided of its proposals (spec 147 K2)
+      if (sub === "sort") return only(n === 2 || (n === 4 && (rest === "cancel" || rest === "decided")), "material.sort");
       return only(n === 2 && (sub === "assign" || sub === "hide" || sub === "edit" || sub === "delete"), "material");
     case "read":
       // a record read at once, read again, a reading cancelled (K3.15)
