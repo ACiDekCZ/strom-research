@@ -135,7 +135,7 @@ register(
     examples: [
       'strom story set P0001 --text @notes/story-P0001.md --title "The miller of Týnec" --fact E0001 --fact E0002 --note "The house is inferred from the census."',
       'strom story set P0001 --text @notes/story-P0001.md --fact E0001 --fact E0002 --drop "E0003 told in the couple\'s story"',
-      'strom story set A0001 --text @notes/story-A0001.md --title "The house by the pond" --fact h1 --fact e2 --fact E0004',
+      'strom story set A0001 --text "The house burned down, perhaps in 1905." --title "The house by the pond" --fact e1',
     ],
     run(ctx, { args, opts }) {
       // approved is the user's word alone: an agent writes a draft, the user approves it themselves
