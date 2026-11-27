@@ -323,24 +323,41 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
             // their pace (the places to map before the research), without what others hold.
             const fresh = Tree.open(root!, ctx.env);
             const held = othersAtWork(fresh, fresh.env).tasks;
-            // Two lines or more: the whole queue or one line's own run (spec 126) — a line with a run is said, not offered.
+            // The queue of a run of the whole queue or of one line: without what others hold and the lines with a run of their own.
+            const queueOf = (research?: string) => {
+              const lineOk = lineRunFilter(fresh, research, "");
+              return taskQueue(fresh, { ...(research ? { research } : {}), strategy: ctx.settings.strategy(fresh.config), ...RUN_TURNS }).filter((x) => !held.has(x.id) && lineOk(x));
+            };
+            // Two lines or more: the queue — what is next in it said at once — or one line's own run (spec 126), the lines in a
+            // submenu (a line with a run said there, not offered); the lines with a run of their own a note by the queue.
             const lines = fresh.list<Research>("research").filter((r) => r.state === "active");
             let line: Research | undefined;
+            let whole: ReturnType<typeof queueOf> | undefined;
             if (lines.length >= 2) {
               const holds = lineHolds(root!);
-              const k = await ctx.choose(t("ui.run.where"), [{ label: t("ui.run.whole") }, ...lines.map((r) => ({ label: t(holds.has(r.id) ? "ui.run.line.busy" : "ui.run.line.item", { name: r.name, research: r.id }) }))], 0, { back: t("ui.browse.back") });
-              if (k === undefined) return;
-              if (k > 0) {
-                line = lines[k - 1]!;
+              whole = queueOf();
+              const first = whole[0];
+              const busy = lines.filter((r) => holds.has(r.id));
+              const label =
+                (first ? t(whole.length > 1 ? "ui.run.whole.more" : "ui.run.whole", { task: truncate(humanTask(fresh, first.what, lang), 70), n: whole.length - 1 }) : t("ui.run.whole.empty")) +
+                (busy.length === 1 ? t("ui.run.whole.held", { name: busy[0]!.name }) : busy.length ? t("ui.run.whole.held.more", { n: busy.length }) : "");
+              for (;;) {
+                const k = await ctx.choose(t("ui.run.where"), [{ label }, { label: t("ui.run.oneline") }], 0, { back: t("ui.browse.back") });
+                if (k === undefined) return;
+                if (k === 0) break;
+                // back: the question again
+                const j = await ctx.choose(t("ui.run.line.pick"), lines.map((r) => ({ label: t(holds.has(r.id) ? "ui.run.line.busy" : "ui.run.line.item", { name: r.name, research: r.id }) })), 0, { back: t("ui.browse.back") });
+                if (j === undefined) continue;
+                line = lines[j]!;
                 if (holds.has(line.id)) {
                   out(t("ui.run.line.held", { name: line.name, since: new Date(holds.get(line.id)!.since).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" }) }));
                   await pause(lang);
                   return;
                 }
+                break;
               }
             }
-            const lineOk = lineRunFilter(fresh, line?.id, "");
-            const queue = taskQueue(fresh, { ...(line ? { research: line.id } : {}), strategy: ctx.settings.strategy(fresh.config), ...RUN_TURNS }).filter((x) => !held.has(x.id) && lineOk(x));
+            const queue = whole && !line ? whole : queueOf(line?.id);
             const shown = queue.slice(0, RUN_LIST);
             // The tasks of history alone, in their order whatever its pace (strom run --history): only while it is on — the whole queue's.
             const history = !line && historyOn(fresh, ctx.settings) ? taskQueue(fresh, { strategy: ctx.settings.strategy(fresh.config), history: "only" }).filter((x) => !held.has(x.id)) : [];
