@@ -36,6 +36,7 @@ import {
   type Story,
   type StoryDraft,
   type Union,
+  type House,
 } from "./model.ts";
 import { cleanTitle, displayName, familiesAsChild, familiesAsPartner, gedcomName, gedcomTitledName, closesCircle, isAncestorOf, isBirthFamily, keepSides, notAName, parseName, primaryName, sameName, slashInName, withoutMark } from "./people.ts";
 import { foldText } from "./text.ts";
@@ -1365,13 +1366,13 @@ function storyLossError(id: string, lost: StoryLoss[]): UsageError {
 }
 
 /** The new version of an approved story is not wanted: it goes, the approved story stays (the history keeps it). */
-export function discardStoryDraft(tree: Tree, id: string): Person | Family {
+export function discardStoryDraft(tree: Tree, id: string): Person | Family | House {
   return tree.withTreeLock(() => {
-    const rec = tree.get<Person | Family>(id);
-    if (!rec || (rec.type !== "person" && rec.type !== "family")) throw new UsageError(`no person or family ${id}`, { code: "record.none", params: { kind: "person or family", id: id } });
+    const rec = tree.get<Person | Family | House>(id);
+    if (!rec || (rec.type !== "person" && rec.type !== "family" && rec.type !== "house")) throw new UsageError(`no person, family or house ${id}`, { code: "record.none", params: { kind: "person, family or house", id: id } });
     if (!rec.story?.draft) throw new UsageError(`${id} has no new version of its story waiting`, { hint: `strom story show ${id}` });
     const { draft: _gone, ...story } = rec.story;
-    const updated = { ...rec, story, updated: now() } as Person | Family;
+    const updated = { ...rec, story, updated: now() } as Person | Family | House;
     tree.put(updated, { op: "story.discard", targets: [id], summary: `${id} story: the new version discarded, the approved one stays` });
     return updated;
   });
@@ -1381,18 +1382,18 @@ export function discardStoryDraft(tree: Tree, id: string): Person | Family {
  * The user approved the story as it is: no longer a draft (the text stays), locked — or, when a new version waits
  * beside an approved one, that new version takes its place, approved.
  */
-export function approveStory(tree: Tree, id: string): Person | Family {
+export function approveStory(tree: Tree, id: string): Person | Family | House {
   return tree.withTreeLock(() => {
-    const rec = tree.get<Person | Family>(id);
-    if (!rec || (rec.type !== "person" && rec.type !== "family")) throw new UsageError(`no person or family ${id}`, { code: "record.none", params: { kind: "person or family", id: id } });
+    const rec = tree.get<Person | Family | House>(id);
+    if (!rec || (rec.type !== "person" && rec.type !== "family" && rec.type !== "house")) throw new UsageError(`no person, family or house ${id}`, { code: "record.none", params: { kind: "person, family or house", id: id } });
     if (!rec.story) throw new UsageError(`${id} has no story yet`, { hint: `strom story set ${id} --text @file --fact E…` });
     if (rec.story.draft) {
-      const updated = { ...rec, story: { ...rec.story.draft, status: "final" as const }, updated: now() } as Person | Family;
+      const updated = { ...rec, story: { ...rec.story.draft, status: "final" as const }, updated: now() } as Person | Family | House;
       tree.put(updated, { op: "story.approve", targets: [id], summary: `${id} story: the new version approved, in place of the old one` });
       return updated;
     }
     if (rec.story.status === "final") return rec;
-    const updated = { ...rec, story: { ...rec.story, status: "final" as const }, updated: now() } as Person | Family;
+    const updated = { ...rec, story: { ...rec.story, status: "final" as const }, updated: now() } as Person | Family | House;
     tree.put(updated, { op: "story.approve", targets: [id], summary: `${id} story approved` });
     return updated;
   });

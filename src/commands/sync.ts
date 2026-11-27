@@ -28,6 +28,8 @@ import { startLive } from "../core/live.ts";
 import { appSendsChanges, sendAppUrl, stromAppUrl } from "../core/stromapp.ts";
 import { appWindow, openAppIn, replaceGone } from "../core/appbrowser.ts";
 import { isAgent } from "../core/which.ts";
+import { answerOwn, applySendImport, backupBeforeSendImport, importAnswered, sendInput, sendPlan, undoSendImport, type SendPlan, type SendValue } from "../core/sendimport.ts";
+import { displayName } from "../core/people.ts";
 
 /**
  * What was written, line by line (the operations' summaries, in English — for an agent or a script); a person at the
@@ -183,6 +185,9 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
           ? "ui.sync.name.married"
           : (c.kind === "fact.confirm" || c.kind === "name.confirm") && c.confirm?.on === false
             ? `ui.sync.${c.kind}.back`
+            // a value an earlier send wrote as the person's own, the import's as the file marks it (1127)
+            : c.kind === "origin.import" && c.imported && c.imported.what !== "fact"
+              ? `ui.sync.origin.import.${c.imported.what}`
             : c.kind === "fact.share"
               ? `ui.sync.fact.share${c.shared === "roleAt" ? ".role" : ""}${(c.shared === "roleAt" ? c.fact?.roleAt : c.fact?.share) ? "" : ".gone"}`
               // the main citation and the citations the user removed (spec 095)
@@ -209,6 +214,8 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
       // …and of the name of their identity (spec 066 P5)
       : c.kind === "name.confirm"
       ? !tree.personWrites ? "ui.sync.do.confirm.kept" : `ui.sync.do.name.confirm${c.confirm?.on === false ? ".back" : ""}`
+      : c.kind === "origin.import"
+      ? "ui.sync.do.origin.import"
       // the Strom app's mark of a shared event (spec 085): who shares one the person's alone
       : c.kind === "fact.share"
       ? c.action === "add" ? "ui.sync.do.share" : !tree.personWrites ? "ui.sync.do.share.kept" : "ui.sync.do.share.user"
@@ -375,6 +382,47 @@ function heldAfterPlan(file: string | undefined): void {
   const until = Date.now() + 60_000;
   const pause = new Int32Array(new SharedArrayBuffer(4));
   while (fs.existsSync(file) && Date.now() < until) Atomics.wait(pause, 0, 0, 50);
+}
+
+/** At most this many people (and couples) listed by name in strom sync as-import's preview, each list apart. */
+const AS_IMPORT_SHOWN = 40;
+
+/** strom sync as-import's preview for the person: what becomes the family tree's, person by person, and what stays and why. */
+function asImportPreview(tree: Tree, plan: SendPlan, lang: string): string {
+  const who = (id: string) => {
+    const o = tree.get<Person | Family>(id);
+    if (o?.type === "person") return `${displayName(o)} [${id}]`;
+    if (o?.type === "family") return `${o.partners.map((p) => { const q = tree.get<Person>(p); return q ? displayName(q) : p; }).join(" & ")} [${id}]`;
+    return id;
+  };
+  const what = (v: SendValue) => {
+    if (v.what === "name") return ui(lang, "ui.sync.asimport.what.name", { name: shownName(v.name) });
+    if (v.what === "sex") return ui(lang, "ui.sync.asimport.what.sex");
+    const o = tree.get<Person | Family>(v.owner);
+    const e = o?.events.find((x) => x.id === v.ref);
+    return [eventName(v.kind, lang, e?.label), humanDate(e?.date, lang)].filter(Boolean).join(" ");
+  };
+  const byOwner = (list: SendValue[]) => {
+    const out = new Map<string, SendValue[]>();
+    for (const v of list) out.set(v.owner, [...(out.get(v.owner) ?? []), v]);
+    return [...out];
+  };
+  const change = plan.values.filter((v) => !v.stay && !v.done);
+  const stays = plan.values.filter((v) => v.stay);
+  const changeLines = byOwner(change);
+  const stayLines = stays.map((v) => ui(lang, "ui.sync.asimport.stay.line", { who: who(v.owner), what: what(v), why: ui(lang, `ui.sync.asimport.why.${v.stay!}` as UIKey) }));
+  return lines(
+    ui(lang, "ui.sync.asimport.head", { input: plan.input, day: humanDay(`${plan.day}T12:00:00.000Z`, lang), persons: plan.persons }),
+    plan.answer ? ui(lang, `ui.sync.asimport.answered.${plan.answer}` as UIKey) : undefined,
+    change.length ? ui(lang, "ui.sync.asimport.change", { n: plan.change.values, p: plan.change.persons, names: plan.change.names, sexes: plan.change.sexes, facts: plan.change.facts }) : ui(lang, "ui.sync.asimport.change.none"),
+    ...changeLines.slice(0, AS_IMPORT_SHOWN).map(([owner, vs]) => ui(lang, "ui.sync.asimport.line", { who: who(owner), what: vs.map(what).join(", ") })),
+    changeLines.length > AS_IMPORT_SHOWN ? ui(lang, "ui.sync.asimport.more", { n: changeLines.length - AS_IMPORT_SHOWN }) : undefined,
+    stays.length ? ui(lang, "ui.sync.asimport.stay", { n: plan.stay.values, changed: plan.stay.changed, confirmed: plan.stay.confirmed, was: plan.stay.was, other: plan.stay.other }) : undefined,
+    ...stayLines.slice(0, AS_IMPORT_SHOWN),
+    stayLines.length > AS_IMPORT_SHOWN ? ui(lang, "ui.sync.asimport.more", { n: stayLines.length - AS_IMPORT_SHOWN }) : undefined,
+    plan.done ? ui(lang, "ui.sync.asimport.done", { n: plan.done }) : undefined,
+    change.length ? ui(lang, "ui.sync.asimport.next", { input: plan.input }) : undefined,
+  );
 }
 
 register(
@@ -678,6 +726,72 @@ register(
         text: lines(...opsFor(ctx, tree), "", ui(tree.lang, "ui.sync.undone", { input: id, n }), ...keptLines(tree, kept), ...still.map((r) => ui(tree.lang, "ui.sync.undone.stillRemoved", { name: r.name, person: r.person, id: r.conflict }))),
         data: { input: id, undone: n, fields, ...(kept.length ? { kept: kept.map((k, i) => ({ ...k, ...by[i] })) } : {}), ...(still.length ? { stillRemoved: still.map((r) => ({ person: r.person, conflict: r.conflict, back: `strom conflict resolve ${r.conflict} --take research --reasoning "<why>" --reason "<why>"` })) } : {}) },
       };
+    },
+  },
+  {
+    path: ["sync", "as-import"],
+    summary: "Tell a send of the Strom app a family tree taken over (an import, a merge): its values unchanged since marked of the family tree, not the user's — shown first",
+    group: "research",
+    person: "Whether a send was a family tree taken over is the user's own word: this command in their own terminal — never an agent",
+    tree: true,
+    writes: true,
+    // the preview reads as any read does; --apply, --undo and --own write
+    writesWith: ({ opts }) => !!opts.apply || !!opts.undo || !!opts.own,
+    // the backup before --apply copies the research under its lock: the tree is locked only while it is written
+    lock: "sections",
+    description:
+      "An older Strom app sent the people of a family tree imported or merged in it with no mark of the import: the\n" +
+      "research took each value for the user's own (the app shows it confirmed by a person). Neither the app nor the\n" +
+      "research can tell it afterwards; the user can, of one send. Without --apply it shows what would change: each value\n" +
+      "the send wrote that is the same now (by the research's history: right after the sync's commit, not before it, the\n" +
+      "same now), the user's own and nothing more, nothing kept to put back, not confirmed — and what stays and why.\n" +
+      "--apply backs the research up first, then marks those values of one source of the send's family tree (made once,\n" +
+      "cited first; the send's citation stays); value and status as they are. One commit; --undo puts back what is still\n" +
+      "as it set it. --own: the send was written by hand — nothing changes, the answer is kept (not asked again).",
+    args: [{ name: "input", description: "the sync's input (I…), as strom sync said", required: true }],
+    options: [
+      { name: "apply", type: "boolean", description: "write it (the research backed up first)" },
+      { name: "undo", type: "boolean", description: "put back what this command set of the send (the answer stays)" },
+      { name: "own", type: "boolean", description: "the send was written by hand: nothing changes, the answer kept" },
+    ],
+    examples: ["strom sync as-import I0002", "strom sync as-import I0002 --apply", "strom sync as-import I0002 --undo", "strom sync as-import I0002 --own"],
+    run(ctx: Context, { args, opts }) {
+      const tree = ctx.tree();
+      const lang = tree.lang;
+      if ([opts.apply, opts.undo, opts.own].filter(Boolean).length > 1)
+        throw new UsageError("one of --apply, --undo, --own", { hint: `strom sync as-import ${args[0]}`, code: "sync.as-import.options" });
+      // what this command set of a send taken back since (strom sync undo) may still be put back
+      const input = sendInput(tree, args[0]!, !!opts.undo);
+      const id = input.id;
+      if (opts.own) {
+        const r = tree.withTreeLock(() => answerOwn(tree, sendInput(tree, id)));
+        return { text: ui(lang, r.written ? "ui.sync.asimport.own" : "ui.sync.asimport.own.already", { input: id }), data: { input: id, answer: "own", written: r.written } };
+      }
+      if (opts.undo) {
+        const r = tree.withTreeLock(() => undoSendImport(tree, sendInput(tree, id, true)));
+        return {
+          text: r.restored || r.left ? lines(ui(lang, "ui.sync.asimport.undone", { n: r.restored }), r.left ? ui(lang, "ui.sync.asimport.undone.left", { n: r.left }) : undefined) : ui(lang, "ui.sync.asimport.undone.none", { input: id }),
+          data: { input: id, restored: r.restored, left: r.left, persons: r.persons, answer: importAnswered(tree, id) ?? null },
+        };
+      }
+      const plan = sendPlan(tree, input);
+      if (opts.apply) {
+        // the research backed up first (outside its lock: the backup takes it to copy), only when there is something to write
+        const backup = plan.change.values > 0 && !tree.dryRun ? backupBeforeSendImport(tree, id) : undefined;
+        const r = tree.withTreeLock(() => applySendImport(tree, sendInput(tree, id)));
+        const src = r.source ? tree.get<Source>(r.source) : undefined;
+        return {
+          text: r.values
+            ? lines(
+                ui(lang, "ui.sync.asimport.applied", { n: r.values, p: r.persons, source: src ? `${src.title} [${src.id}]` : "" }),
+                backup ? ui(lang, "ui.sync.asimport.backup", { path: backup.backup.path }) : ui(lang, "ui.sync.asimport.backup.none"),
+                ui(lang, "ui.sync.asimport.back", { input: id }),
+              )
+            : ui(lang, "ui.sync.asimport.applied.none"),
+          data: { input: id, answer: "import", values: r.values, persons: r.persons, ...(r.source ? { source: r.source } : {}), created: r.created, ...(backup ? { backup: backup.backup.path, backupMade: backup.made } : {}), change: r.plan.change, stay: r.plan.stay },
+        };
+      }
+      return { text: asImportPreview(tree, plan, lang), data: { ...plan } };
     },
   },
   {

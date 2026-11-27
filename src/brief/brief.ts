@@ -24,6 +24,7 @@ import { dateYears } from "../core/gdate.ts";
 import { HOUSE_TAKEOVER, methodFor, METHOD_HOUSE, METHOD_LINKS } from "../core/assets.ts";
 import { houseWork } from "../core/houses.ts";
 import { houseBrief } from "../core/houseauto.ts";
+import { houseStoryOf } from "../core/housestory.ts";
 import { recentSessions } from "../core/session.ts";
 import { briefClock } from "../core/clock.ts";
 import { calibrationLine } from "../core/calibration.ts";
@@ -1285,6 +1286,8 @@ export function buildBrief(
   const houseKind = task ? houseWork(task) : undefined;
   // (a research of the person's taken over reads its material as an intake does: as before)
   const houseOwn = !!houseKind && houseKind !== "takeover";
+  // the story of a house (spec 145 T4: story:house:<A…>): a story, written from its house's facts — the house's section
+  const houseStory = task ? houseStoryOf(task) : undefined;
 
   // 3. premise: what was already searched there, and lessons for those places
   const located = task ? taskRecordsets(tree, task) : { sets: [], guessed: false };
@@ -1615,6 +1618,8 @@ export function buildBrief(
   // the tasks of houses (spec 030): their page, the part of their work — a research of the person's taken over, a
   // municipality's skeleton, a house's research
   if (houseKind) conditions.push(houseKind === "takeover" ? HOUSE_TAKEOVER : houseKind === "town" ? "house-town" : houseKind === "look" ? "house-look" : "house-research");
+  // the story of a house (spec 145 T4): the house's part of writing a story, its facts in the section of the house
+  if (houseStory) conditions.push("house-story");
   sections.push({ name: "method", first: true, pointer: "strom guide", text: methodFor(kind, conditions) });
   if (censusTask) {
     const known = censusHoldings();
@@ -1622,7 +1627,7 @@ export function buildBrief(
   }
   // a house's research or a municipality's skeleton (spec 030 part 2): the people of the tree in it, the skeleton, what
   // was gone through and what is only by hand — given, never looked up again
-  const houseText = task && houseKind && houseKind !== "takeover" ? houseBrief(tree, task) : undefined;
+  const houseText = task && ((houseKind && houseKind !== "takeover") || houseStory) ? houseBrief(tree, task) : undefined;
   if (houseText) sections.push({ name: "house", first: true, pointer: "strom house show", text: houseText });
 
   // 8'. the experiment of history on: a session that reads records may write a local event they tell of
@@ -1634,9 +1639,9 @@ export function buildBrief(
 
   // 8''. the history of the places in the stories (stories.history): the time the people of a story lived in
   const storyHistoryOn = !!task && forStory(task) && new Settings(tree.env, {}).storyHistory(tree.config);
-  const ofTime = storyHistoryOn && task!.level === "narrate" ? storyHistorySection(tree, task!, opts.shared) : undefined;
+  const ofTime = storyHistoryOn && task!.level === "narrate" && !houseStory ? storyHistorySection(tree, task!, opts.shared) : undefined;
   if (ofTime) sections.push(ofTime);
-  const told = task?.level === "narrate" ? storiesTold(tree, task) : undefined;
+  const told = task?.level === "narrate" && !houseStory ? storiesTold(tree, task) : undefined;
   if (told) sections.push(told);
 
   // 8 bis. the search beyond the registers: its budget of pages, printed pages for the user's model for print where the

@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.38.0
 
-*W przygotowaniu: bety do 1.38.0-beta.5. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.38.0-beta.6. Sekcja będzie kompletna z wydaniem.*
 
 - **Bardziej przejrzyste menu w terminalu:** każdy ekran mówi, gdzie jest (Strom › Ustawienia › Konserwacja), opcje
   jako `[1]  Etykieta   stan`, przełącznik z tym, jak jest teraz i na co przełącza, powrót zawsze na końcu jako `[0]`
@@ -25,14 +25,20 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   częściach i jego wycinek; przy eBadatelnie (SOA Praha) agent trzyma się limitów archiwum, jednakowych dla człowieka
   i systemu automatycznego (najwyżej 2 skany na sekundę, jeden ZIP naraz, 10 ZIP-ów w ciągu 24 godzin), i nigdy nie
   proponuje sposobu ich obejścia.
-- **Zapisy człowieka w terminalu nie są już odrzucane z powodu przejętej sesji agenta:** gdy sesję agenta przejął inny
-  przebieg, zapisy człowieka w terminalu i w menu (Konserwacja → Miejsce na dysku, `strom tidy`,
-  `strom history align`…) przechodziły dopiero po tygodniu; teraz od razu. Agent, do którego sesja należała, jest
-  odrzucany dalej.
+- **Z drzewa genealogicznego, nie ręką człowieka:** osoby drzewa zaimportowanego lub scalonego w aplikacji Strom,
+  które starsza aplikacja wysłała bez znacznika importu, traktowano jako zapis człowieka (✓ potwierdził człowiek);
+  wysyłka, która je oznacza, poprawia je teraz sama, a starszą wysyłkę człowiek wskazuje raz – w aplikacji w Co czeka
+  („Czy to pochodzi z drzewa?”) lub poleceniem `strom sync as-import I…`: najpierw podgląd, badanie zabezpieczone
+  kopią, tylko dane od tamtej pory niezmienione i niepotwierdzone, `--undo` to cofa. Imię z nawiasami między słowami
+  („(Vincent) François (Paul)”) jest imieniem tak, jak je zapisano; zapisy człowieka w terminalu przechodzą od razu
+  także tam, gdzie sesję agenta przejął inny przebieg.
 - **Historia domów:** `strom house` prowadzi zapis każdego domu, w którym rodzina mieszkała – jego numery w czasie,
   właścicieli, mieszkańców, co się z nim działo, jego miejsce na mapie i co dla niego przejrzano; domy przodków w
   linii prostej badanie bada tylko przy włączonym ustawieniu „Historia domów”, a pojedynczy dom można zamówić zawsze,
-  także z aplikacji Strom. Nad miejscem domu aplikacja może pokazać zdjęcia lotnicze z lat 50. (Czechy).
+  także z aplikacji Strom. Nad miejscem domu aplikacja może pokazać zdjęcia lotnicze z lat 50. (Czechy). Zbadany dom,
+  który mówi dość (dwa pokolenia drzewa albo trzech właścicieli i mieszkańców ze źródłami), dostaje przy włączonych
+  opowieściach swoją opowieść, każda informacja ze źródłem, niepewne powiedziane jako niepewne; szkic do
+  zatwierdzenia, potem nigdy nieprzepisywana; `strom house story` i aplikacja zamawiają ją w każdej chwili.
 - **Badanie domu:** przechodzi listę źródeł jego kraju (w Czechach rejestr adresów, nazwy miejscowe, cieki wodne,
   ortofotomapy, topografie) i zapisuje do domu tylko to, co coś powiedziało; gmina zachowuje swoje zdjęcia (tylko na
   wolnej licencji, z tym, co pokazują) i nazwy miejscowe, każdy dom krótki opis wyglądu i sprawdzenie, czy jest o nim

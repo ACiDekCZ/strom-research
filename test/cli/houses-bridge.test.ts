@@ -234,6 +234,7 @@ test("an archive's houses: read, nothing of a research or an agent, every write 
     assert.ok(status.features.includes("house") && status.features.includes("house.material"));
     assert.ok(!status.features.includes("house.import"), "the takeover is the agent's");
     assert.ok(!status.features.includes("house.chat"), "a conversation with the agent: none in an archive");
+    assert.ok(!status.features.includes("house.story"), "the story of a house asked for: none in an archive");
     assert.equal(status.houses.look, undefined);
     assert.equal(status.houses.on, false);
     assert.deepEqual(status.houses.counts, { done: 0, running: 0, queued: 0, waiting: 0, held: 0 });
@@ -431,7 +432,7 @@ test("the setting houses and a house asked for through the bridge: /status on, a
   const url = ((await w.ok(["live", "start", "--json"])).json as { url: string }).url;
   try {
     let status = (await request(`${url}/status?app=3.28.0`)).body;
-    for (const f of ["house.auto", "house.request", "house.chat", "house.look"]) assert.ok(status.features.includes(f), f);
+    for (const f of ["house.auto", "house.request", "house.chat", "house.look", "house.story"]) assert.ok(status.features.includes(f), f);
     assert.ok(!status.features.includes("house.request.direct"), "the bridge never starts an agent");
     // the look of the houses (spec 145 T1): on by default, the person's switch
     assert.equal(status.houses.look, true);

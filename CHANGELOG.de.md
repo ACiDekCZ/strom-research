@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.38.0
 
-*In Vorbereitung: die Betas bis 1.38.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.38.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein übersichtlicheres Menü im Terminal:** jeder Bildschirm sagt, wo er ist (Strom › Einstellungen › Wartung), die
   Auswahlen als `[1]  Bezeichnung   Stand`, ein Schalter mit seinem jetzigen Stand und wohin er umschaltet, zurück
@@ -26,15 +26,22 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Bild und ein Ausschnitt davon anzusehen sind; bei der eBadatelna (SOA Praha) hält sich der Agent an die Grenzen
   des Archivs, die für Menschen und automatisierte Systeme gleich gelten (höchstens 2 Bilder pro Sekunde, ein ZIP auf
   einmal, 10 ZIPs in 24 Stunden), und schlägt nie einen Weg an ihnen vorbei vor.
-- **Einträge eines Menschen im Terminal nicht mehr wegen einer übernommenen Agenten-Sitzung abgelehnt:** wurde die
-  Sitzung eines Agenten von einem anderen Lauf übernommen, gingen die eigenen Einträge im Terminal und im Menü
-  (Wartung → Speicherplatz, `strom tidy`, `strom history align`…) erst nach einer Woche durch; jetzt sofort. Der
-  Agent, dem die Sitzung gehörte, wird weiter abgelehnt.
+- **Aus einem Stammbaum, nicht von Hand eines Menschen:** Personen eines in der Strom-App importierten oder
+  zusammengeführten Stammbaums, die eine ältere App ohne Importmarke schickte, galten als Eintrag eines Menschen (✓
+  von einem Menschen bestätigt); eine Sendung, die sie markiert, berichtigt sie jetzt von selbst, und eine ältere
+  Sendung bestimmt der Mensch einmal – in der App unter Was wartet („Kam es aus einem Stammbaum?“) oder mit `strom
+  sync as-import I…`: zuerst eine Vorschau, die Forschung gesichert, nur seither unveränderte und unbestätigte
+  Angaben, `--undo` nimmt es zurück. Ein Vorname mit Klammern zwischen seinen Wörtern („(Vincent) François (Paul)“)
+  ist ein Name, wie geschrieben; Einträge eines Menschen im Terminal gehen sofort durch, auch wo ein anderer Lauf die
+  Sitzung eines Agenten übernahm.
 - **Geschichte der Häuser:** `strom house` führt einen Eintrag zu jedem Haus, in dem die Familie lebte – seine Nummern
   im Lauf der Zeit, Besitzer, Bewohner, was mit ihm geschah, seinen Ort auf der Karte und was dafür durchgesehen
   wurde; die Häuser der direkten Vorfahren erforscht die Forschung nur mit eingeschalteter Einstellung „Geschichte der
   Häuser“, ein einzelnes Haus lässt sich immer anfordern, auch aus der Strom-App. Über dem Ort eines Hauses darf die
-  App die Luftbilder der 1950er-Jahre zeigen (Tschechien).
+  App die Luftbilder der 1950er-Jahre zeigen (Tschechien). Ein erforschtes Haus, das genug erzählt (zwei Generationen
+  des Stammbaums oder drei Besitzer und Bewohner mit Quellen), bekommt bei eingeschalteten Erzählungen seine
+  Erzählung, jede Angabe mit Quelle, Unsicheres als unsicher gesagt; ein Entwurf bis zur Freigabe, danach nie
+  umgeschrieben; `strom house story` und die App fordern sie jederzeit an.
 - **Die Forschung eines Hauses:** sie geht eine Liste der Quellen seines Landes durch (in Tschechien das
   Adressregister, die Flurnamen, die Gewässer, die Orthofotos, die Topographien) und schreibt ins Haus nur, was etwas
   sagte; eine Gemeinde behält ihre Bilder (nur unter freier Lizenz, mit dem, was sie zeigen) und ihre Flurnamen, jedes

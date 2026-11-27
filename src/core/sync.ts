@@ -53,7 +53,7 @@ import { nameEid, parseNameEid } from "./namestatus.ts";
 import { actsAsArchive } from "./state.ts";
 import { appSides, claimOf } from "./conflicts.ts";
 import { userReading } from "./readers.ts";
-import { applyProposal, changedPerson, deletedImportSource, FACT_PARTS, factChanges, importSourceFor, importsOfHead, knownImportSource, markUnder, NAME_PARTS, originOfMark, personChangedFact, primaryVerdict, proposedLine, proposeFact, proposeName, proposePrimary, proposeRetract, proposeSex, researchChangedFact, verdictOf, type FactPart, type ImportMark, type ImportOf } from "./origin.ts";
+import { applyProposal, changedPerson, deletedImportSource, FACT_PARTS, factChanges, factRef, importSourceFor, importsOfHead, knownImportSource, markUnder, NAME_PARTS, nameRef, originOfMark, personChangedFact, primaryVerdict, proposedLine, proposeFact, proposeName, proposePrimary, proposeRetract, proposeSex, researchChangedFact, sexRef, verdictOf, type FactPart, type ImportMark, type ImportOf } from "./origin.ts";
 import { APP_DATA_SEX_UNKNOWN, APP_DATA_SOURCE_FIELDS, appDataDecidesShares, appDataMainCitation, appDataPartNotes, appReadsMainCitation, appReadsNameStatus, appSendsPartNotes, appSendsUncite, appDecidesShares, appKeepsPeriods, appKeepsSourceFields, appKnowsPrimaryName, appReadsLines, appReadsSurnameGroups, appShowsVerify, isAppVersion } from "./stromapp.ts";
 import { lineMarkOf, lineMarks, lineagesAt, planLines, setLineMark, undoLineMark, type LineChange, type LineMark } from "./lineages.ts";
 import { Settings } from "./config.ts";
@@ -2970,6 +2970,7 @@ export type ChangeKind =
   | "ids.add"
   | "fact.confirm"
   | "name.confirm"
+  | "origin.import"
   | "fact.share"
   | "fact.main"
   | "fact.uncite"
@@ -3098,6 +3099,11 @@ export interface Change {
   ids?: IdBlock[];
   /** fact.confirm, name.confirm: the user's confirmation against the scan given in the app (its day, "" none said), or taken back. */
   confirm?: { on: boolean; day: string };
+  /**
+   * origin.import: a value the research has as the person's own that the app's file marks of an import (`mark`) — a fact
+   * (`was` the research's), a name (`text`, as the file has it) or the sex (`text`): the import's from now on.
+   */
+  imported?: { what: "fact" | "name" | "sex"; mark: ImportMark };
   /**
    * fact.share: which mark of the Strom app the file gives the research's fact (`was`) — one event shared among people
    * (`share`), a role at another's (`roleAt`); the file's fact without it: the mark taken off (spec 085).
@@ -3500,6 +3506,57 @@ function planned(
     if (headAt === null) headAt = timed("given", () => snapshotAt(tree, incoming.head!));
     return owner.person ? headAt?.persons.get(owner.person)?.facts : headAt?.families.find((x) => (x.id ?? x.xref) === owner.family)?.facts;
   };
+  // The app's sends made before it marked what came of an import (1127: a person of an imported family tree sent with no
+  // _STROM_IMPORT came in as the person's own, origin user — the app's ✓ "confirmed by a person"): a value the research
+  // has so becomes the import's once a send marks it — the same value, the person's own and nothing more (no tree, no
+  // parts, nothing kept to put back), cited to a send of the app (never one written at the research's terminal), not
+  // confirmed on either side. The person's sync alone (the bridge, a terminal): an agent's would loosen the guard of the
+  // user's value. Without a mark nothing is guessed.
+  const retroImports = tree.personWrites && !!incoming.imports?.size;
+  const sendSources = new Map<string, boolean>();
+  /** Whether a value cites a source of a send of the app (its input a sync's), the day's "Edits in the Strom app". */
+  const citesSend = (citations: readonly Citation[] | undefined) =>
+    (citations ?? []).some((c) => {
+      let known = sendSources.get(c.source);
+      if (known === undefined) {
+        const s = tree.get<Source>(c.source);
+        const i = s?.type === "source" && s.input ? tree.get<SyncInput>(s.input) : undefined;
+        known = !!i && i.type === "input" && !!i.sync;
+        sendSources.set(c.source, known);
+      }
+      return known;
+    });
+  /** The person's own value and nothing more: `{by: "user"}` exactly. */
+  const plainUser = (o: ValueOrigin<string> | undefined) => !!o && o.by === "user" && Object.keys(o).length === 1;
+  const retroDone = new Set<string>();
+  /** A fact of the research as the file has it (`o`), marked of an import there: the import's (origin.import). */
+  const importDiff = (owner: { person?: string; family?: string; partners?: string[]; name?: string }, f: SFact, o: SFact) => {
+    if (!retroImports || !f.mark || f.confirmed !== undefined || !o.id || retroDone.has(o.id)) return;
+    const rec = owner.person ? tree.get<Person>(owner.person) : owner.family ? tree.get<Family>(owner.family) : undefined;
+    if (!rec || rec.retracted || (rec.type === "person" && rec.mergedInto)) return;
+    const e = rec.events.find((x) => x.id === o.id);
+    if (!e || e.retracted || e.confirmed || e.was || !plainUser(e.origin) || !citesSend(e.citations)) return;
+    retroDone.add(o.id);
+    push({ kind: "origin.import", action: "user", ...owner, fact: f, was: o, imported: { what: "fact", mark: f.mark } });
+  };
+  /** The names and the sex of a person as the file has them, marked of an import there: the import's (origin.import). */
+  const importPersonDiff = (id: string, name: string, p: SPerson) => {
+    if (!retroImports) return;
+    const rec = tree.get<Person>(id);
+    if (!rec || rec.type !== "person" || rec.retracted || rec.mergedInto) return;
+    p.names.forEach((text, i) => {
+      const mark = p.nameMarks?.[text];
+      // the file's confirmation is of its first name (the name of their identity)
+      if (!mark || (i === 0 && p.nameConfirmed !== undefined) || retroDone.has(`N|${id}|${nameKey(text)}`)) return;
+      const n = rec.names.find((m) => nameKey(gedcomName(m)) === nameKey(text));
+      if (!n || n.confirmed || n.was || !plainUser(n.origin) || !citesSend(n.citations)) return;
+      retroDone.add(`N|${id}|${nameKey(text)}`);
+      push({ kind: "origin.import", action: "user", person: id, name, text, imported: { what: "name", mark } });
+    });
+    // the sex: of a person a send of the app wrote (a name of theirs cites one)
+    if (p.sexMark && p.sex && p.sex !== "U" && rec.sex === p.sex && !rec.sexWas && plainUser(rec.sexOrigin) && rec.names.some((n) => citesSend(n.citations)))
+      push({ kind: "origin.import", action: "user", person: id, name, text: p.sex, imported: { what: "sex", mark: p.sexMark } });
+  };
   const factsDiff = (owner: { person?: string; family?: string; partners?: string[]; name?: string }, inc: SFact[], our: SFact[], was: SFact[] | undefined, isOurs: boolean, famCites?: SCite[]) => {
     const ourKeys = new Set(our.map(factKey));
     const baseKeys = new Set((was ?? []).map(factKey));
@@ -3743,6 +3800,7 @@ function planned(
         const sure = !!byId || mates.length === 1 || alike.length === 1 || named.length === 1;
         partsDiff(f, paired, sure);
         confirmDiff(f, paired);
+        importDiff(owner, f, paired);
         shareDiff(f, paired);
         if (sure) noteDiff(f, paired);
         // facts alike (two events of a year, told apart by their names only) pair loosely: a source any of them cites is no news
@@ -4099,6 +4157,7 @@ function planned(
   marriedDiff(id, name, p, o, b);
   primaryDiff(id, name, p, o, b);
   nameConfirmDiff(id, name, p, o, b);
+  importPersonDiff(id, name, p);
   contactDiff(id, name, p, o, b);
   // the titles of the name they are shown by (T07), each apart and never as a change of the name itself: the user's
   // edit where the file's differs from what the app was given — one the name lacks added, a lead's corrected, a
@@ -5990,6 +6049,7 @@ export interface Applied {
     | "ids.add"
     | "event.confirm"
     | "name.confirm"
+    | "origin.import"
     | "event.share"
     | "source.retract"
     | "contact.edit"
@@ -6011,12 +6071,14 @@ export interface Applied {
    * rejected): the entry it added and those it replaced or removed (JSON); lineage.set (its id the person): the
    * person's mark before and the one set (JSON {was, mark}, null none); ids.add (its id the person or family): the
    * entries and ID lines of a family tree it added (JSON OriginalIds[]); event.confirm: the person's confirmation
-   * against the scan before (null none) and the tasks of verification as they were before it (JSON {confirmed, tasks}).
+   * against the scan before (null none) and the tasks of verification as they were before it (JSON {confirmed, tasks});
+   * origin.import (its id the fact, or the person of a name or the sex): what the value was, its key and where it came
+   * from and what it cited before (JSON {what, ref, origin, citations}).
    */
   before?: SFact | string;
   /**
    * event.edit: the fact's date, place and value as the sync wrote them; event.detail: the details it wrote (JSON, the
-   * keys of `before`). An undo takes back only what it changed and what nobody changed since (another device's send, the
+   * keys of `before`); origin.import: the origin and citations it wrote (JSON {origin, citations}). An undo takes back only what it changed and what nobody changed since (another device's send, the
    * research) — a sync before spec 094 kept none: the fact as it was before, whole.
    */
   after?: SFact | string;
@@ -6942,6 +7004,59 @@ export function applySync(
             break;
           }
           confirmFact(mine.id, c.confirm.on, c.confirm.day);
+          break;
+        }
+        case "origin.import": {
+          // a value an earlier send wrote as the person's own, the import's as this send marks it (1127): its origin
+          // the import's (the parts the mark names; the rest the user's), the import's source cited first where it is
+          // not yet (the send's citation stays) — the value and its status as they are. The person's sync alone; where
+          // the value is no longer as planned (the person's own, nothing kept, unconfirmed), nothing
+          const imp = c.imported;
+          if (!person || !imp) break;
+          const plain = (o: ValueOrigin<string> | undefined) => !!o && o.by === "user" && Object.keys(o).length === 1;
+          const done = (id: string, what: "fact" | "name" | "sex", ref: string, before: { origin: unknown; citations: unknown }, after: { origin: unknown; citations: unknown }) =>
+            applied.push({ do: "origin.import", id, before: JSON.stringify({ what, ref, ...before }), after: JSON.stringify(after) });
+          if (imp.what === "fact") {
+            const mine = c.was?.id ? eventById(tree, c.was.id) : undefined;
+            const owns = mine ? ownerOf(tree, mine.id) : undefined;
+            if (!mine || !owns || mine.retracted || mine.confirmed || mine.was || !plain(mine.origin)) break;
+            const s = importSource(imp.mark.key);
+            if (!s) break;
+            const origin = originOfMark<FactPart>(imp.mark, s, "fact");
+            const citations = !importsDeleted.has(s) && !mine.citations.some((x) => x.source === s) ? [{ source: s, locator: c.fact?.kind ?? mine.kind }, ...mine.citations] : mine.citations;
+            update<Person | Family>(tree, owns.id, owns.type, (o) => ({ ...o, events: o.events.map((e) => (e.id === mine.id ? { ...e, origin, citations } : e)) }) as Person | Family, {
+              op: "event.edit",
+              summary: `${mine.id} ${mine.kind} of the family tree ${s}, not the user's edit (${reason})`,
+              reason: `marked of import ${imp.mark.key} in ${reason}`,
+            });
+            done(mine.id, "fact", factRef(mine), { origin: mine.origin, citations: mine.citations }, { origin, citations });
+            break;
+          }
+          const p = c.person ? tree.get<Person>(c.person) : undefined;
+          if (!p || p.type !== "person" || p.retracted || p.mergedInto || !c.text) break;
+          if (imp.what === "name") {
+            const at = p.names.findIndex((m) => nameKey(gedcomName(m)) === nameKey(c.text!));
+            const n = p.names[at];
+            if (!n || n.confirmed || n.was || !plain(n.origin)) break;
+            const s = importSource(imp.mark.key);
+            if (!s) break;
+            const origin = originOfMark<"given" | "surname">(imp.mark, s, "name");
+            const had = n.citations ?? [];
+            const citations = !importsDeleted.has(s) && !had.some((x) => x.source === s) ? [{ source: s, locator: "name" }, ...had] : had;
+            update<Person>(tree, p.id, "person", (x) => ({ ...x, names: x.names.map((m, i) => (i === at ? { ...m, origin, ...(citations.length ? { citations } : {}) } : m)) }), {
+              op: "person.edit",
+              summary: `${p.id} name ${gedcomName(n)} of the family tree ${s}, not the user's edit (${reason})`,
+              reason: `marked of import ${imp.mark.key} in ${reason}`,
+            });
+            done(p.id, "name", nameRef(p, at), { origin: n.origin, citations: n.citations ?? null }, { origin, citations });
+            break;
+          }
+          if (p.sex !== c.text || p.sexWas || !plain(p.sexOrigin)) break;
+          const s = importSource(imp.mark.key);
+          if (!s) break;
+          const origin = originOfMark<never>(imp.mark, s, "sex");
+          update<Person>(tree, p.id, "person", (x) => ({ ...x, sexOrigin: origin }), { op: "person.edit", summary: `${p.id} sex of the family tree ${s}, not the user's edit (${reason})`, reason: `marked of import ${imp.mark.key} in ${reason}` });
+          done(p.id, "sex", sexRef(p), { origin: p.sexOrigin, citations: null }, { origin, citations: null });
           break;
         }
         case "source.changed":
@@ -8650,6 +8765,60 @@ export function undoSync(tree: Tree, input: SyncInput, kept?: UndoKept[]): numbe
           summary: `${a.id} the person's confirmation against the scan as it was${back.length ? ` · ${back.map((t) => t.id).join(", ")} as before` : ""}: ${reason}`,
           reason,
         });
+        break;
+      }
+      case "origin.import": {
+        // where the value came from and what it cited, as before the send marked it of an import (1127) — only while
+        // they are as the sync wrote them (another send, the person, the research changed them since: left)
+        const b = JSON.parse(String(a.before ?? "{}")) as { what?: "fact" | "name" | "sex"; ref?: string; origin?: ValueOrigin<string> | null; citations?: Citation[] | null };
+        const w = JSON.parse(String(a.after ?? "{}")) as { origin?: ValueOrigin<string> | null; citations?: Citation[] | null };
+        const same = (x: unknown, y: unknown) => JSON.stringify(canonicalize(x ?? null)) === JSON.stringify(canonicalize(y ?? null));
+        if (b.what === "fact") {
+          const owner = ownerOf(tree, a.id);
+          const e = eventById(tree, a.id);
+          if (!owner || !e || !same(e.origin, w.origin) || !same(e.citations, w.citations)) break;
+          update<Person | Family>(
+            tree,
+            owner.id,
+            owner.type,
+            (o) => ({
+              ...o,
+              events: o.events.map((x) => {
+                if (x.id !== a.id) return x;
+                const { origin: _o, ...rest } = x;
+                return { ...rest, ...(b.origin ? { origin: b.origin } : {}), citations: b.citations ?? x.citations } as Event;
+              }),
+            }) as Person | Family,
+            { op: "event.edit", summary: `${a.id} origin as it was: ${reason}`, reason },
+          );
+          break;
+        }
+        const p = tree.get<Person>(a.id);
+        if (!p || p.type !== "person") break;
+        if (b.what === "name") {
+          // the name by its place (N:P…:<n>), else the one that carries what the sync wrote
+          const i = Number(/:(\d+)$/u.exec(b.ref ?? "")?.[1] ?? 0) - 1;
+          const wrote = (n: Name | undefined) => !!n && same(n.origin, w.origin) && same(n.citations ?? [], w.citations ?? []);
+          const at = wrote(p.names[i]) ? i : p.names.findIndex(wrote);
+          if (at < 0) break;
+          update<Person>(
+            tree,
+            p.id,
+            "person",
+            (x) => ({
+              ...x,
+              names: x.names.map((n, j) => {
+                if (j !== at) return n;
+                const { origin: _o, citations: _c, ...rest } = n;
+                return { ...rest, ...(b.origin ? { origin: b.origin as Name["origin"] } : {}), ...(b.citations ? { citations: b.citations } : {}) };
+              }),
+            }),
+            { op: "person.edit", summary: `${a.id} name ${gedcomName(p.names[at]!)} origin as it was: ${reason}`, reason },
+          );
+          break;
+        }
+        if (b.what === "sex" && same(p.sexOrigin, w.origin))
+          update<Person>(tree, p.id, "person", ({ sexOrigin: _o, ...x }) => ({ ...x, ...(b.origin ? { sexOrigin: b.origin as Person["sexOrigin"] } : {}) }) as Person, { op: "person.edit", summary: `${a.id} sex origin as it was: ${reason}`, reason });
         break;
       }
       case "event.status": {

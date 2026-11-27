@@ -1210,3 +1210,22 @@ export function noticeStromApp(settings: Settings, env: Env, opts: { look?: bool
   }
   return app;
 }
+
+/**
+ * The first Strom app that shows the story of a house (spec 145 T4; the app's ZADANI_VYZKUM_145-domy.md, "T4 vyprávění o
+ * domě"): a story of a house waiting for the person in the bridge's waiting (kind story with house: its key, no person) —
+ * an older app takes a story's item for a person's. Undefined until that app is out (strom:je-venku-brany); the house's
+ * story in GET /houses/<ref>, POST /houses/story and feature house.story are there for every app (an older one ignores
+ * them). Beta and development copies from APP_SHOWS_HOUSE_STORY_BETA (the app's 3.33.0-beta.5 shows it; undefined: today's).
+ */
+export const APP_SHOWS_HOUSE_STORY: string | undefined = undefined;
+export const APP_SHOWS_HOUSE_STORY_BETA: string | undefined = "3.33.0-beta.5";
+
+/** Does the Strom app of this version show a house's story waiting for the person (the bridge's waiting, kind story with house)? */
+export function appShowsHouseStory(settings: Settings, version?: string, gate: string | undefined = APP_SHOWS_HOUSE_STORY, beta: string | undefined = APP_SHOWS_HOUSE_STORY_BETA): boolean {
+  const v = version?.trim();
+  if (anotherCopy(settings)) return !beta || !v || !isAppVersion(v) || compareVersions(v, beta) >= 0;
+  if (!gate) return false;
+  if (!v) return false;
+  return isAppVersion(v) && compareVersions(v, gate) >= 0;
+}

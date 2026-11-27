@@ -94,7 +94,9 @@ const DESCRIPTIONS = new Set([
 export function notAName(given: string): string | undefined {
   const g = given.trim();
   if (!g) return undefined;
-  if (/^[(\[{].*[)\]}]$/su.test(g)) return `"${g}" is a description in brackets, not a name`;
+  // one group in brackets and nothing else (K055): "(Vincent) François (Paul)" is a name with its brackets as written —
+  // the same rule as the Strom app's (src/gedcom-names.ts), so a name goes both ways unchanged
+  if (/^[(\[{][^()\[\]{}]*[)\]}]$/u.test(g)) return `"${g}" is a description in brackets, not a name`;
   const words = foldText(g).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   if (DESCRIPTIONS.has(words) || NO_NAME_SET.has(words)) return `"${g}" describes the person, it is not a name`;
   return undefined;

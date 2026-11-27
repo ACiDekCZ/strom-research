@@ -10,11 +10,12 @@ import { UsageError } from "../core/errors.ts";
 import { isAgent } from "../core/which.ts";
 import { csvOpt, normId, textOpt } from "../core/records.ts";
 import { displayName, lifespan, resolvePerson } from "../core/people.ts";
-import type { Family, Person, Source } from "../core/model.ts";
+import type { Event, Family, House, Person, Place } from "../core/model.ts";
 import type { Tree } from "../core/tree.ts";
 import { foldText } from "../core/text.ts";
 import { checkStoryHistory, historyEventLine } from "../core/pastevents.ts";
 import { factLine, leadsUnnamed, sourceLine, storySources, type StoryVersion } from "../core/storykeep.ts";
+import { houseFactRef, houseStoryFacts, setHouseStory } from "../core/housestory.ts";
 
 /**
  * The one heading a story has is its title (--title). A first line "# …" is taken as the title when none is given,
@@ -55,18 +56,23 @@ function dropOpt(v: unknown): { ref: string; why: string }[] {
   });
 }
 
-/** What a version of a story rests on, as lines: each fact with the sources it cites, then the background's sources. */
-function restsOn(tree: Tree, v: StoryVersion & { history?: string[] }, history: (ids: string[] | undefined) => string[]): string[] {
-  const sources = storySources(tree, v);
+/**
+ * What a version of a story rests on, as lines: each fact with the sources it cites, then the background's sources. A
+ * house's (events: its facts, houseStoryFacts): an item of the house said as the house's, with what it says.
+ */
+function restsOn(tree: Tree, v: StoryVersion & { history?: string[] }, history: (ids: string[] | undefined) => string[], events?: Map<string, Event>, house?: string): string[] {
+  const sources = storySources(tree, v, events);
   const facts = v.facts.flatMap((f) => {
     const its = sources.filter((s) => s.facts.includes(f));
     let owner = "";
+    const item = house && events?.get(f) && !/^E\d+$/u.test(f) ? events.get(f) : undefined;
+    if (item) return [`  ${f} ${house} ${item.kind}${item.date ? ` ${item.date}` : ""}${item.value ? ` ${truncate(item.value, 80)}` : ""} [${item.status}]`, ...its.map((s) => `      ← ${sourceLine(s)}`)];
     try {
       owner = findEventOwner(tree, f).owner.id;
     } catch {
       return [`  ${f} (no longer exists)`];
     }
-    const [id, ...rest] = factLine(tree, f).split(" ");
+    const [id, ...rest] = factLine(tree, f, events).split(" ");
     return [`  ${id} ${owner} ${rest.join(" ")}`, ...its.map((s) => `      ← ${sourceLine(s)}`)];
   });
   const background = sources.filter((s) => s.background);
@@ -83,13 +89,22 @@ function restsOn(tree: Tree, v: StoryVersion & { history?: string[] }, history: 
 }
 
 function owner(tree: Tree, ref: string): string {
+  if (/^A\d+$/i.test(ref.trim())) return normId(ref, "house");
   return /^F\d+$/i.test(ref.trim()) ? normId(ref, "family") : resolvePerson(tree, ref).id;
 }
+
+/** The facts of a house's story (its items and the facts of its people), when the record is a house. */
+function houseFacts(tree: Tree, id: string): Map<string, Event> | undefined {
+  const h = /^A\d+$/u.test(id) ? tree.get<House>(id) : undefined;
+  return h?.type === "house" ? houseStoryFacts(tree, h) : undefined;
+}
+
+const WHO = "person (ID or name), family (F…) or house (A…)";
 
 register(
   {
     path: ["story", "set"],
-    summary: "Write the story of a person or a couple from the facts (a draft until the user approves it)",
+    summary: "Write the story of a person, a couple or a house from the facts (a draft until the user approves it)",
     group: "people",
     tree: true,
     writes: true,
@@ -102,22 +117,25 @@ register(
       "Written again, nothing of the version before is lost without a word: each fact (--fact), each source of its\n" +
       "background (--source), each source and link its text named stays — a source also when a fact of the new one cites\n" +
       "it — or goes on purpose with the reason (--drop \"E… <why>\"), kept with the story; else it is refused with the list.\n" +
-      "A fact told from a lead (no record read) names where it comes from in the text: the source's title.",
-    args: [{ name: "who", description: "person (ID or name) or family (F…)", required: true }],
+      "A fact told from a lead (no record read) names where it comes from in the text: the source's title.\n" +
+      "A house's story (A…): its facts are the house's items (n… numbers, e… events, h… holders, r… residents: strom house\n" +
+      "show A…) and the facts of the tree's people in it (E…).",
+    args: [{ name: "who", description: WHO, required: true }],
     options: [
       { name: "text", type: "string", value: "<text|@file>", description: "the story, in the research language" },
       { name: "title", type: "string", value: "<text>", description: "a heading" },
-      { name: "fact", type: "string", multiple: true, value: "<E…>", description: "a fact it leans on (repeatable)" },
+      { name: "fact", type: "string", multiple: true, value: "<E…|h…>", description: "a fact it leans on — of a house also its items n…, e…, h…, r… (repeatable)" },
       { name: "source", type: "string", multiple: true, value: "<S…>", description: "a source of the background of place and time it tells — not a fact of the person (repeatable)" },
       // the history of the places in the stories (stories.history): the brief of the story says it, nothing else does
       { name: "history", type: "string", multiple: true, value: "<event>", hidden: true, description: "an event of the history of the places it tells as the background of its time, from the brief (repeatable)" },
       { name: "note", type: "string", value: "<text>", description: "your caveat: what is inferred, what is unknown" },
-      { name: "drop", type: "string", multiple: true, value: "<E…|S…|link> <why>", description: "written again: a fact, source or link of the version before left out on purpose, and why (repeatable)" },
+      { name: "drop", type: "string", multiple: true, value: "<E…|h…|S…|link> <why>", description: "written again: a fact, source or link of the version before left out on purpose, and why (repeatable)" },
       { name: "final", type: "boolean", description: "the user approved it (the user's own: refused to an agent — they approve it in the Strom app or strom → What waits)" },
     ],
     examples: [
       'strom story set P0001 --text @notes/story-P0001.md --title "The miller of Týnec" --fact E0001 --fact E0002 --note "The house is inferred from the census."',
       'strom story set P0001 --text @notes/story-P0001.md --fact E0001 --fact E0002 --drop "E0003 told in the couple\'s story"',
+      'strom story set A0001 --text "The house burned down, perhaps in 1905." --title "The house by the pond" --fact e1',
     ],
     run(ctx, { args, opts }) {
       // approved is the user's word alone: an agent writes a draft, the user approves it themselves
@@ -128,17 +146,21 @@ register(
       if (!given?.trim()) throw new UsageError("--text is required", { hint: "--text @notes/story.md (a file) or the text itself" });
       const { text, title } = titleOf(given, opts.title as string | undefined);
       const who = owner(tree, args[0]!);
-      const history = checkStoryHistory(tree, ctx.settings.shared()?.value, who, csvOpt(opts.history), ctx.settings);
-      const rec = setStory(tree, who, {
+      const house = /^A\d+$/u.test(who);
+      if (house && csvOpt(opts.history).length) throw new UsageError("a house's story takes no --history: what happened to the house is its timeline (e…)", { code: "story.history.house" });
+      const history = house ? [] : checkStoryHistory(tree, ctx.settings.shared()?.value, who, csvOpt(opts.history), ctx.settings);
+      const input = {
         text,
         title,
-        facts: csvOpt(opts.fact).map((f) => normId(f)),
         sources: csvOpt(opts.source).map((s) => normId(s)),
-        history,
         note: opts.note as string | undefined,
         final: Boolean(opts.final),
         drop: dropOpt(opts.drop),
-      });
+      };
+      const rec = house
+        ? setHouseStory(tree, who, { ...input, facts: csvOpt(opts.fact).map(houseFactRef) })
+        : setStory(tree, who, { ...input, facts: csvOpt(opts.fact).map((f) => normId(f)), history });
+      const events = house ? houseFacts(tree, who) : undefined;
       const written = rec.story!.draft ?? rec.story!;
       const missing = written.facts.length === 0 ? "note: no --fact given — say which facts the story rests on" : undefined;
       const outside = outsideSet(written.text);
@@ -146,11 +168,11 @@ register(
         ? `the user approved the story before: it stays as it is, the new version waits for them — tell them what is new in it: they approve it or keep the old one themselves (the Strom app, or strom → What waits)`
         : undefined;
       const plain = outside.length ? `note: the Strom app shows ${outside.join(", ")} as plain text — keep to paragraphs, "## " subheadings, "- " bullets, **bold**, *italic*` : undefined;
-      const leads = leadsUnnamed(tree, written);
+      const leads = leadsUnnamed(tree, written, events);
       const unnamed = leads.length
         ? `note: told from a lead, the text does not say where it comes from — name the source (its title) in the text:\n${leads.map((l) => `  ${l.fact} ← ${l.sources.map((x) => sourceLine(x)).join("; ")}`).join("\n")}`
         : undefined;
-      return { text: lines(...tree.written.map((o) => o.summary), locked, missing, plain, unnamed), data: { story: rec.story, sources: storySources(tree, written) } };
+      return { text: lines(...tree.written.map((o) => o.summary), locked, missing, plain, unnamed), data: { story: rec.story, sources: storySources(tree, written, events) } };
     },
   },
   {
@@ -163,12 +185,12 @@ register(
     description:
       "Only on the user's word (they read it and said it is right): the text stays, the draft becomes the story of the family book —\n" +
       "locked: written again, the new version waits beside it for the user. With a new version waiting, that one is approved in its place.",
-    args: [{ name: "who", description: "person (ID or name) or family (F…)", required: true }],
+    args: [{ name: "who", description: WHO, required: true }],
     examples: ["strom story approve P0001"],
     run(ctx, { args }) {
       const tree = ctx.tree();
       const id = owner(tree, args[0]!);
-      const was = tree.get<Person | Family>(id)?.story;
+      const was = tree.get<Person | Family | House>(id)?.story;
       const rec = approveStory(tree, id);
       return { text: was?.status === "final" && !was.draft ? `${id} story was approved already` : lines(...tree.written.map((o) => o.summary)), data: { story: rec.story } };
     },
@@ -181,7 +203,7 @@ register(
     writes: true,
     person: "Turning down the new version of an approved story is the user's own: the Strom app, or strom → What waits — never an agent",
     description: "Only on the user's word: the new version written beside the story they approved goes (the history keeps it).",
-    args: [{ name: "who", description: "person (ID or name) or family (F…)", required: true }],
+    args: [{ name: "who", description: WHO, required: true }],
     examples: ["strom story discard P0001"],
     run(ctx, { args }) {
       const tree = ctx.tree();
@@ -200,6 +222,7 @@ register(
       const tree = ctx.tree();
       const people = tree.list<Person>("person").filter((p) => !p.retracted && p.story);
       const families = tree.list<Family>("family").filter((f) => !f.retracted && f.story);
+      const houses = tree.list<House>("house").filter((h) => !h.retracted && !h.town && h.story);
       const nameOf = (id: string) => {
         const p = tree.get<Person>(id);
         return p ? displayName(p) : id;
@@ -207,6 +230,7 @@ register(
       const all = [
         ...people.map((p) => ({ id: p.id, whose: `${displayName(p)}${lifespan(p) ? ` ${lifespan(p)}` : ""}`, story: p.story! })),
         ...families.map((f) => ({ id: f.id, whose: f.partners.map(nameOf).join(" & ") || f.id, story: f.story! })),
+        ...houses.map((h) => ({ id: h.id, whose: `${tree.get<Place>(h.place)?.names[0]?.name ?? h.place} ${h.house}${h.name ? ` (${h.name})` : ""}`, story: h.story! })),
       ].filter((x) => !opts.draft || x.story.status === "draft" || !!x.story.draft);
       const page = paginate(all, ctx.limit, ctx.page);
       const rows = page.items.map((x) => [
@@ -218,7 +242,7 @@ register(
         x.story.title ? truncate(x.story.title, 40) : "",
       ]);
       return {
-        text: all.length ? lines(table(rows), moreLine(page, `strom story list${opts.draft ? " --draft" : ""}`) || undefined, "one of them: strom story show <P…|F…>") : opts.draft ? "no story waits for the user" : "no stories yet",
+        text: all.length ? lines(table(rows), moreLine(page, `strom story list${opts.draft ? " --draft" : ""}`) || undefined, "one of them: strom story show <P…|F…|A…>") : opts.draft ? "no story waits for the user" : "no stories yet",
         data: {
           total: page.total,
           stories: page.items.map((x) => ({ id: x.id, whose: x.whose, status: x.story.status, at: x.story.at, ...(x.story.title ? { title: x.story.title } : {}), ...(x.story.draft ? { draft: { at: x.story.draft.at } } : {}), facts: x.story.facts.length })),
@@ -228,17 +252,18 @@ register(
   },
   {
     path: ["story", "show"],
-    summary: "The story of a person or a couple, with the facts it rests on and the sources under each (title, address)",
+    summary: "The story of a person, a couple or a house, with the facts it rests on and the sources under each (title, address)",
     group: "people",
     tree: true,
-    args: [{ name: "who", description: "person (ID or name) or family (F…)", required: true }],
+    args: [{ name: "who", description: WHO, required: true }],
     run(ctx, { args }) {
       const tree = ctx.tree();
       const id = owner(tree, args[0]!);
-      const rec = tree.get<Person | Family>(id);
-      if (!rec) throw new UsageError(`no family ${id}`, { code: "record.none", params: { kind: "family", id: id } });
+      const rec = tree.get<Person | Family | House>(id);
+      if (!rec || rec.retracted) throw new UsageError(`no ${id.startsWith("A") ? "house" : "family"} ${id}`, { code: "record.none", params: { kind: id.startsWith("A") ? "house" : "family", id: id } });
       const st = rec.story;
-      if (!st) return { text: `${id} has no story yet → strom story set ${id} --text @file --fact E…`, data: { story: null } };
+      const events = houseFacts(tree, id);
+      if (!st) return { text: `${id} has no story yet → strom story set ${id} --text @file --fact ${events ? "h…" : "E…"}`, data: { story: null } };
       const historyLines = (ids: string[] | undefined) =>
         ids?.length ? ["the history of the places it tells", ...ids.map((e) => `  ${e} ${historyEventLine(tree, ctx.settings.shared()?.value, e) ?? "(no longer exists)"}`)] : [];
       return {
@@ -247,7 +272,7 @@ register(
           "",
           st.text,
           "",
-          ...restsOn(tree, st, historyLines),
+          ...restsOn(tree, st, historyLines, events, events ? id : undefined),
           st.note ? `\nnote: ${st.note}` : undefined,
           ...(st.draft
             ? [
@@ -259,12 +284,12 @@ register(
                 "",
                 // what it rests on and of the history it tells, as of the version above (found 2026-10-28: only the
                 // approved one's said; 2026-11-03: its facts and sources too)
-                ...restsOn(tree, st.draft, historyLines),
+                ...restsOn(tree, st.draft, historyLines, events, events ? id : undefined),
                 st.draft.note ? `\nnote: ${st.draft.note}` : undefined,
               ]
             : []),
         ),
-        data: { story: st, sources: storySources(tree, st), ...(st.draft ? { draftSources: storySources(tree, st.draft) } : {}) },
+        data: { story: st, sources: storySources(tree, st, events), ...(st.draft ? { draftSources: storySources(tree, st.draft, events) } : {}) },
       };
     },
   },

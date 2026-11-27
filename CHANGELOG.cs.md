@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.38.0
 
-*Připravuje se: bety do 1.38.0-beta.5. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.38.0-beta.6. Oddíl bude úplný s vydáním.*
 
 - **Přehlednější menu v terminálu:** každá obrazovka říká, kde je (Strom › Nastavení › Údržba), volby jako
   `[1]  Popisek   stav`, přepínač s tím, jak je teď a na co přepne, zpět vždy poslední jako `[0]` (i cesta stahovače v
@@ -25,13 +25,18 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   částech a jeho výřez; u eBadatelny (SOA Praha) se agent drží limitů archivu, platných pro člověka
   i automatizovaný systém (nejvýš 2 snímky za sekundu, jeden ZIP naráz, 10 ZIPů za 24 hodin), a nikdy nenavrhne cestu,
   jak je obejít.
-- **Zápisy člověka v terminálu už neodmítá převzaté sezení agenta:** když sezení agenta převzal jiný běh, zápisy
-  člověka v terminálu a v menu (Údržba → Místo na disku, `strom tidy`, `strom history align`…) prošly až po týdnu; teď
-  projdou hned. Agent, jehož sezení bylo, je odmítnut dál.
+- **Z rodokmenu, ne rukou člověka:** lidé rodokmenu importovaného nebo sloučeného v aplikaci Strom, které starší
+  aplikace poslala bez značky importu, se brali jako zápis člověka (✓ potvrdil člověk); poslání, které je značí, je
+  teď opraví samo, a starší poslání člověk jednou určí – v aplikaci v Co čeká („Přišlo to z rodokmenu?“) nebo příkazem
+  `strom sync as-import I…`: nejdřív náhled, výzkum se zálohuje, jen údaje od té doby neupravené a nepotvrzené,
+  `--undo` to vrátí. Křestní jméno se závorkami mezi slovy („(Vincent) François (Paul)“) je jméno, jak je zapsané;
+  zápisy člověka v terminálu projdou hned i tam, kde sezení agenta převzal jiný běh.
 - **Historie domů:** `strom house` vede záznam každého domu, kde rodina žila – jeho čísla v čase, držitele, obyvatele,
   co se s ním dělo, jeho místo na mapě a co se pro něj prošlo; domy přímých předků výzkum zkoumá jen se zapnutým
   nastavením „Historie domů“ a jednotlivý dům jde vyžádat vždy, i z aplikace Strom. Nad místem domu smí aplikace
-  ukázat letecké snímky z 50. let (Česko).
+  ukázat letecké snímky z 50. let (Česko). Prozkoumaný dům, který řekne dost (dvě generace stromu, nebo tři držitelé a
+  obyvatelé s prameny), dostane se zapnutými vyprávěními své vyprávění, každý údaj s pramenem, nejisté řečeno jako
+  nejisté; koncept do schválení, pak se už nepřepíše; `strom house story` a aplikace ho vyžádají kdykoli.
 - **Výzkum domu:** prochází seznam pramenů jeho země (v Česku adresní registr, pomístní jména, vodní toky, ortofota,
   topografie) a do domu zapisuje jen to, co něco řeklo; obec si drží své obrázky (jen pod svobodnou licencí, s tím, co
   ukazují) a pomístní jména, každý dům krátkou podobu a kontrolu, zda je o ní co dál číst; podoba domu následuje jako

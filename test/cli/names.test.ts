@@ -173,6 +173,41 @@ test("a description is not a name: a stillborn child keeps an empty given name, 
   w.cleanup();
 });
 
+test("K055: given names with brackets among them are a name as written; one group in brackets alone stays a description", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  const nfd = "(Vojtěch) Šimon (Pavel)".normalize("NFD");
+  const ged = [
+    "0 HEAD", "1 GEDC", "2 VERS 5.5.1", "1 CHAR UTF-8",
+    "0 @I1@ INDI", "1 NAME (Vincent) François (Paul) /Lhoták/", "1 SEX M",
+    "0 @I2@ INDI", `1 NAME ${nfd} /Lhota/`, "1 SEX M",
+    "0 @I3@ INDI", "1 NAME (Іван) Петро (Павло) /Шевчук/", "1 SEX M",
+    "0 @I4@ INDI", "1 NAME (dítě) /Lhota/", "1 SEX F",
+    "0 @I5@ INDI", "1 NAME [syn] /Lhoták/", "1 SEX M",
+    "0 @I6@ INDI", "1 NAME (Vincent) /Lhoták/", "1 SEX M",
+    "0 TRLR", "",
+  ].join("\n");
+  const file = path.join(w.dir, "lhotakovi.ged");
+  fs.writeFileSync(file, ged);
+  await w.ok(["intake", file], { env: { CLAUDECODE: "1" } });
+  const people = (await w.ok(["person", "list", "--json", "--full"])).json.persons as { id: string; names: { given: string; surname: string }[] }[];
+  const names = people.map((p) => `${p.names[0]!.given} ${p.names[0]!.surname}`.trim());
+  for (const n of ["(Vincent) François (Paul) Lhoták", "(Vojtěch) Šimon (Pavel) Lhota", "(Іван) Петро (Павло) Шевчук"]) assert.ok(names.includes(n), `${n} in ${names.join(" | ")}`);
+  // a description alone keeps the name empty, as before
+  for (const n of ["(dítě) Lhota", "[syn] Lhoták", "(Vincent) Lhoták"]) assert.ok(!names.includes(n), `${n} is no name`);
+  assert.equal(names.filter((n) => n === "Lhota" || n === "Lhoták" || n === "? Lhota" || n === "? Lhoták").length, 3, names.join(" | "));
+  // the person adds the same name by hand, and as another name
+  await w.ok(["person", "add", "(Vincent) Jan (Pavel) /Lhota/", "--sex", "M"]);
+  await w.ok(["person", "add", "(Vojtěch) Šimon (Pavel) /Lhoták/".normalize("NFD"), "--sex", "M"]);
+  const added = people[names.indexOf("(Vincent) François (Paul) Lhoták")]!.id;
+  await w.ok(["name", "add", added, "(Vincent) Francek (Paul) /Lhoták/", "--kind", "alias"]);
+  for (const bad of ["(dítě) /Lhota/", "[syn] /Lhoták/", "(Vincent) /Lhoták/"]) assert.equal((await w.run(["person", "add", bad])).code, 2, bad);
+  const raw = fs.readdirSync(path.join(w.cwd, "data", "persons")).map((f) => fs.readFileSync(path.join(w.cwd, "data", "persons", f), "utf8")).join("\n");
+  assert.ok(raw.includes("(Vojtěch) Šimon (Pavel)".normalize("NFC")) && !raw.includes("Šimon".normalize("NFD")));
+  assert.match((await w.ok(["check"])).out, /^ok/);
+  w.cleanup();
+});
+
 test("a surname read only in part keeps its sure letters: the person can be found and exported", opts, async () => {
   const w = await world();
   await w.ok(["person", "add", "Anna /Kr[?]ková/", "--sex", "F"]); // P3

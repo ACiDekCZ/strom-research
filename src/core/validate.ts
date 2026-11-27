@@ -34,6 +34,8 @@ const ID_RE: Record<string, RegExp> = Object.fromEntries(
   Object.entries(RECORD_TYPES).map(([t, v]) => [t, new RegExp(`^${v.prefix}\\d{4,}$`)]),
 );
 const EVENT_ID = /^E\d{4,}$/;
+/** A fact of a house's story: a fact of the tree or an item of the house (n1, e2, h3, r4). */
+const HOUSE_STORY_FACT = /^(E\d{4,}|[nehr]\d+)$/;
 const ISO = /^\d{4}-\d{2}-\d{2}T/;
 
 function isObj(v: unknown): v is Record<string, unknown> {
@@ -174,18 +176,18 @@ function checkBase(r: Record<string, unknown>, type: string, out: Problem[]): vo
   checkRetractedNotes(r.retractedNotes, "retractedNotes", out);
 }
 
-function checkStory(st: unknown, out: Problem[]): void {
+function checkStory(st: unknown, out: Problem[], fact: RegExp = EVENT_ID): void {
   if (st === undefined) return;
   if (!isObj(st)) return void out.push({ path: "story", message: "must be an object" });
   const s = st as Partial<Story>;
   if (!str(s.text)) out.push({ path: "story.text", message: "is required" });
   if (s.status !== "draft" && s.status !== "final") out.push({ path: "story.status", message: "must be draft or final" });
-  if (!Array.isArray(s.facts) || s.facts.some((f) => !EVENT_ID.test(String(f)))) out.push({ path: "story.facts", message: "must be a list of event IDs" });
+  if (!Array.isArray(s.facts) || s.facts.some((f) => !fact.test(String(f)))) out.push({ path: "story.facts", message: fact === EVENT_ID ? "must be a list of event IDs" : "must be a list of event IDs and items of the house" });
   if (s.draft === undefined) return;
   if (!isObj(s.draft)) return void out.push({ path: "story.draft", message: "must be an object" });
   if (s.status !== "final") out.push({ path: "story.draft", message: "only beside an approved story" });
   if (!str(s.draft.text)) out.push({ path: "story.draft.text", message: "is required" });
-  if (!Array.isArray(s.draft.facts) || s.draft.facts.some((f) => !EVENT_ID.test(String(f)))) out.push({ path: "story.draft.facts", message: "must be a list of event IDs" });
+  if (!Array.isArray(s.draft.facts) || s.draft.facts.some((f) => !fact.test(String(f)))) out.push({ path: "story.draft.facts", message: fact === EVENT_ID ? "must be a list of event IDs" : "must be a list of event IDs and items of the house" });
 }
 
 /** A string kept as read: NFC, no control character, at most `max` characters. */
@@ -382,6 +384,8 @@ function checkHouse(h: Partial<House>, out: Problem[]): void {
     });
   }
   if (h.byUser !== undefined && h.byUser !== true) out.push({ path: "byUser", message: "must be true or left out" });
+  // the story of a house (spec 145 T4): a person's, its facts the house's items (n…, e…, h…, r…) and the tree's E…
+  checkStory(h.story, out, HOUSE_STORY_FACT);
   if (h.town !== undefined && h.town !== true) out.push({ path: "town", message: "must be true or left out" });
   if (h.town && typeof h.house === "string" && h.house.trim()) out.push({ path: "house", message: "a municipality's record has no number" });
   if (!h.town && (typeof h.house !== "string" || !h.house.trim())) out.push({ path: "house", message: "is required" });

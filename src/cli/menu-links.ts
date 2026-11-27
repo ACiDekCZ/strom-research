@@ -19,7 +19,7 @@ import { DEFAULT_RUN_MINUTES, DEFAULT_RUN_PARALLEL, readStored } from "../core/c
 import { lineRunFilter, runRefusal } from "../core/linerun.ts";
 import { runsAtWork } from "../core/workers.ts";
 import { choosePace } from "../commands/setup.ts";
-import type { AppClient, Conflict, Family, Hypothesis, HypothesisVariant, HypothesisWrote, Person, Research, Session, Source, Task, VariantLink } from "../core/model.ts";
+import type { AppClient, Conflict, Family, House, Hypothesis, HypothesisVariant, HypothesisWrote, Person, Research, Session, Source, Task, VariantLink } from "../core/model.ts";
 import { DevicePreview } from "../core/deviceagent.ts";
 import { findHouse, forHouse, houseRows, housesOfTask, houseWork, townOfTask, type HouseRow } from "../core/houses.ts";
 import { houseAskEstimate } from "../core/houseauto.ts";
@@ -1189,7 +1189,7 @@ export async function pickClaim(ctx: Context, run: Run, lang: string, tree: Tree
  * A story the person read and approves: no longer a draft, locked. Beside an approved one, its new version: read and
  * approved in its place, or not wanted (keep: the approved one stays) — as the menu's "What waits for you".
  */
-export async function approveStory(ctx: Context, run: Run, lang: string, root: string, person: Person | Family, who: string, how: "final" | "keep" = "final"): Promise<boolean> {
+export async function approveStory(ctx: Context, run: Run, lang: string, root: string, person: Person | Family | House, who: string, how: "final" | "keep" = "final"): Promise<boolean> {
   const t = translator(lang);
   const st = person.story;
   if (!st) return stop(ctx, t("ui.link.story.none", { person: who }));
@@ -1201,7 +1201,7 @@ export async function approveStory(ctx: Context, run: Run, lang: string, root: s
   if (st.status === "final") return stop(ctx, t("ui.link.story.final", { person: who }));
   out(ctx, lines(st.title ? `„${st.title}“` : undefined, "", st.text.replace(/\*\*/g, ""), ""));
   // a couple's story said as the couple's, never as a person's
-  const what = person.type === "family" ? t("ui.link.what.story.couple", { couple: who }) : t("ui.link.what.story", { person: who });
+  const what = person.type === "family" ? t("ui.link.what.story.couple", { couple: who }) : person.type === "house" ? t("ui.link.what.story.house", { house: who }) : t("ui.link.what.story", { person: who });
   if (!(await asks(ctx, lang, root, what))) return false;
   if ((await run(["story", "approve", person.id], true)) !== 0) return false;
   out(ctx, t("ui.link.story.done"));

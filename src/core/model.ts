@@ -361,6 +361,11 @@ export interface Story {
   note?: string;
   /** What it left out on purpose of the version before it, and why (strom story set --drop). */
   dropped?: { ref: string; why: string }[];
+  /**
+   * A house's story (spec 145 T4): every fact the house had when it was written (its items, the facts of its people),
+   * cited or not — written again only once the house brings more than these. Optional (no SCHEMA_VERSION raised).
+   */
+  seen?: string[];
   at: string;
   by: string;
   /**
@@ -379,6 +384,7 @@ export interface StoryDraft {
   history?: string[];
   note?: string;
   dropped?: { ref: string; why: string }[];
+  seen?: string[];
   at: string;
   by: string;
 }
@@ -1555,6 +1561,11 @@ export interface House extends BaseRecord {
   fieldNames?: HouseFieldName[];
   /** The day the municipality's skeleton was done (its task closed done): no task of it is raised again. */
   done?: string;
+  /**
+   * The story of the house (spec 145 T4), as a person's: its facts are the house's items (n…, e…, h…, r…) and the facts
+   * of the tree's people in it (E…). Optional (no SCHEMA_VERSION raised).
+   */
+  story?: Story;
   notes: Note[];
 }
 
@@ -1748,6 +1759,8 @@ export interface TreeConfig {
   queueSuggestPersons?: number;
   /** The tasks a book needs to be offered to download by hand (books.minTasks; spec 105). */
   booksMinTasks?: number;
+  /** The people one send of the Strom app adds from which What waits asks whether they came of a family tree (sync.importAsk; 1127). */
+  syncImportAsk?: number;
   /** Years either side of a date estimated from an age a search has to cover (search.ageMargin; spec 131). */
   searchAgeMargin?: number;
   /** After a session in a book on disk, the next task of that book first: no (default) or yes (queue.sameBook). */

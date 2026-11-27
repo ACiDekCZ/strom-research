@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.38.0
 
-*In preparation: the betas up to 1.38.0-beta.5. The section is complete with the release.*
+*In preparation: the betas up to 1.38.0-beta.6. The section is complete with the release.*
 
 - **A clearer menu in the terminal:** every screen says where it is (Strom › Settings › Maintenance), its options as
   `[1]  Label   state`, a switch with how it is now and what it switches to, back last as `[0]` (also the way a
@@ -25,14 +25,20 @@ The changes of each version in short. The full notes and the install lines are o
   parts, and at a crop of it; at eBadatelna (SOA Praha) the agent keeps to the archive's limits for a person and an
   automated system alike (at most 2 images a second, one ZIP at a time, 10 ZIPs in 24 hours) and never suggests a way
   past them.
-- **A person's writes in the terminal no longer refused for an agent's session:** where an agent's session was taken
-  over by another run, the person's own writes in the terminal and the menu (Maintenance → Disk space, `strom tidy`,
-  `strom history align`…) passed only a week later; they pass at once. The agent whose session it was is still
-  refused.
+- **From a family tree, not by a person's hand:** people of a family tree imported or merged in the Strom app that an
+  older app sent without the import's mark were taken as the person's own (✓ confirmed by a person); a send that marks
+  them now sets them right by itself, and an older send the person names once, in the app's What waits ("Did it come
+  from a family tree?") or with `strom sync as-import I…` — a preview first, the research backed up, only values
+  unchanged and unconfirmed since, `--undo` takes it back. A given name with brackets among its words ("(Vincent)
+  François (Paul)") is a name as written; a person's writes in the terminal pass at once where an agent's session was
+  taken over by another run.
 - **The history of the houses:** `strom house` keeps a record of each house the family lived in — its numbers in time,
   holders, residents, what happened to it, its place on the map and what was gone through for it; the research looks
   into the houses of direct ancestors only with the setting "House history" on, and one house can always be asked for,
-  also from the Strom app. Over a house's place the app may show the aerial photos of the 1950s (Czechia).
+  also from the Strom app. Over a house's place the app may show the aerial photos of the 1950s (Czechia). A house
+  researched that tells enough (two generations of the tree, or three holders and residents with sources) gets its
+  story with the stories on, each claim with its source, the uncertain said so; a draft until approved, then never
+  rewritten; `strom house story` and the app ask for one at any time.
 - **A house's research:** it goes through a list of sources for its country (in Czechia the address register, the
   field names, the water courses, the orthophotos, the topographies) and writes into the house only what said
   something; a municipality keeps its pictures (only under a free licence, with what they show) and its field names,

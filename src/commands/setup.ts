@@ -10,7 +10,7 @@ import { spawnSync } from "node:child_process";
 import { APP_URL_INVALID_SETTING, register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, secondsIn, shellArg, table } from "../cli/format.ts";
-import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_HISTORY_PACE, DEFAULT_LIVE_IDLE_MINUTES, DEFAULT_READ_PARALLEL, DEFAULT_RUN_MINUTES, DEFAULT_RUN_PARALLEL, HISTORY_PACES, historySwitches, OTHER_ENV, readStored, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
+import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, IMPORT_ASK, DEFAULT_HISTORY_PACE, DEFAULT_LIVE_IDLE_MINUTES, DEFAULT_READ_PARALLEL, DEFAULT_RUN_MINUTES, DEFAULT_RUN_PARALLEL, HISTORY_PACES, historySwitches, OTHER_ENV, readStored, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import type { Input, Media, Task, TreeConfig } from "../core/model.ts";
 import type { UserConfig } from "../core/config.ts";
@@ -1305,6 +1305,7 @@ function effective(ctx: Context, def: SettingDef, recordset?: string): { value: 
   }
   if (def.key === "brief.budget") return { value: DEFAULT_BUDGET, source: "default" };
   if (def.key === "run.minutes") return { value: DEFAULT_RUN_MINUTES, source: "default" };
+  if (def.key === "sync.importAsk") return { value: IMPORT_ASK, source: "default" };
   if (def.key === "web.perHost") return { value: WEB_PER_HOST, source: "default" };
   if (def.key === "read.parallel") return { value: DEFAULT_READ_PARALLEL, source: "default" };
   if (def.key === "run.parallel") return { value: DEFAULT_RUN_PARALLEL, source: "default" };

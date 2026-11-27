@@ -2,6 +2,7 @@
 // made by the person, what the agent writes of a house item by item, what the person confirms of it, and a research of
 // a house the person made themselves taken in (core/houses.ts, core/houseimport.ts).
 
+import { HOUSE_STORY_GENERATIONS, HOUSE_STORY_PEOPLE, askHouseStory } from "../core/housestory.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { register, type CommandDef, type OptionDef } from "../cli/registry.ts";
@@ -273,6 +274,48 @@ register(
       return {
         text: lines(...tree.written.map((o) => o.summary), ui(lang, out.again ? "ui.house.again" : "ui.house.asked", { house: label }), `${out.task}: strom run takes it next (now: strom run --task ${out.task})`),
         data: { ...out, asked: true, estimate: { minutes, ...(usd !== undefined ? { usd } : {}), measured } },
+      };
+    },
+  },
+  {
+    path: ["house", "story"],
+    summary: "Ask for the story of a house (the person's word): its task first of all, written from what its research found",
+    group: "sources",
+    tree: true,
+    writes: true,
+    hidden: true,
+    person: "Write the story of this house from what its research found?",
+    description: [
+      "The story of the house for the family: its holders, the families in it over the generations, what happened to it,",
+      "its numbers in time, its look — each statement on a fact of the house or of its people, what is uncertain said so.",
+      "Its task comes first at the next session of strom run, whatever the setting stories says and however much the",
+      "house tells. A draft until approved (strom story approve A…); an approved one stays, a new version waits beside it.",
+      "Only a house with a record (its research, or something of it written). By itself (the stories on) it comes after",
+      `the last step of a house's research when the house tells enough: ${HOUSE_STORY_GENERATIONS} generations of the tree in it or ${HOUSE_STORY_PEOPLE} holders and residents with sources.`,
+      "The person's: in a terminal it asks (--yes: no question); without one --yes is needed.",
+    ].join("\n"),
+    args: [{ name: "house", description: "A…, its key (town|number), or its municipality and number", required: true, variadic: true }],
+    examples: ["strom house story A0001", "strom house story A0001 --yes"],
+    refusesFirst(ctx) {
+      if (actsAsArchive(ctx.tree())) throw new UsageError("an archive writes nothing: its research is the person's alone", { code: "house.archive" });
+    },
+    async run(ctx, { args }) {
+      const tree = ctx.tree();
+      const ref = args.join(" ");
+      const row = findHouse(tree, ref, houseRows(tree, { on: true }));
+      if (!row.id) throw new UsageError(`nothing of the house "${row.key}" is written yet — its story is written from its research`, { code: "house.story.none", hint: `its research first: strom house request "${row.key}"` });
+      const lang = tree.lang;
+      const label = `${row.place.name} ${row.house}`;
+      if (!ctx.yes) {
+        if (!ctx.interactive)
+          throw new NeedsInputError([{ key: "house.story", kind: "consent", question: ui(lang, "ui.house.story.ask", { house: label }), set: ["strom house story", ...args.map(shellWord), "--yes"].join(" ") }]);
+        if (!(await ctx.confirm(ui(lang, "ui.house.story.ask", { house: label }), false))) return { text: ui(lang, "ui.house.kept"), data: { house: row.id, asked: false } };
+      }
+      if (tree.dryRun) return { text: `would ask for the story of the house ${row.id}`, data: { house: row.id, asked: false } };
+      const out = askHouseStory(tree, ref);
+      return {
+        text: lines(...tree.written.map((o) => o.summary), ui(lang, "ui.house.story.asked", { house: label }), `${out.task}: strom run takes it next (now: strom run --task ${out.task})`),
+        data: { ...out, asked: true },
       };
     },
   },

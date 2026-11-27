@@ -557,7 +557,10 @@
 //                          part changed) — strom event revert | person revert as the person's, the value theirs from then
 //                          on — {ok, reverted: {owner, ref, parts}, head, parent}; 400 revert.invalid, 404 revert.unknown
 //                          (no such value, or not the person's), 409 revert.nothing (nothing changed to put back), 503
-//                          research.busy (feature origin). The Strom file: _STROM_ORIGIN, _STROM_WAS (APP_SHOWS_ORIGIN)
+//                          research.busy (feature origin). The Strom file: _STROM_ORIGIN, _STROM_WAS (APP_SHOWS_ORIGIN).
+//                          Feature origin.import: a send marking a value of an import (_STROM_IMPORT Ix) that an earlier
+//                          send wrote as the person's own — the same since, unconfirmed, nothing kept to put back — makes
+//                          it the import's (strom sync's change origin.import, the person's sync alone; an undo puts it back)
 //   POST <token>/verify {"person": "P…"} | {"family": "F…"} | {"fact": "E…" | "P….N"}, "dry"?: true: the user asks the facts
 //                          verified against their originals (spec 065; strom verify facts … --living), first in the
 //                          queue — {ok, task|null, state?: wait|asked|images|permission, position? (wait, asked: the
@@ -694,6 +697,14 @@
 //                          parent|other}, nearest?, tasks, persons, samples [{id, text}] (in the order of the queue),
 //                          mode (+ line), line?, own, grows?}]}; a branch that grows waits in /status waiting as kind
 //                          "branch" {id: W-B-P…, branch, person, research?, tasks, persons, at, what}
+//                          A send of the Strom app that added many people as the person's own (an older app marked no
+//                          import; 1127, feature waiting.import, sync.importAsk — default 20, 0 never): kind "import",
+//                          section decide, group app, actions [answer] {id: W-S-I…, input, day, persons, samples [{id,
+//                          name}] (3), at, what} — in an archive too (the person's data; the only item there)
+//   GET <token>/waiting/W-S-I…/preview  what the answer import changes, read from the history (strom sync as-import I…
+//                          --json, nothing written): {input, day, persons, change {values, persons, names, sexes, facts},
+//                          stay {values, changed, confirmed, was, other}, done, samples [{id, name, values}], values,
+//                          answer?, source?}; 404 waiting.none (answered, no longer asked), 503 research.busy (+ Retry-After)
 //   GET <token>/offline/<B-…>   one branch and all its open tasks (those not taken too): {branch, tasks: [{id, text,
 //                          pos?, person?, own?}]}; 404 offline.none, 409 directions.archive, 503 research.busy
 //   GET <token>/queue      a page of the whole queue (feature queue.page): ?from=<0…> (among the tasks the filter
@@ -822,6 +833,20 @@
 //                          strom chat --house (the house, its skeleton, the house method, its list of sources loaded);
 //                          what it finds goes into the house (the bridge's events, as any change), a follow-up task only
 //                          when the person asks for one.
+//                          The story of a house (spec 145 T4, feature house.story, only where the research has its
+//                          agent): GET /houses/<ref> story {status: draft|final|null, title?, text, facts, sources?, at,
+//                          people: [{id, died}] (the tree's people it names: the living kept out of what the app shares),
+//                          draft? (a new version beside an approved one: title?, text, facts, sources?, at, people),
+//                          task? {id, state}} — none when the house has neither a story nor its task. It comes by itself
+//                          (the setting stories on) after a house's last research step when the house tells enough.
+//   POST <token>/houses/story  {house: <key|A…>}: the story of a house asked for — strom house story --yes (the person's
+//                          word in the app): its task on top of the queue, never an agent started — {house (as GET
+//                          /houses/<ref>), task, made, head, parent}. 404 house.unknown, 400 house.body (+ reasonCode
+//                          house.story.none: nothing of the house written yet), 409 house.archive (+ reasonCode), 423
+//                          locked, 503 research.busy (+ Retry-After), 507 disk.full, 500 house.failed. Approving it or
+//                          keeping the approved one: the link strom-research://story?tree=…&house=A…&do=final|keep (the
+//                          person in the terminal, as a person's story); the bridge's waiting has it (kind story, house:
+//                          its key, no person) only for an app from APP_SHOWS_HOUSE_STORY.
 //   POST <token>/intake    {"auto": true|false} (exactly): what the app sends gone through by the agent by itself — a
 //                          batch once whole, a file of no batch as it comes, the same file again with more said of it, a
 //                          file shown again (spec 130 K1.3) — strom config set intake.auto on|off --for-tree, the person's decision
@@ -853,6 +878,13 @@
 //                          before), head, parent}; {do: restore, was: {} | {own, at}}: the turn put back exactly as it
 //                          was (strom task order --default | --restore <own>@<at>; at not later than now, at most 30
 //                          days ago) — feature queue.next; 400 queue.body, 404 queue.none, 409 queue.doing
+//   POST <token>/waiting/W-S-I…  {do: import|own} (feature waiting.import): import — strom sync as-import I… --apply (the
+//                          research backed up first; only values unchanged since the send and unconfirmed become the
+//                          family tree's ○○; back in the terminal: strom sync as-import I… --undo) {input, answer: import,
+//                          values, persons, backup?: true, head, parent}; own — strom sync as-import I… --own (nothing
+//                          changes, never asked again) {input, answer: own, head, parent}. Always the person's (the
+//                          bridge's strom writes as the person, STROM_FOR_APP). 400 waiting.body, 404 waiting.none,
+//                          503 research.busy (+ Retry-After), 423 locked, 507 disk.full
 //   POST <token>/waiting/W-B-…  {do: line|keep|never, line?: G…}: strom offline answer (a new line for it: POST
 //                          /directions with branch) — {branch, answer, head, parent}; 400 offline.body, 404 waiting.none
 //                          (it waits no more), offline.none, directions.none. Every write off the lines: 409
@@ -995,7 +1027,7 @@ import { findsForApp, treeFinds } from "./phone-finds.ts";
 import { glanceLocked, glanceOf, withAsking, withRuns, type Glance } from "./glance.ts";
 import { askingNow } from "./deviceagent.ts";
 import { forPhone } from "./phone-watch.ts";
-import { APP_READS_NAME_STATUS, APP_READS_NAME_STATUS_BETA, APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appReadsMainCitation, appReadsNameStatus, appSendsUncite, appDecidesHypotheses, appOpensLinks, appShowsOrigin, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
+import { APP_READS_NAME_STATUS, APP_READS_NAME_STATUS_BETA, APP_SHOWS_ORIGIN, APP_SHOWS_ORIGIN_BETA, appReadsMainCitation, appReadsNameStatus, appSendsUncite, appDecidesHypotheses, appOpensLinks, appShowsHouseStory, appShowsOrigin, appShowsStoryDrafts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
 import { suggestSurnames } from "./surnames.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
 import { askOf, qualityRev, readDismissed } from "./quality.ts";
@@ -1021,7 +1053,8 @@ import { splitMark, splitPlan, splitUndos } from "./sourcesplit.ts";
 import { ANSWER_MAX, HIDE_REASONS, OFF_LINE_CHOICES, type AppClient, type Family, type Input, type Media, type OffLine, type Person, type Place, type RecordSet, type Repository, type Direction, type Research, type Session, type Source, type Task, type TreeConfig } from "./model.ts";
 import { normId } from "./records.ts";
 import { confirmCheck, type ConfirmRefusal } from "./confirm.ts";
-import { answersInApp, requestTexts, savedByAgentNow, waitingFor } from "./waiting.ts";
+import { answersInApp, archiveWaiting, importWaiting, requestTexts, savedByAgentNow, waitingFor } from "./waiting.ts";
+import { sendInput, sendPlan } from "./sendimport.ts";
 import { RETRY_MAX, retryOf, type RetryView } from "./retry.ts";
 import { savingView, type SavingView } from "./ownsave.ts";
 import { bookOfTask, bookRows, type BookRow } from "./books.ts";
@@ -2082,13 +2115,13 @@ const MEDIA_REF_UNKNOWN = "sync.media-ref-unknown";
 /** How many hashes POST /media/known takes at once. */
 export const MEDIA_KNOWN_MAX = 5000;
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.accepted", "material.decided", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "house", "house.material", "house.confirm", "house.import", "house.auto", "house.request", "house.chat", "house.look", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sync.mediaRef", "person.contact", "media.list", "media.list.source", "waiting.gain", "sort.confirm", "working.saving", "waiting.retry", "sort.confirm.app", "run.confirm", "finds", "finds.person", "glance", "people.search"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "origin.import", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.accepted", "material.decided", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "house", "house.material", "house.confirm", "house.import", "house.auto", "house.request", "house.chat", "house.look", "house.story", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sync.mediaRef", "person.contact", "media.list", "media.list.source", "waiting.gain", "sort.confirm", "working.saving", "waiting.retry", "sort.confirm.app", "run.confirm", "finds", "finds.person", "glance", "people.search", "waiting.import"] as const;
 
 /**
  * What only a research with its agent here does (accepts.read: none in an archive, nor where it waits for its agent);
  * finds: what an agent found, which an archive never says (GET finds answers none there).
  */
-const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort", "material.decided", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sort.confirm", "sort.confirm.app", "run.confirm", "finds", "finds.person", "house.import", "house.request", "house.chat"]);
+const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort", "material.decided", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sort.confirm", "sort.confirm.app", "run.confirm", "finds", "finds.person", "house.import", "house.request", "house.chat", "house.story"]);
 const withoutAgent = (features: readonly string[]): readonly string[] => features.filter((f) => !AGENT_FEATURES.has(f));
 /**
  * The sample research (strom demo, spec 143 K2.2): looked through as a research, but nothing that starts or offers an
@@ -3386,10 +3419,13 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     // a new version of an approved story (for an app that shows it: the _DRAFT gate), an archive's images that wait for
     // the person's decision and the connectors taken over (none in an archive) — the person decides in the terminal a
     // link opens (archive&host=, task&do=)
-    waiting: archive ? [] : waitingFor(tree, {
+    // (an archive: only a send asked about — the person's data, nothing of an agent)
+    waiting: archive ? archiveWaiting(tree).map((w) => w.item) : waitingFor(tree, {
       shared: settings.shared()?.value,
       claude: () => settings.agent(tree.config).value === "claude" && agentsHere(env).some((a) => a.id === "claude" && a.cli),
       stories: appShowsStoryDrafts(settings, version),
+      // a house's story among them only for an app that shows one (spec 145 T4: an older one takes it for a person's)
+      houseStories: appShowsHouseStory(settings, version),
       // the hypotheses, for an app that decides one by a pick (spec 074 V13): as the menu's What waits has them
       ...(appDecidesHypotheses(settings, version) ? { hypothesesApp: { open: settings.hypothesesDecide(tree.config) === "person" } } : {}),
       scopes: all,
@@ -4277,6 +4313,9 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     if (origin) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Vary", "Origin");
+      // a busy answer's Retry-After seen by the app's page too (outside the CORS safelist; also as retry in the body);
+      // an answer naming headers of its own (the GED's, an image's) names them instead
+      res.setHeader("Access-Control-Expose-Headers", "Retry-After");
     }
     if (req.method === "OPTIONS") {
       if (origin) {
@@ -4358,9 +4397,10 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       return;
     }
     if (req.method === "POST" && t === token && what === "waiting" && sub && !act) {
-      // a branch that grows (W-B-…: answered as strom offline answer), else a task's request marked sent
+      // a branch that grows (W-B-…: answered as strom offline answer), a send asked about (W-S-I…: strom sync as-import),
+      // else a task's request marked sent
       const id = decoded(sub);
-      writeFor(req, res, origin, /^W-B-/iu.test(id) ? branchAnswerWrite(id) : waitingWrite(id));
+      writeFor(req, res, origin, /^W-B-/iu.test(id) ? branchAnswerWrite(id) : /^W-S-/iu.test(id) ? importAnswerWrite(id) : waitingWrite(id));
       return;
     }
     // the bridge itself: how long it runs on with nobody asking (this computer's choice), or ended now from the app
@@ -4389,8 +4429,8 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       return;
     }
     // census records as a source (spec 106)
-    if (req.method === "POST" && t === token && what === "houses" && (sub === "confirm" || sub === "material" || sub === "request") && !act) {
-      writeFor(req, res, origin, sub === "confirm" ? houseConfirmWrite() : sub === "material" ? houseMaterialWrite() : houseRequestWrite());
+    if (req.method === "POST" && t === token && what === "houses" && (sub === "confirm" || sub === "material" || sub === "request" || sub === "story") && !act) {
+      writeFor(req, res, origin, sub === "confirm" ? houseConfirmWrite() : sub === "material" ? houseMaterialWrite() : sub === "story" ? houseStoryWrite() : houseRequestWrite());
       return;
     }
     // the history of the houses by itself (spec 030 part 2, feature house.auto)
@@ -4780,6 +4820,16 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         if (writing || adopting || personWriting || (holder && !(holder.pid === process.pid && holder.host === os.hostname())))
           res.writeHead(503, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Retry-After": "5" }).end(JSON.stringify({ ...refusal("the research is being written: ask again in a while", "research.busy"), retry: 5 }));
         else giveFixes(req, res);
+      } else if (what === "waiting" && sub && act === "preview" && !rest && /^W-S-/iu.test(decoded(sub))) {
+        // what the answer "from a family tree" changes of a send asked about (strom sync as-import's preview): read only,
+        // from the history — never while the research is written
+        const holder = liveHolder(path.join(root, ".strom", "tree.lock"));
+        if (writing || adopting || personWriting || (holder && !(holder.pid === process.pid && holder.host === os.hostname())))
+          res.writeHead(503, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Retry-After": "5" }).end(JSON.stringify({ ...refusal("the research is being written: ask again in a while", "research.busy"), retry: 5 }));
+        else {
+          const got = importPreview(decoded(sub));
+          res.writeHead(got.code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(got.body));
+        }
       } else if (what === "waiting" && sub && act === "fix" && !rest) {
         // how a waiting task's wait is written, checked now, and the fix strom proposes (feature tasks.audit): read only
         const got = auditPreview(decoded(sub));
@@ -7409,6 +7459,35 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   };
 
   /**
+   * The story of a house asked for in the app (POST /houses/story {house: <key|A…>}; spec 145 T4): strom house story
+   * --yes — the person's word given in the app — its task on top of the queue, the bridge starting no agent: {house: <the
+   * house whole, as GET /houses/<ref>>, task, made, head, parent}. 404 house.unknown, 400 house.body (reasonCode
+   * house.story.none: nothing of it written), 409 house.archive (reasonCode: its state).
+   */
+  const houseStoryWrite = (): AppWrite => {
+    let before = "";
+    return {
+      what: "the story of a house asked for",
+      codes: HOUSE_WRITE_CODES,
+      busyStatus: 503,
+      ask(tree, body) {
+        if (Object.keys(body).some((k) => k !== "house")) return { code: 400, body: refusal(`the body: {"house": "<its key or A…>"}`, "house.body") };
+        const row = houseOfBody(tree, body);
+        if ("code" in row) return row;
+        if (actsAsArchive(tree)) return houseArchive(tree);
+        if (!row.id) return { code: 400, body: { ...refusal(`nothing of the house "${row.key}" is written yet — its story is written from its research`, "house.body"), reasonCode: "house.story.none" } };
+        before = head(root);
+        return { args: ["house", "story", "--yes", "--", row.id] };
+      },
+      done(tree, data, h) {
+        const now = Tree.open(tree.root, env);
+        return { house: houseAnswer(now, String(data.house)), task: data.task, made: data.made === true, head: h, parent: before };
+      },
+      refused: houseRefused,
+    };
+  };
+
+  /**
    * The person's word on a house in the app (POST /houses/confirm {house, what: renumber|location|notSame, id?, lat?,
    * lon?}; spec 030 §2.7, §4.2): strom house confirm in the app's environment — the person's decision there, no window.
    * {house: <the house whole, as GET /houses/<key>>, head, parent}. 400 house.body, 404 house.unknown (also a house
@@ -7800,6 +7879,45 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         return { task: queueTask(tree, new Settings(env, {}), id) ?? null, was, head: h, parent: before };
       },
       refused: (_tree, code, why, data) => offlineRefused(code, why, data),
+    };
+  };
+
+  /**
+   * The answer to a send asked about (POST /waiting/W-S-I… {"do": "import"|"own"}; 1127): import — strom sync as-import
+   * I… --apply (backed up first; the values unchanged since the send and unconfirmed the family tree's), own — --own
+   * (nothing changes, never asked again). The command is the person's alone: the bridge's strom writes as the person
+   * (STROM_FOR_APP, no agent's marks). {input, answer, values?, persons?, backup?: true, head, parent}; 400 waiting.body,
+   * 404 waiting.none when it waits no more (answered elsewhere: the answer holds once).
+   */
+  const importAnswerWrite = (raw: string): AppWrite => {
+    const id = raw.slice(0, 32);
+    let before = "";
+    let said = "";
+    return {
+      what: `the answer for ${id}`,
+      codes: { badBody: "waiting.body", busy: "research.busy", failed: "waiting.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        if (Object.keys(body).some((k) => k !== "do") || (body.do !== "import" && body.do !== "own")) return { code: 400, body: refusal(`the body: {"do": "import"} or {"do": "own"}`, "waiting.body") };
+        const w = importWaiting(tree, id);
+        if (!w?.importSend) return noImport(id);
+        before = head(root);
+        said = body.do;
+        return { args: ["sync", "as-import", w.importSend.input, said === "import" ? "--apply" : "--own"] };
+      },
+      done(_tree, data, h) {
+        const input = typeof data.input === "string" ? data.input : id.replace(/^W-S-/iu, "");
+        return {
+          input,
+          answer: said,
+          ...(said === "import" ? { values: data.values ?? 0, persons: data.persons ?? 0, ...(data.backup ? { backup: true } : {}) } : {}),
+          head: h,
+          parent: before,
+        };
+      },
+      // answered in the terminal meanwhile, the send taken back, marked already: it waits no more
+      refused: (_tree, code, why) =>
+        code === "sync.not-sync" || code === "sync.undone" || code === "sync.as-import.applied" ? { code: 404, body: refusal(why, "waiting.none", { id }) } : undefined,
     };
   };
 
@@ -8871,6 +8989,18 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     const a = auditOf(tree, t, { shared: new Settings(env, {}).shared()?.value });
     if (!a.findings.length) return { code: 409, body: refusal(`${id}: its wait is as strom needs it`, "audit.none", { id }) };
     return { code: 200, body: { task: a.task, at: a.at, findings: a.findings, fix: a.fix, kept: a.kept, fixed: a.fixed } };
+  };
+
+  /** No such send asked about now: answered (here, in the terminal), or no longer asked. */
+  const noImport = (id: string) => ({ code: 404, body: refusal(`${id} waits no more: answered, or no send asked about`, "waiting.none", { id }) });
+
+  /** GET /waiting/W-S-I…/preview: what the answer "from a family tree" changes (strom sync as-import I… --json). */
+  const importPreview = (raw: string): { code: number; body: Record<string, unknown> } => {
+    const id = raw.slice(0, 32);
+    const tree = Tree.open(root, env);
+    const w = importWaiting(tree, id);
+    if (!w?.importSend) return noImport(id);
+    return { code: 200, body: { ...sendPlan(tree, sendInput(tree, w.importSend.input)) } };
   };
 
   /** GET /group/<key>/note: the request texts of the place's waiting tasks joined for one e-mail — each file once. */
