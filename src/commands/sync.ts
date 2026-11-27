@@ -183,6 +183,9 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
           ? "ui.sync.name.married"
           : (c.kind === "fact.confirm" || c.kind === "name.confirm") && c.confirm?.on === false
             ? `ui.sync.${c.kind}.back`
+            // a value an earlier send wrote as the person's own, the import's as the file marks it (1127)
+            : c.kind === "origin.import" && c.imported && c.imported.what !== "fact"
+              ? `ui.sync.origin.import.${c.imported.what}`
             : c.kind === "fact.share"
               ? `ui.sync.fact.share${c.shared === "roleAt" ? ".role" : ""}${(c.shared === "roleAt" ? c.fact?.roleAt : c.fact?.share) ? "" : ".gone"}`
               // the main citation and the citations the user removed (spec 095)
@@ -209,6 +212,8 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
       // …and of the name of their identity (spec 066 P5)
       : c.kind === "name.confirm"
       ? !tree.personWrites ? "ui.sync.do.confirm.kept" : `ui.sync.do.name.confirm${c.confirm?.on === false ? ".back" : ""}`
+      : c.kind === "origin.import"
+      ? "ui.sync.do.origin.import"
       // the Strom app's mark of a shared event (spec 085): who shares one the person's alone
       : c.kind === "fact.share"
       ? c.action === "add" ? "ui.sync.do.share" : !tree.personWrites ? "ui.sync.do.share.kept" : "ui.sync.do.share.user"
