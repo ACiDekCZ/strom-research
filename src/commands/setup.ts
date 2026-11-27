@@ -1234,6 +1234,7 @@ const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | unde
   stories: () => "yes",
   "stories.sources": () => "yes",
   "stories.history": () => "yes",
+  "houses.look": () => "on",
   "sync.edits": () => "conflict",
   "sync.review": () => "off",
   "read.sourceTask": () => "ask",
