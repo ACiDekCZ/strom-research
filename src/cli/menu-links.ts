@@ -404,6 +404,26 @@ export async function houseImportDo(ctx: Context, run: Run, lang: string, root: 
 }
 
 /**
+ * A conversation with the agent about a house (spec 145 T2, the Strom app's house page: link house&do=chat): the house
+ * of the research (its record or the tree's facts) or refused; the agent's cost said and asked first, then strom chat
+ * --house loads the house, its municipality's skeleton, the house method and its list of sources.
+ */
+export async function houseChat(ctx: Context, run: Run, lang: string, root: string, ref: string, agent: string): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  let row: HouseRow | undefined;
+  try {
+    row = findHouse(tree, ref);
+  } catch {
+    row = undefined;
+  }
+  if (!row || (!row.id && !row.tree?.persons.size)) return stop(ctx, t("ui.link.house.none", { house: ref }));
+  const house = `${row.place.name} ${row.house}`;
+  if (!(await asksToStart(ctx, lang, root, t("ui.link.what.chat.house", { agent, house }), t("ui.link.cost")))) return false;
+  return (await run(["chat", "--house", row.id ?? row.key])) === 0;
+}
+
+/**
  * The history of a house of the family tree asked for from the Strom app (strom-research://house?…&do=search, with at
  * most two neighbouring houses of the same family): the house only looked up among the tree's — none of them, nobody of
  * the tree in it, its municipality no place yet: one sentence, nothing done. The estimate said and asked here, its task

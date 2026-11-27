@@ -24,6 +24,9 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   co se s ním dělo, jeho místo na mapě a co se pro něj prošlo; domy přímých předků výzkum zkoumá jen se zapnutým
   nastavením „Historie domů“ a jednotlivý dům jde vyžádat vždy, i z aplikace Strom. Nad místem domu smí aplikace
   ukázat letecké snímky z 50. let (Česko).
+  Výzkum domu prochází seznam pramenů jeho země (v Česku adresní registr, pomístní jména, vodní toky, ortofota,
+  topografie) a do domu zapisuje jen to, co něco řeklo; podoba domu následuje jako vlastní úkol jen tam, kde je o ní
+  co dál číst (nastavení „Podoba domů“, výchozí zapnuto); dům jde z aplikace Strom probrat s agentem.
 - **`strom demo`:** strom vyzkoušený na ukázkovém výzkumu smyšlené rodiny (cs, en, de, pl), mimo vlastní stromy
   a nastavení, otevřený v aplikaci Strom; všechno v něm jde prohlédnout, nic nenabízí agenta; `strom demo --remove` ho
   smaže.

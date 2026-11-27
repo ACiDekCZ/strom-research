@@ -31,7 +31,7 @@ import { agentSettingsSaid, effortInArgs, ownEffort, raisesEffort } from "../age
 import { agentSettingsLine } from "../cli/model-choice.ts";
 import { DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, Settings } from "../core/config.ts";
 import { historyHeld, raiseHistoryTasks, regionOfTask, requireHistoryOn } from "../core/pastevents.ts";
-import { markTownDone, raiseHouseTasks } from "../core/houseauto.ts";
+import { houseTaskDone, raiseHouseTasks } from "../core/houseauto.ts";
 import { houseHidden } from "../core/houses.ts";
 import { censusHeld, censusProposal, forCensus } from "../core/census.ts";
 import { keepPlacesTask, PLACES_IDENTIFY_ORIGIN } from "../core/placeid.ts";
@@ -412,7 +412,8 @@ register(
       }
       const alsoDone = also.map((id) => finishTask(tree, id, `fulfilled in ${s.id}${s.task ? ` (${s.task})` : ""}: ${alsoResult}`, csvOpt(opts.produced)));
       // a municipality's skeleton done: its record keeps the day, no task of it raised again (spec 030 part 2)
-      for (const t of [finished?.task, ...alsoDone.map((x) => x.task)]) if (t) markTownDone(tree, t);
+      // a house's look after its research where its look check found more (spec 145 T1)
+      const looks = [finished?.task, ...alsoDone.map((x) => x.task)].flatMap((t) => (t ? (houseTaskDone(tree, t, ctx.settings) ?? []) : []));
       const closed = closeSession(tree, s, {
         summary: censusSummary(tree, s, String(opts.summary ?? (done ? (finished?.task.result ?? done) : ""))),
         next: String(opts.next ?? ""),
@@ -442,6 +443,7 @@ register(
           ...(finished?.said ?? []),
           ...alsoDone.flatMap((a) => a.said),
           ...coverage.map(coverageLine),
+          ...looks.map((id) => `${id}: the look of the house follows its research (its look check)`),
           // its task waits: what brings it back, as strom does it (never a promise strom does not keep)
           ((t) => (t ? wakesBy(tree, ctx.settings.shared()?.value, t, (p) => ctx.display(p)) : undefined))(s.task ? tree.get<Task>(s.task) : undefined),
           ...audits.map((a) => a.line),

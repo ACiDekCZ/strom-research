@@ -27,6 +27,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   die Häuser der direkten Vorfahren erforscht die Forschung nur mit eingeschalteter Einstellung „Geschichte der Häuser“,
   ein einzelnes Haus lässt sich immer anfordern, auch aus der Strom-App. Über dem Ort eines Hauses darf die App die
   Luftbilder der 1950er-Jahre zeigen (Tschechien).
+  Die Forschung eines Hauses geht eine Liste der Quellen seines Landes durch (in Tschechien das Adressregister, die
+  Flurnamen, die Gewässer, die Orthofotos, die Topographien) und schreibt ins Haus nur, was etwas sagte; sein Aussehen
+  folgt als eigene Aufgabe nur, wo es mehr darüber zu lesen gibt (Einstellung „Aussehen der Häuser“, standardmäßig
+  an); ein Haus lässt sich aus der Strom-App mit dem Agenten besprechen.
 - **`strom demo`:** strom an einer Beispielforschung einer erfundenen Familie ausprobiert (cs, en, de, pl), getrennt
   von den eigenen Stammbäumen und Einstellungen und in der Strom-App geöffnet; alles darin lässt sich durchsehen,
   nichts bietet einen Agenten an; `strom demo --remove` löscht sie.

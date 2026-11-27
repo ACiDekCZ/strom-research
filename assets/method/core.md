@@ -27,11 +27,13 @@ conclusion so the next researcher can follow it.
   `strom search add … --result found --found <S…>` (in a batch the source line
   ends `#s`, the search takes `--found @s`).
 <!-- end -->
+<!-- for link verify enrich intake locate request narrate links -->
 - **Check the premise first.** Before opening anything, read the brief's
   *Already known* — the searches of the task's books, people and surnames;
   `strom searched <where>` only for a book, place or years it does not list.
   Work that answers another open task as well closes it with yours:
   `strom session close --done "…" --next "…" --also-done T…`.
+<!-- end -->
 <!-- for link verify enrich intake -->
 - **Extract everything the first time** you open a record: names, ages, house
   numbers, occupations, godparents, witnesses, midwife, remarks in the margin.
@@ -127,12 +129,14 @@ conclusion so the next researcher can follow it.
 - **What strom or the tree denies stays denied.** Never offer the user to
   change your permissions or settings, strom's or the tree's, to get round it:
   another way, or say what was refused.
+<!-- for link verify enrich intake locate request narrate links -->
 - **Stay within the task.** New questions become new tasks (`strom task add`,
   with where and done-when), not detours.
 - **The lines first.** With several lines, a task about a side branch none of
   them reaches comes only now and then. Add one only with `--helps
   "<how it helps G…>"`: an ancestor's sibling as godparent or witness, the same
   house, an ancestor's surname or origin. The sibling's own family helps none.
+<!-- end -->
 <!-- for locate request -->
 - **What waits for the user is a sentence they read** (`strom task wait T…
   --on "…"`: strom's menu, the Strom app): impersonal, in the research

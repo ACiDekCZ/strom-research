@@ -256,7 +256,13 @@ export const PHRASES = {
   "house.research.what.more": "History of the house {house} with the neighbouring houses {more}",
   "house.research.where": "the public sources and the allowed archives for {town}",
   "house.research.why": "A house where the family lived: its numbers in time and its point on the map, what happened to it, its holders and residents, its look — each claim with its source and certainty.",
-  "house.research.done": "what was found written into {id} (strom house add number|location|event|holder|resident|look|map …), with what was gone through, what is not known and what is only in a reading room (passed, unknown, archive-only)",
+  "house.research.done": "what was found written into {id} (strom house add number|location|event|holder|resident|look|map …), with what was gone through, what is not known and what is only in a reading room (passed, unknown, archive-only); its short look (look, or unknown --look), the list of sources gone through (passed --checklist) and the look check (look-check)",
+  "house.look.what": "Look of the house {house}",
+  "house.look.where": "the material, the pictures and the sources at the house {house} and its municipality",
+  "house.look.why": "After its research the house's look has more to find: {why}",
+  "house.look.done": "what more was found of the look written into {id} (strom house add look …, each with its source), or what of it can only be found by hand (strom house add unknown {id} --look …, manual …)",
+  "house.look.unknown": "look: no more automatically – {why}",
+  "house.look.material": "material was given to the house after its research",
 
   "task.answer": "The user answered (to: {asked}): {answer}",
 
@@ -476,6 +482,7 @@ export const PHRASES = {
   "log.setting.name.sort.confirm": "Question before the material is sorted",
   "log.setting.name.census": "Census records",
   "log.setting.name.houses": "House history",
+  "log.setting.name.houses.look": "House look",
   "log.setting.value.read.sourceTask.ask": "ask first",
   "log.setting.value.read.sourceTask.always": "a task at once",
   "log.setting.value.read.sourceTask.never": "only kept",

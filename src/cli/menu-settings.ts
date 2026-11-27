@@ -256,7 +256,8 @@ function housesLabel(ctx: Context, lang: string, root: string): string {
   const tree = Tree.open(root, ctx.env);
   const on = ctx.settings.houses(tree.config);
   const held = housesHeldCount(tree, on);
-  return t("ui.settings.houses", { state: on ? t("ui.settings.on") : held ? t("ui.settings.houses.held", { n: held }) : t("ui.settings.off") });
+  const look = ctx.settings.housesLook(tree.config);
+  return t("ui.settings.houses", { state: on ? t(look ? "ui.settings.on" : "ui.settings.houses.nolook") : held ? t("ui.settings.houses.held", { n: held }) : t("ui.settings.off") });
 }
 
 /**
@@ -269,6 +270,17 @@ async function housesStep(ctx: Context, run: Run, lang: string, root: string): P
   const t = translator(lang);
   const tree = Tree.open(root, ctx.env);
   const on = ctx.settings.houses(tree.config);
+  // on: the look of the houses (spec 145 T1, the follow-up tasks) or the switch off — 0 back with nothing changed
+  if (on) {
+    const look = ctx.settings.housesLook(tree.config);
+    const i = await ctx.choose(t("ui.settings.houses.what"), [{ label: t("ui.settings.houses.look", { state: t(look ? "ui.settings.on" : "ui.settings.off") }) }, { label: t("ui.settings.houses.switch.off") }], 0, { back: t("ui.browse.back") });
+    if (i === undefined) return;
+    if (i === 0) {
+      ctx.io.stdout(t("ui.settings.houses.look.about") + "\n");
+      if (await ctx.confirm(t(look ? "ui.settings.houses.look.off" : "ui.settings.houses.look.on"), false)) await run(["config", "set", "houses.look", look ? "off" : "on", "--for-tree"], true);
+      return;
+    }
+  }
   ctx.io.stdout(t("ui.settings.houses.about") + "\n");
   if (!on) {
     const auto = houseAuto(tree);

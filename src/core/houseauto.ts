@@ -6,11 +6,12 @@
 // setting says. Off: the tasks raised by themselves are held (core/houses.ts houseHeld), nothing written.
 
 import { UsageError } from "./errors.ts";
-import type { House, Input, Person, Place, Session, Task } from "./model.ts";
+import type { House, Input, Person, Place, Search, Session, Task } from "./model.ts";
 import {
   findHouse,
   forHouse,
   houseIndex,
+  houseLookOrigin,
   houseOrigin,
   houseRows,
   housesOfTask,
@@ -25,6 +26,8 @@ import {
   type HouseState,
 } from "./houses.ts";
 import { kinship } from "./kin.ts";
+import { webRequestsOf } from "./metrics.ts";
+import { sourceChecklist } from "./housesources.ts";
 import { layersFor } from "./maplayers.ts";
 import { familiesAsChild } from "./people.ts";
 import { create, update } from "./records.ts";
@@ -149,7 +152,8 @@ export function housesBridgeStatus(tree: Tree, settings: Settings, archive: bool
   const rows = houseRows(tree, { on });
   const base = housesStatus(tree, archive, on, rows);
   if (archive) return base;
-  const out: Record<string, unknown> = { ...base };
+  // the look of the houses (spec 145 T1): a task of its look after a house's research, the person's switch (houses.look)
+  const out: Record<string, unknown> = { ...base, look: settings.housesLook(tree.config) };
   if (rows.some((r) => r.tree?.persons.size)) {
     const auto = houseAuto(tree, rows);
     out.auto = { houses: auto.houses.length, towns: auto.towns.length };
@@ -247,6 +251,94 @@ function createHouseTask(tree: Tree, records: House[], place: Place, asked?: str
     },
     (id) => `+${id} task "history of the house ${first!.id}${more.length ? ` with ${more.map((h) => h.id).join(", ")}` : ""}" (houses)`,
   );
+}
+
+/** A house's look after its research (spec 145 T1), with its neighbouring houses: why it follows said in its task. */
+function createLookTask(tree: Tree, records: House[], place: Place, why: string, asked?: string): Task {
+  const lang = tree.lang;
+  const town = placeName(place);
+  const [first, ...more] = records;
+  const label = `${town} ${first!.house}${first!.name ? ` (${first!.name})` : ""}${more.length ? `, ${more.map((h) => h.house).join(", ")}` : ""}`;
+  return create<Task>(
+    tree,
+    "task",
+    {
+      level: HOUSE_LEVEL,
+      priority: 1,
+      subject: records.map((h) => h.id),
+      state: "open",
+      what: phrase(lang, "house.look.what", { house: label }).slice(0, 200),
+      where: [phrase(lang, "house.look.where", { house: label })],
+      why: phrase(lang, "house.look.why", { why }).slice(0, 1000),
+      doneWhen: phrase(lang, "house.look.done", { id: records.map((h) => h.id).join(", ") }).slice(0, 500),
+      origin: houseLookOrigin(first!.id),
+      ...(more.length ? { houses: more.map((h) => h.id) } : {}),
+      ...(asked ? { asked } : {}),
+    },
+    (id) => `+${id} task "look of the house ${first!.id}${more.length ? ` with ${more.map((h) => h.id).join(", ")}` : ""}" (houses)`,
+  );
+}
+
+/** The searches and pages a session needs at least for its list of sources to count as gone through (spec 145 T5). */
+export const HOUSE_CHECK_MIN = 3;
+/** The agents whose searches and pages strom sees (their hooks): where the list is measured. */
+const MEASURED_AGENTS = new Set(["claude", "grok"]);
+
+/**
+ * What a house's research or a municipality's skeleton still lacks before an agent closes it done (spec 145 T5, T1):
+ * the one line of its list of sources gone through, written in its sessions; a house's short look (or what is not known
+ * of it) and, with the look of the houses on, its look check; and — where strom sees them (an agent with hooks) — at
+ * least HOUSE_CHECK_MIN searches and pages in its sessions. The time is never chased: only what was gone through.
+ * Nothing for any other task.
+ */
+export function houseDoneLacks(tree: Tree, t: Task, settings: Settings = new Settings(tree.env, {})): string[] {
+  const work = houseWork(t);
+  if (work !== "house" && work !== "town") return [];
+  const sessions = tree.list<Session>("session").filter((s) => s.task === t.id);
+  const since = sessions.map((s) => s.started.slice(0, 10)).sort()[0] ?? "";
+  const town = work === "town" ? townOfTask(t) : undefined;
+  const recs = work === "town" ? [town ? townRecord(tree, town) : undefined] : housesOfTask(t).map((id) => tree.get<House>(id));
+  const lacks: string[] = [];
+  const look = settings.housesLook(tree.config);
+  for (const [i, h] of recs.entries()) {
+    const id = h?.id ?? (work === "town" ? town ?? "?" : housesOfTask(t)[i] ?? "?");
+    const ref = work === "town" ? `--town ${town}` : id;
+    if (!h?.passed.some((x) => x.checklist && (x.at ?? "") >= since)) lacks.push(`${id}: the one line of the list of sources gone through — strom house add passed ${ref} --checklist --what "<gone through: …>"`);
+    if (work !== "house") continue;
+    if (!h?.look && !h?.unknown.some((u) => u.about === "look")) lacks.push(`${id}: its short look — strom house add look ${id} --text "…" --certainty …, or strom house add unknown ${id} --look --text "<why not known>"`);
+    if (look && !(h?.lookCheck && h.lookCheck.at.slice(0, 10) >= since)) lacks.push(`${id}: the look check — strom house add look-check ${id} --next material|picture|source|none --text "…"`);
+  }
+  const measured = sessions.filter((s) => MEASURED_AGENTS.has(s.agent ?? ""));
+  if (measured.length) {
+    let n = 0;
+    for (const s of measured) {
+      const w = webRequestsOf(tree.root, { session: s.id });
+      n += w.search + [...w.hosts.values()].reduce((a, b) => a + b, 0);
+    }
+    n += tree.list<Search>("search").filter((x) => x.task === t.id).length;
+    if (n < HOUSE_CHECK_MIN) lacks.push(`the sources of the list themselves: ${n} searches and pages in this task's sessions — go through the brief's list, then close`);
+  }
+  return lacks;
+}
+
+/**
+ * A task of houses closed done: a municipality's skeleton keeps its day; a house's research whose look check found more
+ * to read (material, picture, source) is followed by a task of its look — with the look of the houses on, one for its
+ * houses that have none alive (spec 145 T1). Its ID, if one was made.
+ */
+export function houseTaskDone(tree: Tree, t: Task, settings: Settings = new Settings(tree.env, {})): string | undefined {
+  markTownDone(tree, t);
+  if (houseWork(t) !== "house" || tree.dryRun || actsAsArchive(tree) || !settings.housesLook(tree.config)) return undefined;
+  return tree.withTreeLock(() => {
+    const tasks = tree.list<Task>("task").filter(forHouse);
+    const more = housesOfTask(t)
+      .map((id) => tree.get<House>(id))
+      .filter((h): h is House => !!h && !!h.lookCheck && h.lookCheck.next !== "none" && (!h.lookCheck.task || h.lookCheck.task === t.id))
+      .filter((h) => !tasks.some((x) => houseWork(x) === "look" && housesOfTask(x).includes(h.id) && LIVE.has(x.state)));
+    const place = more[0] ? tree.get<Place>(more[0].place) : undefined;
+    if (!place) return undefined;
+    return createLookTask(tree, more, place, more.map((h) => `${h.id} (${h.lookCheck!.next}): ${h.lookCheck!.text}`).join("; "), t.asked ? new Date().toISOString() : undefined).id;
+  });
 }
 
 /**
@@ -392,6 +484,10 @@ export function houseTaskForMaterial(tree: Tree, houseId: string, settings: Sett
     if (!row?.tree?.persons.size || !row.place.id) return undefined;
     const tasks = tree.list<Task>("task").filter(forHouse);
     if (tasks.some((t) => ofHouse(row)(t) && LIVE.has(t.state))) return undefined;
+    // its research done: the material is for its look (spec 145 T1), with the look of the houses on
+    const rec = row.state === "done" && settings.housesLook(tree.config) ? tree.get<House>(houseId) : undefined;
+    const place = rec ? tree.get<Place>(rec.place) : undefined;
+    if (rec && place) return createLookTask(tree, [rec], place, phrase(tree.lang, "house.look.material"), new Date().toISOString()).id;
     return askHouse(tree, houseId, [], settings, { top: false }).task;
   });
 }
@@ -413,9 +509,10 @@ export function houseBrief(tree: Tree, t: Task): string | undefined {
     const auto = new Set(houseAuto(tree, rows).houses.map((a) => a.key));
     const ours = rows.filter((r) => r.tree?.persons.size);
     if (ours.length) out.push(`houses of the tree here: ${ours.map((r) => `${r.house}${auto.has(r.key) ? "*" : ""}`).join(", ")} (* researched by itself)`);
+    out.push(...sourceChecklist(tree, place.id, "town"));
     return out.join("\n");
   }
-  if (work !== "house") return undefined;
+  if (work !== "house" && work !== "look") return undefined;
   const ids = housesOfTask(t);
   const rows = houseRows(tree, { on: true });
   const out: string[] = [];
@@ -439,6 +536,11 @@ export function houseBrief(tree: Tree, t: Task): string | undefined {
     if (h?.passed.length) out.push(`  gone through already (never again): ${h.passed.map((x) => `${x.what}${x.url ? ` <${x.url}>` : ""}`).join("; ")}`);
     if (h?.manual.length) out.push(`  by hand only (the person's, never opened): ${h.manual.map((x) => `${x.what}${x.url ? ` <${x.url}>` : ""}`).join("; ")}`);
     if (h?.unknown.length) out.push(`  not known: ${h.unknown.map((x) => x.text).join("; ")}`);
+    // its look so far, and why a task of its look follows the research (spec 145 T1)
+    if (work === "look") {
+      if (h?.look) out.push(`  its look so far: ${h.look.text} [${h.look.certainty}]${h.look.images?.length ? ` (${h.look.images.length} picture(s))` : ""}`);
+      if (h?.lookCheck) out.push(`  why its look is researched further (${h.lookCheck.next}): ${h.lookCheck.text}`);
+    }
     for (const i of row.materials.map((m) => tree.get<Input>(m)).filter((x): x is Input => !!x))
       out.push(`  material ${i.id}: ${i.title ?? i.name}${i.ownResearch ? " (the person's own research)" : i.file ? "" : " (a memory)"}`);
   }
@@ -448,6 +550,7 @@ export function houseBrief(tree: Tree, t: Task): string | undefined {
     out.push(`### The municipality ${first.place.id} ${place ? placeName(place) : ""}${town?.done ? ` (skeleton done ${town.done})` : town ? "" : " (no skeleton yet)"}`);
     out.push(...townLines(town));
   }
+  out.push(...sourceChecklist(tree, first?.place.id, work));
   return out.join("\n");
 }
 
@@ -459,5 +562,7 @@ function townLines(rec: House | undefined): string[] {
     ...(rec.manual.length ? [`  by hand only: ${rec.manual.map((x) => `${x.what}${x.url ? ` <${x.url}>` : ""}`).join("; ")}`] : []),
     ...(rec.archiveOnly.length ? [`  only in a reading room: ${rec.archiveOnly.map((x) => [x.archive, x.fond, x.signature].filter(Boolean).join(", ")).join("; ")}`] : []),
     ...(rec.maps.length ? [`  maps: ${rec.maps.map((m) => `${m.kind}${m.url ? ` <${m.url}>` : ""}`).join("; ")}`] : []),
+    ...(rec.fieldNames?.length ? [`  field names: ${rec.fieldNames.map((f) => `${f.name}${f.kind ? ` (${f.kind})` : ""}${f.house ? ` at no. ${f.house}` : ""}`).join("; ")}`] : []),
+    ...(rec.pictures?.length ? [`  pictures: ${rec.pictures.map((x) => `${x.shows} <${x.url}> (${x.license})`).join("; ")}`] : []),
   ];
 }

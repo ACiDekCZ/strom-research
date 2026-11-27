@@ -15,14 +15,17 @@ import {
   HOUSE_EVENT_KINDS,
   HOUSE_HOLDER_HOWS,
   HOUSE_LOCATION_HOWS,
+  HOUSE_LOOK_NEXT,
   HOUSE_MAP_KINDS,
   HOUSE_NUMBER_CERTAINTIES,
   HOUSE_RESIDENT_ROLES,
   type House,
   type HouseOrigin,
   type Input,
+  type Place,
   type Task,
 } from "../core/model.ts";
+import { regionsOf, sourceChecklist } from "../core/housesources.ts";
 import {
   addHouse,
   addHouseItem,
@@ -47,7 +50,9 @@ import { askHouse, HOUSE_GROUP_MAX, houseAskEstimate, houseTaskForMaterial } fro
 import { mapLayer, mapLayers } from "../core/maplayers.ts";
 import { rankTasks } from "../core/queue.ts";
 import { actsAsArchive } from "../core/state.ts";
-import type { Tree } from "../core/tree.ts";
+import { currentSession } from "../core/session.ts";
+import { phrase } from "../core/phrases.ts";
+import { now, type Tree } from "../core/tree.ts";
 
 function oneOf<T extends string>(v: unknown, allowed: readonly T[], name: string): T {
   if (!allowed.includes(v as T)) throw new UsageError(`${v === undefined ? "missing" : "invalid"} --${name}${v === undefined ? "" : ` "${String(v)}"`}`, { code: "house.body", hint: allowed.join(", ") });
@@ -93,6 +98,8 @@ function townText(tree: Tree, v: Record<string, unknown>): string {
     part("ui.house.maps", list<{ id: string; kind: string; label?: string; url?: string }>("maps").map((m) => `${m.id} ${m.kind}${m.label ? ` ${m.label}` : ""}${m.url ? ` ${m.url}` : ""}`)),
     part("ui.house.passed", list<{ id: string; what: string; url?: string }>("passed").map((x) => `${x.id} ${x.what}${x.url ? ` ${x.url}` : ""}`)),
     part("ui.house.manual", list<{ id: string; what: string; url?: string }>("manual").map((x) => `${x.id} ${x.what}${x.url ? ` ${x.url}` : ""}`)),
+    part("ui.house.fieldNames", list<{ id: string; name: string; kind?: string; house?: string; lat?: number; lon?: number }>("fieldNames").map((x) => `${x.id} ${x.name}${x.kind ? ` (${x.kind})` : ""}${x.house ? ` · ${x.house}` : ""}${x.lat !== undefined ? ` · ${x.lat}, ${x.lon}` : ""}`)),
+    part("ui.house.pictures", list<{ id: string; url: string; license: string; shows: string }>("pictures").map((x) => `${x.id} ${x.shows} · ${x.license} ${x.url}`)),
     part("ui.house.unknown", list<{ id: string; text: string }>("unknown").map((x) => `${x.id} ${x.text}`)),
     part("ui.house.archiveOnly", list<{ id: string; archive: string; fond?: string; signature?: string }>("archiveOnly").map((a) => `${a.id} ${[a.archive, a.fond, a.signature].filter(Boolean).join(", ")}`)),
     !v.id ? ui(lang, "ui.house.empty") : undefined,
@@ -121,6 +128,7 @@ function showText(tree: Tree, row: HouseRow, v: Record<string, unknown>): string
     part("ui.house.holders", (h?.holders ?? []).map((x) => `${x.id} ${x.name}${x.person ? ` (${x.person})` : ""}${span(x)} · ${x.how} · ${x.certainty}${src(x.sources)}${by(x.origin)}`)),
     part("ui.house.residents", (h?.residents ?? []).map((x) => `${x.id} ${x.name}${x.person ? ` (${x.person})` : ""} · ${x.role}${span(x)}${x.certainty ? ` · ${x.certainty}` : ""}${src(x.sources)}${by(x.origin)}`)),
     h?.look ? part("ui.house.look", [`${h.look.text} · ${h.look.certainty}${(h.look.images ?? []).map((i) => ` [${[i.url, i.file, i.license].filter(Boolean).join(" ")}]`).join("")}`]) : undefined,
+    h?.lookCheck ? part("ui.house.lookCheck", [`${h.lookCheck.next}: ${h.lookCheck.text}`]) : undefined,
     part("ui.house.maps", (h?.maps ?? []).map((m) => `${m.id} ${m.kind}${m.label ? ` ${m.label}` : ""}${m.sheet ? ` (${m.sheet})` : ""}${m.url ? ` ${m.url}` : ""}${m.manual ? ` · ${ui(lang, "ui.house.byhand")}` : ""}`)),
     part("ui.house.passed", (h?.passed ?? []).map((p) => `${p.id} ${p.what}${p.source ? ` ${p.source}` : ""}${p.url ? ` ${p.url}` : ""}${p.found === true ? ` · ${ui(lang, "ui.house.found")}` : p.found === false ? ` · ${ui(lang, "ui.house.notfound")}` : ""}${by(p.origin)}`)),
     part("ui.house.manual", (h?.manual ?? []).map((m) => `${m.id} ${m.what}${m.url ? ` ${m.url}` : ""}${m.why ? ` (${m.why})` : ""}${by(m.origin)}`)),
@@ -181,6 +189,35 @@ register(
       const row = findHouse(tree, args.join(" "));
       const v = houseView(tree, row);
       return { text: showText(tree, row, v), data: { house: v } };
+    },
+  },
+  {
+    path: ["house", "sources"],
+    summary: "The list of sources a house's research goes through, for its country (yours, never the house's)",
+    group: "sources",
+    tree: true,
+    args: [{ name: "house", description: "A…, its key (town|number), or its municipality and number; none with --town", required: false, variadic: true }],
+    options: [
+      { name: "town", type: "string", value: "<L…|name>", description: "the list of a municipality's skeleton instead" },
+      { name: "look", type: "boolean", description: "the list of a house's look instead" },
+    ],
+    description: [
+      "What the brief of a house's task lists (spec 145): the sources of the house's country by its municipality's point",
+      "(the general list where no region holds it), a special house's besides; with --town the skeleton's, with --look its",
+      "look's. The list is for the agent: into the house goes only what said something, one line of what was gone",
+      "through (strom house add passed … --checklist) and the steps by hand that belong to it.",
+    ].join("\n"),
+    examples: ["strom house sources A0001", "strom house sources --town L0001 --json", "strom house sources A0001 --look"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const townRef = opt(opts.town);
+      if (townRef && args.length) throw new UsageError("either a house or --town, not both", { code: "house.body", hint: "strom house sources --town L0001" });
+      if (!townRef && !args.length) throw new UsageError("which house?", { code: "house.body", hint: "strom house sources A0001 · strom house list" });
+      const place = townRef ? findTown(tree, townRef).id : findHouse(tree, args.join(" ")).place.id;
+      const work = townRef ? "town" : opts.look ? "look" : "house";
+      const list = sourceChecklist(tree, place, work);
+      const regions = regionsOf(place ? tree.get<Place>(place) : undefined).map((r) => r.id);
+      return { text: list.length ? list.join("\n") : "no list of sources ships for this", data: { work, ...(place ? { place } : {}), regions, lines: list } };
     },
   },
   {
@@ -282,6 +319,11 @@ function originOf(ctx: Context, tree: Tree, opts: Record<string, unknown>): { or
   return { origin: isAgent(ctx.env) ? "research" : "user" };
 }
 
+/** Material given to a house (its inputs, not retracted nor hidden). */
+function materialAt(tree: Tree, h: House): boolean {
+  return tree.list<Input>("input").some((i) => !i.retracted && !i.hidden && (i.houses ?? []).includes(h.id));
+}
+
 /** The house the item goes to: its record, made for a house of the tree's facts by the first item. */
 function target(tree: Tree, ref: string[]): House {
   return recordOf(tree, findHouse(tree, ref.join(" ")));
@@ -293,12 +335,14 @@ type ItemRun = (ctx: Context, tree: Tree, h: House, opts: Record<string, unknown
  * What a municipality's skeleton holds (spec 030 part 2: its record of the houses' research, no number): what was gone
  * through, what is only by hand, what is not known, what is only in a reading room, its maps, its summary.
  */
-const TOWN_KINDS = new Set(["passed", "manual", "unknown", "archive-only", "map", "summary"]);
+const TOWN_KINDS = new Set(["passed", "manual", "unknown", "archive-only", "map", "summary", "picture", "field-name"]);
+/** What only a municipality's skeleton holds (--town, no house): its summary, its pictures, its field names (spec 145). */
+const TOWN_ONLY = new Set(["summary", "picture", "field-name"]);
 const TOWN_OPTION: OptionDef = { name: "town", type: "string", value: "<L…|name>", description: "the municipality's skeleton instead of a house (what its houses' research stands on: no house argument)" };
 
 function itemCommand(kind: string, summary: string, options: OptionDef[], examples: string[], run: ItemRun, description?: string): CommandDef {
   const town = TOWN_KINDS.has(kind);
-  const only = kind === "summary";
+  const only = TOWN_ONLY.has(kind);
   return {
     path: ["house", "add", kind],
     summary,
@@ -313,7 +357,7 @@ function itemCommand(kind: string, summary: string, options: OptionDef[], exampl
       const tree = ctx.tree();
       const townRef = town ? opt(opts.town) : undefined;
       if (townRef && args.length) throw new UsageError("either a house or --town, not both", { code: "house.body", hint: `strom house add ${kind} --town <L…> …` });
-      if (!townRef && (only || !args.length)) throw new UsageError(only ? "missing --town" : "which house?", { code: "house.body", hint: only ? 'strom house add summary --town L0001 --text "…"' : "strom house list" });
+      if (!townRef && (only || !args.length)) throw new UsageError(only ? "missing --town" : "which house?", { code: "house.body", hint: only ? `strom house add ${kind} --town L0001 …` : "strom house list" });
       const place = townRef ? findTown(tree, townRef) : undefined;
       const out = tree.withTreeLock(() => {
         const h = place ? townRecordOf(tree, place) : target(tree, args);
@@ -502,15 +546,16 @@ register(
       { name: "source", type: "string", value: "<S…>", description: "the source gone through" },
       { name: "url", type: "string", value: "<address>", description: "the address gone through" },
       { name: "from", type: "string", value: "<I…>", description: "the material that says it was gone through (origin import)" },
+      { name: "checklist", type: "boolean", description: "the one line naming what of the brief's list of sources was gone through (\"gone through: …\"); what said something is a finding of its own" },
     ],
-    ['strom house add passed A0001 --what "<register and its years, entries with no. 16>" --source S0001 --found yes'],
+    ['strom house add passed A0001 --what "<register and its years, entries with no. 16>" --source S0001 --found yes', 'strom house add passed A0001 --checklist --what "<gone through: the address register, the field names, the orthophoto>"'],
     (ctx, tree, h, opts) => {
       const found = opts.found === undefined ? undefined : oneOf(opts.found, ["yes", "no"] as const, "found") === "yes";
       const src = opt(opts.source) ? normId(opt(opts.source)!, "source") : undefined;
       if (src && !tree.get(src)) throw new UsageError(`no source ${src}`, { code: "house.body" });
       if (opt(opts.url) && !/^https?:\/\//iu.test(opt(opts.url)!)) throw new UsageError(`"${opt(opts.url)}" is no web address`, { code: "house.body" });
-      const { id } = addHouseItem(tree, h.id, "passed", { what: text(opts.what, "what", 1000), ...(src ? { source: src } : {}), ...(opt(opts.url) ? { url: opt(opts.url)! } : {}), ...(found !== undefined ? { found } : {}), origin: originOf(ctx, tree, opts).origin }, "gone through");
-      return { id, what: "gone through" };
+      const { id } = addHouseItem(tree, h.id, "passed", { what: text(opts.what, "what", 1000), ...(src ? { source: src } : {}), ...(opt(opts.url) ? { url: opt(opts.url)! } : {}), ...(found !== undefined ? { found } : {}), ...(opts.checklist === true ? { checklist: true as const } : {}), origin: originOf(ctx, tree, opts).origin }, opts.checklist === true ? "the list gone through" : "gone through");
+      return { id, what: opts.checklist === true ? "the list of sources gone through" : "gone through" };
     },
   ),
   itemCommand(
@@ -535,12 +580,13 @@ register(
       { name: "text", type: "string", value: "<text>", description: "the question, in the research language", max: 1000 },
       { name: "question", type: "string", value: "<T…>", description: "the task asking the person, where there is one" },
       { name: "from", type: "string", value: "<I…>", description: "the material that says so (origin import)" },
+      { name: "look", type: "boolean", description: "of the house's look: what more of it cannot be found automatically, and why" },
     ],
-    ['strom house add unknown A0001 --text "<who held the house from 1856 to 1858?>"'],
+    ['strom house add unknown A0001 --text "<who held the house from 1856 to 1858?>"', 'strom house add unknown A0001 --look --text "<no picture of the house; the indication sketch only by hand>"'],
     (ctx, tree, h, opts) => {
       const q = opt(opts.question) ? normId(opt(opts.question)!, "task") : undefined;
       if (q && !tree.get<Task>(q)) throw new UsageError(`no task ${q}`, { code: "house.body" });
-      const { id } = addHouseItem(tree, h.id, "unknown", { text: text(opts.text, "text", 1000), ...(q ? { question: q } : {}), origin: originOf(ctx, tree, opts).origin }, "not known");
+      const { id } = addHouseItem(tree, h.id, "unknown", { text: text(opts.text, "text", 1000), ...(q ? { question: q } : {}), ...(opts.look === true ? { about: "look" as const } : {}), origin: originOf(ctx, tree, opts).origin }, "not known");
       return { id, what: "not known" };
     },
   ),
@@ -592,6 +638,81 @@ register(
       });
       setHouse(tree, h.id, (x) => void (x.look = { text: text(opts.text, "text", 2000), certainty: certainty(opts), ...(images.length ? { images } : {}), origin: originOf(ctx, tree, opts).origin }), "look");
       return { what: "look" };
+    },
+  ),
+  itemCommand(
+    "look-check",
+    "At the end of a house's research: whether its look has more to find — a task of its look follows where it has",
+    [
+      {
+        name: "next",
+        type: "string",
+        value: "<what>",
+        description: "material (given to the house, nobody has read it), picture (a picture of the municipality seems to show the house), source (a source in hand describes the building more than its look says), none (no more automatically)",
+      },
+      { name: "text", type: "string", value: "<text>", description: "why, in the research language: what there is to read — or, with none, why no more", max: 1000 },
+    ],
+    ['strom house add look-check A0001 --next picture --text "<the picture of the green shows no. 9>"', 'strom house add look-check A0001 --next none --text "<no picture of it; the indication sketch only by hand>"'],
+    (ctx, tree, h, opts) => {
+      const next = oneOf(opts.next, HOUSE_LOOK_NEXT, "next");
+      const why = text(opts.text, "text", 1000);
+      if (next === "material" && !materialAt(tree, h))
+        throw new UsageError(`no material lies at ${h.id} — material: only what was given to the house`, { code: "house.body", hint: `strom house show ${h.id} — another --next, or none` });
+      const task = currentSession(tree, ctx.env, ctx.refs)?.task;
+      const origin = originOf(ctx, tree, opts).origin;
+      setHouse(tree, h.id, (x) => void (x.lookCheck = { next, text: why, ...(task ? { task } : {}), at: now(), origin }), `look check: ${next}`);
+      // no more automatically: what is not known of its look, said once in the research language (spec 145 T1)
+      const id = next === "none" ? addHouseItem(tree, h.id, "unknown", { text: phrase(tree.lang, "house.look.unknown", { why }).slice(0, 1000), about: "look", origin }, "look not known").id : undefined;
+      return { ...(id ? { id } : {}), what: next === "none" ? "look check: no more automatically" : `look check: ${next} — a task of its look follows the research` };
+    },
+  ),
+  itemCommand(
+    "picture",
+    "Write a picture of the municipality under a free licence: its address, its licence, what it shows",
+    [
+      { name: "url", type: "string", value: "<address>", description: "the picture's address" },
+      { name: "license", type: "string", value: "<licence>", description: "its free licence (CC BY 4.0, public domain)", max: 200 },
+      { name: "credit", type: "string", value: "<text>", description: "whose it is", max: 300 },
+      { name: "shows", type: "string", value: "<text>", description: "what it shows (the green, a street, a house number where it can be read), in the research language", max: 1000 },
+    ],
+    ['strom house add picture --town L0001 --url https://example.org/green.jpg --license "CC BY-SA 4.0" --credit "<author>" --shows "<the green from the south, no. 9 readable>"'],
+    (ctx, tree, h, opts) => {
+      const url = text(opts.url, "url", 2000);
+      if (!/^https?:\/\//iu.test(url)) throw new UsageError(`"${url}" is no web address`, { code: "house.body" });
+      const { id } = addHouseItem(tree, h.id, "pictures", { url, license: text(opts.license, "license", 200), ...(opt(opts.credit) ? { credit: opt(opts.credit)! } : {}), shows: text(opts.shows, "shows", 1000), origin: originOf(ctx, tree, opts).origin }, "picture");
+      return { id, what: "picture of the municipality" };
+    },
+  ),
+  itemCommand(
+    "field-name",
+    "Write a field name of the municipality: a mill, a farm, a solitude, with its point and the house it lies at",
+    [
+      { name: "name", type: "string", value: "<name>", description: "the name as the gazetteer writes it", max: 200 },
+      { name: "kind", type: "string", value: "<kind>", description: "what it names (mill, farm, solitude, field)", max: 100 },
+      { name: "lat", type: "string", value: "<deg>", description: "latitude" },
+      { name: "lon", type: "string", value: "<deg>", description: "longitude" },
+      { name: "house", type: "string", value: "<no.>", description: "the house number it lies at, where its point says so", max: 100 },
+      { name: "url", type: "string", value: "<address>", description: "where it is written" },
+      { name: "source", type: "string", value: "<S…>", description: "the source that names it" },
+    ],
+    ['strom house add field-name --town L0001 --name "<the mill below the village>" --kind mill --lat 49.61 --lon 15.12 --house 14 --url https://example.org/names'],
+    (ctx, tree, h, opts) => {
+      const point = opts.lat === undefined && opts.lon === undefined ? undefined : { lat: Number(opts.lat), lon: Number(opts.lon) };
+      if (point && (!Number.isFinite(point.lat) || !Number.isFinite(point.lon) || Math.abs(point.lat) > 90 || Math.abs(point.lon) > 180))
+        throw new UsageError("--lat (±90) and --lon (±180) in degrees, both", { code: "house.body" });
+      if (opt(opts.url) && !/^https?:\/\//iu.test(opt(opts.url)!)) throw new UsageError(`"${opt(opts.url)}" is no web address`, { code: "house.body" });
+      const src = opt(opts.source) ? normId(opt(opts.source)!, "source") : undefined;
+      if (src && !tree.get(src)) throw new UsageError(`no source ${src}`, { code: "house.body" });
+      const { id } = addHouseItem(tree, h.id, "fieldNames", {
+        name: text(opts.name, "name", 200),
+        ...(opt(opts.kind) ? { kind: opt(opts.kind)! } : {}),
+        ...(point ?? {}),
+        ...(opt(opts.house) ? { house: opt(opts.house)! } : {}),
+        ...(opt(opts.url) ? { url: opt(opts.url)! } : {}),
+        ...(src ? { source: src } : {}),
+        origin: originOf(ctx, tree, opts).origin,
+      }, "field name");
+      return { id, what: "field name" };
     },
   ),
   itemCommand(

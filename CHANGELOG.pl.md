@@ -25,6 +25,10 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   właścicieli, mieszkańców, co się z nim działo, jego miejsce na mapie i co dla niego przejrzano; domy przodków
   w linii prostej badanie bada tylko przy włączonym ustawieniu „Historia domów”, a pojedynczy dom można zamówić zawsze,
   także z aplikacji Strom. Nad miejscem domu aplikacja może pokazać zdjęcia lotnicze z lat 50. (Czechy).
+  Badanie domu przechodzi listę źródeł jego kraju (w Czechach rejestr adresów, nazwy miejscowe, cieki wodne,
+  ortofotomapy, topografie) i zapisuje do domu tylko to, co coś powiedziało; jego wygląd idzie jako osobne zadanie
+  tylko tam, gdzie jest o nim więcej do przeczytania (ustawienie „Wygląd domów”, domyślnie włączone); dom można
+  omówić z agentem z aplikacji Strom.
 - **`strom demo`:** strom wypróbowany na przykładowym badaniu zmyślonej rodziny (cs, en, de, pl), z dala od własnych
   drzew i ustawień, otwarty w aplikacji Strom; wszystko w nim można przejrzeć, nic nie proponuje agenta;
   `strom demo --remove` je usuwa.

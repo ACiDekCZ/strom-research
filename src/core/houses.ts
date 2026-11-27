@@ -10,7 +10,8 @@
 // and the record (its stable ID) stays.
 //
 // The tasks of a house carry an origin of its own: house:<A…> (research of the house), house:import:<A…> (the
-// takeover of a research of the person's own), house:town:<L…> (the skeleton of a municipality) — forHouse below.
+// takeover of a research of the person's own), house:town:<L…> (the skeleton of a municipality), house:look:<A…> (the
+// look of a house, after its research where its look check says there is more to find: spec 145 T1) — forHouse below.
 
 import { AmbiguousError, UsageError } from "./errors.ts";
 import {
@@ -46,6 +47,8 @@ export const HOUSE_TASK_PREFIX = "house:";
 export const HOUSE_IMPORT_PREFIX = "house:import:";
 /** The skeleton of a municipality's houses (part 2): house:town:<L…>. */
 export const HOUSE_TOWN_PREFIX = "house:town:";
+/** The look of a house (spec 145 T1), after its research: house:look:<A…>. */
+export const HOUSE_LOOK_PREFIX = "house:look:";
 
 /** A task of a house: of a house, of a municipality's houses, a takeover. */
 export function forHouse(t: Pick<Task, "origin">): boolean {
@@ -55,25 +58,28 @@ export function forHouse(t: Pick<Task, "origin">): boolean {
 /** The takeover task's origin for a house. */
 export const houseImportOrigin = (house: string): string => `${HOUSE_IMPORT_PREFIX}${house}`;
 
-/** What a task of a house works on: a takeover of a research, the house, the houses of a municipality. */
-export type HouseWork = "takeover" | "house" | "town";
+/** What a task of a house works on: a takeover of a research, the house, the houses of a municipality, a house's look. */
+export type HouseWork = "takeover" | "house" | "town" | "look";
 export function houseWork(t: Pick<Task, "origin">): HouseWork | undefined {
   if (!forHouse(t)) return undefined;
   if (t.origin.startsWith(HOUSE_IMPORT_PREFIX)) return "takeover";
   if (t.origin.startsWith(HOUSE_TOWN_PREFIX)) return "town";
+  if (t.origin.startsWith(HOUSE_LOOK_PREFIX)) return "look";
   return "house";
 }
 
 /** The house (A… or its key) a task of a house is of; a municipality's task is of none. */
 export function houseOfTask(t: Pick<Task, "origin">): string | undefined {
   if (!forHouse(t) || t.origin.startsWith(HOUSE_TOWN_PREFIX)) return undefined;
-  return t.origin.slice(t.origin.startsWith(HOUSE_IMPORT_PREFIX) ? HOUSE_IMPORT_PREFIX.length : HOUSE_TASK_PREFIX.length);
+  const prefix = t.origin.startsWith(HOUSE_IMPORT_PREFIX) ? HOUSE_IMPORT_PREFIX : t.origin.startsWith(HOUSE_LOOK_PREFIX) ? HOUSE_LOOK_PREFIX : HOUSE_TASK_PREFIX;
+  return t.origin.slice(prefix.length);
 }
 
 /** Every house a task of a house works on: its own and the neighbouring ones it took with it (houses). */
 export function housesOfTask(t: Pick<Task, "origin" | "houses">): string[] {
   const own = houseOfTask(t);
-  return [...new Set([...(own ? [own] : []), ...(houseWork(t) === "house" ? (t.houses ?? []) : [])])];
+  const work = houseWork(t);
+  return [...new Set([...(own ? [own] : []), ...(work === "house" || work === "look" ? (t.houses ?? []) : [])])];
 }
 
 /** The municipality (L…) a task of a municipality's skeleton is of, else undefined. */
@@ -84,6 +90,7 @@ export function townOfTask(t: Pick<Task, "origin">): string | undefined {
 /** The origin of a house's research (house:<A…>) and of a municipality's skeleton (house:town:<L…>). */
 export const houseOrigin = (house: string): string => `${HOUSE_TASK_PREFIX}${house}`;
 export const townOrigin = (place: string): string => `${HOUSE_TOWN_PREFIX}${place}`;
+export const houseLookOrigin = (house: string): string => `${HOUSE_LOOK_PREFIX}${house}`;
 
 /**
  * A task of a house raised by itself (spec 030 part 2): the research of a house or a municipality's skeleton the
@@ -91,7 +98,33 @@ export const townOrigin = (place: string): string => `${HOUSE_TOWN_PREFIX}${plac
  */
 export function houseAutoTask(t: Pick<Task, "origin" | "asked">): boolean {
   const work = houseWork(t);
-  return (work === "house" || work === "town") && !t.asked;
+  return (work === "house" || work === "town" || work === "look") && !t.asked;
+}
+
+/**
+ * The chain of a house's tasks in its order (spec 145 T1): a house's research comes after its municipality's skeleton
+ * alive, a house's look after its research alive — whatever was moved to the top of the queue. The tasks alive ahead of
+ * a task (open or at work), none for any other.
+ */
+export function houseChain(tree: Tree, day: string = today()): (t: Task) => Task[] {
+  let live: { towns: Map<string, Task[]>; houses: Map<string, Task[]> } | undefined;
+  const add = (m: Map<string, Task[]>, k: string, t: Task) => m.set(k, [...(m.get(k) ?? []), t]);
+  const ahead = () => {
+    if (live) return live;
+    live = { towns: new Map(), houses: new Map() };
+    for (const x of tree.list<Task>("task")) {
+      if (!forHouse(x) || x.retracted || !["open", "doing"].includes(effectiveState(x, day))) continue;
+      const work = houseWork(x);
+      if (work === "town") add(live.towns, townOfTask(x)!, x);
+      else if (work === "house") for (const h of housesOfTask(x)) add(live.houses, h, x);
+    }
+    return live;
+  };
+  return (t) => {
+    const work = houseWork(t);
+    const of = work === "house" ? housesOfTask(t).flatMap((h) => ahead().towns.get(tree.get<House>(h)?.place ?? "") ?? []) : work === "look" ? housesOfTask(t).flatMap((h) => ahead().houses.get(h) ?? []) : [];
+    return [...new Map(of.filter((x) => x.id !== t.id).map((x) => [x.id, x])).values()];
+  };
 }
 
 const openNow = (t: Task, day: string): boolean => t.state === "open" || (t.state === "parked" && !!t.parkedUntil && t.parkedUntil <= day);
@@ -457,6 +490,8 @@ export function townView(tree: Tree, place: Place, rec: House | undefined = town
     archiveOnly: rec?.archiveOnly ?? [],
     maps: rec?.maps ?? [],
     unknown: rec?.unknown ?? [],
+    pictures: rec?.pictures ?? [],
+    fieldNames: rec?.fieldNames ?? [],
     ...(rec?.done ? { done: rec.done } : {}),
     ...(live ? { task: live.id, state: live.state } : {}),
   };
@@ -473,6 +508,9 @@ export const HOUSE_ITEM_LETTERS = {
   manual: "o",
   unknown: "u",
   archiveOnly: "a",
+  // a municipality's (spec 145): its pictures and its field names
+  pictures: "i",
+  fieldNames: "f",
 } as const;
 export type HouseList = keyof typeof HOUSE_ITEM_LETTERS;
 
@@ -480,14 +518,14 @@ export type HouseList = keyof typeof HOUSE_ITEM_LETTERS;
 export function nextItemId(h: House, list: HouseList): string {
   const letter = HOUSE_ITEM_LETTERS[list];
   let max = 0;
-  for (const item of h[list] as { id: string }[]) {
+  for (const item of (h[list] ?? []) as { id: string }[]) {
     const m = new RegExp(`^${letter}(\\d+)$`, "u").exec(item.id);
     if (m) max = Math.max(max, Number(m[1]));
   }
   return `${letter}${max + 1}`;
 }
 
-type ItemOf<L extends HouseList> = House[L][number];
+type ItemOf<L extends HouseList> = NonNullable<House[L]>[number];
 
 /** Add an item to a list of a house: its ID given, who wrote it, when. */
 export function addHouseItem<L extends HouseList>(tree: Tree, houseId: string, list: L, item: Omit<ItemOf<L>, "id" | "at" | "origin"> & { origin?: HouseOrigin }, what: string): { house: House; id: string } {
@@ -499,7 +537,7 @@ export function addHouseItem<L extends HouseList>(tree: Tree, houseId: string, l
     (h) => {
       id = nextItemId(h, list);
       const full = { id, origin: item.origin ?? "research", at: now().slice(0, 10), ...stripEmpty(item) };
-      (h[list] as unknown[]).push(full);
+      ((h[list] ??= [] as never) as unknown[]).push(full);
       return h;
     },
     { op: "house.item", summary: `${houseId} +${what}` },
@@ -630,7 +668,7 @@ export function houseView(tree: Tree, row: HouseRow): Record<string, unknown> {
     state: row.state,
     ...(row.at ? { at: row.at } : {}),
     ...(row.task ? { task: row.task } : {}),
-    ...(row.work ? { work: row.work } : {}),
+    ...workOut(row.work),
     ...(row.question ? { question: row.question } : {}),
     persons: row.tree ? [...row.tree.persons].sort() : [],
     ...(row.years ? { years: row.years } : {}),
@@ -640,6 +678,7 @@ export function houseView(tree: Tree, row: HouseRow): Record<string, unknown> {
     holders: items(h?.holders),
     residents: items(h?.residents),
     ...(h?.look ? { look: h.look } : {}),
+    ...(h?.lookCheck ? { lookCheck: h.lookCheck } : {}),
     ...(h?.maps.length ? { maps: h.maps } : {}),
     passed: h?.passed ?? [],
     manual: h?.manual ?? [],
@@ -656,7 +695,17 @@ export function houseView(tree: Tree, row: HouseRow): Record<string, unknown> {
   }
   // the skeleton of its municipality (spec 030 part 2): what the house's research stands on
   const town = row.place.id ? townRecord(tree, row.place.id) : undefined;
-  if (town) out.town = { id: town.id, ...(town.text ? { text: town.text } : {}), passed: town.passed, manual: town.manual, archiveOnly: town.archiveOnly, maps: town.maps };
+  if (town)
+    out.town = {
+      id: town.id,
+      ...(town.text ? { text: town.text } : {}),
+      passed: town.passed,
+      manual: town.manual,
+      archiveOnly: town.archiveOnly,
+      maps: town.maps,
+      ...(town.pictures?.length ? { pictures: town.pictures } : {}),
+      ...(town.fieldNames?.length ? { fieldNames: town.fieldNames } : {}),
+    };
   return out;
 }
 
@@ -673,6 +722,15 @@ export function houseSummary(row: HouseRow): { events: number; holders: number; 
   };
 }
 
+/**
+ * The work of a house's task as the Strom app reads it: takeover, house or town — a house's look (spec 145 T1) is the
+ * house's work with look true, so an app that knows the three values loses nothing.
+ */
+function workOut(work: HouseWork | undefined): Record<string, unknown> {
+  if (!work) return {};
+  return work === "look" ? { work: "house", look: true } : { work };
+}
+
 /** A house as a list gives it (strom house list --json, GET <token>/houses): spec 030 §4.2. */
 export function listRow(row: HouseRow): Record<string, unknown> {
   return {
@@ -687,7 +745,7 @@ export function listRow(row: HouseRow): Record<string, unknown> {
     state: row.state,
     ...(row.at ? { at: row.at } : {}),
     ...(row.task ? { task: row.task } : {}),
-    ...(row.work ? { work: row.work } : {}),
+    ...workOut(row.work),
     ...(row.question ? { question: row.question } : {}),
     summary: houseSummary(row),
   };

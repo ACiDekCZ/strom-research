@@ -25,6 +25,10 @@ The changes of each version in short. The full notes and the install lines are o
   holders, residents, what happened to it, its place on the map and what was gone through for it; the research looks
   into the houses of direct ancestors only with the setting "House history" on, and one house can always be asked
   for, also from the Strom app. Over a house's place the app may show the aerial photos of the 1950s (Czechia).
+  A house's research goes through a list of sources for its country (in Czechia the address register, the field
+  names, the water courses, the orthophotos, the topographies) and writes into the house only what said something;
+  its look follows as a task of its own only where there is more of it to read (the setting "House look", on by
+  default); a house can be talked over with the agent from the Strom app.
 - **`strom demo`:** strom tried on a sample research of a made-up family (cs, en, de, pl), apart from the person's own
   trees and settings and opened in the Strom app; everything in it can be looked through, nothing offers an agent;
   `strom demo --remove` deletes it.

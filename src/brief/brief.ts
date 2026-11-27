@@ -21,7 +21,7 @@ import { settledClaim } from "../core/labels.ts";
 import { parseYears } from "../core/years.ts";
 import { langName } from "../core/lang.ts";
 import { dateYears } from "../core/gdate.ts";
-import { HOUSE_TAKEOVER, methodFor, METHOD_LINKS } from "../core/assets.ts";
+import { HOUSE_TAKEOVER, methodFor, METHOD_HOUSE, METHOD_LINKS } from "../core/assets.ts";
 import { houseWork } from "../core/houses.ts";
 import { houseBrief } from "../core/houseauto.ts";
 import { recentSessions } from "../core/session.ts";
@@ -1280,6 +1280,12 @@ export function buildBrief(
       text: "## No task\nThe queue is empty: look at the research (`strom research show`, `strom frontier`) and add tasks.",
     });
 
+  // a task of houses (spec 030, 145 T5): its own method first; nothing of the people's research (the people of the tree
+  // in its houses are in its own section, never looked up again), no open questions or decisions of the tree
+  const houseKind = task ? houseWork(task) : undefined;
+  // (a research of the person's taken over reads its material as an intake does: as before)
+  const houseOwn = !!houseKind && houseKind !== "takeover";
+
   // 3. premise: what was already searched there, and lessons for those places
   const located = task ? taskRecordsets(tree, task) : { sets: [], guessed: false };
   const where = new Set([...(task?.where ?? []), ...located.sets.map((b) => b.id)]);
@@ -1403,7 +1409,7 @@ export function buildBrief(
     }
     for (const f of familiesAsChild(tree, id)) for (const s of f.children) if (!people.has(s.person) && s.person !== id) people.set(s.person, { how: "line", role: `sibling of ${id}` });
   }
-  if (people.size || families.length) {
+  if (!houseOwn && (people.size || families.length)) {
     // each block whole, and in short — its notes cut to the start of the last one, what tells namesakes apart
     const blocks: Part[] = [
       ...families.map((f) => ({ short: familyBlock(tree, f, true).join("\n"), whole: familyBlock(tree, f).join("\n") })),
@@ -1448,7 +1454,7 @@ export function buildBrief(
   const decideRule = agentDecides
     ? `  (the user lets you decide the hypotheses: strom hypothesis decide H… --variant <label> --decision "…" once a support of that variant cites a source (S…); one joining a branch of ${BIG_BRANCH}+ people off the tree only on two sources and no objection — else propose it; a decision of the user's never — a record that overturns it: propose again with --reason; tell the user in a sentence what you decided and why)`
     : "  (the user decides a hypothesis: an open one the records point to one variant of, propose it — strom hypothesis propose H… --variant <label> --decision \"…\" — and go on)";
-  if (conflicts.length || hyps.length)
+  if (!houseOwn && (conflicts.length || hyps.length))
     sections.push(
       layered("open questions", "strom conflict list · strom hypothesis list", {
         head: ["## Open conflicts and hypotheses" + (conflicts.some((c) => own(c.id)) || hyps.some((h) => own(h.id)) ? " (→ this task is about it)" : "")],
@@ -1470,7 +1476,7 @@ export function buildBrief(
   // 6b. what the user decided and the tree does not record yet: the links of the variant decided, the sources it names
   // — the agent's to record (strom hypothesis decide is the person's; the work of a decision is the agent's)
   const toRecord = decidedToRecord(tree);
-  if (toRecord.length)
+  if (!houseOwn && toRecord.length)
     sections.push(
       layered("decided by the user", "strom hypothesis list --all", {
         head: [toRecord.some((x) => agentDecided(x.hypothesis)) ? "## Decided (by the user, or by an agent where said) — record it on the tree first" : "## Decided by the user — record it on the tree first"],
@@ -1599,7 +1605,7 @@ export function buildBrief(
     ...(sets.some((b) => (noRoute(b) && (repoByHand(b) || !!finders.get(b.id) || !b.url)) || routes.get(b.id)?.browser) || !sets.length ? ["by-hand"] : []),
   ];
   // a task that links hypotheses reads no records: the parts of the method and the commands it uses, whatever its level
-  const kind = linking ? METHOD_LINKS : task?.level;
+  const kind = linking ? METHOD_LINKS : houseOwn ? METHOD_HOUSE : task?.level;
   // census records (spec 106): their page only for a census task while they are on; off, the one line that lets the
   // agent propose them — nothing else of them
   const censusNow = new Settings(tree.env, {}).census(tree.config);
@@ -1608,8 +1614,7 @@ export function buildBrief(
   else if (!censusNow) conditions.push("census-off");
   // the tasks of houses (spec 030): their page, the part of their work — a research of the person's taken over, a
   // municipality's skeleton, a house's research
-  const houseKind = task ? houseWork(task) : undefined;
-  if (houseKind) conditions.push(houseKind === "takeover" ? HOUSE_TAKEOVER : houseKind === "town" ? "house-town" : "house-research");
+  if (houseKind) conditions.push(houseKind === "takeover" ? HOUSE_TAKEOVER : houseKind === "town" ? "house-town" : houseKind === "look" ? "house-look" : "house-research");
   sections.push({ name: "method", first: true, pointer: "strom guide", text: methodFor(kind, conditions) });
   if (censusTask) {
     const known = censusHoldings();
@@ -1617,7 +1622,7 @@ export function buildBrief(
   }
   // a house's research or a municipality's skeleton (spec 030 part 2): the people of the tree in it, the skeleton, what
   // was gone through and what is only by hand — given, never looked up again
-  const houseText = task && (houseWork(task) === "house" || houseWork(task) === "town") ? houseBrief(tree, task) : undefined;
+  const houseText = task && houseKind && houseKind !== "takeover" ? houseBrief(tree, task) : undefined;
   if (houseText) sections.push({ name: "house", first: true, pointer: "strom house show", text: houseText });
 
   // 8'. the experiment of history on: a session that reads records may write a local event they tell of
@@ -1717,9 +1722,11 @@ export function buildBrief(
     pointer: "",
     text: [
       "## Finishing",
-      "- new questions → strom task add … (what, where, why, done-when)",
+      houseOwn
+        ? "- no new tasks of the house's list: what is left by hand or in a reading room goes into the house (manual, archive-only), a task of its look follows by itself (look-check)"
+        : "- new questions → strom task add … (what, where, why, done-when)",
       // a research of several lines: work off them waits for them unless it says how it helps one (core/offline.ts)
-      tree.list<Research>("research").filter((r) => !r.retracted).length > 1
+      !houseOwn && tree.list<Research>("research").filter((r) => !r.retracted).length > 1
         ? '- a task none of whose people is in a line (a side branch): only with --helps "<how it helps G…>" (an ancestor\'s sibling as godparent or witness, the same house, a surname for an ancestor, joining people to a person of a line or their partner) — else it comes only now and then or after the lines\' work (the person\'s choice: strom offline list); joining people to a side branch helps no line; what work on a side branch finds about an ancestor goes to that person of the line: an argument or a task about them (--about P…)'
         : "",
       // the branches the person chose not to research: no new work there
@@ -1749,6 +1756,13 @@ export function buildBrief(
     ].filter(Boolean).join("\n"),
   });
 
+  // a task of houses: its method and its house right after the task (spec 145 T5) — the rest after them
+  if (houseOwn) {
+    const at = sections.findIndex((x) => x.name === "task") + 1;
+    const ahead = sections.filter((x) => x.name === "method" || x.name === "house");
+    const rest = sections.filter((x) => !ahead.includes(x));
+    return assemble([...rest.slice(0, at), ...ahead, ...rest.slice(at)], budget);
+  }
   return assemble(sections, budget);
 }
 

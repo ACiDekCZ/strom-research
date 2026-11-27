@@ -380,6 +380,13 @@ async function inTerminal(ctx: Context, link: TreeLink, at?: string) {
         const { houseSearch } = await import("../cli/menu-links.ts");
         return end(await houseSearch(ctx, run, treeLang, root, link.house, link.with ? link.with.split(",") : []));
       }
+      // a conversation about the house (spec 145 T2): the agent costs, said and asked first; then strom chat --house
+      if (link.do === "chat") {
+        const { houseChat } = await import("../cli/menu-links.ts");
+        const done = await houseChat(ctx, run, treeLang, root, link.house, agent);
+        // the conversation is the agent's (a terminal of its own, or its desktop app): nothing to wait for here
+        return done ? { text: "", data: { done, action: link.action, tree: root } } : end(done);
+      }
       // a research of a house of the person's own: its path asked here, then strom house import (its questions here too)
       const { houseImportDo } = await import("../cli/menu-links.ts");
       return end(await houseImportDo(ctx, run, treeLang, root));
@@ -799,6 +806,9 @@ register(
       "strom-research://house?tree=<id>&house=A0001|<town|number>&do=search[&with=A0002,…] — the history of a house of the\n" +
       "  family tree (at most 2 neighbouring ones with it): the estimate and the person's yes in the terminal, its task on top\n" +
       "  of the queue (strom house request), then started now if wanted; a house the tree has not: refused.\n" +
+      "strom-research://house?tree=<id>&house=A0001|<town|number>&do=chat — a conversation with the agent about the house\n" +
+      "  (strom chat --house): the house, its municipality's skeleton, the house method and its list of sources loaded; it\n" +
+      "  writes only what it finds, a follow-up task only when asked. Asked in the terminal first; none in an archive.\n" +
       "strom-research://places?tree=<id>&do=run[&place=L0012] — the places of the facts identified by the agent: the queue\n" +
       "  (or the one place, queued when it is not) with its sessions and estimate, the task on top of the queue on the\n" +
       "  person's yes in the terminal, then started now if wanted — a queue of more sessions: how many, each with its\n" +

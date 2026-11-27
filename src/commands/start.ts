@@ -42,6 +42,7 @@ import { stopPhone } from "../core/phone.ts";
 import { newerTree, Tree, TREE_FILE, VERSION } from "../core/tree.ts";
 import { readJsonIfExists } from "../core/json.ts";
 import type { Task, TreeConfig } from "../core/model.ts";
+import { findHouse } from "../core/houses.ts";
 import { requireRecord } from "../core/records.ts";
 import { waitGroupOf } from "../core/waitkind.ts";
 import { sameGroup } from "../core/waiting.ts";
@@ -161,6 +162,20 @@ function aboutWaiting(tree: Tree, ref: string, shared: string | undefined): { id
 }
 
 /**
+ * The first message of a conversation about a house (spec 145 T2, the Strom app's house page): the house, its
+ * municipality's skeleton, the house method and its list of sources loaded first; only what is found written into the
+ * house, a follow-up task only when the person asks — in the research language, the person's own words to the agent.
+ * An archive never comes here (strom chat refuses it before).
+ */
+function aboutHouse(tree: Tree, ref: string): { ref: string; say: string } {
+  const row = findHouse(tree, ref);
+  const id = row.id ?? row.key;
+  const town = row.place.id;
+  const house = `${row.place.name} ${row.house}`;
+  return { ref: id, say: ui(tree.lang, town ? "ui.chat.house.say" : "ui.chat.house.notown.say", { house, ref: id, town: town ?? "" }) };
+}
+
+/**
  * A bridge that did not start, and why where strom can tell (found on Mac: "the bridge did not start" on a full disk,
  * nothing more): no room on the disk said as everywhere, else what its log said last, else where to see it.
  */
@@ -185,11 +200,12 @@ register({
     "stand and suggests what next. What strom watches in each agent and app: strom doc R12.",
   options: [
     { name: "say", type: "string", value: "<text>", description: "your first message to the agent" },
+    { name: "house", type: "string", value: "<A…|key>", description: "a conversation about a house (the Strom app's house page): the first message has the agent load the house, its municipality's skeleton, the house method and its list of sources; it writes only what it finds, a follow-up task only when asked" },
     { name: "task", type: "string", value: "<T…>", description: "a conversation about a task that waits for the user (the menu's What waits, the Strom app): the first message names it, what it waits for and the other tasks waiting at the same place; a task in the queue (open): gone through now, taken up in the conversation" },
     { name: "where", type: "string", value: "<app|terminal>", description: "this time in the agent's desktop app or in this terminal (default: agent.where)" },
     { name: "print", type: "boolean", description: "print the command line instead of starting the agent" },
   ],
-  examples: ["strom chat", 'strom chat --say "Find the baptism of Karel"', "strom chat --task T0003", "strom chat --agent codex", "strom chat --where terminal", "strom chat --print"],
+  examples: ["strom chat", 'strom chat --say "Find the baptism of Karel"', "strom chat --task T0003", "strom chat --house A0001", "strom chat --agent codex", "strom chat --where terminal", "strom chat --print"],
   run: async (ctx: Context, { opts }) => {
     // An agent strom started (a conversation, a run) is where the research happens already. Any other
     // agent — the one that set strom up from the web page, one opened in some folder — hands the
@@ -216,9 +232,10 @@ register({
     if (files.length) tree.withTreeLock(() => tree.commit(`Agent instructions: ${files.join(", ")}`, files));
     const researches = tree.list<Research>("research");
     const said = typeof opts.say === "string" && opts.say.trim() ? opts.say.trim() : undefined;
-    if (said && opts.task !== undefined) throw new UsageError("strom chat takes --say or --task, not both", { hint: "strom chat --task T…" });
+    if ([said, opts.task, opts.house].filter((x) => x !== undefined).length > 1) throw new UsageError("strom chat takes one of --say, --task or --house", { hint: "strom chat --task T… · strom chat --house A…" });
     const about = opts.task !== undefined ? aboutWaiting(tree, String(opts.task), shared) : undefined;
-    const kickoff = about?.say ?? said ?? ui(lang, researches.length ? "ui.chat.continue" : "ui.chat.first");
+    const house = opts.house !== undefined ? aboutHouse(tree, String(opts.house)) : undefined;
+    const kickoff = about?.say ?? house?.say ?? said ?? ui(lang, researches.length ? "ui.chat.continue" : "ui.chat.first");
     const level = ctx.settings.agentPermissions();
     // Codex runs strom's rules before its browser only once the person confirms them in Codex (/hooks): said until then,
     // never confirmed by strom (spec 062 K3.3)
@@ -246,7 +263,7 @@ register({
     }
     // In a terminal: a new window, not a conversation inside this one.
     if (agentHere && !opts.print) {
-      const say = about ? ["--task", about.id] : said ? ["--say", said] : [];
+      const say = about ? ["--task", about.id] : house ? ["--house", house.ref] : said ? ["--say", said] : [];
       // in the terminal the person chose (this computer's setting), said in the research's language
       const terminal = ctx.settings.terminal();
       const opened = openInNewTerminal(["chat", "--agent", agent, "--where", "terminal", ...say], tree.root, ctx.env, process.platform, { ...(terminal ? { terminal } : {}), lang });

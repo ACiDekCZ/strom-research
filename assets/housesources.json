@@ -1,0 +1,83 @@
+{
+  "about": "The sources a house's research goes through (spec 145 T5), by region: the brief of a house's task, of a municipality's skeleton and of a house's look lists them for the agent — never into the house (only what said something, the one line of what was gone through, and the steps by hand that belong to it). A region is given where its bbox [west, south, east, north] holds the municipality's point (several regions near a border: each, the agent takes its country's); none holds it, or the place has no point: the general list alone. by: agent — the agent goes through it itself, as the terms strom enforces allow (strom net web --check <url>); hand — only the person can (a site that refuses automated reading, an archive's reading room): a link with what to do, written only where it belongs to the house. town: the skeleton's (once for a municipality); house: each house's; special: a mill, an inn, a smithy, a parish, a school besides; look: the look of a house. Only what is known for sure of a region is in it.",
+  "general": {
+    "town": [
+      { "id": "topography", "what": "printed topographies and gazetteers of the 18th and 19th century of the region: the municipality, its lordship, its mills, farms and solitudes", "where": "archive.org, digitised libraries", "by": "agent" },
+      { "id": "fieldnames", "what": "the field names of the municipality with their points (mills, farms, solitudes, fields): written once as its field names", "where": "the country's open gazetteer of names", "by": "agent" },
+      { "id": "web", "what": "the municipality's web, its chronicle, its Wikipedia page: its history, its mills, its fires", "by": "agent" },
+      { "id": "pictures", "what": "pictures of the municipality under a free licence (the green, its streets, a house number where it can be read): each with its licence and what it shows", "where": "Wikimedia Commons, Europeana, the municipality's web", "by": "agent" },
+      { "id": "maps", "what": "the oldest cadastral maps of the cadastral area: their sheets", "by": "hand" }
+    ],
+    "house": [
+      { "id": "address", "what": "the address and building of today in the country's open address register: its point, the building, its parcel", "by": "agent" },
+      { "id": "ortho", "what": "the orthophoto of today and old aerial photos: does the old building stand, a farmstead", "by": "agent" },
+      { "id": "skeleton", "what": "what the municipality's skeleton has of this number: the topography, a field name at its point", "by": "agent" },
+      { "id": "local", "what": "local websites about the houses (the municipality's, a local history society's)", "by": "agent" },
+      { "id": "registers", "what": "the land registers of the estate (holders, purchase contracts)", "by": "hand" }
+    ],
+    "special": [
+      { "id": "same-kind", "what": "other buildings of the same kind in the municipality (a second mill explains 'the miller in another number')", "by": "agent" },
+      { "id": "water", "what": "a mill: its water course and its mill race", "by": "agent" },
+      { "id": "craft", "what": "where the holder came from: the same craft of the family in the neighbouring places", "by": "agent" }
+    ],
+    "look": [
+      { "id": "aerial", "what": "the old aerial photo at the house's point: the building, its outbuildings, its yard", "by": "agent" },
+      { "id": "pictures", "what": "the municipality's pictures of its skeleton: one that shows this house (its number, its place on the green)", "by": "agent" },
+      { "id": "material", "what": "the material at the house or its municipality nobody has read: a sketch, a photo, a clip of a map", "by": "agent" },
+      { "id": "sources", "what": "the sources in hand that describe the building: a cottage, a farm, a fire, a rebuilding, a mill", "by": "agent" }
+    ]
+  },
+  "regions": [
+    {
+      "id": "cz",
+      "name": "Czechia (Bohemia, Moravia, Silesia)",
+      "bbox": [11.885448, 48.196887, 19.164528, 51.393486],
+      "town": [
+        { "id": "schaller", "what": "Schaller's topography of Bohemia (1785–1791): the municipality, its lordship, its mills and farms", "where": "archive.org, the MDZ (digitale-sammlungen.de)", "by": "agent" },
+        { "id": "sommer", "what": "Sommer's Das Königreich Böhmen (1833–1849): its houses, mills, farms, the estate", "where": "archive.org, the MDZ (digitale-sammlungen.de)", "by": "agent" },
+        { "id": "geonames", "what": "the field names of ČÚZK Geonames (mills, farms, solitudes with their points): written once as the municipality's field names", "where": "the open data of ČÚZK", "by": "agent" },
+        { "id": "web", "what": "the municipality's web, its chronicle, its Wikipedia page", "by": "agent" },
+        { "id": "pictures", "what": "pictures of the municipality under a free licence: each with its licence and what it shows", "where": "Wikimedia Commons, Kramerius (free works), Europeana, the municipality's web", "by": "agent" },
+        { "id": "monuments", "what": "the listed monuments of the municipality with their house numbers", "where": "pamatkovykatalog.cz", "by": "hand" },
+        { "id": "sheets", "what": "the map sheets of the stable cadastre of the cadastral area (which sheet holds which part): a link by hand with the sheet numbers", "where": "archivnimapy.cuzk.cz", "by": "hand" },
+        { "id": "registers", "what": "the land registers of the estate online", "where": "SOA Praha eBadatelna, Porta fontium (SOA Plzeň), MZA's ARON", "by": "hand" }
+      ],
+      "house": [
+        { "id": "ruian", "what": "RÚIAN: the address point, the building (its completion, its parcel) and the parcel (parcels split off)", "where": "the RÚIAN map service of ČÚZK (archives.json)", "by": "agent" },
+        { "id": "geonames", "what": "a field name at the house's point (ČÚZK Geonames, the skeleton's field names): a mill, a farm named after a holder", "by": "agent" },
+        { "id": "zabaged", "what": "ZABAGED: the water courses and mill races by the house", "where": "the open data of ČÚZK", "by": "agent" },
+        { "id": "ortho", "what": "the orthophoto of today and of the 1950s (map layers cz-ortho, cz-ortho-1950): does the old building stand", "by": "agent" },
+        { "id": "topography", "what": "the skeleton's topography (Schaller, Sommer): what it says of this number", "by": "agent" },
+        { "id": "local", "what": "local websites about the houses", "by": "agent" },
+        { "id": "sketch", "what": "the indication sketch of the stable cadastre (colour: wooden or brick, the ground plan, the parcel, the holders): a link by hand with the cadastral area, the sheet and the parcel", "where": "archivnimapy.cuzk.cz; Moravia MZA, Silesia ZA Opava; digi.nacr.cz", "by": "hand" },
+        { "id": "monuments", "what": "the house among the listed monuments", "where": "pamatkovykatalog.cz", "by": "hand" },
+        { "id": "registers", "what": "the land registers of the estate: holders, purchase contracts", "by": "hand" }
+      ],
+      "special": [
+        { "id": "mills", "what": "a mill: its record among the water mills", "where": "vodnimlyny.cz", "by": "hand" }
+      ],
+      "look": [
+        { "id": "ortho-1950", "what": "the aerial photo of the 1950s (map layer cz-ortho-1950) at the house's point", "by": "agent" },
+        { "id": "sketch", "what": "the indication sketch, where the person gave it: colour, ground plan, parcel, neighbours", "by": "agent" }
+      ]
+    },
+    {
+      "id": "at",
+      "name": "Austria",
+      "bbox": [9.530783, 46.372335, 17.160776, 49.020530],
+      "house": [
+        { "id": "franziszeum", "what": "the Franziszeischer Kataster (1817–1861): parcels and buildings; for Tyrol the FRANZI database", "by": "agent" },
+        { "id": "hofnamen", "what": "Upper Austria: the farm names (Hofnamen) in DORIS", "by": "agent" }
+      ]
+    },
+    {
+      "id": "by",
+      "name": "Bavaria",
+      "bbox": [8.976, 47.270, 13.840, 50.565],
+      "house": [
+        { "id": "haeuserbuch", "what": "the printed house book (Häuserbuch) of the place, where there is one", "by": "agent" },
+        { "id": "urkataster", "what": "the Urkataster (1812) and its renewal (1861/62)", "by": "agent" }
+      ]
+    }
+  ]
+}
