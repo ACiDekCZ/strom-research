@@ -52,7 +52,7 @@
       "quoteFrom": "reply",
       "replied": "2026-11-12",
       "robots": "User-agent: rodokmen · Disallow: / · User-agent: ClaudeBot · Disallow: / · User-agent: GPTBot · Disallow: / · User-agent: Amazonbot · Disallow: / · User-agent: * · Disallow: /d/ · Disallow: /a/ (since 2 November 2026; https://ebadatelna.soapraha.cz/robots.txt)",
-      "checked": "2026-11-12",
+      "checked": "2026-11-27",
       "browserOnly": true,
       "termsPage": "https://soapraha.gov.cz/castokladenedotazy/",
       "termsPageSays": "Prohlížení digitálních studijních kopií je umožněno všem bez nutnosti registrace. Registrovaní uživatelé však mají navíc možnost stahování celých archiválií v ZIP balíčcích",
@@ -60,7 +60,7 @@
         "/d/",
         "/a/"
       ],
-      "scope": "by hand only: its robots.txt names AI agents (ClaudeBot, GPTBot) and keeps every robot off its digitised records (/d/, /a/) — not through the agent's browser either; the person opens and saves the image, the agent reads the saved file (the archive's reply of 2026-11-12: no reason to restrict an AI agent's use of an image the person saved by hand; its technical measures are not final); the permanent link of an image is the address in the browser's address bar while it is shown — cite that",
+      "scope": "by hand only: its robots.txt names AI agents (ClaudeBot, GPTBot) and keeps every robot off its digitised records (/d/, /a/) — not through the agent's browser either; the person opens and saves the image, the agent reads the saved file (the archive's reply of 2026-11-12: no reason to restrict an AI agent's use of an image the person saved by hand); its limits from one IP address, for a person and an automated system alike (the archive's reply of 2026-11-27; the measures may still change): at most 2 images a second, a ZIP at most one at a time and at most 10 ZIPs in 24 hours — never suggest a way past them (more ZIPs in a day, several at once, images faster); the permanent link of an image is the address in the browser's address bar while it is shown — cite that",
       "wholeBook": {
         "how": "offered",
         "says": "Prohlížení digitálních studijních kopií je umožněno všem bez nutnosti registrace. Registrovaní uživatelé však mají navíc možnost stahování celých archiválií v ZIP balíčcích",

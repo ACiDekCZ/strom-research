@@ -292,9 +292,17 @@ test("the list: eBadatelna (SOA Praha) by the archive's reply — still by hand 
   assert.equal(a.quote, "Pokud si ručně stáhnete snímek do svého PC, není důvod omezovat u takto staženého snímku použití AI agenta.");
   assert.equal(a.quoteFrom, "reply");
   assert.equal(a.replied, "2026-11-12");
-  assert.equal(a.checked, "2026-11-12");
+  assert.equal(a.checked, "2026-11-27", "checked again with the archive's second reply");
   assert.doesNotMatch(a.terms ?? "", /robots\.txt/u, "robots.txt is no source of the reply");
   assert.match(a.scope ?? "", /by hand only/u);
+  // its second reply (2026-11-27): the limits from one IP address, for a person and an automated system alike — the
+  // agent knows them and never suggests a way past them
+  assert.match(a.scope ?? "", /reply of 2026-11-27/u);
+  assert.match(a.scope ?? "", /one IP address, for a person and an automated system alike/u);
+  assert.match(a.scope ?? "", /at most 2 images a second/u);
+  assert.match(a.scope ?? "", /a ZIP at most one at a time and at most 10 ZIPs in 24 hours/u);
+  assert.match(a.scope ?? "", /may still change/u);
+  assert.match(a.scope ?? "", /never suggest a way past them/u);
   assert.match(a.scope ?? "", /address bar/u, "the permanent link of an image: the address in the browser's address bar");
   // SOA Třeboň's reply of 2026-11-05 named its public terms (/Uvod): the day kept, the quote still said as its terms
   for (const host of ["digi.ceskearchivy.cz", "www.ceskearchivy.cz"]) {
