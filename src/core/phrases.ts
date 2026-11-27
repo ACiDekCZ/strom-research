@@ -19,6 +19,7 @@ export const PHRASES = {
   "whole.book": "the whole book",
   "import.source": "Family tree {what}",
   "device.decided": "decided on the device {name}",
+  "send.import.source": "Family tree taken over in the Strom app (sent {day})",
 
   "link.what": "Baptism of {name}{place}{about}",
   "link.place": ", {place}",

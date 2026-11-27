@@ -243,7 +243,7 @@ export const HUMAN_COMMANDS = [
   "menu", "status", "setup", "doctor", "error", "update", "uninstall", "shortcut",
   "init", "demo", "trees", "trees use", "trees remove", "trees forget", "lang", "mode",
   "chat", "run", "session finish", "research new", "research pause", "research resume", "research done", "research edit", "research order", "research move", "research gather", "review", "verify bulk", "verify stop",
-  "intake", "sync", "sync undo", "sync discard", "sync note", "conflict list", "conflict resolve", "conflict leave", "conflict keep", "event main", "event revert", "person revert", "hypothesis decide", "task list", "task wake", "task order", "story approve", "story discard",
+  "intake", "sync", "sync undo", "sync discard", "sync note", "sync as-import", "conflict list", "conflict resolve", "conflict leave", "conflict keep", "event main", "event revert", "person revert", "hypothesis decide", "task list", "task wake", "task order", "story approve", "story discard",
   "offline list", "offline show", "offline set", "offline answer",
   "stats", "recent", "plan", "history", "history back", "person card", "person list", "pedigree", "find", "query", "doc",
   "app", "app install", "live", "live start", "live stop", "phone", "phone on", "phone qr", "phone off", "export gedcom", "pack", "unpack", "seal adopt", "seal accept", "repair undo", "backup", "tidy", "check",
