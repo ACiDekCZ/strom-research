@@ -815,3 +815,29 @@ export const HOUSE_CODES = {
   locationHow: HOUSE_LOCATION_HOWS,
   mapKind: HOUSE_MAP_KINDS,
 } as const;
+
+/**
+ * Whether a licence as written allows free use (spec 145 T1: pictures only from free sources): public domain in any of
+ * its usual words, CC0, CC BY, CC BY-SA, the GFDL, the Free Art License, an open government licence, "no known copyright
+ * restrictions" — never one that forbids commercial use or changes (NC, ND), never "all rights reserved", never a word
+ * not known as free.
+ */
+export function freeLicence(written: string): boolean {
+  const f = ` ${foldText(written.normalize("NFC")).replace(/[^\p{L}\p{N}]+/gu, " ").trim()} `;
+  if (NOT_FREE.some((re) => re.test(f))) return false;
+  return FREE.some((re) => re.test(f));
+}
+const NOT_FREE = [
+  / (nc|nd|noncommercial|non commercial|noderivs|noderivatives|no derivatives|no derivs) /u,
+  / (all rights reserved|alle rechte vorbehalten|vsechna prava vyhrazena|wszelkie prawa zastrzezone|tous droits reserves|todos los derechos reservados|tutti i diritti riservati) /u,
+];
+const FREE = [
+  / (cc0|cc 0|cc zero|cc by|cc by sa|ccby|ccbysa|cc pdm) /u,
+  / creative commons (attribution|by|zero|cc0|public domain) /u,
+  / creativecommons org (licenses by|publicdomain) /u,
+  / (public domain|publicdomain|pd|pdm|no known copyright) /u,
+  / (volne dilo|gemeinfrei|domena publiczna|domaine public|dominio publico|pubblico dominio|publiek domein|vrij van rechten|kozkincs) /u,
+  / (gfdl|gnu free documentation) /u,
+  / (free art license|licence art libre|lal) /u,
+  / (ogl|open government licen[cs]e|licence ouverte|dl de by|dl de zero) /u,
+];

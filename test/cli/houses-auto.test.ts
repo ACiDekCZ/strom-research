@@ -13,7 +13,7 @@ import { execFileSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { houseAuto, houseBrief, houseEstimate, HOUSE_AUTO_OPEN } from "../../src/core/houseauto.ts";
-import { forHouse, housesHeldCount, housesOfTask as housesOfTaskIds, houseWork, townOfTask } from "../../src/core/houses.ts";
+import { forHouse, freeLicence, housesHeldCount, housesOfTask as housesOfTaskIds, houseWork, townOfTask } from "../../src/core/houses.ts";
 import { regionsOf, sourcesFor } from "../../src/core/housesources.ts";
 import type { House, Place, Task } from "../../src/core/model.ts";
 import { validateRecord } from "../../src/core/validate.ts";
@@ -493,6 +493,92 @@ test("the look of a house (spec 145 T1): its task only for material, a picture o
   } finally {
     w.cleanup();
   }
+});
+
+test("the look of a house without noise (spec 145 T1, T5): no more automatically said once, the person's word kept; its check and certainty in the research language; a picture only under a free licence; the chain's turn and a material's task said as they are", opts, async () => {
+  const w = new World();
+  try {
+    await village(w);
+    await w.ok(["config", "set", "houses", "on", "--for-tree"], { tty: true });
+    const lhota9 = houseId(w, "L0001", "9");
+    const lhota14 = houseId(w, "L0001", "14");
+    const town = houseTasks(w).find((x) => houseWork(x) === "town" && townOfTask(x) === "L0001")!;
+    const house = houseTasks(w).find((x) => x.origin === `house:${lhota9}`)!;
+    const looks = (a: string) => record(w, a).unknown.filter((u) => u.about === "look");
+
+    // the research's own "not known" of its look, then none: one item, the check's why — and none again: still one
+    await w.ok(["house", "add", "passed", lhota14, "--checklist", "--what", "prošlo: adresní místo, ortofoto"], AGENT);
+    await w.ok(["house", "add", "unknown", lhota14, "--look", "--text", "podoba nezjištěna"], AGENT);
+    const none = (await w.ok(["house", "add", "look-check", lhota14, "--next", "none", "--text", "obrázek domu nikde, skica jen ručně", "--json"], AGENT)).json;
+    assert.deepEqual(looks(lhota14).map((u) => u.text), ["podoba: víc automaticky nejde – obrázek domu nikde, skica jen ručně"]);
+    assert.equal(none.item, looks(lhota14)[0]!.id);
+    await w.ok(["house", "add", "look-check", lhota14, "--next", "none", "--text", "nic dalšího"], AGENT);
+    assert.deepEqual(looks(lhota14).map((u) => u.text), ["podoba: víc automaticky nejde – nic dalšího"]);
+    // shown once: under what is not known, no line of its check besides
+    const cs14 = (await w.ok(["house", "show", lhota14, "--lang", "cs"])).out;
+    assert.equal((cs14.match(/víc automaticky nejde/gu) ?? []).length, 1, cs14);
+    assert.doesNotMatch(cs14, /Další o podobě|none:/u);
+    // the person's own word of its look stays as written: none adds nothing
+    await w.ok(["house", "add", "unknown", lhota9, "--look", "--text", "fotka u babičky Lhotákové".normalize("NFD")]);
+    await w.ok(["house", "add", "look-check", lhota9, "--next", "none", "--text", "nic dalšího"], AGENT);
+    assert.deepEqual(looks(lhota9).map((u) => [u.text, u.origin]), [["fotka u babičky Lhotákové", "user"]]);
+
+    // its check and its certainty in the research language
+    await w.ok(["house", "add", "passed", lhota9, "--checklist", "--what", "prošlo: adresní místo, ortofoto"], AGENT);
+    await w.ok(["house", "add", "look", lhota9, "--text", "přízemní chalupa", "--certainty", "guess"], AGENT);
+    await w.ok(["house", "add", "look-check", lhota9, "--next", "picture", "--text", "obrázek návsi ukazuje č. 9"], AGENT);
+    const cs9 = (await w.ok(["house", "show", lhota9, "--lang", "cs"])).out;
+    assert.match(cs9, /Další o podobě\n {2}obrázek obce: obrázek návsi ukazuje č\. 9/u);
+    assert.match(cs9, /přízemní chalupa · odhad/u);
+    assert.doesNotMatch(cs9, /picture:|· guess/u);
+    const de9 = (await w.ok(["house", "show", lhota9, "--lang", "de"])).out;
+    assert.match(de9, /ein Bild des Ortes: /u);
+    assert.match(de9, /· geschätzt/u);
+    const pl9 = (await w.ok(["house", "show", lhota9, "--lang", "pl"])).out;
+    assert.match(pl9, /zdjęcie miejscowości: /u);
+    assert.match(pl9, /· przypuszczenie/u);
+
+    // a picture of the municipality (or of the house by address) only under a free licence
+    const pic = (license: string) => w.run(["house", "add", "picture", "--town", "L0001", "--url", "https://x.example.org/a.jpg", "--license", license, "--shows", "náves"], AGENT);
+    for (const bad of ["All rights reserved", "© Lhoták, všechna práva vyhrazena", "CC BY-NC-SA 4.0", "CC BY-ND 4.0", "proprietary"]) {
+      const r = await pic(bad);
+      assert.notEqual(r.code, 0, bad);
+      assert.match(r.err, /allows no free use/u, bad);
+      assert.match(r.err, /strom house add manual --town L0001/u, bad);
+    }
+    for (const good of ["CC BY-SA 4.0", "Public domain", "CC0 1.0", "volné dílo".normalize("NFD"), "https://creativecommons.org/licenses/by/4.0/"]) await w.ok(["house", "add", "picture", "--town", "L0001", "--url", "https://x.example.org/a.jpg", "--license", good, "--shows", "náves"], AGENT);
+    const lookBad = await w.run(["house", "add", "look", lhota9, "--text", "chalupa", "--image", "https://x.example.org/b.jpg", "--license", "All rights reserved"], AGENT);
+    assert.notEqual(lookBad.code, 0);
+    assert.match(lookBad.err, /allows no free use/u);
+
+    // the house's research done: its look follows (picture); no. 14 none, no task
+    const done = await w.ok(["task", "done", house.id, "--result", "dům prošel", "--json"], AGENT);
+    const look = done.json.look as string;
+    assert.ok(look);
+    // material given later to the house done with none: a task of its look — said as such
+    const given = await w.ok(["house", "add", "material", lhota14, "--memory", "Fotka statku z roku 1930."]);
+    assert.match(given.out, /: the house's look, raised by its material/u);
+    assert.doesNotMatch(given.out, /the house's research, raised/u);
+
+    // the chain: the look put next waits behind its house's research, which waits behind its skeleton — said
+    const again = (await w.ok(["house", "request", lhota9, "--yes", "--json"])).json;
+    const toLook = await w.ok(["task", "order", look, "--next", "--json"], { tty: true });
+    assert.deepEqual(toLook.json.after, [again.task]);
+    assert.match((await w.ok(["task", "order", look, "--next"], { tty: true })).out, new RegExp(`${look} comes after ${again.task} all the same: its house's research first`, "u"));
+    const toHouse = await w.ok(["task", "order", again.task, "--next"], { tty: true });
+    assert.match(toHouse.out, new RegExp(`${again.task} comes after ${town.id} all the same: its municipality's skeleton first`, "u"));
+    // a task of no chain: nothing more said
+    assert.doesNotMatch((await w.ok(["task", "order", town.id, "--next"], { tty: true })).out, /comes after/u);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("a licence that allows free use (spec 145 T1): public domain in its usual words, CC0, CC BY, CC BY-SA, … — never NC, ND, all rights reserved, nor a word not known as free", () => {
+  for (const ok of ["CC BY 4.0", "cc-by-sa-3.0-de", "Creative Commons Attribution-ShareAlike 4.0", "CC0", "Public Domain Mark 1.0", "PD-old-70", "Gemeinfrei", "domena publiczna", "Volné dílo".normalize("NFD"), "GFDL", "No known copyright restrictions", "https://creativecommons.org/publicdomain/zero/1.0/"])
+    assert.ok(freeLicence(ok), ok);
+  for (const no of ["All rights reserved", "Alle Rechte vorbehalten", "CC BY-NC 4.0", "CC BY-NC-ND 4.0", "CC BY-ND", "https://creativecommons.org/licenses/by-nc/4.0/", "© 2020", "free to view", "Всі права захищені", ""])
+    assert.ok(!freeLicence(no), no);
 });
 
 test("the list of sources by country (spec 145 T5): a municipality's point in a region's box gives its list, the general one else; a special house besides", () => {

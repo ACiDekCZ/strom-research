@@ -305,7 +305,7 @@ export function houseDoneLacks(tree: Tree, t: Task, settings: Settings = new Set
     const ref = work === "town" ? `--town ${town}` : id;
     if (!h?.passed.some((x) => x.checklist && (x.at ?? "") >= since)) lacks.push(`${id}: the one line of the list of sources gone through — strom house add passed ${ref} --checklist --what "<gone through: …>"`);
     if (work !== "house") continue;
-    if (!h?.look && !h?.unknown.some((u) => u.about === "look")) lacks.push(`${id}: its short look — strom house add look ${id} --text "…" --certainty …, or strom house add unknown ${id} --look --text "<why not known>"`);
+    if (!h?.look && !h?.unknown.some((u) => u.about === "look")) lacks.push(`${id}: its short look — strom house add look ${id} --text "…" --certainty …, or nothing of it known: ${look ? `strom house add look-check ${id} --next none --text "<why>" (strom writes what is not known of it)` : `strom house add unknown ${id} --look --text "<why not known>"`}`);
     if (look && !(h?.lookCheck && h.lookCheck.at.slice(0, 10) >= since)) lacks.push(`${id}: the look check — strom house add look-check ${id} --next material|picture|source|none --text "…"`);
   }
   const measured = sessions.filter((s) => MEASURED_AGENTS.has(s.agent ?? ""));

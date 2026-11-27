@@ -77,11 +77,11 @@ Pictures only under a free licence, each with its licence and what it shows
     house add event A0001 --kind fire --date 1868 --text "<what the chronicle says>" --certainty medium --url https://example.org/chronicle
 
 4. **Its look, always, in short**: the kind and material of the building by
-   what was found (`--image` only under a free licence) — or what is not known
-   of it, and why:
+   what was found (`--image` only under a free licence). Nothing of it known:
+   the look check `none` of step 5, with why, says so once — no `unknown
+   --look` besides:
 
     house add look A0001 --text "<a ground-floor house, its gable to the green>" --certainty guess --image https://example.org/photo --license "CC BY 4.0"
-    house add unknown A0001 --look --text "<no picture of it; the indication sketch only by hand>"
     house add map A0001 --layer <id>
 
    A map layer strom ships for the house's region (`strom help house add map`)

@@ -20,6 +20,7 @@ import {
   HOUSE_NUMBER_CERTAINTIES,
   HOUSE_RESIDENT_ROLES,
   type House,
+  type HouseCertainty,
   type HouseOrigin,
   type Input,
   type Place,
@@ -32,9 +33,11 @@ import {
   confirmHouse,
   findHouse,
   findTown,
+  freeLicence,
   houseRows,
   houseSources,
   houseView,
+  houseWork,
   listRow,
   recordOf,
   setHouse,
@@ -112,6 +115,7 @@ function showText(tree: Tree, row: HouseRow, v: Record<string, unknown>): string
   const src = (s: { source?: string; page?: string; url?: string }[] | undefined) => (s?.length ? ` [${s.map((x) => [x.source, x.page, x.url].filter(Boolean).join(" ")).join("; ")}]` : "");
   const span = (x: { from?: string; to?: string }) => (x.from || x.to ? ` ${x.from ?? ""}–${x.to ?? ""}` : "");
   const by = (o: HouseOrigin) => (o === "research" ? "" : ` (${ui(lang, `ui.house.origin.${o}`)})`);
+  const sure = (c: HouseCertainty | "probable") => ui(lang, `ui.house.certainty.${c}`);
   const part = (key: Parameters<typeof ui>[1], items: string[]) => (items.length ? [ui(lang, key), ...items.map((x) => `  ${x}`)].join("\n") : undefined);
   const head = `${row.id ? `${row.id} ` : ""}${row.place.name} ${row.house}${row.name ? ` „${row.name}“` : ""} — ${stateWord(lang, row.state)}${row.task ? ` ${row.task}` : ""}${taskWords(tree, row)}`;
   const people = row.tree ? [...row.tree.persons].sort() : [];
@@ -120,15 +124,18 @@ function showText(tree: Tree, row: HouseRow, v: Record<string, unknown>): string
     `${ui(lang, "ui.house.key")}: ${row.key}`,
     people.length ? `${ui(lang, "ui.house.persons")}: ${people.join(", ")}${row.years ? ` (${row.years.from === row.years.to ? row.years.from : `${row.years.from}–${row.years.to}`})` : ""}` : undefined,
     row.question ? `${ui(lang, "ui.house.question")}: ${row.question.id} ${row.question.text}` : undefined,
-    part("ui.house.numbers", (h?.numbers ?? []).filter((n) => !n.notSame).map((n) => `${n.id} ${n.number}${span(n)} · ${n.certainty}${n.proposed ? ` · ${ui(lang, n.confirmed ? "ui.house.confirmed" : "ui.house.proposed")}` : ""}${n.text ? ` — ${n.text}` : ""}${src(n.sources)}${by(n.origin)}`)),
+    part("ui.house.numbers", (h?.numbers ?? []).filter((n) => !n.notSame).map((n) => `${n.id} ${n.number}${span(n)} · ${sure(n.certainty)}${n.proposed ? ` · ${ui(lang, n.confirmed ? "ui.house.confirmed" : "ui.house.proposed")}` : ""}${n.text ? ` — ${n.text}` : ""}${src(n.sources)}${by(n.origin)}`)),
     h?.location
-      ? part("ui.house.location", [`${h.location.lat}, ${h.location.lon} · ${h.location.how} · ${h.location.certainty}${h.location.confirmed ? ` · ${ui(lang, "ui.house.confirmed")} ${h.location.confirmed}` : ""}${src(h.location.sources)}${by(h.location.origin)}`])
+      ? part("ui.house.location", [`${h.location.lat}, ${h.location.lon} · ${h.location.how} · ${sure(h.location.certainty)}${h.location.confirmed ? ` · ${ui(lang, "ui.house.confirmed")} ${h.location.confirmed}` : ""}${src(h.location.sources)}${by(h.location.origin)}`])
       : undefined,
-    part("ui.house.timeline", (h?.timeline ?? []).map((e) => `${e.id} ${e.date ?? "?"} ${e.kind}: ${e.text} · ${e.certainty}${h?.sensitive?.includes(e.id) ? ` · ${ui(lang, "ui.house.sensitive")}` : ""}${src(e.sources)}${by(e.origin)}`)),
-    part("ui.house.holders", (h?.holders ?? []).map((x) => `${x.id} ${x.name}${x.person ? ` (${x.person})` : ""}${span(x)} · ${x.how} · ${x.certainty}${src(x.sources)}${by(x.origin)}`)),
-    part("ui.house.residents", (h?.residents ?? []).map((x) => `${x.id} ${x.name}${x.person ? ` (${x.person})` : ""} · ${x.role}${span(x)}${x.certainty ? ` · ${x.certainty}` : ""}${src(x.sources)}${by(x.origin)}`)),
-    h?.look ? part("ui.house.look", [`${h.look.text} · ${h.look.certainty}${(h.look.images ?? []).map((i) => ` [${[i.url, i.file, i.license].filter(Boolean).join(" ")}]`).join("")}`]) : undefined,
-    h?.lookCheck ? part("ui.house.lookCheck", [`${h.lookCheck.next}: ${h.lookCheck.text}`]) : undefined,
+    part("ui.house.timeline", (h?.timeline ?? []).map((e) => `${e.id} ${e.date ?? "?"} ${e.kind}: ${e.text} · ${sure(e.certainty)}${h?.sensitive?.includes(e.id) ? ` · ${ui(lang, "ui.house.sensitive")}` : ""}${src(e.sources)}${by(e.origin)}`)),
+    part("ui.house.holders", (h?.holders ?? []).map((x) => `${x.id} ${x.name}${x.person ? ` (${x.person})` : ""}${span(x)} · ${x.how} · ${sure(x.certainty)}${src(x.sources)}${by(x.origin)}`)),
+    part("ui.house.residents", (h?.residents ?? []).map((x) => `${x.id} ${x.name}${x.person ? ` (${x.person})` : ""} · ${x.role}${span(x)}${x.certainty ? ` · ${sure(x.certainty)}` : ""}${src(x.sources)}${by(x.origin)}`)),
+    h?.look ? part("ui.house.look", [`${h.look.text} · ${sure(h.look.certainty)}${(h.look.images ?? []).map((i) => ` [${[i.url, i.file, i.license].filter(Boolean).join(" ")}]`).join("")}`]) : undefined,
+    // none: what is not known of its look says it (Not known), once
+    h?.lookCheck && !(h.lookCheck.next === "none" && (h.unknown ?? []).some((u) => u.about === "look"))
+      ? part("ui.house.lookCheck", [`${ui(lang, `ui.house.lookNext.${h.lookCheck.next}`)}: ${h.lookCheck.text}`])
+      : undefined,
     part("ui.house.maps", (h?.maps ?? []).map((m) => `${m.id} ${m.kind}${m.label ? ` ${m.label}` : ""}${m.sheet ? ` (${m.sheet})` : ""}${m.url ? ` ${m.url}` : ""}${m.manual ? ` · ${ui(lang, "ui.house.byhand")}` : ""}`)),
     part("ui.house.passed", (h?.passed ?? []).map((p) => `${p.id} ${p.what}${p.source ? ` ${p.source}` : ""}${p.url ? ` ${p.url}` : ""}${p.found === true ? ` · ${ui(lang, "ui.house.found")}` : p.found === false ? ` · ${ui(lang, "ui.house.notfound")}` : ""}${by(p.origin)}`)),
     part("ui.house.manual", (h?.manual ?? []).map((m) => `${m.id} ${m.what}${m.url ? ` ${m.url}` : ""}${m.why ? ` (${m.why})` : ""}${by(m.origin)}`)),
@@ -329,6 +336,15 @@ function target(tree: Tree, ref: string[]): House {
   return recordOf(tree, findHouse(tree, ref.join(" ")));
 }
 
+/** A picture only under a free licence (spec 145 T1): else only its link, by hand. */
+function notFree(license: string, manual: string): void {
+  if (!freeLicence(license))
+    throw new UsageError(`"${license}" allows no free use: a picture only under a free licence (public domain, CC0, CC BY, CC BY-SA, GFDL, Free Art License, an open government licence) — never NC, ND or all rights reserved`, {
+      code: "house.body",
+      hint: `its link only, to be seen by hand: strom house add manual ${manual}`,
+    });
+}
+
 type ItemRun = (ctx: Context, tree: Tree, h: House, opts: Record<string, unknown>) => { id?: string; what: string; task?: string };
 
 /**
@@ -369,7 +385,11 @@ function itemCommand(kind: string, summary: string, options: OptionDef[], exampl
         text: lines(
           ...tree.written.map((o) => o.summary),
           out.id ? `${out.id} written to ${out.h.id} (${out.what})` : `${out.h.id}: ${out.what}`,
-          out.task ? `${out.task}: the house's research, raised by its material (the history of the houses is on)` : undefined,
+          out.task
+            ? houseWork(tree.get<Task>(out.task) ?? { origin: "" }) === "look"
+              ? `${out.task}: the house's look, raised by its material given after its research (the look of the houses is on)`
+              : `${out.task}: the house's research, raised by its material (the history of the houses is on)`
+            : undefined,
         ),
         data: { house: out.h.id, ...(place ? { town: place.id } : {}), ...(out.id ? { item: out.id } : {}), ...(out.task ? { task: out.task } : {}), view: v },
       };
@@ -627,6 +647,7 @@ register(
     ],
     ['strom house add look A0001 --text "<a ground-floor house, its gable to the green>" --certainty guess --image https://example.org/photo --license "CC BY 4.0"'],
     (ctx, tree, h, opts) => {
+      if (opt(opts.license) && listOpt(opts.image).some((x) => /^https?:\/\//iu.test(x))) notFree(opt(opts.license)!, `${h.id} --what "<a picture of it>" --url ${listOpt(opts.image).find((x) => /^https?:\/\//iu.test(x))}`);
       const images = listOpt(opts.image).map((x) => {
         if (/^[Ii]\d+$/u.test(x)) {
           const id = normId(x, "input");
@@ -660,9 +681,22 @@ register(
         throw new UsageError(`no material lies at ${h.id} — material: only what was given to the house`, { code: "house.body", hint: `strom house show ${h.id} — another --next, or none` });
       const task = currentSession(tree, ctx.env, ctx.refs)?.task;
       const origin = originOf(ctx, tree, opts).origin;
-      setHouse(tree, h.id, (x) => void (x.lookCheck = { next, text: why, ...(task ? { task } : {}), at: now(), origin }), `look check: ${next}`);
-      // no more automatically: what is not known of its look, said once in the research language (spec 145 T1)
-      const id = next === "none" ? addHouseItem(tree, h.id, "unknown", { text: phrase(tree.lang, "house.look.unknown", { why }).slice(0, 1000), about: "look", origin }, "look not known").id : undefined;
+      // no more automatically: what is not known of its look, said once in the research language (spec 145 T1) — the
+      // research's own earlier word of it (unknown --look) takes the check's why, the person's or a material's stays;
+      // never a second one (no noise, T5)
+      const said = next === "none" ? phrase(tree.lang, "house.look.unknown", { why }).slice(0, 1000) : undefined;
+      const had = said ? (h.unknown ?? []).find((u) => u.about === "look" && u.origin === "research" && !u.question) ?? (h.unknown ?? []).find((u) => u.about === "look") : undefined;
+      setHouse(
+        tree,
+        h.id,
+        (x) => {
+          x.lookCheck = { next, text: why, ...(task ? { task } : {}), at: now(), origin };
+          const own = had && had.origin === "research" && !had.question ? (x.unknown ?? []).find((u) => u.id === had.id) : undefined;
+          if (own && said) own.text = said;
+        },
+        `look check: ${next}`,
+      );
+      const id = said ? (had?.id ?? addHouseItem(tree, h.id, "unknown", { text: said, about: "look", origin }, "look not known").id) : undefined;
       return { ...(id ? { id } : {}), what: next === "none" ? "look check: no more automatically" : `look check: ${next} — a task of its look follows the research` };
     },
   ),
@@ -679,7 +713,9 @@ register(
     (ctx, tree, h, opts) => {
       const url = text(opts.url, "url", 2000);
       if (!/^https?:\/\//iu.test(url)) throw new UsageError(`"${url}" is no web address`, { code: "house.body" });
-      const { id } = addHouseItem(tree, h.id, "pictures", { url, license: text(opts.license, "license", 200), ...(opt(opts.credit) ? { credit: opt(opts.credit)! } : {}), shows: text(opts.shows, "shows", 1000), origin: originOf(ctx, tree, opts).origin }, "picture");
+      const license = text(opts.license, "license", 200);
+      notFree(license, `--town ${h.place} --what "<what it shows>" --url ${url}`);
+      const { id } = addHouseItem(tree, h.id, "pictures", { url, license, ...(opt(opts.credit) ? { credit: opt(opts.credit)! } : {}), shows: text(opts.shows, "shows", 1000), origin: originOf(ctx, tree, opts).origin }, "picture");
       return { id, what: "picture of the municipality" };
     },
   ),

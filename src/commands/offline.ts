@@ -15,6 +15,7 @@ import { detectAgent } from "../core/which.ts";
 import { refuseInArchive } from "../core/state.ts";
 import { answerBranch, BRANCH_MODES, branchJson, branchKey, branchOf, offLineJson, offLineView, readOffline, setBranch, type BranchView } from "../core/offline.ts";
 import { ownTurn, restoredTurn, runOrder, turnWas } from "../core/queue.ts";
+import { houseChain, houseWork } from "../core/houses.ts";
 import { resolveResearch } from "./research.ts";
 import { rankData } from "./tasks.ts";
 
@@ -218,7 +219,16 @@ register(
         : want
           ? t.queueAt?.do === want && ownTurn(t, ended) === want && (want === "last" || newest(t))
           : !t.queueAt;
-      if (same) return { text: `${t.id}: nothing to change`, data: { ...taskTurn(ctx, tree, t.id), was } };
+      // the chain of a house's tasks holds it behind the task(s) of its house ahead (spec 145 T1): said, not hidden
+      const behind = () => {
+        const after = want === "next" ? houseChain(tree)(tree.get<Task>(t.id)!).map((x) => x.id) : [];
+        const what = houseWork(t) === "look" ? "its house's research" : "its municipality's skeleton";
+        return after.length ? { text: `${t.id} comes after ${after.join(", ")} all the same: ${what} first, whatever is moved to the top`, data: { after } } : { data: {} };
+      };
+      if (same) {
+        const b = behind();
+        return { text: lines(`${t.id}: nothing to change`, b.text), data: { ...taskTurn(ctx, tree, t.id), was, ...b.data } };
+      }
       update<Task>(
         tree,
         t.id,
@@ -229,7 +239,8 @@ register(
         },
         { op: "task.order", summary: `${t.id} ${back ? `${back.do} in the queue as it was (${back.at}), the person's choice` : want ? `${want} in the queue, the person's choice` : "back to the queue's order"}` },
       );
-      return { text: lines(...tree.written.map((o) => o.summary)), data: { ...taskTurn(ctx, tree, t.id), was } };
+      const b = behind();
+      return { text: lines(...tree.written.map((o) => o.summary), b.text), data: { ...taskTurn(ctx, tree, t.id), was, ...b.data } };
     },
   },
 );
