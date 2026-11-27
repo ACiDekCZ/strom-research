@@ -23,9 +23,12 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   částech a jeho výřez; u eBadatelny (SOA Praha) se agent drží limitů archivu, platných pro člověka
   i automatizovaný systém (nejvýš 2 snímky za sekundu, jeden ZIP naráz, 10 ZIPů za 24 hodin), a nikdy nenavrhne cestu,
   jak je obejít.
-- **Zápisy člověka v terminálu už neodmítá převzaté sezení agenta:** když sezení agenta převzal jiný běh, zápisy
-  člověka v terminálu a v menu (Údržba → Místo na disku, `strom tidy`, `strom history align`…) prošly až po týdnu; teď
-  projdou hned. Agent, jehož sezení bylo, je odmítnut dál.
+- **Z rodokmenu, ne rukou člověka:** lidé rodokmenu importovaného nebo sloučeného v aplikaci Strom, které starší
+  aplikace poslala bez značky importu, se brali jako zápis člověka (✓ potvrdil člověk); poslání, které je značí, je
+  teď opraví samo, a starší poslání člověk jednou určí – v aplikaci v Co čeká („Přišlo to z rodokmenu?“) nebo příkazem
+  `strom sync as-import I…`: nejdřív náhled, výzkum se zálohuje, jen údaje od té doby neupravené a nepotvrzené,
+  `--undo` to vrátí. Křestní jméno se závorkami mezi slovy („(Vincent) François (Paul)“) je jméno, jak je zapsané;
+  zápisy člověka v terminálu projdou hned i tam, kde sezení agenta převzal jiný běh.
 - **Historie domů:** `strom house` vede záznam každého domu, kde rodina žila – jeho čísla v čase, držitele, obyvatele,
   co se s ním dělo, jeho místo na mapě a co se pro něj prošlo; domy přímých předků výzkum zkoumá jen se zapnutým
   nastavením „Historie domů“ a jednotlivý dům jde vyžádat vždy, i z aplikace Strom. Nad místem domu smí aplikace

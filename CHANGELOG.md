@@ -23,10 +23,13 @@ The changes of each version in short. The full notes and the install lines are o
   parts, and at a crop of it; at eBadatelna (SOA Praha) the agent keeps to the archive's limits for a person and an
   automated system alike (at most 2 images a second, one ZIP at a time, 10 ZIPs in 24 hours) and never suggests a way
   past them.
-- **A person's writes in the terminal no longer refused for an agent's session:** where an agent's session was taken
-  over by another run, the person's own writes in the terminal and the menu (Maintenance → Disk space, `strom tidy`,
-  `strom history align`…) passed only a week later; they pass at once. The agent whose session it was is still
-  refused.
+- **From a family tree, not by a person's hand:** people of a family tree imported or merged in the Strom app that an
+  older app sent without the import's mark were taken as the person's own (✓ confirmed by a person); a send that marks
+  them now sets them right by itself, and an older send the person names once, in the app's What waits ("Did it come
+  from a family tree?") or with `strom sync as-import I…` — a preview first, the research backed up, only values
+  unchanged and unconfirmed since, `--undo` takes it back. A given name with brackets among its words ("(Vincent)
+  François (Paul)") is a name as written; a person's writes in the terminal pass at once where an agent's session was
+  taken over by another run.
 - **The history of the houses:** `strom house` keeps a record of each house the family lived in — its numbers in time,
   holders, residents, what happened to it, its place on the map and what was gone through for it; the research looks
   into the houses of direct ancestors only with the setting "House history" on, and one house can always be asked for,

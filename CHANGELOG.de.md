@@ -24,10 +24,14 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Bild und ein Ausschnitt davon anzusehen sind; bei der eBadatelna (SOA Praha) hält sich der Agent an die Grenzen
   des Archivs, die für Menschen und automatisierte Systeme gleich gelten (höchstens 2 Bilder pro Sekunde, ein ZIP auf
   einmal, 10 ZIPs in 24 Stunden), und schlägt nie einen Weg an ihnen vorbei vor.
-- **Einträge eines Menschen im Terminal nicht mehr wegen einer übernommenen Agenten-Sitzung abgelehnt:** wurde die
-  Sitzung eines Agenten von einem anderen Lauf übernommen, gingen die eigenen Einträge im Terminal und im Menü
-  (Wartung → Speicherplatz, `strom tidy`, `strom history align`…) erst nach einer Woche durch; jetzt sofort. Der
-  Agent, dem die Sitzung gehörte, wird weiter abgelehnt.
+- **Aus einem Stammbaum, nicht von Hand eines Menschen:** Personen eines in der Strom-App importierten oder
+  zusammengeführten Stammbaums, die eine ältere App ohne Importmarke schickte, galten als Eintrag eines Menschen (✓
+  von einem Menschen bestätigt); eine Sendung, die sie markiert, berichtigt sie jetzt von selbst, und eine ältere
+  Sendung bestimmt der Mensch einmal – in der App unter Was wartet („Kam es aus einem Stammbaum?“) oder mit `strom
+  sync as-import I…`: zuerst eine Vorschau, die Forschung gesichert, nur seither unveränderte und unbestätigte
+  Angaben, `--undo` nimmt es zurück. Ein Vorname mit Klammern zwischen seinen Wörtern („(Vincent) François (Paul)“)
+  ist ein Name, wie geschrieben; Einträge eines Menschen im Terminal gehen sofort durch, auch wo ein anderer Lauf die
+  Sitzung eines Agenten übernahm.
 - **Geschichte der Häuser:** `strom house` führt einen Eintrag zu jedem Haus, in dem die Familie lebte – seine Nummern
   im Lauf der Zeit, Besitzer, Bewohner, was mit ihm geschah, seinen Ort auf der Karte und was dafür durchgesehen
   wurde; die Häuser der direkten Vorfahren erforscht die Forschung nur mit eingeschalteter Einstellung „Geschichte der

@@ -23,10 +23,13 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   częściach i jego wycinek; przy eBadatelnie (SOA Praha) agent trzyma się limitów archiwum, jednakowych dla człowieka
   i systemu automatycznego (najwyżej 2 skany na sekundę, jeden ZIP naraz, 10 ZIP-ów w ciągu 24 godzin), i nigdy nie
   proponuje sposobu ich obejścia.
-- **Zapisy człowieka w terminalu nie są już odrzucane z powodu przejętej sesji agenta:** gdy sesję agenta przejął inny
-  przebieg, zapisy człowieka w terminalu i w menu (Konserwacja → Miejsce na dysku, `strom tidy`,
-  `strom history align`…) przechodziły dopiero po tygodniu; teraz od razu. Agent, do którego sesja należała, jest
-  odrzucany dalej.
+- **Z drzewa genealogicznego, nie ręką człowieka:** osoby drzewa zaimportowanego lub scalonego w aplikacji Strom,
+  które starsza aplikacja wysłała bez znacznika importu, traktowano jako zapis człowieka (✓ potwierdził człowiek);
+  wysyłka, która je oznacza, poprawia je teraz sama, a starszą wysyłkę człowiek wskazuje raz – w aplikacji w Co czeka
+  („Czy to pochodzi z drzewa?”) lub poleceniem `strom sync as-import I…`: najpierw podgląd, badanie zabezpieczone
+  kopią, tylko dane od tamtej pory niezmienione i niepotwierdzone, `--undo` to cofa. Imię z nawiasami między słowami
+  („(Vincent) François (Paul)”) jest imieniem tak, jak je zapisano; zapisy człowieka w terminalu przechodzą od razu
+  także tam, gdzie sesję agenta przejął inny przebieg.
 - **Historia domów:** `strom house` prowadzi zapis każdego domu, w którym rodzina mieszkała – jego numery w czasie,
   właścicieli, mieszkańców, co się z nim działo, jego miejsce na mapie i co dla niego przejrzano; domy przodków w
   linii prostej badanie bada tylko przy włączonym ustawieniu „Historia domów”, a pojedynczy dom można zamówić zawsze,
