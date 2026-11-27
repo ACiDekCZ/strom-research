@@ -448,11 +448,12 @@ The runs of different lines and the run of the whole queue work side by side, ea
   - the warning at a run beside another run says that the subscription use adds up.
 - **In the app:** **Put an agent on this direction** ([S4.3.3](S4-research-from-the-app.md#S4.3.3)); runs in the
   section **Now** ([S4.1.8](S4-research-from-the-app.md#S4.1.8)).
-- **Controls:** terminal: the menu **Let the agent work on its own**; with two or more active lines it asks **Work on
-  what?**: **the whole queue (the lines with a run of their own aside)**, or a line (“— in a window of its own”; a
-  line with a run “— has a run already” and does not start). The command `strom run --research G…` (with the further
+- **Controls:** terminal: the menu **Let the agent work on its own**; with two or more active lines it asks **What is
+  the agent to work on?**: **The task queue — next: <its first task> (and N more)** (a line with a run of its own only
+  a note after it), or **Only one line of the research (in a window of its own) ›** and a line in it (a line with a run
+  “— has a run already” and does not start). The command `strom run --research G…` (with the further
   options of [R7.1](#R7.1)); `strom research list` shows the numbers of the lines.
-- **Since:** research 1.36.0
+- **Since:** research 1.36.0; the queue first with what is next, since 1.38.0
 
 <!-- zdroj: research:089875ec src/core/linerun.ts (lineHolds .strom/lines/<G>.json zámek s procesem, run.line.held, run.line.older pro strom před 1.25, lineRunFilter: obecný běh vynechá úkol s linií drženou jiným během; běh linie bere hlavní linii G nebo úkoly v G, jejichž hlavní linii nedrží jiný běh; linie úkolu = vlastní + hlavní (placer core/offline.ts) + linie jeho lidí; mimo linie, dějiny, místa žádnou; rememberLineAgent) · src/cli/menu.ts runMenu (ui.run.where, ui.run.whole, ui.run.line.item/busy/held, openInNewTerminal title Strom · strom · linie (G…), key linie, ui.run.window, ui.run.window.recent; dějiny jen celá fronta) · src/commands/session.ts:1107 enterRun (research, agent) · cs.json ui.run.line, ui.run.line.older, ui.run.beside, ui.run.others · help run (Runs of lines) · CHANGELOG.cs.md 1.36.0 · dirigent:spec/126 U11, prace/1121-research-126-linie-b1 -->
 

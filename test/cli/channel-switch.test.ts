@@ -650,8 +650,8 @@ test("the Strom app's two copies against a stable and a beta strom (the beta a s
         // test/cli/name-verify.test.ts; the runs by line only where an agent works, spec 126: test/cli/run-lines.test.ts;
         // sort.confirm likewise, spec 102 U8, and sort.confirm.app with run.confirm, spec 123 P2: test/cli/sort-confirm.test.ts;
         // finds and finds.person only where an agent works, spec 094: test/cli/phone-finds.test.ts; house.import and
-        // house.request likewise, spec 030: test/cli/houses-bridge.test.ts)
-        const gated = new Set(["origin.ids", "citations.main", "citations.remove", "material.sort", "name-status", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sort.confirm", "sort.confirm.app", "run.confirm", "finds", "finds.person", "house.import", "house.request"]);
+        // house.request likewise, spec 030, and house.chat, spec 145: test/cli/houses-bridge.test.ts)
+        const gated = new Set(["origin.ids", "citations.main", "citations.remove", "material.sort", "name-status", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sort.confirm", "sort.confirm.app", "run.confirm", "finds", "finds.person", "house.import", "house.request", "house.chat"]);
         const noIds = (l: readonly string[]) => l.filter((f) => !gated.has(f));
         assert.deepEqual(noIds(s.features), noIds(BRIDGE_FEATURES));
         if (isBeta) assert.equal(s.channel, "beta");

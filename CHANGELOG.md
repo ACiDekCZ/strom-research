@@ -7,11 +7,13 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.38.0
 
-*In preparation: the betas up to 1.38.0-beta.3. The section is complete with the release.*
+*In preparation: the betas up to 1.38.0-beta.4. The section is complete with the release.*
 
 - **A clearer menu in the terminal:** every screen says where it is (Strom › Settings › Maintenance), its options as
-  `[1]  Label   state`, a switch with how it is now and what it switches to, back last as `[0]` (also the way a downloader takes in Settings → Archives), the prompt says what Enter does, and a command to type stands on a line of
-  its own; on a terminal that can, keys and commands are highlighted.
+  `[1]  Label   state`, a switch with how it is now and what it switches to, back last as `[0]` (also the way a
+  downloader takes in Settings → Archives), the prompt says what Enter does, and a command to type stands on a line of
+  its own; on a terminal that can, keys and commands are highlighted. Where an agent is to work, the task queue stands
+  first with what is next in it; one line of the research alone is a step further.
 - **A research's settings said in words in its history:** a setting changed from the app or the menu shows in the
   recent changes by its name and value in the research's language ("Turned off in the research: Question before the
   material is sorted"), no longer as its key (`sort.confirm`).
@@ -19,23 +21,31 @@ The changes of each version in short. The full notes and the install lines are o
   `strom place list <name>`; `strom source list --note <text>` lists in one call the sources whose note says something
   (that a register gave the address, for one); `strom media view` says how to look at an image registered only in
   parts, and at a crop of it.
-- **A person's writes in the terminal no longer refused for an agent's session:** where an agent's session was
-  taken over by another run, the person's own writes in the terminal and the menu (Maintenance → Disk space,
-  `strom tidy`, `strom history align`…) passed only a week later; they pass at once. The agent whose session it was is
-  still refused.
+- **A person's writes in the terminal no longer refused for an agent's session:** where an agent's session was taken
+  over by another run, the person's own writes in the terminal and the menu (Maintenance → Disk space, `strom tidy`,
+  `strom history align`…) passed only a week later; they pass at once. The agent whose session it was is still
+  refused.
 - **The history of the houses:** `strom house` keeps a record of each house the family lived in — its numbers in time,
   holders, residents, what happened to it, its place on the map and what was gone through for it; the research looks
-  into the houses of direct ancestors only with the setting "House history" on, and one house can always be asked
-  for, also from the Strom app. Over a house's place the app may show the aerial photos of the 1950s (Czechia).
+  into the houses of direct ancestors only with the setting "House history" on, and one house can always be asked for,
+  also from the Strom app. Over a house's place the app may show the aerial photos of the 1950s (Czechia).
+- **A house's research:** it goes through a list of sources for its country (in Czechia the address register, the
+  field names, the water courses, the orthophotos, the topographies) and writes into the house only what said
+  something; a municipality keeps its pictures (only under a free licence, with what they show) and its field names,
+  each house a short look and a check whether there is more of it to read; its look follows as a task of its own only
+  there (the setting "House look", on by default); a house can be talked over with the agent from the Strom app. A
+  claim taken over from an older research whose source is on the web (a municipality's history as a PDF) is read in
+  the house's research and confirmed or corrected with the place in the source; an address that does not open stays
+  one line of what was gone through.
 - **`strom demo`:** strom tried on a sample research of a made-up family (cs, en, de, pl), apart from the person's own
   trees and settings and opened in the Strom app; everything in it can be looked through, nothing offers an agent;
   `strom demo --remove` deletes it.
-- **Reading again fixed:** an earlier reading that kept no question (an older tool's) is read again whole instead of
-  refused, its result is written whole before the source says done, a round with most places not read says why and
-  offers nothing more to pay for, and a reading a fix made is not offered again.
-- **Books and images:** a book gets the count of images the archive's catalogue gives, a book downloaded whole gets its
-  count on the person's word (`strom fixes`), images saved once more are waited for until every new copy has come, and
-  the hint on an image in parts names the halves it is in.
+- **Reading again, books and images fixed:** an earlier reading that kept no question (an older tool's) is read again
+  whole instead of refused, its result is written whole before the source says done, a round with most places not read
+  says why and offers nothing more to pay for, and a reading a fix made is not offered again; a book gets the count of
+  images the archive's catalogue gives, a book downloaded whole gets its count on the person's word (`strom fixes`),
+  images saved once more are waited for until every new copy has come, and the hint on an image in parts names the
+  halves it is in.
 
 ## 1.37.0
 

@@ -32,7 +32,14 @@ export const METHOD_PAGES: Record<string, string[]> = {
   enrich: ["recording.md", "reading.md"],
   intake: ["reading.md"],
   links: [],
+  house: [],
 };
+
+/**
+ * The method of a task of houses (spec 145 T5), whatever its level: the house's own page first (house.md, the level's
+ * page), the core's parts marked for it, the pages of recording and reading a line away (strom guide reading).
+ */
+export const METHOD_HOUSE = "house";
 
 /**
  * The method of a task that links hypotheses to the tree (origin hypothesis:links), whatever its level: it reads no
@@ -59,9 +66,10 @@ export const CENSUS_CONDITIONS = ["census", "census-off"] as const;
 /**
  * Conditions of the tasks of houses (spec 030), each giving the method's page of houses (house.md) besides the level's,
  * with its own part: `house-takeover` — a research of a house the person made, taken over (origin house:import:);
- * `house-town` — a municipality's skeleton (origin house:town:); `house-research` — a house's research (origin house:).
+ * `house-town` — a municipality's skeleton (origin house:town:); `house-research` — a house's research (origin house:);
+ * `house-look` — a house's look after its research (origin house:look:, spec 145 T1).
  */
-export const HOUSE_CONDITIONS = ["house-takeover", "house-town", "house-research"] as const;
+export const HOUSE_CONDITIONS = ["house-takeover", "house-town", "house-research", "house-look"] as const;
 export type HouseCondition = (typeof HOUSE_CONDITIONS)[number];
 const CONDITIONS: readonly string[] = [...METHOD_CONDITIONS, ...CENSUS_CONDITIONS, ...HOUSE_CONDITIONS];
 
@@ -105,6 +113,6 @@ export const HOUSE_TAKEOVER: HouseCondition = "house-takeover";
 /** Method text for a task level: the core plus the level's own page and the pages it works by (a census task's: census.md, a task of houses: house.md), each with the parts the level uses. */
 export function methodFor(level: string | undefined, conditions: readonly string[] = []): string {
   // a census task while census records are on: their page too (spec 106)
-  const pages = ["core.md", ...(level ? [...(level === METHOD_LINKS ? [] : [`${level}.md`]), ...(METHOD_PAGES[level] ?? [])] : []), ...(conditions.includes("census") ? ["census.md"] : []), ...(conditions.some((c) => (HOUSE_CONDITIONS as readonly string[]).includes(c)) ? ["house.md"] : [])];
+  const pages = [...new Set(["core.md", ...(level ? [...(level === METHOD_LINKS ? [] : [`${level}.md`]), ...(METHOD_PAGES[level] ?? [])] : []), ...(conditions.includes("census") ? ["census.md"] : []), ...(conditions.some((c) => (HOUSE_CONDITIONS as readonly string[]).includes(c)) ? ["house.md"] : [])])];
   return pages.map((p) => readAsset("method", p)).filter((t): t is string => !!t).map((t) => methodPage(t, level, conditions)).join("\n");
 }

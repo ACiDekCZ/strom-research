@@ -91,7 +91,7 @@ export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "
  * A house (spec 030): import — a research of the person's own taken in, in the terminal (strom house import); search —
  * the history of a house of the tree asked for (the estimate and the person's yes in the terminal, strom house request).
  */
-export const LINK_HOUSE_DOS = ["import", "search"] as const;
+export const LINK_HOUSE_DOS = ["import", "search", "chat"] as const;
 /** At most this many neighbouring houses go with a house asked for (house&with=; HOUSE_GROUP_MAX − 1). */
 export const LINK_HOUSE_WITH = 2;
 /** A person's review: the person, with the family, with the ancestors (strom review --scope). */
@@ -278,6 +278,7 @@ export type Link =
   | { action: "back"; tree: string; change?: string }
   | { action: "house"; tree: string; do: "import" }
   | { action: "house"; tree: string; do: "search"; house: string; with?: string }
+  | { action: "house"; tree: string; do: "chat"; house: string }
   | { action: "history-kinds"; tree: string; scope: (typeof LINK_KINDS_SCOPES)[number]; kinds?: string; inherit?: "1" }
   | { action: "history-align"; tree: string; prune?: "1" }
   | { action: "new"; app: string; browser?: BrowserKind; file?: string; name?: string }
@@ -534,6 +535,11 @@ function linkParts(text: string | undefined, scheme: string): Link {
         throw new LinkError("no house named");
       };
       const house = ref(q.get("house") ?? "");
+      // a conversation about the house (spec 145 T2): the house alone, never neighbours
+      if (what === "chat") {
+        if (q.has("with")) throw new LinkError("a conversation is about one house");
+        return { action, tree: id, do: what, house };
+      }
       if (!q.has("with")) return { action, tree: id, do: what, house };
       const more = (q.get("with") ?? "").split(",").map(ref);
       if (more.length > LINK_HOUSE_WITH) throw new LinkError(`at most ${LINK_HOUSE_WITH} houses with it`);

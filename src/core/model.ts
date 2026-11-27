@@ -1435,6 +1435,11 @@ export interface HousePassed extends HouseItem {
   source?: string;
   url?: string;
   found?: boolean;
+  /**
+   * The one line that names what of the brief's list of sources was gone through (spec 145 T5, "gone through: …"): the
+   * items that said something are findings of their own, the rest only named here. Optional (no SCHEMA_VERSION raised).
+   */
+  checklist?: true;
 }
 
 /** A link to go through by hand (the research of the person's own said so): never taken for gone through. */
@@ -1448,6 +1453,46 @@ export interface HouseManual extends HouseItem {
 export interface HouseUnknown extends HouseItem {
   text: string;
   question?: string;
+  /** What it is of: the house's look (spec 145 T1: "no more of it automatically — …"). Optional. */
+  about?: "look";
+}
+
+/**
+ * What the look check at the end of a house's research says (spec 145 T1): whether a task of the house's look comes
+ * after it, and why — material at the house or its municipality nobody has read (material), a picture of the
+ * municipality that seems to show the house (picture), a source in hand that describes the building more (source) —
+ * or none: no more automatically. Optional (no SCHEMA_VERSION raised).
+ */
+export const HOUSE_LOOK_NEXT = ["material", "picture", "source", "none"] as const;
+export interface HouseLookCheck {
+  next: (typeof HOUSE_LOOK_NEXT)[number];
+  text: string;
+  /** The task whose check it is (T…). */
+  task?: string;
+  at: string;
+  origin: HouseOrigin;
+}
+
+/** A picture of a municipality under a free licence (its skeleton, spec 145 T1): its address, licence, what it shows. */
+export interface HousePicture extends HouseItem {
+  url: string;
+  license: string;
+  credit?: string;
+  /** What it shows (the green, a street, a house number where it can be read). */
+  shows: string;
+}
+
+/** A field name of a municipality (its skeleton, spec 145 T5): a mill, a farm, a solitude, with its point. */
+export interface HouseFieldName extends HouseItem {
+  name: string;
+  /** What it names (a mill, a farm, a solitude, a field). */
+  kind?: string;
+  lat?: number;
+  lon?: number;
+  /** The house it lies at (its number), where its point says so. */
+  house?: string;
+  url?: string;
+  source?: string;
 }
 
 /** What is only in an archive's reading room: the archive, the fonds, the call number. */
@@ -1481,6 +1526,8 @@ export interface House extends BaseRecord {
   holders: HouseHolder[];
   residents: HouseResident[];
   look?: HouseLook;
+  /** The look check of the house's last research (spec 145 T1). */
+  lookCheck?: HouseLookCheck;
   maps: HouseMap[];
   passed: HousePassed[];
   manual: HouseManual[];
@@ -1502,6 +1549,10 @@ export interface House extends BaseRecord {
   town?: true;
   /** A municipality's short summary: its lordship, estate, parish, cadastral area, where its land registers are. */
   text?: string;
+  /** A municipality's pictures under a free licence (spec 145 T1). Optional. */
+  pictures?: HousePicture[];
+  /** A municipality's field names: mills, farms, solitudes with their points (spec 145 T5). Optional. */
+  fieldNames?: HouseFieldName[];
   /** The day the municipality's skeleton was done (its task closed done): no task of it is raised again. */
   done?: string;
   notes: Note[];

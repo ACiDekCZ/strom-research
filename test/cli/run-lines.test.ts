@@ -147,8 +147,8 @@ test("the menu: the whole queue or one line — a line's run in a window of its 
   const { w } = await twoLines();
   Object.assign(w.env, { AGENT_MODE: "done" });
   // no window here (STROM_NO_OPEN): the run goes on in this terminal, as a run of the line
-  const menu = await w.ok([], { tty: true, env: { STROM_AGENT: "script", STROM_NO_OPEN: "1" }, answers: ["2", "2", "1", "1", "", "0"] });
-  assert.match(menu.out, /Na čem pracovat\?/u, menu.out);
+  const menu = await w.ok([], { tty: true, env: { STROM_AGENT: "script", STROM_NO_OPEN: "1" }, answers: ["2", "2", "1", "1", "1", "", "0"] });
+  assert.match(menu.out, /Na čem má agent pracovat\?/u, menu.out);
   assert.match(menu.out, /linie Předci Jana \(G0001\) – ve vlastním okně/u);
   assert.match(menu.out, /linie Предки Марии \(G0002\)/u);
   assert.match(menu.out, /Běh linie Předci Jana \(G0001\): jen její úkoly/u, menu.out);
@@ -167,5 +167,36 @@ test("the menu: the whole queue or one line — a line's run in a window of its 
   // a moment later: another line's window opens, the same line's does not
   assert.equal(openInNewTerminal(["run", "--research", "G0002"], w.cwd, env, "linux", { key: "G0002" }), "recent");
   assert.equal(openInNewTerminal(["run", "--research", "G0001"], w.cwd, env, "linux", { key: "G0001" }), false);
+  w.cleanup();
+});
+
+test("the menu: the queue first with what is next in it, one line second in a submenu; a line's run a note; an empty queue", { skip: !hasGit, timeout: 180_000 }, async () => {
+  const { w } = await twoLines();
+  const env = { STROM_AGENT: "script", STROM_NO_OPEN: "1" };
+  // the question, the lines' submenu, back to the question, back to the menu: nothing starts
+  const first = await w.ok([], { tty: true, env, answers: ["2", "2", "0", "0", "0"] });
+  const asked = first.out.split("Na čem má agent pracovat?");
+  assert.equal(asked.length, 3, `asked again after the submenu's way back:\n${first.out}`);
+  assert.match(asked[1]!, /^\n {2}\[1\] {2}Fronta úkolů – na řadě: (Křest Jana|Крещение Марии)[^\n]* \(a 1 další\)\n {2}\[2\] {2}Jen jedna linie výzkumu \(ve vlastním okně\) ›\n\n {2}\[0\] {2}Zpět\n/u, first.out);
+  assert.doesNotMatch(asked[1]!.split("\n")[1]!, /vlastní běh/u, "no line has a run: no note");
+  assert.match(first.out, /Která linie\?\n {2}\[1\] {2}linie Předci Jana \(G0001\) – ve vlastním okně\n {2}\[2\] {2}linie Предки Марии \(G0002\) – ve vlastním okně\n\n {2}\[0\] {2}Zpět\n/u, first.out);
+  assert.doesNotMatch(first.out, /Na řadě jsou tyto úkoly/u, "nothing chosen, nothing listed");
+  // a line with a run of its own: a note by the queue, its task not next; in the submenu said, not offered
+  const { lineFile } = await import("../../src/core/linerun.ts");
+  const { acquireLock } = await import("../../src/core/lock.ts");
+  fs.mkdirSync(path.dirname(lineFile(w.cwd, "G0001")), { recursive: true });
+  const leave1 = acquireLock(lineFile(w.cwd, "G0001"), { owner: "run-a", waitMs: 0, machine: true });
+  const held = await w.ok([], { tty: true, env, answers: ["2", "2", "1", "", "0"] });
+  assert.match(held.out, / {2}\[1\] {2}Fronta úkolů – na řadě: Крещение Марии[^\n]* · linie Předci Jana má vlastní běh\n/u, held.out);
+  assert.doesNotMatch(held.out, /na řadě: Křest Jana/u);
+  assert.match(held.out, /linie Předci Jana \(G0001\) – už má běh/u);
+  assert.match(held.out, /Linie Předci Jana už má běh/u, held.out);
+  // both lines with runs of their own: the queue has nothing next, the lines counted
+  const leave2 = acquireLock(lineFile(w.cwd, "G0002"), { owner: "run-b", waitMs: 0, machine: true });
+  const empty = await w.ok([], { tty: true, env, answers: ["2", "0", "0"] });
+  assert.match(empty.out, / {2}\[1\] {2}Fronta úkolů · 2 linie mají vlastní běh\n/u, empty.out);
+  assert.doesNotMatch(empty.out, /na řadě:/u);
+  leave1();
+  leave2();
   w.cleanup();
 });

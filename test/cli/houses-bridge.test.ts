@@ -10,6 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import http from "node:http";
@@ -232,6 +233,8 @@ test("an archive's houses: read, nothing of a research or an agent, every write 
     const status = (await request(`${url}/status?app=3.28.0`)).body;
     assert.ok(status.features.includes("house") && status.features.includes("house.material"));
     assert.ok(!status.features.includes("house.import"), "the takeover is the agent's");
+    assert.ok(!status.features.includes("house.chat"), "a conversation with the agent: none in an archive");
+    assert.equal(status.houses.look, undefined);
     assert.equal(status.houses.on, false);
     assert.deepEqual(status.houses.counts, { done: 0, running: 0, queued: 0, waiting: 0, held: 0 });
     const list = await request(`${url}/houses`);
@@ -428,8 +431,10 @@ test("the setting houses and a house asked for through the bridge: /status on, a
   const url = ((await w.ok(["live", "start", "--json"])).json as { url: string }).url;
   try {
     let status = (await request(`${url}/status?app=3.28.0`)).body;
-    for (const f of ["house.auto", "house.request"]) assert.ok(status.features.includes(f), f);
+    for (const f of ["house.auto", "house.request", "house.chat", "house.look"]) assert.ok(status.features.includes(f), f);
     assert.ok(!status.features.includes("house.request.direct"), "the bridge never starts an agent");
+    // the look of the houses (spec 145 T1): on by default, the person's switch
+    assert.equal(status.houses.look, true);
     // off: what the research would take by itself, before the person turns it on
     const auto = houseAuto(open(w));
     assert.ok(auto.houses.some((h) => h.key === "lhota|9"), JSON.stringify(auto.houses.map((h) => h.key)));
@@ -536,4 +541,51 @@ test("the setting houses and a house asked for through the bridge: /status on, a
     await w.run(["live", "stop"]);
     w.cleanup();
   }
+});
+
+test("the link house?do=chat (spec 145 T2): one house by its record or key; the agent's cost asked in the terminal, then a conversation that loads the house, its skeleton, the house method and its list of sources; none in an archive", opts, async () => {
+  const T = "0f6e1c2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
+  const L = (q: string) => `strom-research://house?tree=${T}&do=chat${q}`;
+  assert.deepEqual(parseLink(L("&house=a0001")), { action: "house", tree: T, do: "chat", house: "A0001" });
+  const nfd = parseLink(L(`&house=${encodeURIComponent("bělokamen|16".normalize("NFD"))}`));
+  assert.deepEqual(nfd, { action: "house", tree: T, do: "chat", house: "bělokamen|16" });
+  assert.deepEqual(parseLink(linkText(nfd as Exclude<TakenLink, { action: "menu" }>)), nfd, "written again as read");
+  for (const bad of ["", "&house=", "&house=Lhota%209", "&house=A0001&with=A0002", "&house=lhota%7C9%0A"]) assert.throws(() => parseLink(L(bad)), LinkError, bad);
+  const w = new World();
+  await village(w);
+  const id = open(w).config.id;
+  const before = execFileSync("git", ["rev-parse", "HEAD"], { cwd: w.cwd, encoding: "utf8" });
+  // a house the tree has not: one sentence, nothing asked
+  const none = await w.run(["link", "open", `strom-research://house?tree=${id}&do=chat&house=lhota%7C99`], { tty: true, answers: [""] });
+  assert.match(none.out, /Dům lhota\|99, kde žil někdo ze stromu, v tomto výzkumu není/u, none.out);
+  // asked with what it is and its cost; no: nothing started, nothing written
+  const no = await w.run(["link", "open", `strom-research://house?tree=${id}&do=chat&house=lhota%7C9`], { tty: true, answers: ["n"] });
+  assert.match(no.out, /Pokračovat\?/u, no.out);
+  assert.doesNotMatch(no.out, /Otevírám rozhovor/u, no.out);
+  assert.match(no.out, /rozhovor s agentem \([^)]+\) o domě Lhota 9: co zjistí, zapíše k domu/u, no.out);
+  assert.equal(execFileSync("git", ["rev-parse", "HEAD"], { cwd: w.cwd, encoding: "utf8" }), before);
+  // the conversation's first message: the house, its skeleton, the method, the list; only findings, no task unasked
+  const args = (await w.ok(["chat", "--house", "lhota|9", "--where", "terminal", "--agent", "claude", "--print", "--json"])).json.args as string[];
+  const say = args.find((a) => a.startsWith("Probereme dům"))!;
+  assert.ok(say, JSON.stringify(args));
+  assert.match(say, /^Probereme dům Lhota 9 \(lhota\|9\)\./u);
+  for (const part of ['`strom house show "lhota|9"`', "`strom house show --town L0001`", "`strom guide house`", '`strom house sources "lhota|9"`', "navazující úkol jen tehdy, když o něj řeknu"]) assert.ok(say.includes(part), part);
+  assert.match((await w.run(["chat", "--house", "lhota|9", "--task", "T0001", "--print"])).err, /one of --say, --task or --house/u);
+  assert.match((await w.run(["chat", "--house", "lhota|99", "--print"])).err, /house/u);
+  // its list of sources, read only (the general list: no point of the municipality yet)
+  const list = (await w.ok(["house", "sources", "lhota|9", "--json"])).json;
+  assert.equal(list.work, "house");
+  assert.deepEqual(list.regions, []);
+  assert.equal(list.lines[0], "## Sources to go through (the list is yours, never the house's)");
+  assert.ok((list.lines as string[]).some((l) => /--checklist/u.test(l)));
+  await w.ok(["place", "identify", "L0001", "--lat", "49.61", "--lon", "15.12", "--why", "made up"], AGENT);
+  const cz = (await w.ok(["house", "sources", "--town", "L0001", "--json"])).json;
+  assert.deepEqual([cz.work, cz.regions], ["town", ["cz"]]);
+  assert.ok((cz.lines as string[]).some((l) => /Schaller/u.test(l)));
+  assert.ok((cz.lines as string[]).some((l) => /by hand: .*stable cadastre/u.test(l)));
+  // an archive: refused before anything is asked, nothing of an agent
+  await w.ok(["mode", "archive"], { tty: true });
+  const archive = await w.run(["link", "open", `strom-research://house?tree=${id}&do=chat&house=lhota%7C9`], { tty: true, answers: [""] });
+  assert.doesNotMatch(archive.out, AI, archive.out);
+  w.cleanup();
 });

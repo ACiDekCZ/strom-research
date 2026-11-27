@@ -55,7 +55,7 @@ import { asleepHosts, asleepOn, type Asleep } from "./leftalone.ts";
 import { forHistory, HISTORY_PLACES_ORIGIN, historyHeld, historyOrder, historyTurn, type HistoryTurn } from "./pastevents.ts";
 import { Settings } from "./config.ts";
 import { censusHidden } from "./census.ts";
-import { houseAutoTask, houseHidden } from "./houses.ts";
+import { houseAutoTask, houseChain, houseHidden } from "./houses.ts";
 import { personQueued, placesFirst } from "./placeid.ts";
 import { branchModeOf, placer, readOffline, type Placed } from "./offline.ts";
 import { isBulkTry, readsOriginals, VERIFY_EVERY, verifiesInTurn, verifyLacksImages } from "./verifyfacts.ts";
@@ -258,6 +258,36 @@ export function ancestorLines(tree: Tree, focus: string, max = 50): Map<string, 
  * requests again (strom run asks what would come then). `history`: the tasks of history too (strom run, or asked for by
  * name: strom task next --history) — never otherwise.
  */
+/**
+ * The chain of a house's tasks kept in the ranked rows (spec 145 T1): a task with tasks alive ahead of it waits while
+ * one of them is at work or none of them is in the rows (held, waiting), else it comes right after the last of them —
+ * whatever was moved to the top. In place.
+ */
+function houseOrder<R extends { task: Task }>(rows: R[], ahead: (t: Task) => Task[], day: string): void {
+  const before = new Map(rows.map((r) => [r.task.id, ahead(r.task)]));
+  const ids = new Set(rows.map((r) => r.task.id));
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const of = before.get(rows[i]!.task.id)!;
+    if (of.length && (of.some((x) => effectiveState(x, day) === "doing") || !of.some((x) => ids.has(x.id)))) rows.splice(i, 1);
+  }
+  // after its last task ahead (a chain is three long at most: skeleton, house, look)
+  for (let pass = 0; pass < 3; pass++) {
+    let moved = false;
+    for (const r of [...rows]) {
+      const of = before.get(r.task.id)!;
+      if (!of.length) continue;
+      const at = rows.indexOf(r);
+      const last = Math.max(...of.map((x) => rows.findIndex((y) => y.task.id === x.id)));
+      if (last > at) {
+        rows.splice(at, 1);
+        rows.splice(last, 0, r);
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+}
+
 export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced", opts: { storyTurn?: boolean; awake?: boolean; history?: boolean | "only"; turn?: HistoryTurn; offLine?: OffLine; sameBook?: boolean } = {}): Ranked[] {
   const today = now().slice(0, 10);
   const researches = tree.list<Research>("research");
@@ -296,6 +326,8 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   const censusHide = censusHidden(settings.census(tree.config), today);
   // the history of the houses off (spec 030 part 2): the houses' tasks raised by themselves held the same way (core/houses.ts)
   const houseHide = houseHidden(tree, settings.houses(tree.config), today);
+  // the chain of a house's tasks in its order: skeleton, house, look (spec 145 T1), whatever was moved to the top
+  const houseAhead = houseChain(tree, today);
   const waits = (t: Task) =>
     t.state !== "doing" &&
     (censusHide(t) || houseHide(t) || (stopped.size > 0 && stopped.has(effectiveDirection(tree, t, all) ?? placing(t).research ?? "")) || off(t) || !!decision(t) || !!asleep(t) || (modeOf(t) === "never" && !own(t)));
@@ -541,6 +573,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
       }
     rows.sort(cmp);
   }
+  houseOrder(rows, houseAhead, today);
   return rows.map(({ task, why, storyTurn, extra }) => ({ task, why: why.map((w) => (w === STORY_WHY ? (storyTurn ? `a story's turn: none in the last ${STORY_EVERY} sessions` : undefined) : w)).filter(Boolean).join(" · "), ...extra }));
 }
 

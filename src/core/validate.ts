@@ -367,7 +367,7 @@ export function validateRecord(value: unknown): Problem[] {
 /** A house's items: each ID once in the house, the flags of their own kind, what is sensitive one of its timeline. */
 function checkHouse(h: Partial<House>, out: Problem[]): void {
   const seen = new Set<string>();
-  const lists = ["numbers", "timeline", "holders", "residents", "maps", "passed", "manual", "unknown", "archiveOnly"] as const;
+  const lists = ["numbers", "timeline", "holders", "residents", "maps", "passed", "manual", "unknown", "archiveOnly", "pictures", "fieldNames"] as const;
   for (const key of lists) {
     const list = h[key];
     if (!Array.isArray(list)) continue;

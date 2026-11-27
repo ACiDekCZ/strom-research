@@ -58,6 +58,8 @@ async function seeded(): Promise<World> {
   await w.ok(["source", "add", "Sňatek", "--kind", "marriage"]);
   await w.ok(["intake", "--text", "Děda Jan byl mlynář"]);
   await w.ok(["house", "add", "L0001", "12"]); // A0001: house show|add …
+  // e1 of A0001, the research's own, taken over on S0002 unread (house add event --replaces e1)
+  await w.ok(["house", "add", "event", "A0001", "--kind", "fire", "--date", "1905-11", "--text", "převzato ze staršího výzkumu", "--certainty", "guess", "--source", "S0002"], { env: { CLAUDECODE: "1" } });
   await w.ok(["event", "add", "P0003", "RESI", "--date", "1897", "--place", "Lhota", "--house", "16"]); // the house "lhota|16" of the facts
   await w.ok(["event", "add", "P0002", "RESI", "--date", "1899", "--place", "Týnec nad Labem", "--house", "16"]); // the house "L0001 16" of the facts (house add L0001 16: its record)
   // family trees coming back from the Strom app (strom sync): its GEDCOM, its JSON, one taken in already (I0002, to undo)

@@ -15,23 +15,30 @@ import {
   HOUSE_EVENT_KINDS,
   HOUSE_HOLDER_HOWS,
   HOUSE_LOCATION_HOWS,
+  HOUSE_LOOK_NEXT,
   HOUSE_MAP_KINDS,
   HOUSE_NUMBER_CERTAINTIES,
   HOUSE_RESIDENT_ROLES,
   type House,
+  type HouseCertainty,
   type HouseOrigin,
   type Input,
+  type Place,
   type Task,
 } from "../core/model.ts";
+import { regionsOf, sourceChecklist } from "../core/housesources.ts";
 import {
   addHouse,
   addHouseItem,
   confirmHouse,
+  dropNoMoreLook,
   findHouse,
   findTown,
+  freeLicence,
   houseRows,
   houseSources,
   houseView,
+  houseWork,
   listRow,
   recordOf,
   setHouse,
@@ -47,7 +54,9 @@ import { askHouse, HOUSE_GROUP_MAX, houseAskEstimate, houseTaskForMaterial } fro
 import { mapLayer, mapLayers } from "../core/maplayers.ts";
 import { rankTasks } from "../core/queue.ts";
 import { actsAsArchive } from "../core/state.ts";
-import type { Tree } from "../core/tree.ts";
+import { currentSession } from "../core/session.ts";
+import { phrase } from "../core/phrases.ts";
+import { now, type Tree } from "../core/tree.ts";
 
 function oneOf<T extends string>(v: unknown, allowed: readonly T[], name: string): T {
   if (!allowed.includes(v as T)) throw new UsageError(`${v === undefined ? "missing" : "invalid"} --${name}${v === undefined ? "" : ` "${String(v)}"`}`, { code: "house.body", hint: allowed.join(", ") });
@@ -93,6 +102,8 @@ function townText(tree: Tree, v: Record<string, unknown>): string {
     part("ui.house.maps", list<{ id: string; kind: string; label?: string; url?: string }>("maps").map((m) => `${m.id} ${m.kind}${m.label ? ` ${m.label}` : ""}${m.url ? ` ${m.url}` : ""}`)),
     part("ui.house.passed", list<{ id: string; what: string; url?: string }>("passed").map((x) => `${x.id} ${x.what}${x.url ? ` ${x.url}` : ""}`)),
     part("ui.house.manual", list<{ id: string; what: string; url?: string }>("manual").map((x) => `${x.id} ${x.what}${x.url ? ` ${x.url}` : ""}`)),
+    part("ui.house.fieldNames", list<{ id: string; name: string; kind?: string; house?: string; lat?: number; lon?: number }>("fieldNames").map((x) => `${x.id} ${x.name}${x.kind ? ` (${x.kind})` : ""}${x.house ? ` · ${x.house}` : ""}${x.lat !== undefined ? ` · ${x.lat}, ${x.lon}` : ""}`)),
+    part("ui.house.pictures", list<{ id: string; url: string; license: string; shows: string }>("pictures").map((x) => `${x.id} ${x.shows} · ${x.license} ${x.url}`)),
     part("ui.house.unknown", list<{ id: string; text: string }>("unknown").map((x) => `${x.id} ${x.text}`)),
     part("ui.house.archiveOnly", list<{ id: string; archive: string; fond?: string; signature?: string }>("archiveOnly").map((a) => `${a.id} ${[a.archive, a.fond, a.signature].filter(Boolean).join(", ")}`)),
     !v.id ? ui(lang, "ui.house.empty") : undefined,
@@ -105,6 +116,7 @@ function showText(tree: Tree, row: HouseRow, v: Record<string, unknown>): string
   const src = (s: { source?: string; page?: string; url?: string }[] | undefined) => (s?.length ? ` [${s.map((x) => [x.source, x.page, x.url].filter(Boolean).join(" ")).join("; ")}]` : "");
   const span = (x: { from?: string; to?: string }) => (x.from || x.to ? ` ${x.from ?? ""}–${x.to ?? ""}` : "");
   const by = (o: HouseOrigin) => (o === "research" ? "" : ` (${ui(lang, `ui.house.origin.${o}`)})`);
+  const sure = (c: HouseCertainty | "probable") => ui(lang, `ui.house.certainty.${c}`);
   const part = (key: Parameters<typeof ui>[1], items: string[]) => (items.length ? [ui(lang, key), ...items.map((x) => `  ${x}`)].join("\n") : undefined);
   const head = `${row.id ? `${row.id} ` : ""}${row.place.name} ${row.house}${row.name ? ` „${row.name}“` : ""} — ${stateWord(lang, row.state)}${row.task ? ` ${row.task}` : ""}${taskWords(tree, row)}`;
   const people = row.tree ? [...row.tree.persons].sort() : [];
@@ -113,14 +125,18 @@ function showText(tree: Tree, row: HouseRow, v: Record<string, unknown>): string
     `${ui(lang, "ui.house.key")}: ${row.key}`,
     people.length ? `${ui(lang, "ui.house.persons")}: ${people.join(", ")}${row.years ? ` (${row.years.from === row.years.to ? row.years.from : `${row.years.from}–${row.years.to}`})` : ""}` : undefined,
     row.question ? `${ui(lang, "ui.house.question")}: ${row.question.id} ${row.question.text}` : undefined,
-    part("ui.house.numbers", (h?.numbers ?? []).filter((n) => !n.notSame).map((n) => `${n.id} ${n.number}${span(n)} · ${n.certainty}${n.proposed ? ` · ${ui(lang, n.confirmed ? "ui.house.confirmed" : "ui.house.proposed")}` : ""}${n.text ? ` — ${n.text}` : ""}${src(n.sources)}${by(n.origin)}`)),
+    part("ui.house.numbers", (h?.numbers ?? []).filter((n) => !n.notSame).map((n) => `${n.id} ${n.number}${span(n)} · ${sure(n.certainty)}${n.proposed ? ` · ${ui(lang, n.confirmed ? "ui.house.confirmed" : "ui.house.proposed")}` : ""}${n.text ? ` — ${n.text}` : ""}${src(n.sources)}${by(n.origin)}`)),
     h?.location
-      ? part("ui.house.location", [`${h.location.lat}, ${h.location.lon} · ${h.location.how} · ${h.location.certainty}${h.location.confirmed ? ` · ${ui(lang, "ui.house.confirmed")} ${h.location.confirmed}` : ""}${src(h.location.sources)}${by(h.location.origin)}`])
+      ? part("ui.house.location", [`${h.location.lat}, ${h.location.lon} · ${h.location.how} · ${sure(h.location.certainty)}${h.location.confirmed ? ` · ${ui(lang, "ui.house.confirmed")} ${h.location.confirmed}` : ""}${src(h.location.sources)}${by(h.location.origin)}`])
       : undefined,
-    part("ui.house.timeline", (h?.timeline ?? []).map((e) => `${e.id} ${e.date ?? "?"} ${e.kind}: ${e.text} · ${e.certainty}${h?.sensitive?.includes(e.id) ? ` · ${ui(lang, "ui.house.sensitive")}` : ""}${src(e.sources)}${by(e.origin)}`)),
-    part("ui.house.holders", (h?.holders ?? []).map((x) => `${x.id} ${x.name}${x.person ? ` (${x.person})` : ""}${span(x)} · ${x.how} · ${x.certainty}${src(x.sources)}${by(x.origin)}`)),
-    part("ui.house.residents", (h?.residents ?? []).map((x) => `${x.id} ${x.name}${x.person ? ` (${x.person})` : ""} · ${x.role}${span(x)}${x.certainty ? ` · ${x.certainty}` : ""}${src(x.sources)}${by(x.origin)}`)),
-    h?.look ? part("ui.house.look", [`${h.look.text} · ${h.look.certainty}${(h.look.images ?? []).map((i) => ` [${[i.url, i.file, i.license].filter(Boolean).join(" ")}]`).join("")}`]) : undefined,
+    part("ui.house.timeline", (h?.timeline ?? []).map((e) => `${e.id} ${e.date ?? "?"} ${e.kind}: ${e.text} · ${sure(e.certainty)}${h?.sensitive?.includes(e.id) ? ` · ${ui(lang, "ui.house.sensitive")}` : ""}${src(e.sources)}${by(e.origin)}`)),
+    part("ui.house.holders", (h?.holders ?? []).map((x) => `${x.id} ${x.name}${x.person ? ` (${x.person})` : ""}${span(x)} · ${x.how} · ${sure(x.certainty)}${src(x.sources)}${by(x.origin)}`)),
+    part("ui.house.residents", (h?.residents ?? []).map((x) => `${x.id} ${x.name}${x.person ? ` (${x.person})` : ""} · ${x.role}${span(x)}${x.certainty ? ` · ${sure(x.certainty)}` : ""}${src(x.sources)}${by(x.origin)}`)),
+    h?.look ? part("ui.house.look", [`${h.look.text} · ${sure(h.look.certainty)}${(h.look.images ?? []).map((i) => ` [${[i.url, i.file, i.license].filter(Boolean).join(" ")}]`).join("")}`]) : undefined,
+    // none: what is not known of its look says it (Not known), once
+    h?.lookCheck && !(h.lookCheck.next === "none" && (h.unknown ?? []).some((u) => u.about === "look"))
+      ? part("ui.house.lookCheck", [`${ui(lang, `ui.house.lookNext.${h.lookCheck.next}`)}: ${h.lookCheck.text}`])
+      : undefined,
     part("ui.house.maps", (h?.maps ?? []).map((m) => `${m.id} ${m.kind}${m.label ? ` ${m.label}` : ""}${m.sheet ? ` (${m.sheet})` : ""}${m.url ? ` ${m.url}` : ""}${m.manual ? ` · ${ui(lang, "ui.house.byhand")}` : ""}`)),
     part("ui.house.passed", (h?.passed ?? []).map((p) => `${p.id} ${p.what}${p.source ? ` ${p.source}` : ""}${p.url ? ` ${p.url}` : ""}${p.found === true ? ` · ${ui(lang, "ui.house.found")}` : p.found === false ? ` · ${ui(lang, "ui.house.notfound")}` : ""}${by(p.origin)}`)),
     part("ui.house.manual", (h?.manual ?? []).map((m) => `${m.id} ${m.what}${m.url ? ` ${m.url}` : ""}${m.why ? ` (${m.why})` : ""}${by(m.origin)}`)),
@@ -181,6 +197,35 @@ register(
       const row = findHouse(tree, args.join(" "));
       const v = houseView(tree, row);
       return { text: showText(tree, row, v), data: { house: v } };
+    },
+  },
+  {
+    path: ["house", "sources"],
+    summary: "The list of sources a house's research goes through, for its country (yours, never the house's)",
+    group: "sources",
+    tree: true,
+    args: [{ name: "house", description: "A…, its key (town|number), or its municipality and number; none with --town", required: false, variadic: true }],
+    options: [
+      { name: "town", type: "string", value: "<L…|name>", description: "the list of a municipality's skeleton instead" },
+      { name: "look", type: "boolean", description: "the list of a house's look instead" },
+    ],
+    description: [
+      "What the brief of a house's task lists (spec 145): the sources of the house's country by its municipality's point",
+      "(the general list where no region holds it), a special house's besides; with --town the skeleton's, with --look its",
+      "look's. The list is for the agent: into the house goes only what said something, one line of what was gone",
+      "through (strom house add passed … --checklist) and the steps by hand that belong to it.",
+    ].join("\n"),
+    examples: ["strom house sources A0001", "strom house sources --town L0001 --json", "strom house sources A0001 --look"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const townRef = opt(opts.town);
+      if (townRef && args.length) throw new UsageError("either a house or --town, not both", { code: "house.body", hint: "strom house sources --town L0001" });
+      if (!townRef && !args.length) throw new UsageError("which house?", { code: "house.body", hint: "strom house sources A0001 · strom house list" });
+      const place = townRef ? findTown(tree, townRef).id : findHouse(tree, args.join(" ")).place.id;
+      const work = townRef ? "town" : opts.look ? "look" : "house";
+      const list = sourceChecklist(tree, place, work);
+      const regions = regionsOf(place ? tree.get<Place>(place) : undefined).map((r) => r.id);
+      return { text: list.length ? list.join("\n") : "no list of sources ships for this", data: { work, ...(place ? { place } : {}), regions, lines: list } };
     },
   },
   {
@@ -268,6 +313,9 @@ const SOURCE_OPTIONS: OptionDef[] = [
   { name: "url", type: "string", value: "<address>", description: "a web address it is from (a chronicle, a map, an article)" },
   { name: "from", type: "string", value: "<I…>", description: "the material it was read from: a research of the person's own taken in (origin import)" },
 ];
+/** What a source's reading says in the place of a claim of the research's own taken over unread (spec 145 T7). */
+const REPLACES: OptionDef = { name: "replaces", type: "string", value: "<item>", description: "an item of the research's own this one takes the place of, its ID kept (what a source read now says of a claim taken over unread); the person's items stay" };
+const replaces = (opts: Record<string, unknown>) => opt(opts.replaces);
 const CERTAINTY: OptionDef = { name: "certainty", type: "string", value: "<level>", description: `${HOUSE_CERTAINTIES.join(", ")} (default medium)` };
 
 /** Who writes an item: the material of the person's own research (--from), the person at a terminal, the research. */
@@ -282,9 +330,23 @@ function originOf(ctx: Context, tree: Tree, opts: Record<string, unknown>): { or
   return { origin: isAgent(ctx.env) ? "research" : "user" };
 }
 
+/** Material given to a house (its inputs, not retracted nor hidden). */
+function materialAt(tree: Tree, h: House): boolean {
+  return tree.list<Input>("input").some((i) => !i.retracted && !i.hidden && (i.houses ?? []).includes(h.id));
+}
+
 /** The house the item goes to: its record, made for a house of the tree's facts by the first item. */
 function target(tree: Tree, ref: string[]): House {
   return recordOf(tree, findHouse(tree, ref.join(" ")));
+}
+
+/** A picture only under a free licence (spec 145 T1): else only its link, by hand. */
+function notFree(license: string, manual: string): void {
+  if (!freeLicence(license))
+    throw new UsageError(`"${license}" allows no free use: a picture only under a free licence (public domain, CC0, CC BY, CC BY-SA, GFDL, Free Art License, an open government licence) — never NC, ND or all rights reserved`, {
+      code: "house.body",
+      hint: `its link only, to be seen by hand: strom house add manual ${manual}`,
+    });
 }
 
 type ItemRun = (ctx: Context, tree: Tree, h: House, opts: Record<string, unknown>) => { id?: string; what: string; task?: string };
@@ -293,12 +355,14 @@ type ItemRun = (ctx: Context, tree: Tree, h: House, opts: Record<string, unknown
  * What a municipality's skeleton holds (spec 030 part 2: its record of the houses' research, no number): what was gone
  * through, what is only by hand, what is not known, what is only in a reading room, its maps, its summary.
  */
-const TOWN_KINDS = new Set(["passed", "manual", "unknown", "archive-only", "map", "summary"]);
+const TOWN_KINDS = new Set(["passed", "manual", "unknown", "archive-only", "map", "summary", "picture", "field-name"]);
+/** What only a municipality's skeleton holds (--town, no house): its summary, its pictures, its field names (spec 145). */
+const TOWN_ONLY = new Set(["summary", "picture", "field-name"]);
 const TOWN_OPTION: OptionDef = { name: "town", type: "string", value: "<L…|name>", description: "the municipality's skeleton instead of a house (what its houses' research stands on: no house argument)" };
 
 function itemCommand(kind: string, summary: string, options: OptionDef[], examples: string[], run: ItemRun, description?: string): CommandDef {
   const town = TOWN_KINDS.has(kind);
-  const only = kind === "summary";
+  const only = TOWN_ONLY.has(kind);
   return {
     path: ["house", "add", kind],
     summary,
@@ -313,7 +377,7 @@ function itemCommand(kind: string, summary: string, options: OptionDef[], exampl
       const tree = ctx.tree();
       const townRef = town ? opt(opts.town) : undefined;
       if (townRef && args.length) throw new UsageError("either a house or --town, not both", { code: "house.body", hint: `strom house add ${kind} --town <L…> …` });
-      if (!townRef && (only || !args.length)) throw new UsageError(only ? "missing --town" : "which house?", { code: "house.body", hint: only ? 'strom house add summary --town L0001 --text "…"' : "strom house list" });
+      if (!townRef && (only || !args.length)) throw new UsageError(only ? "missing --town" : "which house?", { code: "house.body", hint: only ? `strom house add ${kind} --town L0001 …` : "strom house list" });
       const place = townRef ? findTown(tree, townRef) : undefined;
       const out = tree.withTreeLock(() => {
         const h = place ? townRecordOf(tree, place) : target(tree, args);
@@ -325,7 +389,11 @@ function itemCommand(kind: string, summary: string, options: OptionDef[], exampl
         text: lines(
           ...tree.written.map((o) => o.summary),
           out.id ? `${out.id} written to ${out.h.id} (${out.what})` : `${out.h.id}: ${out.what}`,
-          out.task ? `${out.task}: the house's research, raised by its material (the history of the houses is on)` : undefined,
+          out.task
+            ? houseWork(tree.get<Task>(out.task) ?? { origin: "" }) === "look"
+              ? `${out.task}: the house's look, raised by its material given after its research (the look of the houses is on)`
+              : `${out.task}: the house's research, raised by its material (the history of the houses is on)`
+            : undefined,
         ),
         data: { house: out.h.id, ...(place ? { town: place.id } : {}), ...(out.id ? { item: out.id } : {}), ...(out.task ? { task: out.task } : {}), view: v },
       };
@@ -374,8 +442,9 @@ register(
       CERTAINTY,
       { name: "sensitive", type: "boolean", description: "of the 20th century and sensitive (a confiscation, an expulsion): shared outputs hide it" },
       ...SOURCE_OPTIONS,
+      REPLACES,
     ],
-    ['strom house add event A0001 --kind fire --date 1868-05 --text "<what the chronicle says>" --certainty medium --url https://example.org/chronicle', "strom house add event A0001 --kind transfer --date 1781 --text \"<who bought it>\" --source S0001 --locator \"fol. 12\" --certainty high"],
+    ['strom house add event A0001 --kind fire --date 1868-05 --text "<what the chronicle says>" --certainty medium --url https://example.org/chronicle', "strom house add event A0001 --kind transfer --date 1781 --text \"<who bought it>\" --source S0001 --locator \"fol. 12\" --certainty high", 'strom house add event A0001 --replaces e1 --kind fire --date 1905-11 --text "<what the source read now says>" --source S0002 --locator "<page>" --certainty medium'],
     (ctx, tree, h, opts) => {
       const o = originOf(ctx, tree, opts);
       const { house, id } = addHouseItem(tree, h.id, "timeline", {
@@ -386,8 +455,8 @@ register(
         ...(sources(tree, opts) ? { sources: sources(tree, opts)! } : {}),
         ...(o.material ? { material: o.material } : {}),
         origin: o.origin,
-      }, "event");
-      if (opts.sensitive === true) setHouse(tree, house.id, (x) => void (x.sensitive = [...(x.sensitive ?? []), id]), `${id} sensitive`);
+      }, "event", replaces(opts));
+      if (opts.sensitive === true && !house.sensitive?.includes(id)) setHouse(tree, house.id, (x) => void (x.sensitive = [...(x.sensitive ?? []), id]), `${id} sensitive`);
       return { id, what: String(opts.kind) };
     },
   ),
@@ -401,6 +470,7 @@ register(
       { name: "how", type: "string", value: "<how>", description: HOUSE_HOLDER_HOWS.join(", ") },
       CERTAINTY,
       ...SOURCE_OPTIONS,
+      REPLACES,
     ],
     ['strom house add holder A0001 --name "<holder>" --person P0001 --since 1858 --until 1890 --how marriage --source S0001 --certainty high'],
     (ctx, tree, h, opts) => {
@@ -414,7 +484,7 @@ register(
         certainty: certainty(opts),
         ...(sources(tree, opts) ? { sources: sources(tree, opts)! } : {}),
         origin: originOf(ctx, tree, opts).origin,
-      }, "holder");
+      }, "holder", replaces(opts));
       return { id, what: text(opts.name, "name", 200) };
     },
   ),
@@ -428,6 +498,7 @@ register(
       ...SPAN,
       CERTAINTY,
       ...SOURCE_OPTIONS,
+      REPLACES,
     ],
     ['strom house add resident A0001 --name "<resident>" --role lodger --since 1880 --until 1880 --source S0001'],
     (ctx, tree, h, opts) => {
@@ -441,7 +512,7 @@ register(
         ...(opts.certainty !== undefined ? { certainty: certainty(opts) } : {}),
         ...(sources(tree, opts) ? { sources: sources(tree, opts)! } : {}),
         origin: originOf(ctx, tree, opts).origin,
-      }, "resident");
+      }, "resident", replaces(opts));
       return { id, what: text(opts.name, "name", 200) };
     },
   ),
@@ -455,6 +526,7 @@ register(
       { name: "proposed", type: "boolean", description: "the same family under two numbers: a renumbering the person confirms (strom house confirm)" },
       { name: "text", type: "string", value: "<text>", description: "why: what shows it is the same house", max: 1000 },
       ...SOURCE_OPTIONS,
+      REPLACES,
     ],
     ['strom house add number A0001 --number 9 --until 1850 --proposed --text "<the same family under no. 9 and no. 16>" --source S0001'],
     (ctx, tree, h, opts) => {
@@ -467,7 +539,7 @@ register(
         ...(opt(opts.text) ? { text: opt(opts.text)! } : {}),
         ...(sources(tree, opts) ? { sources: sources(tree, opts)! } : {}),
         origin: originOf(ctx, tree, opts).origin,
-      }, "number");
+      }, "number", replaces(opts));
       return { id, what: `no. ${String(opts.number)}${proposed ? ", proposed: the person confirms it" : ""}` };
     },
   ),
@@ -502,15 +574,16 @@ register(
       { name: "source", type: "string", value: "<S…>", description: "the source gone through" },
       { name: "url", type: "string", value: "<address>", description: "the address gone through" },
       { name: "from", type: "string", value: "<I…>", description: "the material that says it was gone through (origin import)" },
+      { name: "checklist", type: "boolean", description: "the one line naming what of the brief's list of sources was gone through (\"gone through: …\"); what said something is a finding of its own" },
     ],
-    ['strom house add passed A0001 --what "<register and its years, entries with no. 16>" --source S0001 --found yes'],
+    ['strom house add passed A0001 --what "<register and its years, entries with no. 16>" --source S0001 --found yes', 'strom house add passed A0001 --checklist --what "<gone through: the address register, the field names, the orthophoto>"'],
     (ctx, tree, h, opts) => {
       const found = opts.found === undefined ? undefined : oneOf(opts.found, ["yes", "no"] as const, "found") === "yes";
       const src = opt(opts.source) ? normId(opt(opts.source)!, "source") : undefined;
       if (src && !tree.get(src)) throw new UsageError(`no source ${src}`, { code: "house.body" });
       if (opt(opts.url) && !/^https?:\/\//iu.test(opt(opts.url)!)) throw new UsageError(`"${opt(opts.url)}" is no web address`, { code: "house.body" });
-      const { id } = addHouseItem(tree, h.id, "passed", { what: text(opts.what, "what", 1000), ...(src ? { source: src } : {}), ...(opt(opts.url) ? { url: opt(opts.url)! } : {}), ...(found !== undefined ? { found } : {}), origin: originOf(ctx, tree, opts).origin }, "gone through");
-      return { id, what: "gone through" };
+      const { id } = addHouseItem(tree, h.id, "passed", { what: text(opts.what, "what", 1000), ...(src ? { source: src } : {}), ...(opt(opts.url) ? { url: opt(opts.url)! } : {}), ...(found !== undefined ? { found } : {}), ...(opts.checklist === true ? { checklist: true as const } : {}), origin: originOf(ctx, tree, opts).origin }, opts.checklist === true ? "the list gone through" : "gone through");
+      return { id, what: opts.checklist === true ? "the list of sources gone through" : "gone through" };
     },
   ),
   itemCommand(
@@ -535,12 +608,13 @@ register(
       { name: "text", type: "string", value: "<text>", description: "the question, in the research language", max: 1000 },
       { name: "question", type: "string", value: "<T…>", description: "the task asking the person, where there is one" },
       { name: "from", type: "string", value: "<I…>", description: "the material that says so (origin import)" },
+      { name: "look", type: "boolean", description: "of the house's look: what more of it cannot be found automatically, and why" },
     ],
-    ['strom house add unknown A0001 --text "<who held the house from 1856 to 1858?>"'],
+    ['strom house add unknown A0001 --text "<who held the house from 1856 to 1858?>"', 'strom house add unknown A0001 --look --text "<no picture of the house; the indication sketch only by hand>"'],
     (ctx, tree, h, opts) => {
       const q = opt(opts.question) ? normId(opt(opts.question)!, "task") : undefined;
       if (q && !tree.get<Task>(q)) throw new UsageError(`no task ${q}`, { code: "house.body" });
-      const { id } = addHouseItem(tree, h.id, "unknown", { text: text(opts.text, "text", 1000), ...(q ? { question: q } : {}), origin: originOf(ctx, tree, opts).origin }, "not known");
+      const { id } = addHouseItem(tree, h.id, "unknown", { text: text(opts.text, "text", 1000), ...(q ? { question: q } : {}), ...(opts.look === true ? { about: "look" as const } : {}), origin: originOf(ctx, tree, opts).origin }, "not known");
       return { id, what: "not known" };
     },
   ),
@@ -581,6 +655,7 @@ register(
     ],
     ['strom house add look A0001 --text "<a ground-floor house, its gable to the green>" --certainty guess --image https://example.org/photo --license "CC BY 4.0"'],
     (ctx, tree, h, opts) => {
+      if (opt(opts.license) && listOpt(opts.image).some((x) => /^https?:\/\//iu.test(x))) notFree(opt(opts.license)!, `${h.id} --what "<a picture of it>" --url ${listOpt(opts.image).find((x) => /^https?:\/\//iu.test(x))}`);
       const images = listOpt(opts.image).map((x) => {
         if (/^[Ii]\d+$/u.test(x)) {
           const id = normId(x, "input");
@@ -592,6 +667,98 @@ register(
       });
       setHouse(tree, h.id, (x) => void (x.look = { text: text(opts.text, "text", 2000), certainty: certainty(opts), ...(images.length ? { images } : {}), origin: originOf(ctx, tree, opts).origin }), "look");
       return { what: "look" };
+    },
+  ),
+  itemCommand(
+    "look-check",
+    "At the end of a house's research: whether its look has more to find — a task of its look follows where it has",
+    [
+      {
+        name: "next",
+        type: "string",
+        value: "<what>",
+        description: "material (given to the house, nobody has read it), picture (a picture of the municipality seems to show the house), source (a source in hand describes the building more than its look says), none (no more automatically)",
+      },
+      { name: "text", type: "string", value: "<text>", description: "why, in the research language: what there is to read — or, with none, why no more", max: 1000 },
+    ],
+    ['strom house add look-check A0001 --next picture --text "<the picture of the green shows no. 9>"', 'strom house add look-check A0001 --next none --text "<no picture of it; the indication sketch only by hand>"'],
+    (ctx, tree, h, opts) => {
+      const next = oneOf(opts.next, HOUSE_LOOK_NEXT, "next");
+      const why = text(opts.text, "text", 1000);
+      if (next === "material" && !materialAt(tree, h))
+        throw new UsageError(`no material lies at ${h.id} — material: only what was given to the house`, { code: "house.body", hint: `strom house show ${h.id} — another --next, or none` });
+      const task = currentSession(tree, ctx.env, ctx.refs)?.task;
+      const origin = originOf(ctx, tree, opts).origin;
+      // no more automatically: what is not known of its look, said once in the research language (spec 145 T1) — the
+      // research's own earlier word of it (unknown --look) takes the check's why, the person's or a material's stays;
+      // never a second one (no noise, T5)
+      const said = next === "none" ? phrase(tree.lang, "house.look.unknown", { why }).slice(0, 1000) : undefined;
+      const had = said ? (h.unknown ?? []).find((u) => u.about === "look" && u.origin === "research" && !u.question) ?? (h.unknown ?? []).find((u) => u.about === "look") : undefined;
+      setHouse(
+        tree,
+        h.id,
+        (x) => {
+          // a check that finds more: the research's own "no more automatically" of an earlier one is gone (N5)
+          if (next !== "none") dropNoMoreLook(x, tree.lang);
+          x.lookCheck = { next, text: why, ...(task ? { task } : {}), at: now(), origin };
+          const own = had && had.origin === "research" && !had.question ? (x.unknown ?? []).find((u) => u.id === had.id) : undefined;
+          if (own && said) own.text = said;
+        },
+        `look check: ${next}`,
+      );
+      const id = said ? (had?.id ?? addHouseItem(tree, h.id, "unknown", { text: said, about: "look", origin }, "look not known").id) : undefined;
+      return { ...(id ? { id } : {}), what: next === "none" ? "look check: no more automatically" : `look check: ${next} — a task of its look follows the research` };
+    },
+  ),
+  itemCommand(
+    "picture",
+    "Write a picture of the municipality under a free licence: its address, its licence, what it shows",
+    [
+      { name: "url", type: "string", value: "<address>", description: "the picture's address" },
+      { name: "license", type: "string", value: "<licence>", description: "its free licence (CC BY 4.0, public domain)", max: 200 },
+      { name: "credit", type: "string", value: "<text>", description: "whose it is", max: 300 },
+      { name: "shows", type: "string", value: "<text>", description: "what it shows (the green, a street, a house number where it can be read), in the research language", max: 1000 },
+    ],
+    ['strom house add picture --town L0001 --url https://example.org/green.jpg --license "CC BY-SA 4.0" --credit "<author>" --shows "<the green from the south, no. 9 readable>"'],
+    (ctx, tree, h, opts) => {
+      const url = text(opts.url, "url", 2000);
+      if (!/^https?:\/\//iu.test(url)) throw new UsageError(`"${url}" is no web address`, { code: "house.body" });
+      const license = text(opts.license, "license", 200);
+      notFree(license, `--town ${h.place} --what "<what it shows>" --url ${url}`);
+      const { id } = addHouseItem(tree, h.id, "pictures", { url, license, ...(opt(opts.credit) ? { credit: opt(opts.credit)! } : {}), shows: text(opts.shows, "shows", 1000), origin: originOf(ctx, tree, opts).origin }, "picture");
+      return { id, what: "picture of the municipality" };
+    },
+  ),
+  itemCommand(
+    "field-name",
+    "Write a field name of the municipality: a mill, a farm, a solitude, with its point and the house it lies at",
+    [
+      { name: "name", type: "string", value: "<name>", description: "the name as the gazetteer writes it", max: 200 },
+      { name: "kind", type: "string", value: "<kind>", description: "what it names (mill, farm, solitude, field)", max: 100 },
+      { name: "lat", type: "string", value: "<deg>", description: "latitude" },
+      { name: "lon", type: "string", value: "<deg>", description: "longitude" },
+      { name: "house", type: "string", value: "<no.>", description: "the house number it lies at, where its point says so", max: 100 },
+      { name: "url", type: "string", value: "<address>", description: "where it is written" },
+      { name: "source", type: "string", value: "<S…>", description: "the source that names it" },
+    ],
+    ['strom house add field-name --town L0001 --name "<the mill below the village>" --kind mill --lat 49.61 --lon 15.12 --house 14 --url https://example.org/names'],
+    (ctx, tree, h, opts) => {
+      const point = opts.lat === undefined && opts.lon === undefined ? undefined : { lat: Number(opts.lat), lon: Number(opts.lon) };
+      if (point && (!Number.isFinite(point.lat) || !Number.isFinite(point.lon) || Math.abs(point.lat) > 90 || Math.abs(point.lon) > 180))
+        throw new UsageError("--lat (±90) and --lon (±180) in degrees, both", { code: "house.body" });
+      if (opt(opts.url) && !/^https?:\/\//iu.test(opt(opts.url)!)) throw new UsageError(`"${opt(opts.url)}" is no web address`, { code: "house.body" });
+      const src = opt(opts.source) ? normId(opt(opts.source)!, "source") : undefined;
+      if (src && !tree.get(src)) throw new UsageError(`no source ${src}`, { code: "house.body" });
+      const { id } = addHouseItem(tree, h.id, "fieldNames", {
+        name: text(opts.name, "name", 200),
+        ...(opt(opts.kind) ? { kind: opt(opts.kind)! } : {}),
+        ...(point ?? {}),
+        ...(opt(opts.house) ? { house: opt(opts.house)! } : {}),
+        ...(opt(opts.url) ? { url: opt(opts.url)! } : {}),
+        ...(src ? { source: src } : {}),
+        origin: originOf(ctx, tree, opts).origin,
+      }, "field name");
+      return { id, what: "field name" };
     },
   ),
   itemCommand(

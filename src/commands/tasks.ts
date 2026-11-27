@@ -59,7 +59,7 @@ import { BOOKS_MIN_TASKS, bookOfTask, bookRows, booksOfTask, liveBook, minTasksO
 import { parseTaskKind, TASK_KINDS, taskKind } from "../core/taskkind.ts";
 import { CENSUS_PREFIX, censusHeld, censusProposal } from "../core/census.ts";
 import { houseHidden } from "../core/houses.ts";
-import { markTownDone } from "../core/houseauto.ts";
+import { houseDoneLacks, houseTaskDone } from "../core/houseauto.ts";
 import { closeCoverage, coverageLine } from "../core/coverage.ts";
 import { loadSaves, storeSaves } from "../core/browser.ts";
 import { RETRY_KEPT, RETRY_MAX, retryOf, type RetryCache } from "../core/retry.ts";
@@ -422,6 +422,15 @@ export function longResult(tree: Tree, text: string): { result: string; more: No
  * and what the agent should hear of it (no search recorded, link tasks to point at the books found, entries unclipped).
  */
 export function finishTask(tree: Tree, ref: string, text: string, produced: string[]): { task: Task; said: string[] } {
+  // a house's research or a municipality's skeleton an agent closes: only once its list of sources was gone through
+  // (spec 145 T5) — before anything is written
+  const before = isAgent(tree.env) ? tree.get<Task>(normId(ref, "task")) : undefined;
+  const lacks = before && before.state !== "done" ? houseDoneLacks(tree, before) : [];
+  if (lacks.length)
+    throw new UsageError(`${before!.id} is not done yet — the house's list of sources is not gone through:\n${lacks.map((l) => `  - ${l}`).join("\n")}`, {
+      code: "house.checklist",
+      hint: `the brief's "Sources to go through" (strom brief ${before!.id}); then close it again`,
+    });
   const { result, more } = longResult(tree, text);
   const t = stateChange(tree, ref, "done", { result, produced: produced.map((x) => normId(x)) }, undefined, "done", more);
   // a region's task of history done: its shared catalog finished too (the queue of every tree sees it so)
@@ -1244,11 +1253,12 @@ register(
       const tree = ctx.tree();
       if (!opts.result) throw new UsageError("--result is required", { hint: "say what was found — or where it was searched without success" });
       const { task, said } = finishTask(tree, args[0]!, String(opts.result), csvOpt(opts.produced));
-      // a municipality's skeleton done: its record keeps the day (spec 030 part 2)
-      markTownDone(tree, task);
+      // a municipality's skeleton done: its record keeps the day (spec 030 part 2); a house's look follows its research
+      // where its look check found more (spec 145 T1)
+      const look = houseTaskDone(tree, task, ctx.settings);
       // the years its people's estimated dates ask for, not all searched (spec 131): said once a session and book, never refused
       const coverage = closeCoverage(tree, task.id, currentSession(tree, ctx.env, ctx.refs)?.id, ctx.settings.ageMargin(tree.config));
-      return { text: lines(written(tree), ...said, ...coverage.map(coverageLine)), data: { task, ...(coverage.length ? { coverage } : {}) } };
+      return { text: lines(written(tree), ...said, ...(look ? [`${look}: the look of the house follows its research (its look check)`] : []), ...coverage.map(coverageLine)), data: { task, ...(look ? { look } : {}), ...(coverage.length ? { coverage } : {}) } };
     },
   },
   {

@@ -13,8 +13,9 @@ import { execFileSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { houseAuto, houseBrief, houseEstimate, HOUSE_AUTO_OPEN } from "../../src/core/houseauto.ts";
-import { forHouse, housesHeldCount, houseWork, townOfTask } from "../../src/core/houses.ts";
-import type { House, Task } from "../../src/core/model.ts";
+import { forHouse, freeLicence, housesHeldCount, housesOfTask as housesOfTaskIds, houseWork, townOfTask } from "../../src/core/houses.ts";
+import { regionsOf, sourcesFor } from "../../src/core/housesources.ts";
+import type { House, Place, Task } from "../../src/core/model.ts";
 import { validateRecord } from "../../src/core/validate.ts";
 
 const opts = { skip: !hasGit, timeout: 240_000 };
@@ -22,6 +23,18 @@ const AGENT = { env: { CLAUDECODE: "1" } };
 const UNATTENDED = { env: { AI_AGENT: "1", STROM_NONINTERACTIVE: "1" } };
 
 const open = (w: World) => Tree.open(w.cwd, w.env);
+/**
+ * What an agent writes before it closes a house's research or a skeleton done (spec 145 T5, T1): the searches of its
+ * list (three, so strom sees it gone through), the one line of what was gone through, and of a house its short look and
+ * its look check (none: no more automatically).
+ */
+async function goneThrough(w: World, ref: string[], env = AGENT) {
+  for (const q of ["adresní místo", "pomístní jména", "ortofoto"]) await w.ok(["search", "add", q, "--method", "web", "--result", "negative"], env);
+  await w.ok(["house", "add", "passed", ...ref, "--checklist", "--what", "prošlo: adresní místo, pomístní jména, ortofoto"], env);
+  if (ref[0] === "--town") return;
+  await w.ok(["house", "add", "look", ref[0]!, "--text", "přízemní chalupa", "--certainty", "guess"], env);
+  await w.ok(["house", "add", "look-check", ref[0]!, "--next", "none", "--text", "obrázek domu nikde, indikační skica jen ručně"], env);
+}
 const houseTasks = (w: World) => open(w).list<Task>("task").filter((t) => forHouse(t) && !t.retracted);
 const record = (w: World, id: string) => open(w).get<House>(id)!;
 /** The house record (A…) of a municipality and number. */
@@ -171,6 +184,7 @@ test("houses on: the person's alone; a municipality's skeleton and its houses' t
     const lhota = towns.find((t) => townOfTask(t) === "L0001")!;
     await w.ok(["session", "start", lhota.id], AGENT);
     await w.ok(["house", "add", "summary", "--town", "L0001", "--text", "fara Lhota, panství Lhota"], AGENT);
+    await goneThrough(w, ["--town", "L0001"]);
     await w.ok(["session", "close", "--done", "kostra zapsána", "--next", "domy obce"], AGENT);
     const skeleton = open(w).list<House>("house").find((h) => h.town && h.place === "L0001")!;
     assert.match(skeleton.done ?? "", /^\d{4}-\d{2}-\d{2}$/u);
@@ -229,11 +243,13 @@ test("house request: the person's alone, on top whatever the setting, its munici
     assert.deepEqual(((await w.ok(["task", "list", "--json"])).json.tasks as { id: string }[]).slice(0, 2).map((t) => t.id), [moved.town, auto.id]);
 
     // done: looked for again, a new task
+    await goneThrough(w, [asked.house]);
     await w.ok(["task", "done", asked.task, "--result", "dům prošel"], AGENT);
     const again = (await w.ok(["house", "request", asked.house, "--yes", "--json"])).json;
     assert.equal(again.again, true);
     assert.notEqual(again.task, asked.task);
     // a municipality's skeleton done: its day kept, never raised again
+    await goneThrough(w, ["--town", "L0002"]);
     await w.ok(["task", "done", asked.town, "--result", "kostra hotova"], AGENT);
     assert.ok(open(w).list<House>("house").find((h) => h.town && h.place === "L0002")!.done);
     assert.match((await w.ok(["house", "show", "--town", "L0002"])).out, /hotovo \d{4}-\d{2}-\d{2}/u);
@@ -336,8 +352,16 @@ test("the menu's settings: the history of the houses with its tasks held, what i
     assert.match(hb, /never goes out/u);
     assert.match(hb, /## The house A\d+:/u);
     assert.doesNotMatch(hb, /## A municipality's skeleton \(once/u);
+    // on: also the look of the houses (spec 145 T1), on by default — switched off for this research by the person
+    const lookOff = await w.run([], { tty: true, answers: ["8", "1", n!, "1", "y", "0", "0"] });
+    assert.match(lookOff.out, /I podoba domů: zapnuto/u, lookOff.out);
+    assert.equal((await w.ok(["config", "get", "houses.look", "--json"])).json.value, "off");
+    const shown = await w.run([], { tty: true, answers: ["8", "1", "0", "0", "0"] });
+    assert.match(shown.out, /Historie domů v tomto výzkumu {2,}zapnuto, bez podoby domů/u, shown.out);
+    await w.run([], { tty: true, answers: ["8", "1", n!, "1", "y", "0", "0"] });
+    assert.equal((await w.ok(["config", "get", "houses.look", "--json"])).json.value, "on");
     // off: held, said with their number; the line says so
-    const off = await w.run([], { tty: true, answers: ["8", "1", n!, "y", "0", "0"] });
+    const off = await w.run([], { tty: true, answers: ["8", "1", n!, "2", "y", "0", "0"] });
     const held = housesHeldCount(open(w), false);
     assert.ok(held > 0);
     assert.match(off.out, new RegExp(`Odloženo: ${held} úkol\\S* domů\\. Po zapnutí se vrátí\\.`, "u"), off.out);
@@ -351,4 +375,226 @@ test("the menu's settings: the history of the houses with its tasks held, what i
   } finally {
     w.cleanup();
   }
+});
+
+test("a house's task (spec 145 T5): its method first in its brief with its list of sources, none of the people's research; done only once the list is gone through", opts, async () => {
+  const w = new World();
+  try {
+    await village(w);
+    await w.ok(["config", "set", "houses", "on", "--for-tree"], { tty: true });
+    const lhota9 = houseId(w, "L0001", "9");
+    const lhota14 = houseId(w, "L0001", "14");
+    const t = houseTasks(w).find((x) => x.origin === `house:${lhota9}`)!;
+    const brief = (await w.ok(["brief", t.id], AGENT)).out;
+    const at = (s: string) => brief.indexOf(s);
+    assert.ok(at("## Task") >= 0 && at("## Task") < at("# Method: the history of a house"), brief);
+    assert.ok(at("# Method: the history of a house") < at(`## The house ${lhota9}`), brief);
+    assert.ok(at(`## The house ${lhota9}`) < at("## Commands for this task"), brief);
+    assert.match(brief, /## Sources to go through \(the list is yours, never the house's\)/u);
+    assert.match(brief, /\*\*No noise\.\*\*/u);
+    assert.match(brief, /house add look-check/u);
+    assert.match(brief, /no new tasks of the house's list/u);
+    assert.doesNotMatch(brief, /## People concerned|# Method: recording|# Method: reading|Stay within the task|new questions → strom task add/u);
+
+    // closed by its agent with nothing of the list: refused, what is missing said; nothing written
+    await w.ok(["session", "start", t.id], AGENT);
+    const early = await w.run(["session", "close", "--done", "dům prošel", "--next", "další dům"], AGENT);
+    assert.notEqual(early.code, 0);
+    assert.match(early.out + early.err, /not gone through/u);
+    assert.match(early.out + early.err, new RegExp(`${lhota9}: the one line of the list of sources gone through`, "u"));
+    assert.match(early.out + early.err, new RegExp(`${lhota14}: its short look`, "u"));
+    assert.match(early.out + early.err, /the look check/u);
+    assert.match(early.out + early.err, /0 searches and pages in this task's sessions/u);
+    assert.equal(open(w).get<Task>(t.id)!.state, "doing");
+    // the list gone through, each house its look and its check: done; none: what is not known of its look, no task
+    await goneThrough(w, [lhota9]);
+    await goneThrough(w, [lhota14]);
+    await w.ok(["session", "close", "--done", "dům prošel", "--next", "další dům"], AGENT);
+    assert.equal(open(w).get<Task>(t.id)!.state, "done");
+    const h = record(w, lhota9);
+    const line = h.passed.find((x) => x.checklist)!;
+    assert.equal(line.what, "prošlo: adresní místo, pomístní jména, ortofoto");
+    assert.ok(validateRecord(h).length === 0, JSON.stringify(validateRecord(h)));
+    assert.equal(h.unknown.find((u) => u.about === "look")?.text, "podoba: víc automaticky nejde – obrázek domu nikde, indikační skica jen ručně");
+    assert.ok(!houseTasks(w).some((x) => houseWork(x) === "look"));
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("the look of a house (spec 145 T1): its task only for material, a picture or a source; material given after the research; the chain's order whatever is moved to the top; off: no check, no task", opts, async () => {
+  const w = new World();
+  try {
+    await village(w);
+    await w.ok(["config", "set", "houses", "on", "--for-tree"], { tty: true });
+    const lhota9 = houseId(w, "L0001", "9");
+    const lhota14 = houseId(w, "L0001", "14");
+    const town = houseTasks(w).find((x) => houseWork(x) === "town" && townOfTask(x) === "L0001")!;
+    const house = houseTasks(w).find((x) => x.origin === `house:${lhota9}`)!;
+    // material: only what was given to the house
+    const none = await w.run(["house", "add", "look-check", lhota9, "--next", "material", "--text", "skica"], AGENT);
+    assert.notEqual(none.code, 0);
+    assert.match(none.err, /no material lies at/u);
+    // a picture of the municipality seems to show no. 9: a task of its look follows; no. 14: no more automatically
+    for (const [a, next] of [[lhota9, "picture"], [lhota14, "none"]] as const) {
+      await w.ok(["house", "add", "passed", a, "--checklist", "--what", "prošlo: adresní místo, ortofoto"], AGENT);
+      await w.ok(["house", "add", "unknown", a, "--look", "--text", "podoba nezjištěna"], AGENT);
+      await w.ok(["house", "add", "look-check", a, "--next", next, "--text", next === "picture" ? "obrázek návsi ukazuje č. 9" : "nic dalšího"], AGENT);
+    }
+    const done = await w.ok(["task", "done", house.id, "--result", "dům prošel", "--json"], AGENT);
+    const look = open(w).get<Task>(done.json.look)!;
+    assert.equal(look.origin, `house:look:${lhota9}`);
+    assert.deepEqual(look.subject, [lhota9]);
+    assert.match(look.what, /^Podoba domu Lhota 9/u);
+    assert.match(look.why, /obrázek návsi ukazuje č\. 9/u);
+    assert.equal(houseWork(look), "look");
+    // its brief: the look's part of the method, why it follows
+    const lb = (await w.ok(["brief", look.id], AGENT)).out;
+    assert.match(lb, /## The look of a house \(after its research\)/u);
+    assert.match(lb, /why its look is researched further \(picture\): obrázek návsi ukazuje č\. 9/u);
+    assert.doesNotMatch(lb, /## A house \(with/u);
+    // the bridge's view: a house's work, its look (no new value of work)
+    const shown = (await w.ok(["house", "show", lhota9, "--json"])).json.house;
+    assert.equal(shown.lookCheck.next, "picture");
+
+    // the house asked again: its look waits behind its research, and that one behind its skeleton — whatever is
+    // moved to the top of the queue
+    const again = (await w.ok(["house", "request", lhota9, "--yes", "--json"])).json;
+    const order = async () => ((await w.ok(["task", "list", "--json"])).json.tasks as { id: string }[]).map((x) => x.id);
+    const chain = (q: string[]) => [q.indexOf(town.id), q.indexOf(again.task), q.indexOf(look.id)];
+    for (const top of [look.id, again.task]) {
+      await w.ok(["task", "order", top, "--next"], { tty: true });
+      const [a, b, c] = chain(await order()) as [number, number, number];
+      assert.ok(a >= 0 && a < b && b < c, `${town.id} < ${again.task} < ${look.id}: ${(await order()).join(" ")}`);
+    }
+    const next = (await w.ok(["task", "next", "--json"], AGENT)).json;
+    assert.equal(next.task?.id ?? next.id, town.id, JSON.stringify(next));
+
+    // material given after a house's research: a task of its look (another house, done with nothing more of its look)
+    const d8task = houseTasks(w).find((x) => houseWork(x) === "house" && !housesOfTaskIds(x).includes(lhota9) && x.state === "open")!;
+    const d8 = housesOfTaskIds(d8task)[0]!;
+    for (const a of housesOfTaskIds(d8task)) await goneThrough(w, [a]);
+    await w.ok(["task", "done", d8task.id, "--result", "dům prošel"], AGENT);
+    const given = (await w.ok(["house", "add", "material", d8, "--memory", "Fotka statku z roku 1930.", "--json"])).json;
+    assert.equal(open(w).get<Task>(given.task)!.origin, `house:look:${d8}`);
+
+    // the look of the houses off: done with no look check, never a task of its look
+    await w.ok(["config", "set", "houses.look", "off", "--for-tree"], { tty: true });
+    const lt = houseTasks(w).find((x) => houseWork(x) === "house" && x.state === "open" && x.id !== again.task)!;
+    const l1 = housesOfTaskIds(lt)[0]!;
+    for (const a of housesOfTaskIds(lt)) {
+      await w.ok(["house", "add", "passed", a, "--checklist", "--what", "prošlo: ortofoto"], AGENT);
+      await w.ok(["house", "add", "look", a, "--text", "srub", "--certainty", "guess"], AGENT);
+    }
+    await w.ok(["house", "add", "look-check", l1, "--next", "picture", "--text", "obrázek"], AGENT);
+    const off = await w.ok(["task", "done", lt.id, "--result", "dům prošel", "--json"], AGENT);
+    assert.equal(off.json.look, undefined);
+    assert.ok(!houseTasks(w).some((x) => houseWork(x) === "look" && housesOfTaskIds(x).includes(l1)));
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("the look of a house without noise (spec 145 T1, T5): no more automatically said once, the person's word kept; its check and certainty in the research language; a picture only under a free licence; the chain's turn and a material's task said as they are", opts, async () => {
+  const w = new World();
+  try {
+    await village(w);
+    await w.ok(["config", "set", "houses", "on", "--for-tree"], { tty: true });
+    const lhota9 = houseId(w, "L0001", "9");
+    const lhota14 = houseId(w, "L0001", "14");
+    const town = houseTasks(w).find((x) => houseWork(x) === "town" && townOfTask(x) === "L0001")!;
+    const house = houseTasks(w).find((x) => x.origin === `house:${lhota9}`)!;
+    const looks = (a: string) => record(w, a).unknown.filter((u) => u.about === "look");
+
+    // the research's own "not known" of its look, then none: one item, the check's why — and none again: still one
+    await w.ok(["house", "add", "passed", lhota14, "--checklist", "--what", "prošlo: adresní místo, ortofoto"], AGENT);
+    await w.ok(["house", "add", "unknown", lhota14, "--look", "--text", "podoba nezjištěna"], AGENT);
+    const none = (await w.ok(["house", "add", "look-check", lhota14, "--next", "none", "--text", "obrázek domu nikde, skica jen ručně", "--json"], AGENT)).json;
+    assert.deepEqual(looks(lhota14).map((u) => u.text), ["podoba: víc automaticky nejde – obrázek domu nikde, skica jen ručně"]);
+    assert.equal(none.item, looks(lhota14)[0]!.id);
+    await w.ok(["house", "add", "look-check", lhota14, "--next", "none", "--text", "nic dalšího"], AGENT);
+    assert.deepEqual(looks(lhota14).map((u) => u.text), ["podoba: víc automaticky nejde – nic dalšího"]);
+    // shown once: under what is not known, no line of its check besides
+    const cs14 = (await w.ok(["house", "show", lhota14, "--lang", "cs"])).out;
+    assert.equal((cs14.match(/víc automaticky nejde/gu) ?? []).length, 1, cs14);
+    assert.doesNotMatch(cs14, /Další o podobě|none:/u);
+    // the person's own word of its look stays as written: none adds nothing
+    await w.ok(["house", "add", "unknown", lhota9, "--look", "--text", "fotka u babičky Lhotákové".normalize("NFD")]);
+    await w.ok(["house", "add", "look-check", lhota9, "--next", "none", "--text", "nic dalšího"], AGENT);
+    assert.deepEqual(looks(lhota9).map((u) => [u.text, u.origin]), [["fotka u babičky Lhotákové", "user"]]);
+
+    // its check and its certainty in the research language
+    await w.ok(["house", "add", "passed", lhota9, "--checklist", "--what", "prošlo: adresní místo, ortofoto"], AGENT);
+    await w.ok(["house", "add", "look", lhota9, "--text", "přízemní chalupa", "--certainty", "guess"], AGENT);
+    await w.ok(["house", "add", "look-check", lhota9, "--next", "picture", "--text", "obrázek návsi ukazuje č. 9"], AGENT);
+    const cs9 = (await w.ok(["house", "show", lhota9, "--lang", "cs"])).out;
+    assert.match(cs9, /Další o podobě\n {2}obrázek obce: obrázek návsi ukazuje č\. 9/u);
+    assert.match(cs9, /přízemní chalupa · odhad/u);
+    assert.doesNotMatch(cs9, /picture:|· guess/u);
+    const de9 = (await w.ok(["house", "show", lhota9, "--lang", "de"])).out;
+    assert.match(de9, /ein Bild des Ortes: /u);
+    assert.match(de9, /· geschätzt/u);
+    const pl9 = (await w.ok(["house", "show", lhota9, "--lang", "pl"])).out;
+    assert.match(pl9, /zdjęcie miejscowości: /u);
+    assert.match(pl9, /· przypuszczenie/u);
+
+    // a picture of the municipality (or of the house by address) only under a free licence
+    const pic = (license: string) => w.run(["house", "add", "picture", "--town", "L0001", "--url", "https://x.example.org/a.jpg", "--license", license, "--shows", "náves"], AGENT);
+    for (const bad of ["All rights reserved", "© Lhoták, všechna práva vyhrazena", "CC BY-NC-SA 4.0", "CC BY-ND 4.0", "proprietary"]) {
+      const r = await pic(bad);
+      assert.notEqual(r.code, 0, bad);
+      assert.match(r.err, /allows no free use/u, bad);
+      assert.match(r.err, /strom house add manual --town L0001/u, bad);
+    }
+    for (const good of ["CC BY-SA 4.0", "Public domain", "CC0 1.0", "volné dílo".normalize("NFD"), "https://creativecommons.org/licenses/by/4.0/"]) await w.ok(["house", "add", "picture", "--town", "L0001", "--url", "https://x.example.org/a.jpg", "--license", good, "--shows", "náves"], AGENT);
+    const lookBad = await w.run(["house", "add", "look", lhota9, "--text", "chalupa", "--image", "https://x.example.org/b.jpg", "--license", "All rights reserved"], AGENT);
+    assert.notEqual(lookBad.code, 0);
+    assert.match(lookBad.err, /allows no free use/u);
+
+    // the house's research done: its look follows (picture); no. 14 none, no task
+    const done = await w.ok(["task", "done", house.id, "--result", "dům prošel", "--json"], AGENT);
+    const look = done.json.look as string;
+    assert.ok(look);
+    // material given later to the house done with none: a task of its look — said as such
+    const given = await w.ok(["house", "add", "material", lhota14, "--memory", "Fotka statku z roku 1930."]);
+    assert.match(given.out, /: the house's look, raised by its material/u);
+    assert.doesNotMatch(given.out, /the house's research, raised/u);
+
+    // the chain: the look put next waits behind its house's research, which waits behind its skeleton — said
+    const again = (await w.ok(["house", "request", lhota9, "--yes", "--json"])).json;
+    const toLook = await w.ok(["task", "order", look, "--next", "--json"], { tty: true });
+    assert.deepEqual(toLook.json.after, [again.task]);
+    assert.match((await w.ok(["task", "order", look, "--next"], { tty: true })).out, new RegExp(`${look} comes after ${again.task} all the same: its house's research first`, "u"));
+    const toHouse = await w.ok(["task", "order", again.task, "--next"], { tty: true });
+    assert.match(toHouse.out, new RegExp(`${again.task} comes after ${town.id} all the same: its municipality's skeleton first`, "u"));
+    // a task of no chain: nothing more said
+    assert.doesNotMatch((await w.ok(["task", "order", town.id, "--next"], { tty: true })).out, /comes after/u);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("a licence that allows free use (spec 145 T1): public domain in its usual words, CC0, CC BY, CC BY-SA, … — never NC, ND, all rights reserved, nor a word not known as free", () => {
+  for (const ok of ["CC BY 4.0", "cc-by-sa-3.0-de", "Creative Commons Attribution-ShareAlike 4.0", "CC0", "Public Domain Mark 1.0", "PD-old-70", "Gemeinfrei", "domena publiczna", "Volné dílo".normalize("NFD"), "GFDL", "No known copyright restrictions", "https://creativecommons.org/publicdomain/zero/1.0/"])
+    assert.ok(freeLicence(ok), ok);
+  for (const no of ["All rights reserved", "Alle Rechte vorbehalten", "CC BY-NC 4.0", "CC BY-NC-ND 4.0", "CC BY-ND", "https://creativecommons.org/licenses/by-nc/4.0/", "© 2020", "free to view", "Всі права захищені", ""])
+    assert.ok(!freeLicence(no), no);
+});
+
+test("the list of sources by country (spec 145 T5): a municipality's point in a region's box gives its list, the general one else; a special house besides", () => {
+  const place = (lat?: number, lon?: number) => ({ id: "L0001", type: "place", names: [{ name: "Lhota" }], ...(lat !== undefined ? { coords: { lat, lon } } : {}) }) as unknown as Place;
+  assert.deepEqual(regionsOf(place(49.61, 15.12)).map((r) => r.id), ["cz"]);
+  assert.deepEqual(regionsOf(place(47.8, 13.0)).map((r) => r.id).sort(), ["at", "by"]);
+  assert.deepEqual(regionsOf(place(40.0, -3.7)), []);
+  assert.deepEqual(regionsOf(place()), []);
+  const cz = sourcesFor(place(49.61, 15.12), "house");
+  assert.deepEqual(cz.map((g) => g.region), ["Czechia (Bohemia, Moravia, Silesia)"]);
+  assert.ok(cz[0]!.items.some((x) => x.id === "ruian" && x.by === "agent"));
+  assert.ok(cz[0]!.items.some((x) => x.id === "sketch" && x.by === "hand"));
+  const town = sourcesFor(place(49.61, 15.12), "town")[0]!.items.map((x) => x.id);
+  for (const id of ["schaller", "sommer", "geonames", "pictures", "monuments", "sheets"]) assert.ok(town.includes(id), id);
+  // a special house: the general list and the region's besides
+  assert.deepEqual(sourcesFor(place(49.61, 15.12), "special").map((g) => g.region ?? "general"), ["general", "Czechia (Bohemia, Moravia, Silesia)"]);
+  // nowhere known: the general list alone
+  assert.deepEqual(sourcesFor(place(40.0, -3.7), "house").map((g) => g.region), [undefined]);
 });

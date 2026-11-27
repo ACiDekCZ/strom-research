@@ -424,10 +424,10 @@ běh. Běhy různých linií a běh celé fronty pracují vedle sebe, každý na
 - **V aplikaci:** **Pustit agenta na tuto linii** ([S4.3.3](S4-research-from-the-app.md#S4.3.3)); běhy v oddílu
   **Teď** ([S4.1.8](S4-research-from-the-app.md#S4.1.8)).
 - **Ovládání:** terminál: menu **Nechat agenta pracovat samotného**; se dvěma a více aktivními liniemi se zeptá **Na
-  čem pracovat?**: **celá fronta (linie s vlastním během stranou)**, nebo linie („– ve vlastním okně“; linie s během
-  „– už má běh“ a nespustí se). Příkaz `strom run --research G…` (s dalšími volbami [R7.1](#R7.1));
+  čem má agent pracovat?**: **Fronta úkolů – na řadě: <první úkol> (a N dalších)** (linie s vlastním během jen poznámkou
+  za ní), nebo **Jen jedna linie výzkumu (ve vlastním okně) ›** a v ní linie (linie s během „– už má běh“ a nespustí se). Příkaz `strom run --research G…` (s dalšími volbami [R7.1](#R7.1));
   `strom research list` ukáže čísla linií.
-- **Platí od:** výzkum 1.36.0
+- **Platí od:** výzkum 1.36.0; fronta první s tím, co je na řadě, od 1.38.0
 
 <!-- zdroj: research:089875ec src/core/linerun.ts (lineHolds .strom/lines/<G>.json zámek s procesem, run.line.held, run.line.older pro strom před 1.25, lineRunFilter: obecný běh vynechá úkol s linií drženou jiným během; běh linie bere hlavní linii G nebo úkoly v G, jejichž hlavní linii nedrží jiný běh; linie úkolu = vlastní + hlavní (placer core/offline.ts) + linie jeho lidí; mimo linie, dějiny, místa žádnou; rememberLineAgent) · src/cli/menu.ts runMenu (ui.run.where, ui.run.whole, ui.run.line.item/busy/held, openInNewTerminal title Strom · strom · linie (G…), key linie, ui.run.window, ui.run.window.recent; dějiny jen celá fronta) · src/commands/session.ts:1107 enterRun (research, agent) · cs.json ui.run.line, ui.run.line.older, ui.run.beside, ui.run.others · help run (Runs of lines) · CHANGELOG.cs.md 1.36.0 · dirigent:spec/126 U11, prace/1121-research-126-linie-b1 -->
 
