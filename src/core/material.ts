@@ -23,7 +23,7 @@ import { inTree, workingRel } from "./treemedia.ts";
 import { mediaRecords } from "./mediaindex.ts";
 import { inputsByWorkingSha, recordsBySha } from "./shaindex.ts";
 import { storedBytes } from "./appmedia.ts";
-import { listSorts, type SortState } from "./sort.ts";
+import { listSorts, type SortProposal, type SortState } from "./sort.ts";
 import type { Tree } from "./tree.ts";
 
 export interface MaterialFile {
@@ -68,7 +68,9 @@ export interface MaterialFile {
   uses: { excerpts: number; sources: string[]; tasks: number; of: SourceOf[] };
   /**
    * The last sort done that took it proposed nothing of it (its reader said nothing of it, or all it said is there or was
-   * left out): not sent to be sorted again unless the person chooses it (feature material.left). A later sort that
+   * left out), or the file took over what it proposed (`accepted`, spec 147 K1: its title, kind and date, its people), or
+   * the person decided of its proposal in the Strom app (`accepted`, `refused`: spec 147 K2): not sent to be sorted again
+   * unless the person chooses it (feature material.left; accepted, refused: material.accepted). A later sort that
    * proposed something of it takes it off. From the sorts kept here (.strom/sorts): nothing written to the research.
    */
   left?: { at: string; sort: string; why: (typeof LEFT_WHY)[number]; said?: string };
@@ -96,8 +98,12 @@ export interface SourceOf {
 /** How many of the people citing a source `of` names (all of them counted). */
 export const CITED_SHOWN = 5;
 
-/** Why a file the agent sorted is left (`left`): its reader said nothing of it, all it proposed is there or was left out. */
-export const LEFT_WHY = ["nothing-said", "nothing-new", "dropped"] as const;
+/**
+ * Why a file the agent sorted is left (`left`): its reader said nothing of it, all it proposed is there or was left out
+ * (SORT_UNPROPOSED); the file took over its proposal, or the person took it or turned it down in the Strom app (spec 147,
+ * feature material.accepted).
+ */
+export const LEFT_WHY = ["nothing-said", "nothing-new", "dropped", "accepted", "refused"] as const;
 
 /** Where the research uses a file of the material (GET /material/<I…>/uses): its excerpts, sources, open tasks. */
 export interface MaterialUses {
@@ -382,7 +388,7 @@ export function material(tree: Tree, shared: string | undefined, only: { person?
       ...(i.source ? { source: i.source } : {}),
       ...(hidden ? { hidden } : {}),
       uses: { excerpts: used.excerpts.length, sources: used.sources.map((x) => x.id), tasks: used.tasks.length, of: used.of },
-      ...((left ??= leftBySorts(tree.root)).has(i.id) ? { left: left.get(i.id)! } : {}),
+      ...((left ??= leftBySorts(tree)).has(i.id) ? { left: left.get(i.id)! } : {}),
       ...(firstOf.get(i.sha!)!.id !== i.id ? { sameAs: firstOf.get(i.sha!)!.id } : {}),
       here: !!file && fs.existsSync(file),
     });
@@ -407,19 +413,43 @@ export function material(tree: Tree, shared: string | undefined, only: { person?
 
 /**
  * The files the agent left (MaterialFile.left), by the sorts kept here, oldest first: each file by the last sort done
- * that took it — left when it proposed nothing of it for a reason of LEFT_WHY; a reader that ended without a word of it,
- * or did not end well, leaves it to be sent again.
+ * that took it — left when the person decided of its proposal in the Strom app (accepted, refused: spec 147 K2), when it
+ * proposed nothing of it for a reason of LEFT_WHY, when the file took over all it proposed (accepted, spec 147 K1); a
+ * reader that ended without a word of it, or did not end well, or a proposal not taken (yet) leaves it to be sent again.
  */
-export function leftBySorts(root: string, sorts: SortState[] = listSorts(root)): Map<string, NonNullable<MaterialFile["left"]>> {
+export function leftBySorts(tree: Tree, sorts: SortState[] = listSorts(tree.root)): Map<string, NonNullable<MaterialFile["left"]>> {
   const out = new Map<string, NonNullable<MaterialFile["left"]>>();
   for (const s of sorts.filter((x) => x.state === "done").sort((a, b) => a.since.localeCompare(b.since) || a.id.localeCompare(b.id))) {
     for (const id of s.files) {
+      const d = s.decided?.find((x) => x.id === id);
       const u = s.unproposed?.find((x) => x.id === id);
-      if (u && (LEFT_WHY as readonly string[]).includes(u.why)) out.set(id, { at: s.since, sort: s.id, why: u.why as (typeof LEFT_WHY)[number], ...(u.said ? { said: u.said } : {}) });
+      const p = s.proposals?.find((x) => x.id === id);
+      if (d && (LEFT_WHY as readonly string[]).includes(d.how)) out.set(id, { at: d.at, sort: s.id, why: d.how });
+      else if (u && (LEFT_WHY as readonly string[]).includes(u.why)) out.set(id, { at: s.since, sort: s.id, why: u.why as (typeof LEFT_WHY)[number], ...(u.said ? { said: u.said } : {}) });
+      else if (p && takenOver(tree, p)) out.set(id, { at: s.since, sort: s.id, why: "accepted" });
       else out.delete(id);
     }
   }
   return out;
+}
+
+/**
+ * Whether a file took over what a sort proposed of it (spec 147 K1), as it is now: each of its title, kind and date the
+ * same as proposed, each person proposed among its people — a proposal of no person too; one of a file not of the family:
+ * the file hidden. A proposal of none of these (only a couple, an event, a source, a back) is never taken over by itself.
+ */
+function takenOver(tree: Tree, p: SortProposal): boolean {
+  const i = tree.get<Input>(p.id);
+  if (!i || i.type !== "input" || i.retracted) return false;
+  if (p.unrelated) return i.state === "skipped";
+  const persons = (p.links ?? []).filter((l) => l.type === "person").map((l) => live(tree, l.ref));
+  if (p.title === undefined && p.kind === undefined && p.date === undefined && !persons.length) return false;
+  if (p.title !== undefined && i.title !== p.title) return false;
+  if (p.kind !== undefined && (i.materialKind ?? (i.sorted ? KIND_OF_SORT[i.sorted.as] : undefined)) !== p.kind) return false;
+  if (p.date !== undefined && i.date !== p.date) return false;
+  if (!persons.length) return true;
+  const has = new Set(materialPersons(tree, i));
+  return persons.every((x) => has.has(x));
 }
 
 /** The names of people as the research knows them, shortly with their years: for the app, which may not have them yet. */

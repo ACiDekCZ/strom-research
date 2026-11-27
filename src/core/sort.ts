@@ -73,6 +73,12 @@ export const SORT_UNSIGNED = "unsigned";
  * a word of it (left-out); its reader did not end well (reader-failed, with its outcome).
  */
 export const SORT_UNPROPOSED = ["nothing-said", "nothing-new", "dropped", "left-out", "reader-failed"] as const;
+/**
+ * What the person decided of a file's proposal in the Strom app (spec 147 K2, POST /material/sort/<id>/decided): took it
+ * (accepted, as it was or changed) or turned it down (refused) — the file is not sent to be sorted again unless the person
+ * chooses it. `open` takes the decision back.
+ */
+export const SORT_DECIDED = ["accepted", "refused"] as const;
 
 export interface SortLink {
   type: (typeof SORT_LINK_TYPES)[number];
@@ -154,6 +160,11 @@ export interface SortState {
    * already or left out, its reader stopped — with the reader's own words of it where it wrote some.
    */
   unproposed?: { id: string; why: (typeof SORT_UNPROPOSED)[number]; said?: string; outcome?: string }[];
+  /**
+   * When done: what the person decided of its files' proposals in the Strom app (spec 147 K2), each file once, the last
+   * word kept — nothing of it written to the research.
+   */
+  decided?: { id: string; how: (typeof SORT_DECIDED)[number]; at: string }[];
   /**
    * Why it failed: limit, auth, timeout, error (its readers), start (none started), stopped (its process ended),
    * unsigned (said to be the app's without the bridge's signature: never started).
@@ -967,8 +978,23 @@ export function unproposedOf(files: readonly string[], raw: readonly RawProposal
   return out;
 }
 
+/**
+ * The person's decisions of files of a sort done (spec 147 K2): each file one of the sort's, its last decision kept, `open`
+ * taking one back. Kept in the sort's record beside the research (written whole); the sort as it is now.
+ */
+export function decideSort(root: string, s: SortState, ids: readonly string[], how: (typeof SORT_DECIDED)[number] | "open", now = new Date()): SortState {
+  const take = new Set(ids);
+  const decided = (s.decided ?? []).filter((d) => !take.has(d.id));
+  if (how !== "open") for (const id of take) decided.push({ id, how, at: now.toISOString() });
+  const out: SortState = { ...s };
+  if (decided.length) out.decided = decided;
+  else delete out.decided;
+  saveSort(root, out);
+  return out;
+}
+
 /** A sort as the Strom app is given it (GET /material/sort/<id>): its proposals checked again against the research now. */
-export function sortForApp(tree: Pick<Tree, "get">, s: SortState): { id: string; state: SortStateName; files: string[]; at: string; proposals?: SortProposal[]; unproposed?: SortState["unproposed"]; filesDone?: number; reason?: string; run?: string; part?: number; parts?: number } {
+export function sortForApp(tree: Pick<Tree, "get">, s: SortState): { id: string; state: SortStateName; files: string[]; at: string; proposals?: SortProposal[]; unproposed?: SortState["unproposed"]; decided?: SortState["decided"]; filesDone?: number; reason?: string; run?: string; part?: number; parts?: number } {
   const now = shownSort(s);
   return {
     id: now.id,
@@ -976,7 +1002,7 @@ export function sortForApp(tree: Pick<Tree, "get">, s: SortState): { id: string;
     files: now.files,
     at: now.at,
     ...runOf(now),
-    ...(now.state === "done" ? { proposals: keptProposals(tree, now.files, now.proposals ?? []).proposals, ...(now.unproposed?.length ? { unproposed: now.unproposed } : {}) } : {}),
+    ...(now.state === "done" ? { proposals: keptProposals(tree, now.files, now.proposals ?? []).proposals, ...(now.unproposed?.length ? { unproposed: now.unproposed } : {}), ...(now.decided?.length ? { decided: now.decided } : {}) } : {}),
     ...(now.state === "working" ? { filesDone: now.filesDone ?? 0 } : {}),
     ...(now.reason ? { reason: now.reason } : {}),
   };

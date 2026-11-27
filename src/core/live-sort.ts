@@ -31,6 +31,7 @@ import {
   cancelSort,
   checkSortAsk,
   counted,
+  decideSort,
   listSorts,
   loadSort,
   queueRun,
@@ -40,7 +41,9 @@ import {
   runForApp,
   runParts,
   saveSort,
+  shownSort,
   signCounted,
+  SORT_DECIDED,
   SORT_FINAL,
   SORT_MOST_FILES,
   SORT_QUEUE_MAX,
@@ -108,6 +111,7 @@ export class AppSorts {
     if (req.method === "POST" && !act) this.post(req, res, origin);
     else if (req.method === "GET" && act && !rest) this.show(res, act);
     else if (req.method === "POST" && act && rest === "cancel") this.cancel(req, res, origin, act);
+    else if (req.method === "POST" && act && rest === "decided") this.decided(req, res, origin, act);
     else return false;
     return true;
   }
@@ -229,6 +233,40 @@ export class AppSorts {
         this.b.note(`${s.id}: a sort of ${ask.files.length} files queued`);
         this.json(res, 202, { id: s.id, state: s.state });
         this.dispatch();
+      }),
+    );
+  }
+
+  /**
+   * POST /material/sort/<id>/decided {ids, how: accepted|refused|open} (spec 147 K2, feature material.decided): what the
+   * person decided of the proposals of files of a sort done — kept in the sort's record, nothing written to the research;
+   * a run's id: each file in its part. → {id, decided: [{id, how, at}]} (of a run: its parts' decisions).
+   */
+  private decided(req: http.IncomingMessage, res: http.ServerResponse, origin: string | undefined, id: string): void {
+    if (!origin) {
+      req.resume();
+      return this.json(res, 403, refusal("only the Strom app may say what was decided of a sort", "app.only"));
+    }
+    this.body(req, (body) =>
+      this.b.safely(req, res, () => {
+        const key = this.key();
+        const sorts = RUN_ID.test(id) ? runParts(this.b.root, key, id) : [loadSort(this.b.root, id)].filter((s): s is SortState => !!s && appSort(key, s));
+        if (!sorts.length) return this.json(res, 404, this.none(id));
+        const ids = Array.isArray(body?.ids) ? [...new Set(body.ids)] : undefined;
+        const how = body?.how;
+        if (!ids?.length || ids.length > SORT_RUN_MOST_FILES || !ids.every((x): x is string => typeof x === "string") || !(how === "open" || (SORT_DECIDED as readonly unknown[]).includes(how)))
+          return this.json(res, 400, refusal(`the body: {ids: [I…] (files of the sort), how: ${SORT_DECIDED.join("|")}|open}`, "material.body"));
+        const notDone = sorts.find((s) => shownSort(s).state !== "done" && ids.some((x) => s.files.includes(x)));
+        if (notDone) return this.json(res, 409, refusal(`the sort ${notDone.id} is ${shownSort(notDone).state}, not done: nothing of it to decide yet`, "sort.state", { state: shownSort(notDone).state }));
+        const stray = ids.find((x) => !sorts.some((s) => s.files.includes(x)));
+        if (stray) return this.json(res, 400, refusal(`${stray.slice(0, 40)} is no file of the sort ${id.slice(0, 40)}`, "material.body", { id: stray.slice(0, 40) }));
+        const now = new Date();
+        const out = sorts.map((s) => {
+          const mine = ids.filter((x) => s.files.includes(x));
+          return mine.length ? decideSort(this.b.root, s, mine, how as (typeof SORT_DECIDED)[number] | "open", now) : s;
+        });
+        this.b.note(`${id}: ${ids.length} file${ids.length === 1 ? "" : "s"} of its proposals ${how === "open" ? "open again" : how} in the Strom app`);
+        this.json(res, 200, { id, decided: out.flatMap((s) => s.decided ?? []) });
       }),
     );
   }
