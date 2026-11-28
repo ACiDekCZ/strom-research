@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.38.0
 
-*In Vorbereitung: die Betas bis 1.38.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.38.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein übersichtlicheres Menü im Terminal:** jeder Bildschirm sagt, wo er ist (Strom › Einstellungen › Wartung), die
   Auswahlen als `[1]  Bezeichnung   Stand`, ein Schalter mit seinem jetzigen Stand und wohin er umschaltet, zurück
@@ -18,7 +18,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Material einmal sortiert, Einstellungen der Forschung in Worten:** eine Datei, der die letzte Sortierung einen
   Titel, eine Art, ein Datum oder Personen vorschlug und die sie schon wie vorgeschlagen hat, gilt als erledigt und
   wird nicht neu sortiert; was der Mensch in der Strom-App über einen Vorschlag entschied (übernommen, abgelehnt und
-  warum), bleibt bei der Sortierung. Eine in der App oder im Menü geänderte Einstellung erscheint in den letzten Änderungen mit Namen und Wert in der Sprache der Forschung („In der Forschung ausgeschaltet:
+  warum), bleibt bei der Sortierung. Titel, Art, Datum und Notiz einer Datei, im Material angegeben, bleiben, auch
+  wenn die Strom-App daraus ein Porträt oder einen Anhang ohne sie macht und den Stammbaum zweimal sendet (sie galten
+  als in der App entfernt). Eine in der App oder im Menü geänderte Einstellung erscheint in den letzten Änderungen mit Namen und Wert in der Sprache der Forschung („In der Forschung ausgeschaltet:
   Rückfrage vor dem Sortieren des Materials“), nicht mehr als Schlüssel (`sort.confirm`).
 - **Der Agent findet sich mit weniger Versuchen zurecht:** `strom place find <Name>` und `strom place <Name>` führen
   zu `strom place list <Name>`; `strom source list --note <Text>` listet mit einem Aufruf die Quellen, deren Notiz

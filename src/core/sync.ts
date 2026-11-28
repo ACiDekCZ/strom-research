@@ -1835,6 +1835,11 @@ export interface Received {
    * given with the files and no longer has is taken off. Without it the files only add.
    */
   mediaApp?: true;
+  /**
+   * Written: what it carried of its files whose records had no place in the tree at its head (the app was never given
+   * them with the tree) — the base of their title, kind, date and note for the later sends of the same tree of the app.
+   */
+  mediaSent?: MediaCarried;
 }
 
 /** So many changes not written a send keeps for /status (the reply to POST /sync has them all). */
@@ -2115,7 +2120,7 @@ function decide(root: string, r: Received, to: Partial<Received> & { state: Rece
 export function settleReceived(
   root: string,
   file: string,
-  to: ({ state: "written"; input: string } | { state: "nothing" }) & { kept?: number; notWritten?: NotWritten[]; skipped?: Skipped[]; media?: MediaWritten[]; retracted?: string[] },
+  to: ({ state: "written"; input: string } | { state: "nothing" }) & { kept?: number; notWritten?: NotWritten[]; skipped?: Skipped[]; media?: MediaWritten[]; retracted?: string[]; mediaSent?: MediaCarried },
   applied: Applied[] = [],
 ): void {
   const r = receivedOf(root, file);
@@ -3180,6 +3185,8 @@ export interface Plan {
   mended?: number;
   /** The person's questions the file would ask again, asked by an earlier send and still waiting (their tasks): no change, said. */
   waiting?: string[];
+  /** What the send carries of its files whose records had no place in the tree at its head (kept with it: Received.mediaSent). */
+  mediaCarried?: MediaCarried;
 }
 
 /** A file whose confirmations against the scan do not count (an app that was never given them): none of them read. */
@@ -4494,7 +4501,7 @@ function planned(
   // or family gets its IDs with it (no change of its own); IDs the research has all already are no change
   for (const c of idsToAdd(tree, incoming)) push(c);
   // the files of the app's tree: only added (a record, a place, a portrait's new version), never conflicts, in every state
-  planMedia(tree, incoming, ours, sources, { based: !!base, whole: !!opts.mediaApp && !partial }, changes, push);
+  const mediaCarried = planMedia(tree, incoming, ours, sources, { based: !!base, whole: !!opts.mediaApp && !partial }, changes, push);
   if (incoming.head && opts.takenBack !== false && !sentAgain) takenBack(tree, incoming, edits, changes);
   // a send of the app (`sent`: it came through the bridge) with nothing to stand on (no _STROM_HEAD, no _STROM_SINCE the research still has —
   // found on Mac after the app set itself back to its state before a load): nobody picks from a send the bridge wrote,
@@ -4544,7 +4551,7 @@ function planned(
         surname: c,
       });
   }
-  return { changes, sources, readings, base: !!base, ...(incoming.head ? { head: incoming.head } : {}), partial, identity, ...(mended ? { mended } : {}), ...(waiting.size ? { waiting: [...waiting].sort() } : {}) };
+  return { changes, sources, readings, base: !!base, ...(incoming.head ? { head: incoming.head } : {}), partial, identity, ...(mended ? { mended } : {}), ...(waiting.size ? { waiting: [...waiting].sort() } : {}), ...(mediaCarried ? { mediaCarried } : {}) };
 }
 
 /** The day a file was written (its HEAD's DATE, "28 OCT 2026" → 2026-10-28). */
@@ -5406,6 +5413,8 @@ function idsToAdd(tree: Tree, incoming: Snapshot): Omit<Change, "n">[] {
 /** What the app's user gives a file: the record's fields they are. */
 const MEDIA_FIELDS = ["title", "kind", "date", "note"] as const;
 type MediaField = (typeof MEDIA_FIELDS)[number];
+/** What a send carried of a file, by its record: each field it gave (one it did not give left out). */
+export type MediaCarried = Record<string, Partial<Record<MediaField, string>>>;
 
 /** A record's fields a send of the app may change: kept before it does, put back by its undo. */
 const MEDIA_KEPT = ["name", "sha", "file", "size", "mime", "origin", "working", "orient", "title", "titled", "materialKind", "date", "notes", "links"] as const;
@@ -5459,6 +5468,8 @@ interface MediaBase {
   field: (id: string, k: MediaField) => string | undefined;
   /** The records the app was given. */
   records: Set<string>;
+  /** The records that had a place in the tree at the head (given with it). */
+  given: Set<string>;
 }
 
 const linkKey = (id: string, l: Pick<MediaLink, "type" | "ref" | "event">) => `${id}|${l.type}|${l.ref}|${l.event ?? ""}`;
@@ -5483,27 +5494,43 @@ function mediaBase(tree: Tree, incoming: Snapshot): MediaBase | undefined {
   const links = new Set<string>();
   for (const [id, rec] of atHead) if (!rec.retracted) for (const l of rec.links ?? []) if (!l.retracted) links.add(linkKey(id, l));
   // the sends of this tree of the app written since its head: the commits that brought their inputs, the oldest first
-  const own = new Set(incoming.appTree ? receivedAll(tree.root).filter((r) => r.tree === incoming.appTree && r.state === "written" && r.input && !atHead.has(r.input)).map((r) => r.input!) : []);
-  const commits: { commit: string; records: string[] }[] = [];
+  const sends = incoming.appTree ? receivedAll(tree.root).filter((r) => r.tree === incoming.appTree && r.state === "written" && r.input && !atHead.has(r.input)) : [];
+  const own = new Set(sends.map((r) => r.input!));
+  const commits: { commit: string; records: string[]; input?: string }[] = [];
   if (own.size) {
     const r = git.runGit(tree.root, ["log", "--name-only", "--format=%x1e%H", `${head}..HEAD`, "--", "data/inputs"]);
     if (r.status === 0)
       for (const entry of r.stdout.split("\x1e").slice(1)) {
         const [commit, ...files] = entry.trim().split("\n");
         const ids = files.map((f) => idOf(f.trim())).filter((x): x is string => !!x);
-        if (commit && ids.some((x) => own.has(x))) commits.unshift({ commit, records: ids.filter((x) => !own.has(x)) });
+        const input = ids.find((x) => own.has(x));
+        if (commit && input) commits.unshift({ commit, records: ids.filter((x) => !own.has(x)), input });
       }
     for (const rec of tree.list<Input>("input")) for (const l of rec.links ?? []) if (l.input && own.has(l.input)) links.add(linkKey(rec.id, l));
   }
-  // a record's fields: as the head had them, each as the last own send that changed it left it
+  // what each own send carried of the files its head gave no place in the tree (kept with it, by its input)
+  const sentOf = new Map(sends.filter((r) => r.mediaSent).map((r) => [r.input!, r.mediaSent!] as const));
+  // the records the app was given: those in its tree at the head (a place there), and those its own sends wrote since —
+  // never a record of the material that had no place in the tree (found: the note of a file the app first got in that
+  // very send taken as removed by its user, its commit refused, the research stuck for every write after it)
+  const given = new Set([...atHead].filter(([, r]) => !r.retracted && (r.links ?? []).some((l) => !l.retracted)).map(([id]) => id));
+  // a record's fields: one given at the head as the head had them, each as the last own send that changed it left it;
+  // one the head gave no place in the tree only what the own sends carried — the head's value of it the app was never
+  // given (found: a title and kind given in the material, the app's portrait of the file without them, its second send
+  // took them as removed by the user and the commit took them off)
   const cache = new Map<string, Partial<Record<MediaField, string>>>();
   const fieldsOf = (id: string): Partial<Record<MediaField, string>> | undefined => {
     if (cache.has(id)) return cache.get(id);
-    const at = atHead.get(id);
-    const out: Partial<Record<MediaField, string>> | undefined = at ? Object.fromEntries(MEDIA_FIELDS.map((k) => [k, mediaValue(at, k)])) : undefined;
-    let got = out;
+    const at = given.has(id) ? atHead.get(id) : undefined;
+    let got: Partial<Record<MediaField, string>> | undefined = at ? Object.fromEntries(MEDIA_FIELDS.map((k) => [k, mediaValue(at, k)])) : undefined;
     for (const c of commits) {
       if (!c.records.includes(id)) continue;
+      // what the send carried, where it is kept (a strom before keeps none): the whole of what the app had of the file
+      const sent = !at && c.input ? sentOf.get(c.input)?.[id] : undefined;
+      if (sent) {
+        got = { ...sent };
+        continue;
+      }
       const [after, before] = [parse(git.showFile(tree.root, c.commit, `data/inputs/${id}.json`)), parse(git.showFile(tree.root, `${c.commit}^`, `data/inputs/${id}.json`))];
       if (!after) continue;
       got ??= {};
@@ -5512,12 +5539,8 @@ function mediaBase(tree: Tree, incoming: Snapshot): MediaBase | undefined {
     cache.set(id, got!);
     return got;
   };
-  // the records the app was given: those in its tree at the head (a place there), and those its own sends wrote since —
-  // never a record of the material that had no place in the tree (found: the note of a file the app first got in that
-  // very send taken as removed by its user, its commit refused, the research stuck for every write after it)
-  const given = [...atHead].filter(([, r]) => !r.retracted && (r.links ?? []).some((l) => !l.retracted)).map(([id]) => id);
   const records = new Set([...given, ...commits.flatMap((c) => c.records)]);
-  return { links, records, field: (id, k) => (records.has(id) ? fieldsOf(id)?.[k] : undefined) };
+  return { links, records, given, field: (id, k) => (records.has(id) ? fieldsOf(id)?.[k] : undefined) };
 }
 
 /** What of a record only follows the file (no change of the user's): the original come, a working copy, its orientation. */
@@ -5547,7 +5570,7 @@ function mediaEvent(tree: Tree, snap: Snapshot, owner: string, fact: MediaFact):
  * lacks or the user changed since. No conflict, no task, in every state (P5, P6). An event the research does not have:
  * the file at its person or family, said (media.eventMissing, V8); a file that cannot be read: said (media.unreadable).
  */
-function planMedia(tree: Tree, incoming: Snapshot, ours: Snapshot, sources: Map<string, string>, o: { based: boolean; whole: boolean }, changes: Change[], push: (c: Omit<Change, "n">) => void): void {
+function planMedia(tree: Tree, incoming: Snapshot, ours: Snapshot, sources: Map<string, string>, o: { based: boolean; whole: boolean }, changes: Change[], push: (c: Omit<Change, "n">) => void): MediaCarried | undefined {
   const files = incoming.media;
   const based = o.based;
   // a send that carries all its files (media=app) against what its app was given of them: what it no longer has goes
@@ -5666,6 +5689,7 @@ function planMedia(tree: Tree, incoming: Snapshot, ours: Snapshot, sources: Map<
     }
   }
   // what the user gave a file the research has: its title, kind, date, note — against the record as the app was given it
+  const carried: MediaCarried = {};
   const wasOf = (id: string): Input | undefined => {
     if (!based || !incoming.head) return undefined;
     const text = git.showFile(tree.root, incoming.head, `data/inputs/${id}.json`);
@@ -5680,6 +5704,10 @@ function planMedia(tree: Tree, incoming: Snapshot, ours: Snapshot, sources: Map<
     // a character of its name, title or note that could not be read: kept as it came, said (never renamed quietly)
     if (f.garbled && first.has(key)) push({ kind: "media.edit", action: "report", code: "media.unreadable", ...first.get(key)!, text: f.title ?? f.name ?? key.slice(0, 12), media: { file: key, ...recOf(rec) } });
     if (!rec || !first.has(key)) continue;
+    // a file whose record had no place in the tree at the head (the app was never given it with the tree): what the
+    // send carries of it is kept with the send — the base of its fields for the next sends (mediaBase), never the head's
+    if (incoming.appTree && !(base ? base.given.has(rec.id) : rec.links?.some((l) => !l.retracted)))
+      carried[rec.id] = Object.fromEntries(MEDIA_FIELDS.flatMap((k) => (fileValue(f, k) === undefined ? [] : [[k, fileValue(f, k)!]])));
     const fields: string[] = mediaFields(rec, f, wasOf(rec.id), base?.records.has(rec.id) ? (k) => base.field(rec.id, k) : undefined);
     const kept = mediaKept(rec, f);
     if (!fields.length && (!kept.length || touched.has(key))) continue;
@@ -5699,6 +5727,7 @@ function planMedia(tree: Tree, incoming: Snapshot, ours: Snapshot, sources: Map<
       text: u.name,
     });
   }
+  return Object.keys(carried).length ? carried : undefined;
 }
 
 /**

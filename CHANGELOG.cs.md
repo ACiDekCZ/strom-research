@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.38.0
 
-*Připravuje se: bety do 1.38.0-beta.6. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.38.0-beta.7. Oddíl bude úplný s vydáním.*
 
 - **Přehlednější menu v terminálu:** každá obrazovka říká, kde je (Strom › Nastavení › Údržba), volby jako
   `[1]  Popisek   stav`, přepínač s tím, jak je teď a na co přepne, zpět vždy poslední jako `[0]` (i cesta stahovače v
@@ -16,7 +16,9 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   jen jedna linie výzkumu je o krok dál.
 - **Materiál roztříděný jednou, nastavení výzkumu slovy:** soubor, kterému poslední třídění navrhlo název, druh,
   datum nebo osoby a který je už má podle návrhu, se počítá za hotový a znovu se netřídí; co člověk o návrhu rozhodl
-  v aplikaci Strom (přijato, odmítnuto a proč), zůstane u třídění. Nastavení změněné z aplikace nebo z menu se
+  v aplikaci Strom (přijato, odmítnuto a proč), zůstane u třídění. Název, druh, datum a poznámka souboru zadané
+  v materiálu zůstanou, i když z něj aplikace Strom udělá portrét nebo přílohu bez nich a rodokmen pošle dvakrát (brály
+  se jako odebrané v aplikaci). Nastavení změněné z aplikace nebo z menu se
   v posledních změnách ukáže názvem a hodnotou v jazyce výzkumu („Vypnuto ve výzkumu: Dotaz před tříděním materiálu“), už ne jako klíč
   (`sort.confirm`).
 - **Agent se zorientuje s méně pokusy:** `strom place find <jméno>` a `strom place <jméno>` navedou na

@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.38.0
 
-*W przygotowaniu: bety do 1.38.0-beta.6. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.38.0-beta.7. Sekcja będzie kompletna z wydaniem.*
 
 - **Bardziej przejrzyste menu w terminalu:** każdy ekran mówi, gdzie jest (Strom › Ustawienia › Konserwacja), opcje
   jako `[1]  Etykieta   stan`, przełącznik z tym, jak jest teraz i na co przełącza, powrót zawsze na końcu jako `[0]`
@@ -17,7 +17,8 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 - **Materiał posortowany raz, ustawienia badania słowami:** plik, któremu ostatnie sortowanie zaproponowało tytuł,
   rodzaj, datę lub osoby i który ma je już zgodnie z propozycją, liczy się jako gotowy i nie jest sortowany ponownie;
   to, co człowiek zdecydował o propozycji w aplikacji Strom (przyjęto, odrzucono i dlaczego), zostaje przy
-  sortowaniu. Ustawienie zmienione w aplikacji lub w menu pokazuje się w ostatnich zmianach nazwą i wartością w języku badania („Wyłączono w badaniu: Pytanie przed sortowaniem materiałów”), już nie
+  sortowaniu. Tytuł, rodzaj, data i notatka pliku podane w materiałach zostają, także gdy aplikacja Strom zrobi z niego
+  portret lub załącznik bez nich i wyśle drzewo dwa razy (były brane jako usunięte w aplikacji). Ustawienie zmienione w aplikacji lub w menu pokazuje się w ostatnich zmianach nazwą i wartością w języku badania („Wyłączono w badaniu: Pytanie przed sortowaniem materiałów”), już nie
   jako klucz (`sort.confirm`).
 - **Agent odnajduje się przy mniejszej liczbie prób:** `strom place find <nazwa>` i `strom place <nazwa>` kierują do
   `strom place list <nazwa>`; `strom source list --note <tekst>` wypisuje jednym wywołaniem źródła, których notatka
