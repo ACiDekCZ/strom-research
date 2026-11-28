@@ -5,7 +5,7 @@ A test that cannot run there is never removed or turned off quietly: it skips it
 the developer's folders still runs it (the whole `npm test` before a release). The workflow's step "Skipped here"
 lists what each shard skipped.
 
-On ubuntu-24.04: 42 tests skip (measured 2026-11-22). They are:
+On ubuntu-24.04: 43 tests skip (measured 2026-11-22; one more since spec 151). They are:
 
 ## macOS itself (11)
 
@@ -17,7 +17,7 @@ On ubuntu-24.04: 42 tests skip (measured 2026-11-22). They are:
 | `test/unit/readable.test.ts` | 1 | `sips` and PDFKit (`osascript`): a HEIC photo, a PDF of text |
 | `test/cli/links-bridge.test.ts` | 1 | links of another installation set up through the macOS app bundle |
 
-## The Strom app's sources beside the repository (27)
+## The Strom app's sources beside the repository (28)
 
 Run only where `../strom` and `../strom-beta` (the Strom app, with its `node_modules`) are next to this repository: the
 app's own parser and exporter read what strom writes. A runner has only this repository.
@@ -26,7 +26,8 @@ app's own parser and exporter read what strom writes. A runner has only this rep
 `test/cli/sync-sex-unknown.test.ts`, `test/cli/sync-unknown-surname.test.ts`, `test/cli/sync-titles.test.ts`,
 `test/cli/sync-nameless.test.ts`, `test/cli/sync-source-title.test.ts`, `test/cli/verify-app.test.ts`,
 `test/cli/story-keep.test.ts`, `test/cli/excerpts-export.test.ts`, `test/cli/excerpts-links.test.ts`,
-`test/cli/live-images-ref.test.ts`, `test/cli/edge.test.ts`.
+`test/cli/live-images-ref.test.ts`, `test/cli/edge.test.ts`, `test/unit/living-privacy.test.ts` (the app's copy of the
+table of who is living, `../strom-beta/test/fixtures/living-rule-cases.json`).
 
 ## Elsewhere, not on a Mac either (4)
 

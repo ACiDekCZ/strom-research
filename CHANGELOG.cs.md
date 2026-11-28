@@ -11,7 +11,9 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   `[1]  Popisek   stav`, přepínač s tím, jak je teď a na co přepne, zpět vždy poslední jako `[0]` (i cesta stahovače v
   Nastavení → Archivy), výzva říká, co udělá Enter, a příkaz k opsání stojí na vlastním řádku; v terminálu, který to
   umí, jsou klávesy a příkazy zvýrazněné. Kde má pracovat agent, stojí první fronta úkolů s tím, co je v ní na řadě;
-  jen jedna linie výzkumu je o krok dál.
+  jen jedna linie výzkumu je o krok dál. `strom demo` vyzkouší strom na ukázkovém výzkumu smyšlené rodiny (cs, en, de,
+  pl), mimo vlastní stromy a nastavení, otevřený v aplikaci Strom; všechno v něm jde prohlédnout, nic nenabízí agenta;
+  `strom demo --remove` ho smaže.
 - **Materiál roztříděný jednou, nastavení výzkumu slovy:** soubor, kterému poslední třídění navrhlo název, druh,
   datum nebo osoby a který je už má podle návrhu, se počítá za hotový a znovu se netřídí; co člověk o návrhu rozhodl
   v aplikaci Strom (přijato, odmítnuto a proč), zůstane u třídění. Název, druh, datum a poznámka souboru zadané
@@ -54,9 +56,14 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   health --ai`, `--dry` řekne, co to stojí) nebo z aplikace Strom s odhadem; agent jen čte a navrhuje, nejvýš 30
   nálezů za běh, každý s důkazem, a `--changed` projde jen to, co se od minulé kontroly změnilo. Přijatý nález se
   stane úkolem ve frontě, odmítnutý se už neohlásí (`strom audit accept|dismiss|undo`, také v aplikaci Strom).
-- **`strom demo`:** strom vyzkoušený na ukázkovém výzkumu smyšlené rodiny (cs, en, de, pl), mimo vlastní stromy a
-  nastavení, otevřený v aplikaci Strom; všechno v něm jde prohlédnout, nic nenabízí agenta; `strom demo --remove` ho
-  smaže.
+- **Ochrana žijících v souboru GEDCOM ke sdílení:** `strom export gedcom --living` zapíše kopii, v níž mají žijící jen
+  iniciály a rok narození (`surname`: jen příjmení, `hidden`: bez jména), jejich místo v rodině zůstane a zemřelí jsou
+  beze změny; žijící je, kdo nemá úmrtí, pohřeb ani kremaci a narodil se před méně než 110 lety, posouzeno i podle
+  sňatků a dětí – stejné pravidlo jako ve výstupech aplikace Strom. Kopie jde do `output/tree-initials.ged` mimo
+  historii, nebo s `--out` kamkoli mimo složku výzkumu; nastavení „Ochrana žijících v souborech GEDCOM ven“
+  (`gedcom.living`) z ní udělá výchozí. `output/tree.ged` zůstává beze změny a export i `strom pack` nově říkají, že
+  obsahují všechny údaje žijících osob. Chráněný soubor to má v hlavičce a `strom sync` ho nikdy nepřevezme
+  (`strom intake` ho uloží jen jako materiál); help `--research` říká, že vynechá sourozence a boční větve.
 - **Opravy čtení znovu, knih a snímků a dodatečné opravy:** dřívější čtení, které nezachovalo otázku (staršího nástroje), se přečte znovu
   celé místo odmítnutí, jeho výsledek se zapíše celý dřív, než pramen řekne hotovo, kolo s většinou míst nepřečtených
   řekne proč a nenabízí nic dalšího k zaplacení, a čtení, které udělala oprava, se znovu nenabízí; kniha dostane počet

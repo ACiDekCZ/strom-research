@@ -44,6 +44,7 @@ import { decodingSaid, ui } from "../cli/ui.ts";
 import { fileBy, handFiles, taskForFile, taskPeople } from "../core/taskfiles.ts";
 import { isAgent } from "../core/which.ts";
 import { clientLabel, type SyncInput } from "../core/sync.ts";
+import { treeFilePrivacyOf } from "../gedcom/privacy.ts";
 
 /** The device of the Strom app a send came from (spec 094): none of any other input. */
 const clientOf = (i: Input) => (i as SyncInput).sync?.client;
@@ -322,7 +323,10 @@ register(
           );
           known.set(sha, input.id);
           let imported: ImportResult | undefined;
-          if (kind === "tree" && !opts["no-import"] && text !== undefined) {
+          // a file with the living protected (spec 151): kept as material, never taken into the tree
+          const shield = kind === "tree" && text !== undefined ? treeFilePrivacyOf(text) : undefined;
+          if (shield) report.push(ui(tree.lang, "ui.intake.protected", { id: input.id, mode: ui(tree.lang, `ui.living.mode.${shield.mode}`) }));
+          if (kind === "tree" && !shield && !opts["no-import"] && text !== undefined) {
             imported = path.extname(file).toLowerCase() === ".ged"
               ? importGedcom(tree, text, { input: input.id, name: input.name, sha, pendingIds: pendingIds(tree) })
               : importStromJson(tree, JSON.parse(text), { input: input.id, name: input.name });

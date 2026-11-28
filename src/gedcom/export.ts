@@ -108,6 +108,11 @@ export interface ExportOptions {
   stromVersion?: string | undefined;
   /** Only these persons (and families among them); default everyone. */
   persons?: Set<string>;
+  /**
+   * The living a protected file keeps to their name (spec 151): never named nor pointed at in another's record — a
+   * witness or godparent of theirs left out of the event, a stepchild of theirs out of the family's note.
+   */
+  hidden?: Set<string>;
   /** These removed (retracted) persons too — a sync compares an older copy's edits of a removed person with them as they are now. */
   removed?: Set<string>;
   /** The Strom profile with images: the entry cut out of its scan, for each source that has clips. */
@@ -787,7 +792,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         if (fr) w.line(2, "_FREL", FREL[fr]);
         if (mr) w.line(2, "_MREL", FREL[mr]);
       }
-      if (strict || repeat) {
+      if ((strict || repeat) && !opts.hidden?.has(c.person)) {
         const as = (r: ChildRelation) => L(r === "unknown" ? "unknownRelation" : r);
         const who = [husb && fr ? `${displayName(husb)}: ${as(fr)}` : "", wife && mr ? `${displayName(wife)}: ${as(mr)}` : ""].filter(Boolean).join(", ");
         deferred.push(`${displayName(personById.get(c.person)!)} — ${who}`);
@@ -1547,6 +1552,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   }
 
   function participant(pt: Participant, on: "INDI" | "FAM", noteParts: string[], assos: { person: string; rela: string }[]): void {
+    if (pt.person && opts.hidden?.has(pt.person)) return;
     const rela = RELA[pt.role] ?? "Participant";
     const linked = pt.person && personIds.has(pt.person) ? pt.person : undefined;
     // A person of the tree outside this export is named, never shown as a bare ID.

@@ -46,6 +46,7 @@ import { eventName, humanDate, humanDay } from "../cli/human.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import { kindOfLabel } from "./labelkind.ts";
 import { StromError, UsageError } from "./errors.ts";
+import { jsonPrivacyOf, privacyOf } from "../gedcom/privacy.ts";
 import * as git from "./git.ts";
 import { now, Tree, typeOfId, type Op } from "./tree.ts";
 import { verifyConfirm } from "./verify.ts";
@@ -1679,8 +1680,12 @@ export function readTreeFile(file: string, lang?: string, opts: ReadOptions = {}
     } catch (e) {
       throw new UsageError(`${path.basename(file)} is not readable JSON: ${(e as Error).message}`, { code: "tree.unreadable", params: { file: path.basename(file) } });
     }
+    refuseProtected(file, jsonPrivacyOf(data), lang);
     snap = readStromJson(data, lang);
-  } else if (/^﻿?\s*0\s+HEAD/m.test(text)) snap = readGedcom(text, lang, opts);
+  } else if (/^﻿?\s*0\s+HEAD/m.test(text)) {
+    refuseProtected(file, privacyOf(text), lang);
+    snap = readGedcom(text, lang, opts);
+  }
   else throw new UsageError(`${path.basename(file)} is neither a GEDCOM file nor a family tree of the Strom app`, { code: "tree.unreadable", params: { file: path.basename(file) } });
   if (!snap.persons.size) throw new UsageError(`${path.basename(file)} has no people in it`, { hint: "a file exported from the Strom app or another family-tree program", code: "tree.empty", params: { file: path.basename(file) } });
   const note = decoded ? decodingNote(decoded) : {};
@@ -1688,6 +1693,28 @@ export function readTreeFile(file: string, lang?: string, opts: ReadOptions = {}
   if (note.encoding || note.unreadable) snap.decoding = note;
   return snap;
 }
+
+/**
+ * A file with the living protected (spec 151: 1 _STROM_PRIVACY of a GEDCOM, privacy of a JSON): never a source of
+ * changes — the details of the living missing in it would look deleted.
+ */
+function refuseProtected(file: string, shield: ReturnType<typeof privacyOf>, lang?: string): void {
+  if (!shield) return;
+  const n = shield.living ?? 0;
+  throw new UsageError(`${path.basename(file)} is a file with the living protected (${modeSaid(shield.mode, "en")}): the details of ${n} living ${n === 1 ? "person are" : "people are"} missing in it — never a source of changes`, {
+    hint: "a full export of the Strom app (without the protection of the living); a protected file opens only as a new tree",
+    code: "tree.protected",
+    params: { file: path.basename(file), mode: modeSaid(shield.mode, lang), n: String(n) },
+  });
+}
+
+/** A mode of the protection of the living in words of the research's language (the CLI's own catalog). */
+const MODE_SAID: Record<string, Record<string, string>> = {
+  initials: { en: "initials + birth year", cs: "iniciály + rok narození", de: "Initialen + Geburtsjahr", pl: "inicjały + rok urodzenia" },
+  surname: { en: "surname only", cs: "jen příjmení", de: "nur Nachname", pl: "tylko nazwisko" },
+  hidden: { en: "names hidden", cs: "skrytá jména", de: "Namen verborgen", pl: "ukryte imiona i nazwiska" },
+};
+const modeSaid = (mode: string, lang?: string) => MODE_SAID[mode]?.[lang ?? "en"] ?? MODE_SAID[mode]?.en ?? mode;
 
 /** How a family's children are tied to its parents, as a snapshot keeps it. */
 type Ties = Pick<SFamily, "relations" | "relationsBy" | "relationsUnknown">;

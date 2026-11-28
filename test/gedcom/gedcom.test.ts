@@ -146,7 +146,11 @@ test("export: two files from the same evidence — standard and for Strom; valid
   assert.deepEqual(validateGedcom(plain, { strict: true }).filter((f) => f.level === "error"), []);
   assert.equal((await w.ok(["gedcom", "validate", strict.json.file, "--for", "standard"])).code, 0);
   assert.equal(plain, fs.readFileSync(path.join(w.cwd, "output", "tree.ged"), "utf8").replace(/^1 DATE .*$/m, plain.match(/^1 DATE .*$/m)![0]), "output/tree.ged is the standard one");
-  assert.equal((await w.run(["export", "gedcom", "--out", path.join(w.dir, "x.ged")])).code, 2, "--out writes one file");
+  // --out alone: the standard file (spec 151: a file going out, strom export gedcom --living --out <file>); --for both refused
+  const alone = await w.ok(["export", "gedcom", "--out", path.join(w.dir, "x.ged"), "--json"]);
+  assert.equal(alone.json.files.length, 1);
+  assert.equal(alone.json.files[0].for, "standard");
+  assert.equal((await w.run(["export", "gedcom", "--out", path.join(w.dir, "y.ged"), "--for", "both"])).code, 2, "--out writes one file");
   w.cleanup();
 });
 

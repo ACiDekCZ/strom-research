@@ -396,10 +396,28 @@ function foldSurplus(def: CommandDef, defs: OptionDef[], tokens: Token[], values
   return { values, positionals, fix: [...def.path, ...parts].join(" ") };
 }
 
+/** An option that may stand alone (OptionDef.bare) typed last or before another option: given its bare value. */
+function withBareValues(defs: OptionDef[], rest: string[]): string[] {
+  const bare = new Map(defs.filter((o) => o.type === "string" && o.bare !== undefined).map((o) => [`--${o.name}`, o.bare!]));
+  if (!bare.size) return rest;
+  const out: string[] = [];
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i]!;
+    if (a === "--") {
+      out.push(...rest.slice(i));
+      break;
+    }
+    const value = bare.get(a);
+    const next = rest[i + 1];
+    out.push(value !== undefined && (next === undefined || next.startsWith("-")) ? `${a}=${value}` : a);
+  }
+  return out;
+}
+
 /** Parse options strictly; Node's messages are replaced by short ones with suggestions. */
 export function parseOptions(def: CommandDef, rest: string[], program = "strom"): { values: Input["opts"]; positionals: string[]; fix?: string; seq?: Typed[]; readAs?: string[] } {
   const defs: OptionDef[] = optionsOf(def);
-  const read = withReadAs(def, defs, withOptionAliases(defs, rest));
+  const read = withReadAs(def, defs, withBareValues(defs, withOptionAliases(defs, rest)));
   rest = read.rest;
   const said = read.notes.length ? { readAs: read.notes } : {};
   const usage = usageOf(def, program);

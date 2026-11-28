@@ -1231,6 +1231,7 @@ const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | unde
   "search.ageMargin": (s, tree) => String(s.ageMargin(tree)),
   "queue.suggestPersons": (s, tree) => String(s.suggestLines(tree).persons),
   "gedcom.for": () => "both",
+  "gedcom.living": () => "full",
   stories: () => "yes",
   "stories.sources": () => "yes",
   "stories.history": () => "yes",

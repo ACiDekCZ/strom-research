@@ -58,6 +58,8 @@ export interface UserConfig {
   agentAsked?: string;
   /** Which GEDCOM files to write: both (default), standard, strom. */
   gedcomFor?: string;
+  /** The protection of the living in a GEDCOM file going out (spec 151): full (default), initials, surname, hidden. */
+  gedcomLiving?: string;
   /** The Strom app version the Strom GEDCOM is for. */
   stromVersion?: string;
   /** Stories of the ancestors: yes (the default) or no. */
@@ -371,6 +373,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "books.minTasks", env: "", tree: true, kind: "number", description: `how many tasks a book needs to be offered to download by hand (strom task books, the Strom app's "Speed up by downloading"): default ${BOOKS_MIN_TASKS}, a whole number from 1 to ${BOOKS_MIN_TASKS_MAX}` },
   { key: "queue.suggestPersons", env: "", tree: true, kind: "number", description: `the people of a branch off the lines from which a line is proposed for it (default ${SUGGEST_PERSONS}; again only at twice as many after an answer)` },
   { key: "gedcom.for", env: "STROM_GEDCOM_FOR", tree: true, kind: "choice", choices: ["both", "standard", "strom"], description: "GEDCOM files written: both (default), standard (any program), strom (the Strom app)" },
+  { key: "gedcom.living", env: "STROM_GEDCOM_LIVING", tree: true, kind: "choice", choices: ["full", "initials", "surname", "hidden"], description: "the living in a GEDCOM file going out (strom export gedcom --out, --living without a mode): full (default: all their details), initials (initials and the year of birth), surname (the surname alone), hidden (no name) — not full: strom export gedcom writes a protected output/tree-<mode>.ged beside the full files too (never in the history)" },
   { key: "stories", env: "STROM_STORIES", tree: true, kind: "choice", choices: ["yes", "no"], description: "stories of the ancestors for the family, written from the facts: yes (default — strom proposes one once a person's life is told by records), no — the user is told when the research starts and may say no" },
   { key: "stories.sources", env: "STROM_STORIES_SOURCES", tree: true, kind: "choice", choices: ["yes", "no"], description: "before a story is written, a search beyond the registers — newspapers, directories, military, land and court records, graves, the history of the place — so the story can tell more, every word still on a record: yes (default, while stories are on), no (the story from what the research found)" },
   { key: "stories.history", env: "STROM_STORIES_HISTORY", tree: true, kind: "choice", choices: ["yes", "no"], description: "the history of the places (experiments.history) in the stories: the events of their time at the ancestors' places, each with its source, told as the background of the life — never as what the person did: yes (default, while the history is on), no (the stories without it); an approved story is never rewritten for it" },
@@ -451,6 +454,7 @@ const FIELDS: Record<string, string> = {
   "read.parallel": "readParallel",
   "web.perHost": "webPerHost",
   "gedcom.for": "gedcomFor",
+  "gedcom.living": "gedcomLiving",
   "strom.version": "stromVersion",
   "queue.strategy": "queueStrategy",
   "queue.offLine": "queueOffLine",
@@ -940,6 +944,12 @@ export class Settings {
   gedcomFor(tree?: TreeConfig): ("standard" | "strom")[] {
     const v = String(this.resolve("gedcom.for", tree)?.value ?? "both");
     return v === "both" ? ["standard", "strom"] : [v as "standard" | "strom"];
+  }
+
+  /** The protection of the living in a GEDCOM file going out (spec 151): full unless set. */
+  gedcomLiving(tree?: TreeConfig): "full" | "initials" | "surname" | "hidden" {
+    const v = String(this.resolve("gedcom.living", tree)?.value ?? "full").toLowerCase();
+    return v === "initials" || v === "surname" || v === "hidden" ? v : "full";
   }
 
   /** Does a connector need the user's consent before it runs? (Off unless they turned it on.) */

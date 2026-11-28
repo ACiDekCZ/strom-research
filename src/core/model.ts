@@ -1740,6 +1740,8 @@ export interface TreeConfig {
   briefBudget?: number;
   /** Which GEDCOM files to write: both (default), standard, strom. */
   gedcomFor?: string;
+  /** The protection of the living in a GEDCOM file going out (spec 151): full (default), initials, surname, hidden. */
+  gedcomLiving?: string;
   /** The Strom app version the Strom GEDCOM is for. */
   stromVersion?: string;
   /** Time limit of one `strom run` session in minutes. */

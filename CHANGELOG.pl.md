@@ -11,7 +11,10 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   jako `[1]  Etykieta   stan`, przełącznik z tym, jak jest teraz i na co przełącza, powrót zawsze na końcu jako `[0]`
   (także sposób pobierania w Ustawienia → Archiwa), wiersz wyboru mówi, co robi Enter, a polecenie do przepisania stoi
   w osobnym wierszu; w terminalu, który to potrafi, klawisze i polecenia są wyróżnione. Tam, gdzie ma pracować agent,
-  pierwsza stoi kolejka zadań z tym, co jest w niej następne; tylko jedna linia badania jest krok dalej.
+  pierwsza stoi kolejka zadań z tym, co jest w niej następne; tylko jedna linia badania jest krok dalej. `strom demo`
+  pozwala wypróbować strom na przykładowym badaniu zmyślonej rodziny (cs, en, de, pl), z dala od własnych drzew i
+  ustawień, otwartym w aplikacji Strom; wszystko w nim można przejrzeć, nic nie proponuje agenta;
+  `strom demo --remove` je usuwa.
 - **Materiał posortowany raz, ustawienia badania słowami:** plik, któremu ostatnie sortowanie zaproponowało tytuł,
   rodzaj, datę lub osoby i który ma je już zgodnie z propozycją, liczy się jako gotowy i nie jest sortowany ponownie;
   to, co człowiek zdecydował o propozycji w aplikacji Strom (przyjęto, odrzucono i dlaczego), zostaje przy
@@ -58,9 +61,16 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   szacunkiem; agent tylko czyta i proponuje, najwyżej 30 ustaleń na przebieg, każde z dowodem, a `--changed` sprawdza
   tylko to, co zmieniło się od ostatniej kontroli. Przyjęte ustalenie staje się zadaniem w kolejce, odrzucone nie
   zostanie już zgłoszone (`strom audit accept|dismiss|undo`, także w aplikacji Strom).
-- **`strom demo`:** strom wypróbowany na przykładowym badaniu zmyślonej rodziny (cs, en, de, pl), z dala od własnych
-  drzew i ustawień, otwarty w aplikacji Strom; wszystko w nim można przejrzeć, nic nie proponuje agenta;
-  `strom demo --remove` je usuwa.
+- **Ochrona osób żyjących w pliku GEDCOM do udostępnienia:** `strom export gedcom --living` zapisuje kopię, w której
+  osoby żyjące mają tylko inicjały i rok urodzenia (`surname`: tylko nazwisko, `hidden`: bez imienia i nazwiska), ich
+  miejsce w rodzinie zostaje, a zmarli są bez zmian; żyjący jest ten, kto nie ma zgonu, pochówku ani kremacji i
+  urodził się mniej niż 110 lat temu, oceniane także po małżeństwach i dzieciach – ta sama reguła co w plikach
+  wyjściowych aplikacji Strom. Kopia trafia do `output/tree-initials.ged` poza historią albo z `--out` w dowolne
+  miejsce poza folderem badania; ustawienie „Ochrona osób żyjących w plikach GEDCOM na zewnątrz” (`gedcom.living`)
+  czyni ją domyślną. `output/tree.ged` pozostaje bez zmian, a eksport i `strom pack` mówią teraz, że zawierają
+  wszystkie dane osób żyjących. Plik chroniony mówi o tym w nagłówku i `strom sync` nigdy go nie przejmuje
+  (`strom intake` zachowuje go tylko jako materiał); pomoc do `--research` mówi, że pomija rodzeństwo i boczne
+  gałęzie.
 - **Poprawione ponowne czytanie, księgi i skany oraz późniejsze poprawki:** wcześniejsze czytanie, które nie zachowało pytania (starszego
   narzędzia), jest czytane ponownie w całości zamiast odrzucenia, jego wynik zapisuje się w całości, zanim źródło
   powie gotowe, runda z większością miejsc nieodczytanych mówi dlaczego i nie proponuje niczego więcej do zapłacenia,

@@ -28,7 +28,9 @@ const ORIGINAL_ID_TAGS = ["_XREF", "_UID", "UID", "RIN", "EXID", "_FSFTID", "AFN
 
 /** Allowed child tags by parent context ("INDI", "INDI.BIRT", …). CONC/CONT are allowed under anything with text. */
 const CHILDREN: Record<string, string[]> = {
-  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_ASOF", "_STROM_MODE", "_STROM_MARRIED_LAST", "_STROM_LINES", "_STROM_IMPORT", "_STROM_DIRECTIONS", "_STROM_DIRECTION", "_STROM_BRANCH"],
+  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_ASOF", "_STROM_MODE", "_STROM_MARRIED_LAST", "_STROM_LINES", "_STROM_IMPORT", "_STROM_DIRECTIONS", "_STROM_DIRECTION", "_STROM_BRANCH", "_STROM_PRIVACY"],
+  // a file with the living protected (spec 151): its mode and how many of the living
+  "HEAD._STROM_PRIVACY": ["_LIVING"],
   // the research's lines and the branches off them (the Strom profile, APP_SHOWS_RESEARCH_TABLE)
   "HEAD._STROM_DIRECTION": ["NAME", "TYPE", "_FOCUS", "STAT"],
   "HEAD._STROM_BRANCH": ["_VIA", "_NEAREST", "_DIRECTION", "_MODE"],
@@ -255,7 +257,10 @@ export function validateGedcom(text: string, opts: { strict?: boolean } = {}): G
       } else if (allowed && !allowed.includes(tag) && !(ctx === "SOUR" && (tag === "PAGE" || tag === "WWW") && !opts.strict)) add(tag.startsWith("_") ? "warn" : "error", n, `${tag} is not expected under ${ctx}`);
     }
     stack[level] = tag;
-    if (tag.startsWith("_") && (opts.strict || !EXTENSIONS.has(tag))) add(opts.strict ? "error" : "warn", n, `non-standard tag ${tag}`);
+    // the mark of a file with the living protected (spec 151) in the standard one too: a program reading it skips it,
+    // strom sync and the Strom app never take it back as the tree
+    const mark = stack[0] === "HEAD" && (tag === "_STROM_PRIVACY" || tag === "_LIVING");
+    if (tag.startsWith("_") && !mark && (opts.strict || !EXTENSIONS.has(tag))) add(opts.strict ? "error" : "warn", n, `non-standard tag ${tag}`);
     if (value !== undefined && value !== value.trim() && tag !== "CONC") add("warn", n, `value of ${tag} starts or ends with a space`);
     if (tag === "CONC" && value !== undefined && (value.startsWith(" ") || value.endsWith(" "))) add("warn", n, "CONC value starts or ends with a space (readers may trim it)");
     // _XREF: a record's xref in another file (spec 066 K3.2) — the shape of a pointer, pointing at nothing here

@@ -89,7 +89,8 @@ register({
     "(name, people, note), and the connectors that fetched the others. The pages only searched through are left out —\n" +
     "the archive gives the same scan again (strom fetch puts it back, checked); --all-images takes them too. Logins,\n" +
     "settings and seal keys never go along. Over 4 GB is refused before anything is written: copy the whole folder\n" +
-    "instead. The one who gets it: strom unpack.",
+    "instead. The one who gets it: strom unpack. It contains all details of living people — for an own backup or\n" +
+    "transfer, not for sharing (a GEDCOM file to share, the living protected: strom export gedcom --living).",
   options: [
     { name: "out", type: "string", value: "<file.zip>", description: "where to write it (default: the desktop, named after the tree and the day)" },
     { name: "all-images", type: "boolean", description: "every image, the pages searched through too" },
@@ -116,6 +117,8 @@ register({
     const text = lines(
       ui(lang, "ui.pack.done", { name: tree.config.name, file: ctx.display(r.file), size: mb(r.bytes, lang) }),
       ui(lang, "ui.pack.saved"),
+      // for oneself, the living as they are (spec 151 K3.1)
+      ui(lang, "ui.living.all"),
       scans.n || !family.n ? ui(lang, all ? "ui.pack.images.all" : "ui.pack.images", { n: scans.n, size: mb(scans.bytes, lang) }) : undefined,
       family.n ? ui(lang, "ui.pack.family", { n: family.n, size: mb(family.bytes, lang) }) : undefined,
       r.plan.batches.length ? ui(lang, "ui.pack.batches", { n: r.plan.batches.length }) : undefined,

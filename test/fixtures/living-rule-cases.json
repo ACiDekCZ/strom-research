@@ -1,0 +1,223 @@
+{
+  "_note": "The rule of who is living in the outputs (spec 151 K1.1), the same in the Strom app and in strom-research: currentYear 2026; made-up people. A copy of the Strom app's test/fixtures/living-rule-cases.json.",
+  "currentYear": 2026,
+  "persons": [
+    {
+      "id": "p01",
+      "firstName": "Lumír",
+      "lastName": "Kvapil",
+      "birthDate": "1950"
+    },
+    {
+      "id": "p02",
+      "firstName": "Běla",
+      "lastName": "Hrdličková",
+      "birthDate": "1917"
+    },
+    {
+      "id": "p03",
+      "firstName": "Cyril",
+      "lastName": "Hrdlička",
+      "birthDate": "1916"
+    },
+    {
+      "id": "p04",
+      "firstName": "Dana",
+      "lastName": "Kosová"
+    },
+    {
+      "id": "p05",
+      "firstName": "Emil",
+      "lastName": "Kos"
+    },
+    {
+      "id": "p05c",
+      "firstName": "Emilie",
+      "lastName": "Kosová",
+      "birthDate": "1890",
+      "parentIds": [
+        "p05"
+      ]
+    },
+    {
+      "id": "p06",
+      "firstName": "Filip",
+      "lastName": "Mráz"
+    },
+    {
+      "id": "p07",
+      "firstName": "Gita",
+      "lastName": "Mrázová"
+    },
+    {
+      "id": "p06x",
+      "firstName": "Jarmila",
+      "lastName": "Mrázová"
+    },
+    {
+      "id": "p07x",
+      "firstName": "Václav",
+      "lastName": "Mráz"
+    },
+    {
+      "id": "p08",
+      "firstName": "Hugo",
+      "lastName": "Pešek"
+    },
+    {
+      "id": "p08c",
+      "firstName": "Ivan",
+      "lastName": "Pešek",
+      "birthDate": "1929",
+      "parentIds": [
+        "p08"
+      ]
+    },
+    {
+      "id": "p09",
+      "firstName": "Ilona",
+      "lastName": "Pešková"
+    },
+    {
+      "id": "p09c",
+      "firstName": "Karel",
+      "lastName": "Pešek",
+      "parentIds": [
+        "p09"
+      ]
+    },
+    {
+      "id": "p09g",
+      "firstName": "Ota",
+      "lastName": "Pešek",
+      "birthDate": "1940",
+      "parentIds": [
+        "p09c"
+      ]
+    },
+    {
+      "id": "p10",
+      "firstName": "Jakub",
+      "lastName": "Sýkora",
+      "birthDate": "1950",
+      "deathDate": "2020"
+    },
+    {
+      "id": "p11",
+      "firstName": "Klára",
+      "lastName": "Sýkorová",
+      "isDeceased": true
+    },
+    {
+      "id": "p12",
+      "firstName": "Leoš",
+      "lastName": "Tichý",
+      "events": [
+        {
+          "type": "residence",
+          "date": "1915"
+        }
+      ]
+    },
+    {
+      "id": "p13",
+      "firstName": "Marta",
+      "lastName": "Tichá",
+      "events": [
+        {
+          "type": "residence",
+          "date": "1920"
+        }
+      ]
+    },
+    {
+      "id": "p14",
+      "firstName": "Norbert",
+      "lastName": "Urban",
+      "birthDate": "~1915"
+    },
+    {
+      "id": "p15",
+      "firstName": "Olga",
+      "lastName": "Urbanová",
+      "birthDate": "<1920"
+    },
+    {
+      "id": "p16",
+      "firstName": "Pavel",
+      "lastName": "Vrba",
+      "birthDate": ">1900"
+    },
+    {
+      "id": "p17",
+      "firstName": "Radka",
+      "lastName": "Vrbová",
+      "birthDate": "1910..1930"
+    },
+    {
+      "id": "p18",
+      "firstName": "Stanislav",
+      "lastName": "Zíka",
+      "burialDate": "1950"
+    },
+    {
+      "id": "p19",
+      "firstName": "Tereza",
+      "lastName": "Zíková",
+      "birthDate": "1950",
+      "retractedDeathDate": "2001"
+    },
+    {
+      "id": "p20",
+      "firstName": "Urban",
+      "lastName": "Zíka"
+    },
+    {
+      "id": "p20x",
+      "firstName": "Alena",
+      "lastName": "Zíková"
+    }
+  ],
+  "unions": [
+    {
+      "id": "u06",
+      "person1Id": "p06",
+      "person2Id": "p06x",
+      "startDate": "1931"
+    },
+    {
+      "id": "u07",
+      "person1Id": "p07x",
+      "person2Id": "p07",
+      "startDate": "1930"
+    },
+    {
+      "id": "u20",
+      "person1Id": "p20",
+      "person2Id": "p20x",
+      "startDate": "1960"
+    }
+  ],
+  "expect": {
+    "p01": true,
+    "p02": true,
+    "p03": false,
+    "p04": true,
+    "p05": false,
+    "p06": true,
+    "p07": false,
+    "p08": true,
+    "p09": false,
+    "p10": false,
+    "p11": false,
+    "p12": false,
+    "p13": true,
+    "p14": false,
+    "p15": true,
+    "p16": true,
+    "p17": true,
+    "p18": false,
+    "p19": true,
+    "p20": true
+  }
+}

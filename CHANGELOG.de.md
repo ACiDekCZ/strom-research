@@ -12,7 +12,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   immer zuletzt als `[0]` (auch der Weg eines Herunterladers in Einstellungen → Archive), die Eingabezeile sagt, was
   Enter tut, und ein Befehl zum Abschreiben steht in einer eigenen Zeile; in einem Terminal, das es kann, sind Tasten
   und Befehle hervorgehoben. Wo ein Agent arbeiten soll, steht die Aufgabenliste zuerst mit dem, was darin als
-  Nächstes kommt; nur eine Linie der Forschung liegt einen Schritt weiter.
+  Nächstes kommt; nur eine Linie der Forschung liegt einen Schritt weiter. `strom demo` probiert strom an einer
+  Beispielforschung einer erfundenen Familie aus (cs, en, de, pl), getrennt von den eigenen Stammbäumen und
+  Einstellungen und in der Strom-App geöffnet; alles darin lässt sich durchsehen, nichts bietet einen Agenten an;
+  `strom demo --remove` löscht sie.
 - **Material einmal sortiert, Einstellungen der Forschung in Worten:** eine Datei, der die letzte Sortierung einen
   Titel, eine Art, ein Datum oder Personen vorschlug und die sie schon wie vorgeschlagen hat, gilt als erledigt und
   wird nicht neu sortiert; was der Mensch in der Strom-App über einen Vorschlag entschied (übernommen, abgelehnt und
@@ -65,9 +68,16 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   einer Schätzung; der Agent liest nur und schlägt vor, höchstens 30 Befunde je Lauf, jeder mit seinem Beleg, und
   `--changed` prüft nur, was sich seit der letzten Prüfung geändert hat. Ein angenommener Befund wird eine Aufgabe der
   Warteschlange, ein abgelehnter wird nie wieder gemeldet (`strom audit accept|dismiss|undo`, auch in der Strom-App).
-- **`strom demo`:** strom an einer Beispielforschung einer erfundenen Familie ausprobiert (cs, en, de, pl), getrennt
-  von den eigenen Stammbäumen und Einstellungen und in der Strom-App geöffnet; alles darin lässt sich durchsehen,
-  nichts bietet einen Agenten an; `strom demo --remove` löscht sie.
+- **Lebende geschützt in einer GEDCOM-Datei zum Weitergeben:** `strom export gedcom --living` schreibt eine Kopie, in
+  der Lebende nur Initialen und Geburtsjahr behalten (`surname`: nur den Nachnamen, `hidden`: keinen Namen), ihr Platz
+  in der Familie bleibt und die Verstorbenen sind unverändert; lebend ist, wer kein Sterbedatum, kein Begräbnis und
+  keine Einäscherung hat und vor weniger als 110 Jahren geboren wurde, auch nach Ehen und Kindern beurteilt – dieselbe
+  Regel wie bei den Ausgaben der Strom-App. Die Kopie kommt nach `output/tree-initials.ged` außerhalb der Historie
+  oder mit `--out` überallhin außerhalb des Ordners der Forschung; die Einstellung „Schutz der Lebenden in
+  GEDCOM-Dateien nach außen“ (`gedcom.living`) macht sie zur Vorgabe. `output/tree.ged` bleibt, wie sie war, und der
+  Export und `strom pack` sagen jetzt, dass sie alle Angaben zu lebenden Personen enthalten. Eine geschützte Datei
+  sagt es in ihrem Kopf und wird von `strom sync` nie übernommen (`strom intake` legt sie nur als Material ab); die
+  Hilfe zu `--research` sagt, dass Geschwister und Seitenlinien wegfallen.
 - **Erneutes Lesen, Bücher und Bilder berichtigt, auch nachträglich:** eine frühere Lesung, die keine Frage behielt (eines älteren
   Werkzeugs), wird ganz neu gelesen statt abgelehnt, ihr Ergebnis wird ganz geschrieben, bevor die Quelle fertig sagt,
   eine Runde mit meist ungelesenen Stellen sagt warum und bietet nichts weiter zum Bezahlen an, und eine Lesung, die

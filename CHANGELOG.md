@@ -11,7 +11,9 @@ The changes of each version in short. The full notes and the install lines are o
   `[1]  Label   state`, a switch with how it is now and what it switches to, back last as `[0]` (also the way a
   downloader takes in Settings → Archives), the prompt says what Enter does, and a command to type stands on a line of
   its own; on a terminal that can, keys and commands are highlighted. Where an agent is to work, the task queue stands
-  first with what is next in it; one line of the research alone is a step further.
+  first with what is next in it; one line of the research alone is a step further. `strom demo` tries strom on a
+  sample research of a made-up family (cs, en, de, pl), apart from the person's own trees and settings and opened in
+  the Strom app; everything in it can be looked through, nothing offers an agent; `strom demo --remove` deletes it.
 - **Material sorted once, a research's settings in words:** a file whose last sorting proposed a title, kind, date or
   people and which already has them as proposed counts as done and is not sorted again; what the person decided on a
   proposal in the Strom app (taken over, refused, and why) is kept with the sorting. A file's title, kind, date and
@@ -59,9 +61,15 @@ The changes of each version in short. The full notes and the install lines are o
   with an estimate; the agent only reads and proposes, at most 30 findings a run, each with its proof, and `--changed`
   checks only what changed since the last check. A finding accepted becomes a task of the queue, one dismissed is
   never reported again (`strom audit accept|dismiss|undo`, also in the Strom app).
-- **`strom demo`:** strom tried on a sample research of a made-up family (cs, en, de, pl), apart from the person's own
-  trees and settings and opened in the Strom app; everything in it can be looked through, nothing offers an agent;
-  `strom demo --remove` deletes it.
+- **The living protected in a GEDCOM file to give away:** `strom export gedcom --living` writes a copy in which the
+  living keep only their initials and year of birth (`surname`: the surname alone, `hidden`: no name), their place in
+  the family stays and the dead are as they were; living is who has no death, burial or cremation and was born less
+  than 110 years ago, judged by their marriages and children too — the same rule as the Strom app's outputs. The copy
+  goes to `output/tree-initials.ged` outside the history, or with `--out` anywhere outside the research folder; the
+  setting "Protection of the living in GEDCOM files going out" (`gedcom.living`) makes it the default.
+  `output/tree.ged` stays as it was, and the export and `strom pack` now say that they carry all details of living
+  people. A protected file says so in its header and is never taken back by `strom sync` (`strom intake` keeps it as
+  material only); the help of `--research` says it leaves out siblings and side branches.
 - **Reading again, books and images fixed, set right afterwards:** an earlier reading that kept no question (an older tool's) is read again
   whole instead of refused, its result is written whole before the source says done, a round with most places not read
   says why and offers nothing more to pay for, and a reading a fix made is not offered again; a book gets the count of

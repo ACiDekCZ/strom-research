@@ -15,6 +15,8 @@ export interface OptionDef {
   multiple?: boolean;
   /** Placeholder shown in help, e.g. "<date>". */
   value?: string;
+  /** A string option that may stand alone (--living, last or before another option): taken with this value. */
+  bare?: string;
   /** Taken, but never shown: not in help, strom commands, the guide or a hint of the options. */
   hidden?: boolean;
   /** With hidden: shown in the command's help of a strom on the beta channel alone (the releases say nothing of a beta). */
