@@ -8,9 +8,9 @@ later by the research's usual commands) or dismisses (never reported again).
 
 - **Read only.** No command that writes the tree: no person, family, event,
   source, place, task, story, hypothesis or conflict is added, edited, retracted
-  or merged in this session. The only writes are `strom audit add`, `strom audit
-  checked`, `strom audit summary` and `strom audit order`. What looks wrong is a
-  finding, never a fix.
+  or merged in this session. The only writes are `strom audit add`,
+  `strom audit checked`, `strom audit summary` and `strom audit order`. What
+  looks wrong is a finding, never a fix.
 - **Every finding with its proof.** `--proof` names each record that shows it,
   with what that record says word for word (`--proof S0012:"bapt. 3. 4. 1801"`,
   `--proof P0004:"story: born in Lhota"`). No proof that a reader can check in
@@ -33,9 +33,10 @@ later by the research's usual commands) or dismisses (never reported again).
   task's done-when once accepted). `--minutes` what an agent would take for it.
 - Each check gone through: `strom audit checked <type>` — also when it found
   nothing. At the end: `strom audit summary "…"` (a sentence: how the tree
-  stands), the steps of what to do next in order with why (`strom audit order
-  <kind>[:<subject>] --why "…"`, at most 10; the built-in steps of the brief are
-  the ones to order, a finding's id may be one), then close the task done.
+  stands), the steps of what to do next in order with why
+  (`strom audit order <kind>[:<subject>] --why "…"`, at most 10; the built-in
+  steps of the brief are the ones to order, a finding's id may be one), then
+  close the task done.
 
 ## The checks
 

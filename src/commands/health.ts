@@ -267,7 +267,7 @@ register(
     writes: true,
     person: STOP,
     args: [{ name: "report", description: "the report (C…); default: the one queued or at work" }],
-    examples: ["strom health stop", "strom health stop C0002"],
+    examples: ["strom health stop", "strom health stop C0001"],
     run(ctx, { args }) {
       const tree = ctx.tree();
       const r = stopRun(tree, args[0] ? reportOr(tree, args[0]).id : undefined);
@@ -285,7 +285,7 @@ register(
       { name: "run", type: "string", value: "<C…>", description: "of one report (default: every report)" },
       { name: "state", type: "string", value: "<new|accepted|dismissed>", description: "only so decided" },
     ],
-    examples: ["strom audit list", "strom audit list --state new --json", "strom audit list --run C0002"],
+    examples: ["strom audit list", "strom audit list --state new --json", "strom audit list --run C0001"],
     run(ctx, { opts }) {
       const tree = ctx.tree();
       const state = opts.state;
@@ -326,7 +326,7 @@ register(
     ],
     examples: [
       'strom audit add --type A --code story-no-facts --record P0001 --what "The story rests on no fact." --fix "Attach the facts the story tells." --proof P0001:"born 1850 in Lhota"',
-      'strom audit add --type G --code next-source --record P0004 --what "The line ends at the baptism of 1801." --fix "Search the baptisms of Lhota 1770–1801." --proof P0004 --minutes 10-20',
+      'strom audit add --type G --code next-source --record P0004 --what "The line ends at the baptism of 1801." --fix "Search the baptisms of Lhota from 1770 to 1801." --proof P0004 --minutes 10-20',
     ],
     run(ctx, { opts }) {
       const tree = ctx.tree();

@@ -26,8 +26,9 @@ import { resize } from "../../src/image/image.ts";
 import { makePdf } from "../image-samples.ts";
 const opts = { skip: !hasGit };
 
-/** Commands whose examples change the environment or start an agent (checked for syntax below, not run). */
-const NOT_RUN = new Set(["setup", "init", "run", "read", "document read", "document again", "seal adopt", "unpack", "trees remove", "trees forget", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "allow archive", "login", "uninstall", "update", "demo", "gate test", "hook on", "hook test", "phone remove", "history back", "place answer", "place undo", "media save", "repair undo", "house confirm", "house import"]); // uninstall, update, demo, unpack, trees remove, trees forget: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests); phone remove: a phone paired; history back: a change of the research's own history (its hash known only there) and the person's yes (test/cli/history-back.test.ts); media save: the person's permission "through the browser" and the agent's own browser (test/cli/media-save.test.ts); repair undo: the copies of a repair done (their stamp known only there) and the person's terminal (test/cli/repair-lost.test.ts); house confirm: the person's own judgment at their terminal, house import: a folder of the person's (test/cli/houses.test.ts)
+/** Commands whose examples change the environment or start an agent (checked for syntax below, not run); the tree check's
+ * own (health stop, audit …) need its task at work or a finding of the agent: run in test/cli/health.test.ts. */
+const NOT_RUN = new Set(["setup", "init", "run", "read", "document read", "document again", "seal adopt", "unpack", "trees remove", "trees forget", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "allow archive", "login", "uninstall", "update", "demo", "gate test", "hook on", "hook test", "phone remove", "history back", "place answer", "place undo", "media save", "repair undo", "house confirm", "house import", "health stop", "audit add", "audit checked", "audit summary", "audit order", "audit accept", "audit dismiss", "audit undo"]); // uninstall, update, demo, unpack, trees remove, trees forget: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests); phone remove: a phone paired; history back: a change of the research's own history (its hash known only there) and the person's yes (test/cli/history-back.test.ts); media save: the person's permission "through the browser" and the agent's own browser (test/cli/media-save.test.ts); repair undo: the copies of a repair done (their stamp known only there) and the person's terminal (test/cli/repair-lost.test.ts); house confirm: the person's own judgment at their terminal, house import: a folder of the person's (test/cli/houses.test.ts)
 
 async function seeded(): Promise<World> {
   const w = new World();
@@ -241,6 +242,8 @@ async function seeded(): Promise<World> {
   assert.deepEqual([copy, decided], ["S0007", "X0001"], "the IDs of the examples of source restore, conflict keep");
   // the family tree imported (I0004) and the source made of it: the example of input delete --retract-sources
   assert.equal(Tree.open(w.cwd, w.env).get<Input>("I0004")?.source, "S0004", "the source of the family tree imported");
+  // the tree check's built-in part kept as a report (C0001): the examples of health show, audit list --run
+  assert.equal((await w.ok(["health", "--save", "--json"])).json.id, "C0001");
   return w;
 }
 
