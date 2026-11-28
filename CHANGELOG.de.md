@@ -77,7 +77,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   einer Schätzung; der Agent liest nur und schlägt vor, höchstens 30 Befunde je Lauf, jeder mit seinem Beleg, und
   `--changed` prüft nur, was sich seit der letzten Prüfung geändert hat. Ein angenommener Befund wird eine Aufgabe der
   Warteschlange, ein abgelehnter wird nie wieder gemeldet (`strom audit accept|dismiss|undo`, auch in der Strom-App).
-- **Lebende geschützt in einer GEDCOM-Datei zum Weitergeben:** `strom export gedcom --living` schreibt eine Kopie, in
+  **Lebende geschützt in einer GEDCOM-Datei zum Weitergeben:** `strom export gedcom --living` schreibt eine Kopie, in
   der Lebende nur Initialen und Geburtsjahr behalten (`surname`: nur den Nachnamen, `hidden`: keinen Namen), ihr Platz
   in der Familie bleibt und die Verstorbenen sind unverändert; lebend ist, wer kein Sterbedatum, kein Begräbnis und
   keine Einäscherung hat und vor weniger als 110 Jahren geboren wurde, auch nach Ehen und Kindern beurteilt – dieselbe

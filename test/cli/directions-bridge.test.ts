@@ -220,6 +220,7 @@ test("strom research show of a line of descendants: its descendants by generatio
 test("the phone's page: the lines in the order of work by a key of their own (never an ID); one moved and paused from the phone, the person's; another page or no pairing refused", opts, async () => {
   const w = await world();
   try {
+    w.devicesOff(); // the phone's own page and pairing (devices.mode off, the person's)
     await w.ok(["research", "new", "Předci Václava", "--person", "P0003"]); // G0002
     await w.ok(["research", "new", "Кто была Žofie?", "--person", "P0001", "--direction", "question", "--question", "Кто была Žofie Lhotáková?"]); // G0003
     const env = { STROM_ISOLATED: "1", STROM_PHONE_TEST_ANSWER: "yes", STROM_PHONE_TEST_ANSWER_MS: "200", STROM_LIVE_POLL_MS: "100" };

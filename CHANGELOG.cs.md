@@ -64,7 +64,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   health --ai`, `--dry` řekne, co to stojí) nebo z aplikace Strom s odhadem; agent jen čte a navrhuje, nejvýš 30
   nálezů za běh, každý s důkazem, a `--changed` projde jen to, co se od minulé kontroly změnilo. Přijatý nález se
   stane úkolem ve frontě, odmítnutý se už neohlásí (`strom audit accept|dismiss|undo`, také v aplikaci Strom).
-- **Ochrana žijících v souboru GEDCOM ke sdílení:** `strom export gedcom --living` zapíše kopii, v níž mají žijící jen
+  **Ochrana žijících v souboru GEDCOM ke sdílení:** `strom export gedcom --living` zapíše kopii, v níž mají žijící jen
   iniciály a rok narození (`surname`: jen příjmení, `hidden`: bez jména), jejich místo v rodině zůstane a zemřelí jsou
   beze změny; žijící je, kdo nemá úmrtí, pohřeb ani kremaci a narodil se před méně než 110 lety, posouzeno i podle
   sňatků a dětí – stejné pravidlo jako ve výstupech aplikace Strom. Kopie jde do `output/tree-initials.ged` mimo

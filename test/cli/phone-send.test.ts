@@ -56,6 +56,7 @@ test("photos from a phone: a batch of the phone's as from \"Add materials\", the
   const w = new World();
   try {
     await w.withTree("Dvořákovi");
+    w.devicesOff(); // the phone's own page and pairing (devices.mode off, the person's)
     await w.ok(["lang", "cs"]);
     await w.ok(["person", "add", "Anežka /Dvořáková/", "--sex", "F"]); // P0001
     // the batches sorted by themselves: the person's switch (spec 130; off by default)

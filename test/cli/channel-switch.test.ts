@@ -655,7 +655,10 @@ test("the Strom app's two copies against a stable and a beta strom (the beta a s
         // works, spec 091: test/cli/health.test.ts)
         const gated = new Set(["origin.ids", "citations.main", "citations.remove", "material.sort", "material.decided", "name-status", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sort.confirm", "sort.confirm.app", "run.confirm", "finds", "finds.person", "house.import", "house.request", "house.chat", "house.story", "health.ai", "audit.decide"]);
         const noIds = (l: readonly string[]) => l.filter((f) => !gated.has(f));
-        assert.deepEqual(noIds(s.features), noIds(BRIDGE_FEATURES));
+        // the devices of the home network by devices.mode, on by default (spec 094 K3.11): test/cli/devices-quiet.test.ts
+        const device = (f: string) => f.startsWith("device.");
+        assert.deepEqual(noIds(s.features.filter((f: string) => !device(f))), noIds(BRIDGE_FEATURES));
+        assert.ok(s.features.includes("device.gateway"), "the devices on by default");
         if (isBeta) assert.equal(s.channel, "beta");
         else assert.ok(!("channel" in s), "the releases: no channel said");
         assert.equal(s.linkScheme, isBeta ? "strom-research-beta" : undefined, "the second installation's own links");

@@ -69,7 +69,7 @@ The changes of each version in short. The full notes and the install lines are o
   with an estimate; the agent only reads and proposes, at most 30 findings a run, each with its proof, and `--changed`
   checks only what changed since the last check. A finding accepted becomes a task of the queue, one dismissed is
   never reported again (`strom audit accept|dismiss|undo`, also in the Strom app).
-- **The living protected in a GEDCOM file to give away:** `strom export gedcom --living` writes a copy in which the
+  **The living protected in a GEDCOM file to give away:** `strom export gedcom --living` writes a copy in which the
   living keep only their initials and year of birth (`surname`: the surname alone, `hidden`: no name), their place in
   the family stays and the dead are as they were; living is who has no death, burial or cremation and was born less
   than 110 years ago, judged by their marriages and children too — the same rule as the Strom app's outputs. The copy

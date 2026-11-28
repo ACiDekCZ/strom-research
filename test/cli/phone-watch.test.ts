@@ -42,6 +42,7 @@ test("the phone watches the research: paired by a tree's QR code, that tree open
   const w = new World();
   try {
     await w.withTree("Dvořákovi");
+    w.devicesOff(); // the phone's own page and pairing (devices.mode off, the person's)
     await w.ok(["lang", "cs"]);
     await w.ok(["person", "add", "Anežka /Dvořáková/", "--sex", "F"]); // P0001
     await w.ok(["task", "add", "Křest Anežky", "--level", "locate", "--where", "farnost Sloup", "--why", "rodiče", "--done-when", "zápis", "--about", "P0001"]);

@@ -69,7 +69,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   szacunkiem; agent tylko czyta i proponuje, najwyżej 30 ustaleń na przebieg, każde z dowodem, a `--changed` sprawdza
   tylko to, co zmieniło się od ostatniej kontroli. Przyjęte ustalenie staje się zadaniem w kolejce, odrzucone nie
   zostanie już zgłoszone (`strom audit accept|dismiss|undo`, także w aplikacji Strom).
-- **Ochrona osób żyjących w pliku GEDCOM do udostępnienia:** `strom export gedcom --living` zapisuje kopię, w której
+  **Ochrona osób żyjących w pliku GEDCOM do udostępnienia:** `strom export gedcom --living` zapisuje kopię, w której
   osoby żyjące mają tylko inicjały i rok urodzenia (`surname`: tylko nazwisko, `hidden`: bez imienia i nazwiska), ich
   miejsce w rodzinie zostaje, a zmarli są bez zmian; żyjący jest ten, kto nie ma zgonu, pochówku ani kremacji i
   urodził się mniej niż 110 lat temu, oceniane także po małżeństwach i dzieciach – ta sama reguła co w plikach
