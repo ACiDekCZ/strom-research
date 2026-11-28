@@ -38,15 +38,14 @@ The changes of each version in short. The full notes and the install lines are o
   also from the Strom app. Over a house's place the app may show the aerial photos of the 1950s (Czechia). A house
   researched that tells enough (two generations of the tree, or three holders and residents with sources) gets its
   story with the stories on, each claim with its source, the uncertain said so; a draft until approved, then never
-  rewritten; `strom house story` and the app ask for one at any time.
-- **A house's research:** it goes through a list of sources for its country (in Czechia the address register, the
-  field names, the water courses, the orthophotos, the topographies) and writes into the house only what said
-  something; a municipality keeps its pictures (only under a free licence, with what they show) and its field names,
-  each house a short look and a check whether there is more of it to read; its look follows as a task of its own only
-  there (the setting "House look", on by default); a house can be talked over with the agent from the Strom app. A
-  claim taken over from an older research whose source is on the web (a municipality's history as a PDF) is read in
-  the house's research and confirmed or corrected with the place in the source; an address that does not open stays
-  one line of what was gone through.
+  rewritten; `strom house story` and the app ask for one at any time. A house's research goes through a list of
+  sources for its country (in Czechia the address register, the field names, the water courses, the orthophotos, the
+  topographies) and writes into the house only what said something; a municipality keeps its pictures (only under a
+  free licence, with what they show) and its field names, each house a short look and a check whether there is more of
+  it to read; its look follows as a task of its own only there (the setting "House look", on by default); a house can
+  be talked over with the agent from the Strom app. A claim taken over from an older research whose source is on the
+  web (a municipality's history as a PDF) is read in the house's research and confirmed or corrected with the place in
+  the source; an address that does not open stays one line of what was gone through.
 - **`strom demo`:** strom tried on a sample research of a made-up family (cs, en, de, pl), apart from the person's own
   trees and settings and opened in the Strom app; everything in it can be looked through, nothing offers an agent;
   `strom demo --remove` deletes it.
@@ -56,11 +55,15 @@ The changes of each version in short. The full notes and the install lines are o
   images the archive's catalogue gives, a book downloaded whole gets its count on the person's word (`strom fixes`),
   images saved once more are waited for until every new copy has come, and the hint on an image in parts names the
   halves it is in.
-- **The day a request went out:** a letter or e-mail sent earlier is marked sent on the day it really went out
-  (`strom task sent T… --date YYYY-MM-DD`, in the menu's What waits the day is asked, Enter today), and a day marked
-  wrong is put right later on a request sent (the day before is said, the same command takes it back); how long it
-  waits and the 30 days without a reply count from that day, by the calendar of the computer, never a day off around
-  midnight. The Strom app can send the day too, for one request or a whole place.
+- **Set right afterwards:** a letter or e-mail sent earlier is marked sent on the day it really went out (`strom task
+  sent T… --date YYYY-MM-DD`, in the menu's What waits the day is asked, Enter today), and a day marked wrong is put
+  right later on a request sent (the day before is said, the same command takes it back); how long it waits and the 30
+  days without a reply count from that day, by the calendar of the computer, never a day off around midnight. The
+  Strom app can send the day too, for one request or a whole place. `strom media renumber M…=n --reason` changes only
+  the number of a registered image (its file, citations and clips stay; two swapped in one command; another scan at
+  the new number refused, parts and copies left at the old one said, its history in `strom media show`, the same
+  command the other way round takes it back); an image put to a source wrongly comes off it with its clips (`strom
+  source edit S… --media-remove M… --reason`), and `strom media retract` of a cited image points to both.
 
 ## 1.37.0
 

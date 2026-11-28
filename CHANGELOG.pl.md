@@ -37,14 +37,14 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   także z aplikacji Strom. Nad miejscem domu aplikacja może pokazać zdjęcia lotnicze z lat 50. (Czechy). Zbadany dom,
   który mówi dość (dwa pokolenia drzewa albo trzech właścicieli i mieszkańców ze źródłami), dostaje przy włączonych
   opowieściach swoją opowieść, każda informacja ze źródłem, niepewne powiedziane jako niepewne; szkic do
-  zatwierdzenia, potem nigdy nieprzepisywana; `strom house story` i aplikacja zamawiają ją w każdej chwili.
-- **Badanie domu:** przechodzi listę źródeł jego kraju (w Czechach rejestr adresów, nazwy miejscowe, cieki wodne,
-  ortofotomapy, topografie) i zapisuje do domu tylko to, co coś powiedziało; gmina zachowuje swoje zdjęcia (tylko na
-  wolnej licencji, z tym, co pokazują) i nazwy miejscowe, każdy dom krótki opis wyglądu i sprawdzenie, czy jest o nim
-  więcej do przeczytania; jego wygląd idzie jako osobne zadanie tylko tam (ustawienie „Wygląd domów”, domyślnie
-  włączone); dom można omówić z agentem z aplikacji Strom. Informację przejętą ze starszego badania, której źródło
-  jest w sieci (historia gminy w PDF), badanie domu odczyta i potwierdzi lub poprawi z miejscem w źródle; adres, który
-  się nie otwiera, zostaje jednym wierszem w tym, co przejrzano.
+  zatwierdzenia, potem nigdy nieprzepisywana; `strom house story` i aplikacja zamawiają ją w każdej chwili. Badanie
+  domu przechodzi listę źródeł jego kraju (w Czechach rejestr adresów, nazwy miejscowe, cieki wodne, ortofotomapy,
+  topografie) i zapisuje do domu tylko to, co coś powiedziało; gmina zachowuje swoje zdjęcia (tylko na wolnej
+  licencji, z tym, co pokazują) i nazwy miejscowe, każdy dom krótki opis wyglądu i sprawdzenie, czy jest o nim więcej
+  do przeczytania; jego wygląd idzie jako osobne zadanie tylko tam (ustawienie „Wygląd domów”, domyślnie włączone);
+  dom można omówić z agentem z aplikacji Strom. Informację przejętą ze starszego badania, której źródło jest w sieci
+  (historia gminy w PDF), badanie domu odczyta i potwierdzi lub poprawi z miejscem w źródle; adres, który się nie
+  otwiera, zostaje jednym wierszem w tym, co przejrzano.
 - **`strom demo`:** strom wypróbowany na przykładowym badaniu zmyślonej rodziny (cs, en, de, pl), z dala od własnych
   drzew i ustawień, otwarty w aplikacji Strom; wszystko w nim można przejrzeć, nic nie proponuje agenta;
   `strom demo --remove` je usuwa.
@@ -55,12 +55,16 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   katalog archiwum, księga pobrana w całości swoją liczbę na słowo człowieka (`strom fixes`), na skany zapisywane
   ponownie czeka się, aż przyjdzie każda nowa kopia, a wskazówka do skanu w częściach wymienia połówki, w których
   jest.
-- **Dzień, w którym zapytanie wyszło:** list lub e-mail wysłany wcześniej można zapisać jako wysłany w dniu, w którym
-  naprawdę wyszedł (`strom task sent T… --date YYYY-MM-DD`, w menu „Co czeka“ pojawia się pytanie o dzień, Enter =
-  dziś), a źle zapisany dzień można przy wysłanym zapytaniu poprawić później (podawany jest dzień poprzedni, to samo
-  polecenie z nim cofa poprawkę); jak długo czeka i 30 dni bez odpowiedzi liczy się od tego dnia, według kalendarza
-  komputera, wokół północy nigdy o dzień obok. Dzień może wysłać także aplikacja Strom, dla jednego zapytania lub
-  całego miejsca.
+- **Późniejsze poprawki:** list lub e-mail wysłany wcześniej można zapisać jako wysłany w dniu, w którym naprawdę
+  wyszedł (`strom task sent T… --date YYYY-MM-DD`, w menu „Co czeka“ pojawia się pytanie o dzień, Enter = dziś), a źle
+  zapisany dzień można przy wysłanym zapytaniu poprawić później (podawany jest dzień poprzedni, to samo polecenie z
+  nim cofa poprawkę); jak długo czeka i 30 dni bez odpowiedzi liczy się od tego dnia, według kalendarza komputera,
+  wokół północy nigdy o dzień obok. Dzień może wysłać także aplikacja Strom, dla jednego zapytania lub całego miejsca.
+  `strom media renumber M…=n --reason` zmienia tylko numer zarejestrowanego skanu (plik, cytowania i wycinki zostają;
+  dwa zamienione jednym poleceniem; inny skan pod nowym numerem jest odrzucany, części i kopie pozostałe pod starym są
+  wypisywane, historia numerów w `strom media show`, to samo polecenie odwrotnie cofa poprawkę); skan przypisany do
+  źródła omyłkowo można zdjąć z niego razem z wycinkami (`strom source edit S… --media-remove M… --reason`), a `strom
+  media retract` cytowanego skanu wskazuje obie drogi.
 
 ## 1.37.0
 

@@ -36,13 +36,13 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   nastavením „Historie domů“ a jednotlivý dům jde vyžádat vždy, i z aplikace Strom. Nad místem domu smí aplikace
   ukázat letecké snímky z 50. let (Česko). Prozkoumaný dům, který řekne dost (dvě generace stromu, nebo tři držitelé a
   obyvatelé s prameny), dostane se zapnutými vyprávěními své vyprávění, každý údaj s pramenem, nejisté řečeno jako
-  nejisté; koncept do schválení, pak se už nepřepíše; `strom house story` a aplikace ho vyžádají kdykoli.
-- **Výzkum domu:** prochází seznam pramenů jeho země (v Česku adresní registr, pomístní jména, vodní toky, ortofota,
-  topografie) a do domu zapisuje jen to, co něco řeklo; obec si drží své obrázky (jen pod svobodnou licencí, s tím, co
-  ukazují) a pomístní jména, každý dům krátkou podobu a kontrolu, zda je o ní co dál číst; podoba domu následuje jako
-  vlastní úkol jen tam (nastavení „Podoba domů“, výchozí zapnuto); dům jde z aplikace Strom probrat s agentem. Údaj
-  převzatý ze staršího výzkumu, jehož pramen je na webu (historie obce v PDF), výzkum domu přečte a potvrdí nebo
-  opraví s místem v prameni; adresa, která se neotevře, zůstane jednou řádkou v tom, co se prošlo.
+  nejisté; koncept do schválení, pak se už nepřepíše; `strom house story` a aplikace ho vyžádají kdykoli. Výzkum domu
+  prochází seznam pramenů jeho země (v Česku adresní registr, pomístní jména, vodní toky, ortofota, topografie) a do
+  domu zapisuje jen to, co něco řeklo; obec si drží své obrázky (jen pod svobodnou licencí, s tím, co ukazují) a
+  pomístní jména, každý dům krátkou podobu a kontrolu, zda je o ní co dál číst; podoba domu následuje jako vlastní
+  úkol jen tam (nastavení „Podoba domů“, výchozí zapnuto); dům jde z aplikace Strom probrat s agentem. Údaj převzatý
+  ze staršího výzkumu, jehož pramen je na webu (historie obce v PDF), výzkum domu přečte a potvrdí nebo opraví s
+  místem v prameni; adresa, která se neotevře, zůstane jednou řádkou v tom, co se prošlo.
 - **`strom demo`:** strom vyzkoušený na ukázkovém výzkumu smyšlené rodiny (cs, en, de, pl), mimo vlastní stromy a
   nastavení, otevřený v aplikaci Strom; všechno v něm jde prohlédnout, nic nenabízí agenta; `strom demo --remove` ho
   smaže.
@@ -52,11 +52,15 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   snímků, který udává katalog archivu, kniha stažená celá dostane počet na slovo člověka (`strom fixes`), na snímky
   ukládané znovu se čeká, dokud nepřijde každá nová kopie, a rada ke snímku po částech jmenuje poloviny, ve kterých
   je.
-- **Den, kdy žádost odešla:** dopis nebo e-mail odeslaný dřív jde zapsat jako odeslaný v den, kdy skutečně odešel
-  (`strom task sent T… --date YYYY-MM-DD`, v nabídce Co čeká se den zeptá, Enter = dnes), a špatně zapsaný den jde
-  u odeslané žádosti dodatečně opravit (vypíše se den předtím, stejný příkaz s ním opravu vrátí); jak dlouho žádost
-  čeká a 30 dní bez odpovědi se počítá od toho dne, podle kalendáře počítače, kolem půlnoci nikdy o den vedle. Den
-  může poslat i aplikace Strom, za jednu žádost i za celé místo.
+- **Dodatečné opravy:** dopis nebo e-mail odeslaný dřív jde zapsat jako odeslaný v den, kdy skutečně odešel (`strom
+  task sent T… --date YYYY-MM-DD`, v nabídce Co čeká se den zeptá, Enter = dnes), a špatně zapsaný den jde u odeslané
+  žádosti dodatečně opravit (vypíše se den předtím, stejný příkaz s ním opravu vrátí); jak dlouho žádost čeká a 30 dní
+  bez odpovědi se počítá od toho dne, podle kalendáře počítače, kolem půlnoci nikdy o den vedle. Den může poslat i
+  aplikace Strom, za jednu žádost i za celé místo. `strom media renumber M…=n --reason` změní jen číslo
+  zaregistrovaného snímku (soubor, citace i výřezy zůstanou; dva prohozené jedním příkazem; jiný sken na novém čísle
+  se odmítne, části a kopie, které zůstaly na starém, se vypíšou, historie čísel v `strom media show`, stejný příkaz
+  obráceně opravu vrátí); snímek přiřazený k prameni omylem jde z pramene sundat i s jeho výřezy (`strom source edit
+  S… --media-remove M… --reason`) a `strom media retract` u citovaného snímku odkáže na obojí.
 
 ## 1.37.0
 
