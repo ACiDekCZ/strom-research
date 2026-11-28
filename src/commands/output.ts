@@ -30,6 +30,7 @@ import { lineMarks } from "../core/lineages.ts";
 import { EXCERPT_QUALITIES, EXCERPT_SCOPES, type ExcerptQuality, type ExcerptScope } from "../core/model.ts";
 import { ui } from "../cli/ui.ts";
 import { isAgent } from "../core/which.ts";
+import { holdsPath, pathForms } from "../core/self.ts";
 
 function findingRows(f: GedFinding[]): string {
   return table(f.slice(0, 30).map((x) => [x.level === "error" ? "ERROR" : "warn", `line ${x.line}`, x.message]));
@@ -288,7 +289,7 @@ register(
     run(ctx, { opts }) {
       const tree = ctx.tree();
       const research = typeof opts.research === "string" ? resolveResearch(tree, opts.research) : undefined;
-      const out = typeof opts.out === "string" ? ctx.resolvePath(opts.out) : undefined;
+      let out = typeof opts.out === "string" ? ctx.resolvePath(opts.out) : undefined;
       const which = typeof opts.for === "string" ? opts.for.toLowerCase() : undefined;
       if (which && which !== "both" && !GED_PROFILES.includes(which as GedProfile)) throw new UsageError(`invalid --for "${opts.for}"`, { hint: "standard, strom or both" });
       const asked = ["images-max-mb", "images-quality", "images-for"].some((k) => opts[k] !== undefined);
@@ -307,9 +308,14 @@ register(
       } else if (out) living = setting;
       const beside = opts.living === undefined && !out && setting !== "full" ? setting : undefined;
       if (living && living !== "full" && out) {
-        const inside = path.relative(tree.root, out);
+        // inside the research as the disk has it: through a link, and in any case on macOS and Windows (found in 151's
+        // verification: --out ".../BEDNAROVI/z.ged" and a link to the folder wrote into it)
+        // (its own file of output/ named another way: written as its own, kept out of the history as it is)
         const own = profiles.map((p) => gedFile(tree, p, research, living));
-        if ((!inside.startsWith("..") && !path.isAbsolute(inside)) && !own.includes(out))
+        const forms = pathForms(out);
+        const mine = own.find((o) => pathForms(o).some((f) => forms.includes(f)));
+        if (mine) out = mine;
+        else if (holdsPath(tree.root, out))
           throw new UsageError("a protected file goes into the research folder only as its own file in output/ (never into the history)", {
             hint: `strom export gedcom --living ${living} (writes ${tree.relative(own[0]!)}) — or --out outside the research folder`,
             code: "export.living.in-tree",

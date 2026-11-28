@@ -189,11 +189,13 @@ export function builtinLines(b: HealthBuiltin, lang: string): string[] {
   return out;
 }
 
+/** A report in a line, in the language of healthLang (found in 151's verification: "built-in · tree · built" in a Czech research). */
 function runLine(r: RunInfo, lang: string): string {
-  const what = r.ai.length ? `AI ${r.ai.join(",")}` : "built-in";
-  const progress = r.total ? ` · ${r.done}/${r.total} checked, ${r.findings} finding(s)` : "";
-  const counts = r.ai.length ? ` · new ${r.counts.new}, accepted ${r.counts.accepted}, dismissed ${r.counts.dismissed}` : "";
-  return `${r.id}  ${localAt(r.at)}  ${what} · ${scopeText(r.scope)} · ${r.state}${r.task ? ` (${r.task})` : ""}${progress}${counts}${r.reason ? ` — ${r.reason}` : ""}${r.summary ? `\n    ${said(r.summary, lang)}` : ""}`;
+  const what = r.ai.length ? ui(lang, "ui.health.run.ai", { checks: r.ai.join(",") }) : ui(lang, "ui.health.run.builtin");
+  const scope = r.scope.kind === "tree" ? ui(lang, "ui.health.run.scope.tree") : ui(lang, `ui.health.run.scope.${r.scope.kind}`, { id: r.scope.id });
+  const progress = r.total ? ` · ${ui(lang, "ui.health.run.progress", { done: r.done ?? 0, total: r.total, findings: r.findings ?? 0 })}` : "";
+  const counts = r.ai.length ? ` · ${ui(lang, "ui.health.run.counts", { new: r.counts.new, accepted: r.counts.accepted, dismissed: r.counts.dismissed })}` : "";
+  return `${r.id}  ${localAt(r.at)}  ${what} · ${scope} · ${ui(lang, `ui.health.run.state.${r.state}`)}${r.task ? ` (${r.task})` : ""}${progress}${counts}${r.reason ? ` — ${r.reason}` : ""}${r.summary ? `\n    ${said(r.summary, lang)}` : ""}`;
 }
 
 function findingLine(f: ReturnType<typeof findingView>): string {
@@ -317,7 +319,8 @@ register(
       const tree = ctx.tree();
       const decisions = decisionsOf(tree);
       const reports = listReports(tree, opts.all ? Infinity : undefined).map((r) => runInfo(tree, r, { decisions }));
-      return { text: lines(reports.length ? undefined : "no report yet (strom health --save, strom health --ai default)", ...reports.map((r) => runLine(r, tree.lang))), data: { reports } };
+      const lang = healthLang(ctx, tree);
+      return { text: lines(reports.length ? undefined : ui(lang, "ui.health.list.none"), ...reports.map((r) => runLine(r, lang))), data: { reports } };
     },
   },
   {
@@ -337,7 +340,7 @@ register(
       const lang = healthLang(ctx, tree);
       return {
         text: lines(
-          runLine(info, tree.lang),
+          runLine(info, lang),
           ...(info.order ?? []).map((o, i) => `  ${i + 1}. ${o.kind}${o.subject ? ` ${o.subject}` : ""}: ${said(o.why, info.lang)}`),
           ...findings.map(findingLine),
           b && b.check ? ui(lang, "ui.health.then") : undefined,

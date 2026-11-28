@@ -3,15 +3,21 @@
 // option output/tree.ged as it always was (and untouched by a protected export); the setting gedcom.living for a file
 // going out and beside the full ones; the header's mark, and strom sync refusing such a file as a source of changes,
 // strom intake keeping it as material only; the sentence of a full file (K3.1) at the export and at strom pack.
+// Verification of 151 (findings 1, 3): --out into the research through another case of its name or a link refused
+// as well; the living judged on a fixed clock (the year of 2026), never on today's.
 
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
+import { fixedClock } from "../fixed-clock.ts";
 
 const opts = { skip: !hasGit };
+// who is living goes by the year of "now": 18 Nov 2026 for every test here
+const clock = fixedClock();
+after(() => clock.stop());
 
 async function family(): Promise<World> {
   const w = new World();
@@ -107,6 +113,47 @@ test("strom export gedcom --living: --out outside the research folder, never int
   const bad = await w.run(["export", "gedcom", "--living", "omit", "--json"]);
   assert.equal(bad.code, 2);
   assert.equal(JSON.parse(bad.out).code, "export.living.mode");
+  assert.equal(git(w.cwd, "status", "--porcelain").trim(), "");
+  w.cleanup();
+});
+
+test("strom export gedcom --living --out: into the research through another case of its name or a link refused too", opts, async () => {
+  const w = await family();
+  const refused = async (out: string) => {
+    const r = await w.run(["export", "gedcom", "--living", "--for", "standard", "--out", out, "--json"]);
+    assert.equal(r.code, 2, out);
+    assert.equal(JSON.parse(r.out).code, "export.living.in-tree", out);
+    assert.ok(!fs.existsSync(out), out);
+  };
+  // another case of the research's folder: the same folder where the disk does not tell case apart
+  const upper = path.join(path.dirname(w.cwd), path.basename(w.cwd).toUpperCase());
+  if (upper !== w.cwd && fs.existsSync(upper)) {
+    await refused(path.join(upper, "z2.ged"));
+    await refused(path.join(upper, "NOTES", "z2.ged"));
+  }
+  // a link to the research's folder, and one to a folder inside it
+  const link = path.join(w.dir, "odkaz na Lhotákovi");
+  const inner = path.join(w.dir, "odkaz na poznámky");
+  fs.mkdirSync(path.join(w.cwd, "notes"), { recursive: true });
+  let linked = true;
+  try {
+    fs.symlinkSync(w.cwd, link, process.platform === "win32" ? "junction" : "dir");
+    fs.symlinkSync(path.join(w.cwd, "notes"), inner, process.platform === "win32" ? "junction" : "dir");
+  } catch {
+    linked = false; // no links on this disk (Windows without the right): nothing to check
+  }
+  if (linked) {
+    await refused(path.join(link, "z3.ged"));
+    await refused(path.join(link, "nová složka", "z4.ged"));
+    await refused(path.join(inner, "z5.ged"));
+    // its own file in output/ through the link stays allowed
+    await w.ok(["export", "gedcom", "--living", "initials", "--for", "standard", "--out", path.join(link, "output", "tree-initials.ged")]);
+  }
+  // a folder beside the research, whose name begins with it, is outside
+  const beside = path.join(path.dirname(w.cwd), `${path.basename(w.cwd)} kopie`, "lhota.ged");
+  fs.mkdirSync(path.dirname(beside));
+  await w.ok(["export", "gedcom", "--living", "--for", "standard", "--out", beside]);
+  assert.match(fs.readFileSync(beside, "utf8"), /1 _STROM_PRIVACY initials/u);
   assert.equal(git(w.cwd, "status", "--porcelain").trim(), "");
   w.cleanup();
 });
