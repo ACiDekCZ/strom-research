@@ -29,6 +29,8 @@ const code = await main(
     stderr: (s) => process.stderr.write(s),
     tty,
     ...(process.stdin.isTTY ? {} : { stdinText: () => fs.readFileSync(0, "utf8") }),
+    // when this process started (a slow hook noted with Node's start, K059)
+    processStartedAt: performance.timeOrigin,
   },
   process.env,
   process.cwd(),

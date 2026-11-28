@@ -72,6 +72,11 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   der Nummern in `strom media show`, derselbe Befehl umgekehrt nimmt es zurück); ein irrtümlich einer Quelle
   zugeordnetes Bild kommt samt Ausschnitten von ihr ab (`strom source edit S… --media-remove M… --reason`), und `strom
   media retract` eines zitierten Bildes verweist auf beides.
+- **Befehle eines Agenten auf einem langsamen Computer:** Die Prüfung, die strom vor jedem Shell-Befehl eines Agenten
+  macht, wartet bis zu 60 Sekunden statt 10 (auf einem langsamen Windows-Computer wurde sie nicht rechtzeitig fertig,
+  während neben einem Gespräch ein Agent allein arbeitete), übernimmt nie den ersten Start einer neuen Version, und
+  eine, die lange dauerte, wird für `strom error` vermerkt; eine Forschung erhält das neue Limit beim ersten Start
+  dieser Version.
 
 ## 1.37.0
 

@@ -117,10 +117,10 @@ register({
     "The report: this computer and the installation, strom doctor, the agents and their versions, the connectors, the\n" +
     "bridge to the Strom app and the bridges running on this computer (each one's memory), the research in numbers only\n" +
     "(counts, strom check, git, downloads, sessions) and strom's technical logs of the last days, with the commands that\n" +
-    "ended with an error. Names, places, notes, paths with the user's name and e-mails are replaced by codes; logins,\n" +
-    "keys and tokens never go. The ZIP goes to the downloads folder (else the current one); strom sends nothing — the\n" +
-    "user sends it. Nothing in the research is written. A note (--note) goes as written: only names the research knows\n" +
-    "are replaced in it.\n" +
+    "ended with an error and the agent's hooks that were slow (how long each took). Names, places, notes, paths with the\n" +
+    "user's name and e-mails are replaced by codes; logins, keys and tokens never go. The ZIP goes to the downloads\n" +
+    "folder (else the current one); strom sends nothing — the user sends it. Nothing in the research is written. A note\n" +
+    "(--note) goes as written: only names the research knows are replaced in it.\n" +
     "\n" +
     REPORT_TABLE,
   options: [
@@ -372,7 +372,7 @@ async function makeReport(ctx: Context, opts: Record<string, unknown>): Promise<
           const c = commandsArea(env, root, sinceMs, masker, limits.commands);
           if (c.trimmed) trimmed["commands.jsonl"] = c.trimmed;
           // an archive's report says nothing of an agent
-          const shown = archive ? c.commands.map(({ agent: _a, worker: _w, session: _s, ...rest }) => rest) : c.commands;
+          const shown = archive ? c.commands.map(({ agent: _a, worker: _w, session: _s, hook: _h, ...rest }) => rest) : c.commands;
           const mine = !archive && session ? c.commands.filter((x) => x.session === session).slice(-SESSION_COMMANDS) : [];
           return { commands: shown, ...(mine.length || (session && !archive) ? { thisSession: mine } : {}) };
         }),

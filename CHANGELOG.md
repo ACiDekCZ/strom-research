@@ -65,6 +65,10 @@ The changes of each version in short. The full notes and the install lines are o
   the new number refused, parts and copies left at the old one said, its history in `strom media show`, the same
   command the other way round takes it back); an image put to a source wrongly comes off it with its clips (`strom
   source edit S… --media-remove M… --reason`), and `strom media retract` of a cited image points to both.
+- **An agent's commands on a slow computer:** the check strom makes before each shell command of an agent waits up to
+  60 seconds instead of 10 (on a slow Windows computer, with an agent working alone beside a conversation, it did not
+  finish in time), never does the first start of a new version, and one that took long is noted for `strom error`; a
+  research gets the new limit at the first start of this version.
 
 ## 1.37.0
 

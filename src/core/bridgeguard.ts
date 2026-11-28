@@ -21,7 +21,13 @@ export const BRIDGE_NOTES = ["live.json", "live-last.json"] as const;
 /** The shell tools whose command is looked at: Claude Code's (Bash, PowerShell on Windows), Grok Build's. */
 export const SHELL_TOOLS = ["Bash", "PowerShell", "run_terminal_command", "bash", "shell"] as const;
 
-const HOOK_TIMEOUT_S = 10;
+/**
+ * How long the agent waits for the hook before each shell command (seconds). As the web's (core/web.ts): the hook's
+ * work is light, but its start is not — on a slow Windows computer PowerShell, the tree's strom.cmd (in a folder a
+ * cloud drive may hold) and Node with strom took longer than 10 s while a run worked beside the conversation (K059).
+ * The hook answers well before it; one the agent ends is never a refusal (a hook only refuses by its answer).
+ */
+export const SHELL_HOOK_TIMEOUT_S = 60;
 
 /** One call of a shell tool as the agent's hook gives it. */
 export interface ShellEvent {
@@ -181,7 +187,7 @@ export function shellHookOutput(a: { decision?: "deny"; reason?: string }): stri
 /** Claude Code's hook of the tree (its .claude/settings.json) before each shell command, and each of the desktop app's terminal. */
 export function claudeShellHooks(root: string, platform: NodeJS.Platform = process.platform): { PreToolUse: Record<string, unknown>[] } {
   const { command, shell } = treeHookCommand(root, "agents shell --hook", platform);
-  const hooks = [{ type: "command", command, timeout: HOOK_TIMEOUT_S, ...(shell ? { shell } : {}) }];
+  const hooks = [{ type: "command", command, timeout: SHELL_HOOK_TIMEOUT_S, ...(shell ? { shell } : {}) }];
   return { PreToolUse: [{ matcher: "Bash|PowerShell", hooks }, { matcher: DESKTOP_TERMINAL_MATCHER, hooks }] };
 }
 
@@ -189,7 +195,7 @@ export function claudeShellHooks(root: string, platform: NodeJS.Platform = proce
 export function grokShellHook(root: string, platform: NodeJS.Platform = process.platform): Record<string, unknown> {
   const bin = path.join(root, ".strom", "bin");
   const command = platform === "win32" ? `"${path.win32.join(bin, "strom-hook.cmd")}" agents shell --hook` : treeHookCommand(root, "agents shell --hook", platform).command;
-  return { matcher: "run_terminal_command|bash|shell", hooks: [{ type: "command", command, timeout: HOOK_TIMEOUT_S }] };
+  return { matcher: "run_terminal_command|bash|shell", hooks: [{ type: "command", command, timeout: SHELL_HOOK_TIMEOUT_S }] };
 }
 
 /** What an agent is told of the bridge (strom app): its secret taken out wherever it stands — an address, its encoded copy. */

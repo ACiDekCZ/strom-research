@@ -28,6 +28,7 @@ import { claudeShellHooks, grokShellHook } from "../core/bridgeguard.ts";
 import { claudeDelegateHooks } from "../core/delegate.ts";
 import { powershellUtf8Rule, putShim } from "../core/self.ts";
 import { codexWindowsRule } from "../core/writable.ts";
+import { writableUnasked } from "../core/integrity.ts";
 
 export const MARKER = "<!-- strom: generated above this line (strom agents sync); your own notes below are kept -->";
 
@@ -765,6 +766,36 @@ export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "sett
  * instructions (.md) stay: a person's notes below the mark go along, and they name no folder of a computer.
  */
 export const MACHINE_AGENT_FILES = [path.join(".claude", "settings.json"), "opencode.json", path.join(".grok", "config.toml"), GROK_HOOKS, CODEX_RULES, CODEX_HOOKS, CODEX_CONFIG].map((p) => p.split(path.sep).join("/"));
+
+/**
+ * At the first run of a new strom: the agents' hooks of a research as this strom writes them — its Claude Code settings
+ * and Grok's hooks, only where strom wrote them before (a research no agent worked in keeps none), committed once (K059:
+ * the shell's hook got a longer time limit, a research gets it before its next conversation, not only when strom
+ * starts one). Never an archive's (no agent there), never a dry run, never where strom may not write unasked (another
+ * computer's seal, something changed outside strom). The files committed.
+ */
+export function settleAgentHooks(tree: Tree): string[] {
+  if (tree.dryRun || !tree.key || isArchive(tree)) return [];
+  const files: [string, string][] = [
+    [path.join(".claude", "settings.json"), JSON.stringify(claudeSettings(tree), null, 2) + "\n"],
+    [GROK_HOOKS, JSON.stringify(grokHooks(tree.root), null, 2) + "\n"],
+  ];
+  let written: string[] = [];
+  tree.atomically(() => {
+    const changed = files.filter(([rel, content]) => {
+      try {
+        return fs.readFileSync(path.join(tree.root, rel), "utf8") !== content;
+      } catch {
+        return false; // none here: strom never wrote it, nothing to bring up to date
+      }
+    });
+    if (!changed.length || !writableUnasked(tree)) return;
+    for (const [rel, content] of changed) writeFileAtomic(path.join(tree.root, rel), content);
+    written = changed.map(([rel]) => rel.split(path.sep).join("/"));
+    tree.commit(`Agent hooks: ${written.join(", ")}`, written);
+  });
+  return written;
+}
 
 /**
  * strom's files of the agents written for the tree (only what changed: the files written, to commit). `said.shim`: the

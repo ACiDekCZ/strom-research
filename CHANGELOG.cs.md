@@ -62,6 +62,10 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   se odmítne, části a kopie, které zůstaly na starém, se vypíšou, historie čísel v `strom media show`, stejný příkaz
   obráceně opravu vrátí); snímek přiřazený k prameni omylem jde z pramene sundat i s jeho výřezy (`strom source edit
   S… --media-remove M… --reason`) a `strom media retract` u citovaného snímku odkáže na obojí.
+- **Příkazy agenta na pomalém počítači:** kontrola, kterou strom dělá před každým příkazem agenta v shellu, čeká až
+  60 sekund místo 10 (na pomalém Windows, když vedle rozhovoru pracoval agent sám, se nestihla), nikdy nedělá první
+  spuštění nové verze a kontrola, která trvala dlouho, se zapíše pro `strom error`; výzkum dostane nový limit při
+  prvním spuštění této verze.
 
 ## 1.37.0
 

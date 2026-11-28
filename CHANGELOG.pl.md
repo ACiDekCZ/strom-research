@@ -66,6 +66,10 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   wypisywane, historia numerów w `strom media show`, to samo polecenie odwrotnie cofa poprawkę); skan przypisany do
   źródła omyłkowo można zdjąć z niego razem z wycinkami (`strom source edit S… --media-remove M… --reason`), a `strom
   media retract` cytowanego skanu wskazuje obie drogi.
+- **Polecenia agenta na wolnym komputerze:** sprawdzenie, które strom wykonuje przed każdym poleceniem agenta w
+  powłoce, czeka do 60 sekund zamiast 10 (na wolnym komputerze z Windows, gdy obok rozmowy agent pracował sam, nie
+  zdążyło się zakończyć), nigdy nie wykonuje pierwszego uruchomienia nowej wersji, a takie, które trwało długo, jest
+  zapisywane dla `strom error`; badanie otrzymuje nowy limit przy pierwszym uruchomieniu tej wersji.
 
 ## 1.37.0
 
