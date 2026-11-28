@@ -114,6 +114,9 @@ function readAllowed(what: string, sub: string | undefined, act: string | undefi
       return n === 3 && act === "note";
     case "offline":
       return n === 2;
+    case "health":
+      // the tree check's reports, one of them, the built-in part (spec 091: read only)
+      return n <= 2;
     default:
       return false;
   }
@@ -210,6 +213,10 @@ function writeAllowed(what: string, sub: string | undefined, act: string | undef
       // a question asked again (sort.confirm, run.confirm: ask) is anyone's; taken away only on the computer (spec 123 P2)
       if (n === 2 && (sub === "sort" || sub === "run")) return only(body?.confirm === "ask" && Object.keys(body).length === 1, `settings.${sub}`);
       return deny(sub === "sort" ? "settings.sort" : "settings");
+    case "health":
+    case "audit":
+      // the AI checks asked or stopped, findings decided: only the computer with the research (spec 091 Q9)
+      return deny(what === "health" ? (sub === "stop" ? "health.stop" : "health.run") : "audit.decide");
     default:
       // hypotheses, stories, experiments, intake, sourceTask, live, offline, books, census, adopt, transfer, phone,
       // and anything not known

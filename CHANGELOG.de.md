@@ -55,17 +55,27 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   bestätigt oder berichtigt sie mit der Stelle in der Quelle; eine Adresse, die sich nicht öffnet, bleibt eine Zeile
   dessen, was durchgegangen wurde. Das Material der Forschung nennt bei jeder Datei die Häuser, zu denen sie gehört,
   damit die Strom-App sie dort zeigt, wo die Datei verwendet wird.
+- **Die Baumprüfung:** `strom health` sagt kostenlos und ohne etwas zu schreiben, worauf die Forschung steht und was
+  als Nächstes zu tun ist: die eigene Prüfung von strom, um wie viel der Baum in 30 Tagen gewachsen ist, Linien, die
+  stillstehen, längst verschickte Anfragen ohne Antwort, was auf eine Entscheidung wartet, Korrekturen, Fakten zum
+  Überprüfen nach Linien, nie durchsuchte Astenden, nicht sortiertes Material – mit den Schritten der Reihe nach; die
+  Strom-App zeigt es bei der Datenqualität. Die Prüfungen des Agenten (Geschichten und Notizen gegen die Fakten, wo
+  weiter suchen, Orte, Quellen, Namen in der Familie, unvollendete Importe und mehr) werden als Aufgabe am Anfang der
+  Warteschlange erbeten, im Terminal (`strom health --ai`, `--dry` sagt, was es kostet) oder aus der Strom-App mit
+  einer Schätzung; der Agent liest nur und schlägt vor, höchstens 30 Befunde je Lauf, jeder mit seinem Beleg, und
+  `--changed` prüft nur, was sich seit der letzten Prüfung geändert hat. Ein angenommener Befund wird eine Aufgabe der
+  Warteschlange, ein abgelehnter wird nie wieder gemeldet (`strom audit accept|dismiss|undo`, auch in der Strom-App).
 - **`strom demo`:** strom an einer Beispielforschung einer erfundenen Familie ausprobiert (cs, en, de, pl), getrennt
   von den eigenen Stammbäumen und Einstellungen und in der Strom-App geöffnet; alles darin lässt sich durchsehen,
   nichts bietet einen Agenten an; `strom demo --remove` löscht sie.
-- **Erneutes Lesen, Bücher und Bilder berichtigt:** eine frühere Lesung, die keine Frage behielt (eines älteren
+- **Erneutes Lesen, Bücher und Bilder berichtigt, auch nachträglich:** eine frühere Lesung, die keine Frage behielt (eines älteren
   Werkzeugs), wird ganz neu gelesen statt abgelehnt, ihr Ergebnis wird ganz geschrieben, bevor die Quelle fertig sagt,
   eine Runde mit meist ungelesenen Stellen sagt warum und bietet nichts weiter zum Bezahlen an, und eine Lesung, die
   eine Korrektur machte, wird nicht wieder angeboten; ein Buch erhält die Zahl der Bilder, die der Katalog des Archivs
   angibt, ein ganz heruntergeladenes Buch seine Zahl auf das Wort des Menschen (`strom fixes`), auf erneut
   gespeicherte Bilder wird gewartet, bis jede neue Kopie da ist, und der Hinweis zu einem Bild in Teilen nennt die
   Hälften, in denen es liegt.
-- **Nachträglich berichtigt:** ein früher verschickter Brief oder eine E-Mail wird an dem Tag als versandt vermerkt,
+  Ein früher verschickter Brief oder eine E-Mail wird an dem Tag als versandt vermerkt,
   an dem sie wirklich hinausging (`strom task sent T… --date YYYY-MM-DD`, im Menü „Was wartet“ wird nach dem Tag
   gefragt, Enter = heute), und ein falsch vermerkter Tag lässt sich bei einer versandten Anfrage nachträglich
   berichtigen (der Tag davor wird genannt, derselbe Befehl mit ihm nimmt es zurück); wie lange sie wartet und die 30

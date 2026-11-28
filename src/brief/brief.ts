@@ -54,6 +54,7 @@ import { forHistory, placesOn, treeKinds } from "../core/pastevents.ts";
 import { HISTORY_WEB_RULE, historySections, localEventsSection, storyHistorySection } from "./history.ts";
 import { placesIdentifySections } from "./places.ts";
 import { verifySection } from "./verify.ts";
+import { auditSections } from "./audit.ts";
 
 export { DEFAULT_BUDGET } from "../core/config.ts";
 import { DEFAULT_BUDGET, Settings } from "../core/config.ts";
@@ -1213,6 +1214,9 @@ export function buildBrief(
     // a task of identifying places: its batch and how, nothing of the records, the method or the people's queue
     const places = placesIdentifySections(tree, task, alone, new Settings(tree.env, {}));
     if (places) return assemble([...sections, ...places], budget);
+    // a task of the tree check (spec 091): its method, the checks and the scope, nothing of the records' work
+    const auditing = auditSections(tree, task, alone);
+    if (auditing) return assemble([...sections, ...auditing], budget);
 
   // 2. a review: what each item of the task is, as the tree has it
   if (task.origin.startsWith("review:") && task.where.length)

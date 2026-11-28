@@ -18,6 +18,7 @@ import "./household.ts";
 import "./house.ts";
 import "./surname.ts";
 import "./quality.ts";
+import "./health.ts";
 import "./batch.ts";
 import "./sources.ts";
 import "./sourcesplit.ts";

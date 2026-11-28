@@ -1645,7 +1645,7 @@ export function fixTextValues(t: Say, s: FixState): Record<string, string | numb
 // ── for the Strom app (the bridge's GET /fixes) ─────────────────────────────────────────────────────────────────
 
 /** The languages a fix's title and summary are given to the app in. */
-export const APP_FIX_LANGS = ["cs", "en", "de"] as const;
+export const APP_FIX_LANGS = ["cs", "en", "de", "pl"] as const;
 
 /** One check as the app shows it: what it is, what it found here, its state, whether strom fixes undo takes it back. */
 /** At most this many IDs of each kind in an app's fix (`count` says how many it found). */

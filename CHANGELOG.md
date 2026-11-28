@@ -50,16 +50,25 @@ The changes of each version in short. The full notes and the install lines are o
   web (a municipality's history as a PDF) is read in the house's research and confirmed or corrected with the place in
   the source; an address that does not open stays one line of what was gone through. The research's material names
   the houses each file belongs to, for the Strom app to show them where the file is used.
+- **The tree check:** `strom health` says, free and with nothing written, what the research stands on and what to do
+  next: strom's own check, what the tree grew by in 30 days, lines standing still, requests sent long ago with no
+  reply, what waits for a decision, fixes, facts to verify by line, branch ends never searched, material not sorted,
+  with the steps in order; the Strom app shows it with its data quality. The agent's checks (stories and notes against
+  the facts, where to search next, places, sources, names in the family, imports left unfinished and more) are asked
+  as a task first in the queue, in the terminal (`strom health --ai`, `--dry` for what it takes) or from the Strom app
+  with an estimate; the agent only reads and proposes, at most 30 findings a run, each with its proof, and `--changed`
+  checks only what changed since the last check. A finding accepted becomes a task of the queue, one dismissed is
+  never reported again (`strom audit accept|dismiss|undo`, also in the Strom app).
 - **`strom demo`:** strom tried on a sample research of a made-up family (cs, en, de, pl), apart from the person's own
   trees and settings and opened in the Strom app; everything in it can be looked through, nothing offers an agent;
   `strom demo --remove` deletes it.
-- **Reading again, books and images fixed:** an earlier reading that kept no question (an older tool's) is read again
+- **Reading again, books and images fixed, set right afterwards:** an earlier reading that kept no question (an older tool's) is read again
   whole instead of refused, its result is written whole before the source says done, a round with most places not read
   says why and offers nothing more to pay for, and a reading a fix made is not offered again; a book gets the count of
   images the archive's catalogue gives, a book downloaded whole gets its count on the person's word (`strom fixes`),
   images saved once more are waited for until every new copy has come, and the hint on an image in parts names the
   halves it is in.
-- **Set right afterwards:** a letter or e-mail sent earlier is marked sent on the day it really went out (`strom task
+  A letter or e-mail sent earlier is marked sent on the day it really went out (`strom task
   sent T… --date YYYY-MM-DD`, in the menu's What waits the day is asked, Enter today), and a day marked wrong is put
   right later on a request sent (the day before is said, the same command takes it back); how long it waits and the 30
   days without a reply count from that day, by the calendar of the computer, never a day off around midnight. The

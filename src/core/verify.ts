@@ -1326,6 +1326,10 @@ function waitOf(tree: Tree): (t: Task) => VerifyWait {
 }
 
 /** How each fact of an open task of verification waits, and the task holding it. */
+export function verifyWaiting(tree: Tree): Map<string, { how: VerifyWait; task: Task }> {
+  return waiting(tree);
+}
+
 function waiting(tree: Tree): Map<string, { how: VerifyWait; task: Task }> {
   const out = new Map<string, { how: VerifyWait; task: Task }>();
   const tasks = tree.list<Task>("task").filter((t) => HOLDING.has(t.state) && !t.retracted && isVerifyTask(t));

@@ -621,6 +621,30 @@ export const PHRASES = {
   // a person's own event of a role at another's (the Strom app's "godparent", "weddingWitness"): its name
   "event.godparent": "Godparent",
   "event.weddingWitness": "Wedding witness",
+  // the tree check (spec 091): the task of the AI checks, the task of an accepted finding, the checks' names
+  "health.what": "Tree check {id}: {checks}",
+  "health.where": "the records of {scope} (the check's catalog and rules: strom brief)",
+  "health.why": "Asked for: the tree check {checks} of {scope}, read only — each finding proposed for the user to accept or dismiss",
+  "health.why.changed": "Asked for: the tree check {checks} of what changed in {scope} since the check {since}, read only — each finding proposed for the user to accept or dismiss",
+  "health.done": "each check gone through (strom audit checked), each finding written with its proof (strom audit add), the summary and the order of the steps written (strom audit summary, strom audit order) — nothing of the tree changed",
+  "health.scope.tree": "the whole tree",
+  "health.scope.line": "the line {name}",
+  "health.scope.person": "{name}",
+  "audit.why": "The tree check {run} found ({check}): {what}",
+  "audit.where": "the records of the finding: {records}",
+  "audit.done.suggest": "{fix} — proposed to the user only (the user's values and the family tree's are never changed)",
+  "audit.type.A": "stories and notes against the facts",
+  "audit.type.B": "hypotheses, conflicts and tasks the data decided",
+  "audit.type.C": "transfers and imports left unfinished",
+  "audit.type.D": "places written differently",
+  "audit.type.E": "possible duplicates",
+  "audit.type.F": "facts whose record speaks of another",
+  "audit.type.G": "where to search next",
+  "audit.type.H": "sources",
+  "audit.type.I": "names in the family",
+  "audit.type.J": "families and gaps",
+  "audit.type.K": "life and time in the texts",
+  "audit.type.L": "houses",
 } as const;
 
 export type PhraseKey = keyof typeof PHRASES;

@@ -46,16 +46,24 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   ze staršího výzkumu, jehož pramen je na webu (historie obce v PDF), výzkum domu přečte a potvrdí nebo opraví s
   místem v prameni; adresa, která se neotevře, zůstane jednou řádkou v tom, co se prošlo. Materiál výzkumu u každého
   souboru uvádí domy, ke kterým patří, aby je aplikace Strom ukázala tam, kde je soubor použit.
+- **Kontrola stromu:** `strom health` zdarma a bez zápisu řekne, na čem výzkum stojí a co dělat dál: vlastní kontrola
+  stromu, o kolik strom za 30 dní narostl, linie, které stojí, žádosti odeslané dávno bez odpovědi, co čeká na
+  rozhodnutí, opravy, fakta k ověření po liniích, konce větví bez hledání, neroztříděný materiál – a kroky v pořadí;
+  aplikace Strom to ukáže u kvality dat. Kontroly agentem (příběhy a poznámky proti faktům, kde hledat dál, místa,
+  prameny, jména v rodině, nedokončené importy a další) se zadávají jako úkol na začátek fronty, v terminálu (`strom
+  health --ai`, `--dry` řekne, co to stojí) nebo z aplikace Strom s odhadem; agent jen čte a navrhuje, nejvýš 30
+  nálezů za běh, každý s důkazem, a `--changed` projde jen to, co se od minulé kontroly změnilo. Přijatý nález se
+  stane úkolem ve frontě, odmítnutý se už neohlásí (`strom audit accept|dismiss|undo`, také v aplikaci Strom).
 - **`strom demo`:** strom vyzkoušený na ukázkovém výzkumu smyšlené rodiny (cs, en, de, pl), mimo vlastní stromy a
   nastavení, otevřený v aplikaci Strom; všechno v něm jde prohlédnout, nic nenabízí agenta; `strom demo --remove` ho
   smaže.
-- **Opravy čtení znovu, knih a snímků:** dřívější čtení, které nezachovalo otázku (staršího nástroje), se přečte znovu
+- **Opravy čtení znovu, knih a snímků a dodatečné opravy:** dřívější čtení, které nezachovalo otázku (staršího nástroje), se přečte znovu
   celé místo odmítnutí, jeho výsledek se zapíše celý dřív, než pramen řekne hotovo, kolo s většinou míst nepřečtených
   řekne proč a nenabízí nic dalšího k zaplacení, a čtení, které udělala oprava, se znovu nenabízí; kniha dostane počet
   snímků, který udává katalog archivu, kniha stažená celá dostane počet na slovo člověka (`strom fixes`), na snímky
   ukládané znovu se čeká, dokud nepřijde každá nová kopie, a rada ke snímku po částech jmenuje poloviny, ve kterých
   je.
-- **Dodatečné opravy:** dopis nebo e-mail odeslaný dřív jde zapsat jako odeslaný v den, kdy skutečně odešel (`strom
+  Dopis nebo e-mail odeslaný dřív jde zapsat jako odeslaný v den, kdy skutečně odešel (`strom
   task sent T… --date YYYY-MM-DD`, v nabídce Co čeká se den zeptá, Enter = dnes), a špatně zapsaný den jde u odeslané
   žádosti dodatečně opravit (vypíše se den předtím, stejný příkaz s ním opravu vrátí); jak dlouho žádost čeká a 30 dní
   bez odpovědi se počítá od toho dne, podle kalendáře počítače, kolem půlnoci nikdy o den vedle. Den může poslat i

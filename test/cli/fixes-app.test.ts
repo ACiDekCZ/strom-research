@@ -21,7 +21,8 @@ const bridged = { skip: !hasGit || process.platform === "win32", timeout: 180_00
 const opts = { skip: !hasGit, timeout: 180_000 };
 const APP = "https://beta.stromapp.info";
 const ID = "0f8c2d4e-1b2a-4c3d-9e8f-7a6b5c4d3e2f";
-const AI = /agent|\bAI\b|umělá inteligence|Claude|Codex|OpenCode|Grok|Antigravity|\bmodel|\bKI\b|künstliche/i;
+// word edges of any script (a Polish "ręki" is no "KI"): \b is ASCII only
+const AI = /agent|(?<![\p{L}\p{M}\p{N}])AI(?![\p{L}\p{M}\p{N}])|umělá inteligence|Claude|Codex|OpenCode|Grok|Antigravity|(?<![\p{L}\p{M}\p{N}])model|(?<![\p{L}\p{M}\p{N}])KI(?![\p{L}\p{M}\p{N}])|künstliche|sztuczn/iu;
 
 const head = (w: World) => execFileSync("git", ["-C", w.cwd, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 const dirty = (w: World) => execFileSync("git", ["-C", w.cwd, "status", "--porcelain"], { encoding: "utf8" });
@@ -99,10 +100,11 @@ test("the bridge: GET /fixes — every check in cs/en/de, its state, count, undo
     assert.deepEqual(r.body.fixes.map((f: any) => f.id), FIX_CHECKS.map((c) => c.id));
     for (const f of r.body.fixes) {
       for (const field of ["title", "summary"]) {
-        assert.deepEqual(Object.keys(f[field]).sort(), ["cs", "de", "en"], `${f.id} ${field}`);
-        for (const lang of ["cs", "de", "en"]) assert.ok(f[field][lang].trim(), `${f.id} ${field} ${lang}`);
+        assert.deepEqual(Object.keys(f[field]).sort(), ["cs", "de", "en", "pl"], `${f.id} ${field}`);
+        for (const lang of ["cs", "de", "en", "pl"]) assert.ok(f[field][lang].trim(), `${f.id} ${field} ${lang}`);
       }
       assert.notEqual(f.title.cs, f.title.en, `${f.id}: its own words in Czech`);
+      assert.notEqual(f.title.pl, f.title.en, `${f.id}: its own words in Polish (spec 091 Q8)`);
       assert.ok(["pending", "declined", "fixed", "nothing"].includes(f.state), f.state);
       assert.equal(typeof f.count, "number");
       assert.equal(typeof f.undoable, "boolean");

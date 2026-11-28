@@ -49,17 +49,26 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   (historia gminy w PDF), badanie domu odczyta i potwierdzi lub poprawi z miejscem w źródle; adres, który się nie
   otwiera, zostaje jednym wierszem w tym, co przejrzano. Materiał badania podaje przy każdym pliku domy, do których
   należy, aby aplikacja Strom pokazała je tam, gdzie plik jest użyty.
+- **Kontrola drzewa:** `strom health` bezpłatnie i bez zapisu mówi, na czym stoją badania i co robić dalej: własna
+  kontrola stroma, o ile drzewo urosło w 30 dni, linie, które stoją, prośby wysłane dawno bez odpowiedzi, co czeka na
+  decyzję, poprawki, fakty do weryfikacji według linii, nigdy nieprzeszukane końce gałęzi, nieposortowany materiał – z
+  krokami po kolei; aplikacja Strom pokazuje to przy jakości danych. Kontrole agenta (opowieści i notatki wobec
+  faktów, gdzie szukać dalej, miejsca, źródła, imiona w rodzinie, niedokończone importy i inne) zleca się jako zadanie
+  na początku kolejki, w terminalu (`strom health --ai`, `--dry` mówi, ile to kosztuje) lub z aplikacji Strom z
+  szacunkiem; agent tylko czyta i proponuje, najwyżej 30 ustaleń na przebieg, każde z dowodem, a `--changed` sprawdza
+  tylko to, co zmieniło się od ostatniej kontroli. Przyjęte ustalenie staje się zadaniem w kolejce, odrzucone nie
+  zostanie już zgłoszone (`strom audit accept|dismiss|undo`, także w aplikacji Strom).
 - **`strom demo`:** strom wypróbowany na przykładowym badaniu zmyślonej rodziny (cs, en, de, pl), z dala od własnych
   drzew i ustawień, otwarty w aplikacji Strom; wszystko w nim można przejrzeć, nic nie proponuje agenta;
   `strom demo --remove` je usuwa.
-- **Poprawione ponowne czytanie, księgi i skany:** wcześniejsze czytanie, które nie zachowało pytania (starszego
+- **Poprawione ponowne czytanie, księgi i skany oraz późniejsze poprawki:** wcześniejsze czytanie, które nie zachowało pytania (starszego
   narzędzia), jest czytane ponownie w całości zamiast odrzucenia, jego wynik zapisuje się w całości, zanim źródło
   powie gotowe, runda z większością miejsc nieodczytanych mówi dlaczego i nie proponuje niczego więcej do zapłacenia,
   a czytanie wykonane przez poprawkę nie jest proponowane ponownie; księga otrzymuje liczbę skanów, którą podaje
   katalog archiwum, księga pobrana w całości swoją liczbę na słowo człowieka (`strom fixes`), na skany zapisywane
   ponownie czeka się, aż przyjdzie każda nowa kopia, a wskazówka do skanu w częściach wymienia połówki, w których
   jest.
-- **Późniejsze poprawki:** list lub e-mail wysłany wcześniej można zapisać jako wysłany w dniu, w którym naprawdę
+  List lub e-mail wysłany wcześniej można zapisać jako wysłany w dniu, w którym naprawdę
   wyszedł (`strom task sent T… --date YYYY-MM-DD`, w menu „Co czeka“ pojawia się pytanie o dzień, Enter = dziś), a źle
   zapisany dzień można przy wysłanym zapytaniu poprawić później (podawany jest dzień poprzedni, to samo polecenie z
   nim cofa poprawkę); jak długo czeka i 30 dni bez odpowiedzi liczy się od tego dnia, według kalendarza komputera,

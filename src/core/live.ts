@@ -660,6 +660,20 @@
 //                          places.undo). The questions of places wait in /status waiting as kind "place" (section decide)
 //   GET <token>/quality    what the person marked no error (quality/dismissed.json): {rev, dismissed}; read in an archive
 //                          too (feature quality.read). /status: quality.rev; the event quality {rev} when the file changed
+//   GET <token>/health     the tree check's reports (spec 091, core/audit.ts): {rev, reports: [{id C…, at, scope, ai,
+//                          changed?, head?, task?, state built|queued|running|done|stopped|failed, done?, total?,
+//                          findings?, counts {new, accepted, dismissed}, reason?, order?, summary?, lang}]} newest
+//                          first, at most 10; GET <token>/health/<C…> {report (+ builtin), findings}, 404 health.unknown;
+//                          GET <token>/health/builtin[?scope=tree|line:G…|person:P…] {builtin} (core/health.ts), 400
+//                          health.scope; read in an archive too (its built-in reports alone), 503 research.busy while
+//                          written (feature health). /status: health {rev, last?, before?, left?}
+//   POST <token>/health    {ai: [A–L], scope?, changed?, dry?}: strom health --ai, a task first in the queue — {id, task,
+//                          estimate, head, parent} | dry {estimate, head, parent}; 400 health.body | health.scope, 409
+//                          health.archive | health.running {id, task}; POST <token>/health/stop {id?}: strom health stop
+//                          — {ok, id, state}, 404 health.none (feature health.ai)
+//   POST <token>/audit/<id>  {do: accept|dismiss|undo, expect?}: strom audit accept|dismiss|undo by "app" — {finding,
+//                          rev}; POST <token>/audit {ids, do, expect?} {findings, rev} (one commit); 400 audit.body, 404
+//                          audit.unknown, 409 audit.started | health.rev {rev} (feature audit.decide). Never a device's
 //   GET <token>/directions/people  who is in which line: {people: {P…: [G…, …]}, places, lines, branches, rev, head} —
 //                          people: the narrowest line first, only active and paused ones; a line of descendants: its
 //                          person and their descendants within its generations (the app loads it when head changes;
@@ -898,7 +912,7 @@
 //                          (it waits no more), offline.none, directions.none. Every write off the lines: 409
 //                          directions.archive, 503 research.busy (+ Retry-After), 423 locked, 507 disk.full
 //   GET <token>/fixes      strom's fixes of this research (strom fixes, commands/fixchecks.ts): {rev, fixes: [{id, title,
-//                          summary ({cs, en, de}), unit, count, left?, state pending|declined|fixed|nothing, undoable,
+//                          summary ({cs, en, de, pl}), unit, count, left?, state pending|declined|fixed|nothing, undoable,
 //                          applied?, at?, cost? free|cheap|medium|expensive, since, paid, towns?}]} — street-places'
 //                          towns: [{town, key, count, places}] the municipalities whose bare numbers wait for the
 //                          person's answer, never one answered (feature fixes.towns) — free (no agent, no network,
@@ -1039,6 +1053,8 @@ import { APP_READS_NAME_STATUS, APP_READS_NAME_STATUS_BETA, APP_SHOWS_ORIGIN, AP
 import { suggestSurnames } from "./surnames.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
 import { askOf, qualityRev, readDismissed } from "./quality.ts";
+import { builtin as healthBuiltin, healthStatus, type FixSeen } from "./health.ts";
+import { AUDIT_TYPES, REPORTS_LISTED, decisionsOf, findingView, healthRev, isAuditType, isFindingId, isReportId, listReports, readReport, runInfo, scopeOf, type HealthScope } from "./audit.ts";
 import { BOOKS_MIN_TASKS, BOOKS_MIN_TASKS_MAX, configFile, DEFAULT_RUN_MINUTES, RUN_PARALLEL_MAX, LIVE_IDLE_CHOICES, LIVE_IDLE_MAX_MINUTES, loadUserConfig, readStored, Settings } from "./config.ts";
 import { asideFiles, folderFiles } from "./inboxwait.ts";
 import { gateLabel } from "./gate.ts";
@@ -1144,7 +1160,7 @@ function placeOk(v: unknown): v is string {
   return typeof v === "string" && !!v.trim() && v.length <= 300 && !/[\u0000-\u001f\u007f]/u.test(v);
 }
 
-const APP_WRITES = new Set(["sync", "adopt", "media", "lists", "batch", "waiting", "group", "material", "read", "history", "experiments", "quality", "places", "directions", "offline", "queue", "census", "intake", "houses"]);
+const APP_WRITES = new Set(["health", "audit", "sync", "adopt", "media", "lists", "batch", "waiting", "group", "material", "read", "history", "experiments", "quality", "places", "directions", "offline", "queue", "census", "intake", "houses"]);
 /** A route of APP_WRITES, or a setting of the tree's own (settings/sort: its strom.json; settings/runs is this computer's). */
 const writesTree = (what: string | undefined, sub: string | undefined): boolean => APP_WRITES.has(what ?? "") || (what === "settings" && sub === "sort");
 /** A file refused (its error's code): what the bridge says of it. */
@@ -2123,13 +2139,13 @@ const MEDIA_REF_UNKNOWN = "sync.media-ref-unknown";
 /** How many hashes POST /media/known takes at once. */
 export const MEDIA_KNOWN_MAX = 5000;
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "origin.import", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.accepted", "material.decided", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "house", "house.material", "house.confirm", "house.import", "house.auto", "house.request", "house.chat", "house.look", "house.story", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sync.mediaRef", "person.contact", "media.list", "media.list.source", "waiting.gain", "sort.confirm", "working.saving", "waiting.retry", "sort.confirm.app", "run.confirm", "finds", "finds.person", "glance", "people.search", "waiting.import", "waiting.sentDay", "waiting.persons", "material.houses"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "origin.import", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.accepted", "material.decided", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "house", "house.material", "house.confirm", "house.import", "house.auto", "house.request", "house.chat", "house.look", "house.story", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sync.mediaRef", "person.contact", "media.list", "media.list.source", "waiting.gain", "sort.confirm", "working.saving", "waiting.retry", "sort.confirm.app", "run.confirm", "finds", "finds.person", "glance", "people.search", "waiting.import", "waiting.sentDay", "waiting.persons", "material.houses", "health", "health.ai", "audit.decide"] as const;
 
 /**
  * What only a research with its agent here does (accepts.read: none in an archive, nor where it waits for its agent);
  * finds: what an agent found, which an archive never says (GET finds answers none there).
  */
-const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort", "material.decided", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sort.confirm", "sort.confirm.app", "run.confirm", "finds", "finds.person", "house.import", "house.request", "house.chat", "house.story"]);
+const AGENT_FEATURES: ReadonlySet<string> = new Set(["material.sort", "material.decided", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sort.confirm", "sort.confirm.app", "run.confirm", "finds", "finds.person", "house.import", "house.request", "house.chat", "house.story", "health.ai", "audit.decide"]);
 const withoutAgent = (features: readonly string[]): readonly string[] => features.filter((f) => !AGENT_FEATURES.has(f));
 /**
  * The sample research (strom demo, spec 143 K2.2): looked through as a research, but nothing that starts or offers an
@@ -3478,6 +3494,8 @@ export function status(root: string, env: Env, version?: string, seen?: Readings
     ...historyOfStatus(tree, settings, last.head, archive),
     // the fingerprint of what GET /quality answers (the person's "not an error")
     quality: { rev: qualityRev(tree, last.head) },
+    // the tree check (spec 091 V4, feature health): its reports' fingerprint, the newest, a run's place in the queue
+    health: healthStatus(tree, settings, last.head, ranked, archive),
     // the fingerprint of every person's places among the lines (GET /directions/people places): none in an archive
     ...(archive ? {} : { directions: { rev: directionsRevAt(tree, last.head) } }),
     // an archive: nobody works on it — its tasks put aside are no queue, nothing spent (Milan's decision, 2026-10-03)
@@ -4260,6 +4278,41 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       (e) => failed(req, res, e),
     );
   };
+  /**
+   * The tree check's built-in part now (GET /health/builtin[?scope=tree|line:G…|person:P…], feature health): strom's
+   * fixes as GET /fixes has them (its cache), the rest read here. 400 health.scope.
+   */
+  const giveHealthBuiltin = (req: http.IncomingMessage, res: http.ServerResponse, scopeRaw: string | undefined) => {
+    const json = (code: number, body: unknown) => {
+      if (!req.destroyed && !res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
+    };
+    let scope: HealthScope;
+    try {
+      scope = scopeOf(Tree.open(root, env), scopeRaw);
+    } catch (e) {
+      return json(400, refusal((e as Error).message, "health.scope"));
+    }
+    const answer = (fixesText: string | undefined) =>
+      safely(req, res, () => {
+        let seen: FixSeen[] = [];
+        try {
+          const all = fixesText ? (JSON.parse(fixesText) as { fixes?: { id: string; count: number; state: string; cost?: string; paid: boolean }[] }).fixes ?? [] : [];
+          seen = all.map((f) => ({ id: f.id, count: f.count, state: f.state, ...(f.cost ? { cost: f.cost } : {}), paid: f.paid }));
+        } catch {
+          // none said
+        }
+        json(200, { builtin: healthBuiltin(Tree.open(root, env), env, { scope, fixes: seen }) });
+      });
+    import("../commands/fixchecks.ts").then(
+      (m) =>
+        safely(req, res, () => {
+          const { key } = fixesNow(m);
+          if (fixesKept?.key === key) return answer(fixesKept.text);
+          fixesOf(m).ask(key).then(answer, () => answer(undefined));
+        }),
+      () => answer(undefined),
+    );
+  };
   const afterQuiet = (fn: () => void) => {
     const asked = Date.now();
     const look = () => {
@@ -4607,6 +4660,15 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
       writeFor(req, res, origin, placesRunRefused());
       return;
     }
+    // the tree check (spec 091): the AI checks asked, stopped; findings decided — the person's, never a device's
+    if (req.method === "POST" && t === token && what === "health" && (!sub || sub === "stop") && !act) {
+      writeFor(req, res, origin, sub === "stop" ? healthStop() : healthWrite());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "audit" && !act) {
+      writeFor(req, res, origin, auditDecide(sub ? decoded(sub) : undefined));
+      return;
+    }
     if (req.method === "POST" && t === token && what === "quality" && sub === "dismiss" && !act) {
       writeFor(req, res, origin, qualityDismiss());
       return;
@@ -4796,6 +4858,27 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         // what the person marked no error: read in an archive too
         const tree = Tree.open(root, env);
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ rev: qualityRev(tree), dismissed: readDismissed(tree).dismissed }));
+      } else if (what === "health" && !act) {
+        // the tree check (spec 091, feature health): its reports, one with its findings, the built-in part now — read in
+        // an archive too, never while the research is written
+        const json = (code: number, body: unknown, retry?: number) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(retry ? { "Retry-After": String(retry) } : {}) }).end(JSON.stringify(body));
+        const holder = liveHolder(path.join(root, ".strom", "tree.lock"));
+        if (writing || adopting || personWriting || (holder && !(holder.pid === process.pid && holder.host === os.hostname()))) json(503, { ...refusal("the research is being written: ask again in a while", "research.busy"), retry: 5 }, 5);
+        else if (sub === "builtin") giveHealthBuiltin(req, res, new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("scope") ?? undefined);
+        else {
+          const tree = Tree.open(root, env);
+          const decisions = decisionsOf(tree);
+          // an archive: the built-in reports alone (it says nothing of an agent or the AI)
+          const archive = actsAsArchive(tree);
+          if (!sub) json(200, { rev: healthRev(tree), reports: listReports(tree, archive ? Infinity : undefined).filter((r) => !archive || !r.ai.length).slice(0, REPORTS_LISTED).map((r) => runInfo(tree, r, { decisions })) });
+          else {
+            const id = decoded(sub).toUpperCase();
+            const found = isReportId(id) ? readReport(tree, id) : undefined;
+            const r = found && (!archive || !found.ai.length) ? found : undefined;
+            if (!r) json(404, refusal(`no report ${id.slice(0, 12)} of the tree check`, "health.unknown", { id: id.slice(0, 12) }));
+            else json(200, { report: runInfo(tree, r, { builtin: true, decisions }), findings: (r.findings ?? []).map((f) => findingView(tree, r, f, decisions)) });
+          }
+        }
       } else if (what === "houses" && (!sub || !act)) {
         // the research's houses (spec 030 §4.2, feature house): the list, or one house whole by its key (| as %7C) or A…
         // — read in an archive too, never while the research is written
@@ -6464,6 +6547,109 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         if (code === "quality.body") return bad(why);
         const person = /P\d{1,9}/u.exec(why)?.[0];
         if (code === "person.no-match") return { code: 404, body: refusal(why, code, person ? { person } : {}) };
+        return undefined;
+      },
+    };
+  };
+
+  /**
+   * The AI checks of the tree check asked (POST /health {ai: ["G", …], scope?, changed?, dry?}, spec 091, feature
+   * health.ai): strom health --ai, a task first in the queue (the next session does it; no terminal). dry: what it
+   * would take, nothing written ({estimate}); else {id, task, head, parent}. 400 health.body | health.scope, 409
+   * health.archive | health.running {id, task}, 503 research.busy.
+   */
+  const healthWrite = (): AppWrite => {
+    let before = "";
+    let dry = false;
+    const bad = (why: string, code = "health.body") => ({ code: 400, body: refusal(why, code) });
+    return {
+      what: "a tree check asked",
+      codes: { badBody: "health.body", busy: "research.busy", failed: "health.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const { ai, scope, changed } = body;
+        if (Object.keys(body).some((k) => !["ai", "scope", "changed", "dry"].includes(k))) return bad(`the body: {"ai": ["G", "A", …], "scope"?: {"kind": "tree"|"line"|"person", "id"?}, "changed"?: true, "dry"?: true}`);
+        if (!Array.isArray(ai) || !ai.length || ai.length > AUDIT_TYPES.length || ai.some((t) => !isAuditType(t))) return bad(`"ai": the AI checks, one or more of ${AUDIT_TYPES.join(", ")} (the built-in part needs no request: GET /health/builtin)`);
+        if ((changed !== undefined && typeof changed !== "boolean") || (body.dry !== undefined && typeof body.dry !== "boolean")) return bad(`"changed" and "dry": true or false`);
+        let sc: HealthScope;
+        try {
+          sc = scopeOf(tree, scope);
+        } catch (e) {
+          return bad((e as Error).message, "health.scope");
+        }
+        dry = body.dry === true;
+        before = head(root);
+        return { args: ["health", "--ai", [...new Set(ai as string[])].join(","), "--scope", sc.kind === "tree" ? "tree" : `${sc.kind}:${sc.id}`, ...(changed ? ["--changed"] : []), ...(dry ? ["--dry"] : [])] };
+      },
+      done(_tree, data, h) {
+        if (dry) return { estimate: data.estimate, ...(data.changed ? { changed: data.changed } : {}), head: before, parent: before };
+        return { id: data.id, task: data.task, estimate: data.estimate, head: h, parent: before };
+      },
+      refused(_tree, code, why, data) {
+        if (code === "health.body" || code === "health.scope") return bad(why, code);
+        if (code === "health.archive") return { code: 409, body: refusal(why, code) };
+        if (code === "health.running") {
+          const p = (data.params ?? {}) as Record<string, string>;
+          const id = p.id ?? /C\d{4,}/u.exec(why)?.[0];
+          const task = p.task ?? /T\d{4,}/u.exec(why)?.[0];
+          return { code: 409, body: { ...refusal(why, code), ...(id ? { id } : {}), ...(task ? { task } : {}) } };
+        }
+        return undefined;
+      },
+    };
+  };
+
+  /**
+   * The tree check of the AI stopped (POST /health/stop {id?}, feature health.ai): strom health stop — queued, its task
+   * put aside; at work, its session asked to finish (what it found stays). {ok, id, state}. 400 health.body, 404
+   * health.none | health.unknown, 503 research.busy.
+   */
+  const healthStop = (): AppWrite => ({
+    what: "a tree check stopped",
+    codes: { badBody: "health.body", busy: "research.busy", failed: "health.failed" },
+    busyStatus: 503,
+    ask(_tree, body) {
+      if (Object.keys(body).some((k) => k !== "id") || (body.id !== undefined && !isReportId(body.id))) return { code: 400, body: refusal(`the body: {"id"?: "C…"}`, "health.body") };
+      return { args: ["health", "stop", ...(typeof body.id === "string" ? [body.id] : [])] };
+    },
+    done(_tree, data) {
+      return { ok: true, id: data.id, state: data.state };
+    },
+    refused(_tree, code, why) {
+      if (code === "health.none" || code === "health.unknown") return { code: 404, body: refusal(why, code) };
+      return undefined;
+    },
+  });
+
+  /**
+   * The person's decision on findings of the tree check (POST /audit/<id> {do, expect?}, POST /audit {ids, do, expect?},
+   * feature audit.decide): strom audit accept|dismiss|undo, all at once (one commit). One: {finding, rev}; many:
+   * {findings, rev}. 400 audit.body, 404 audit.unknown, 409 audit.started | health.rev {rev}, 503 research.busy.
+   */
+  const auditDecide = (one: string | undefined): AppWrite => {
+    const bad = (why: string) => ({ code: 400, body: refusal(why, "audit.body") });
+    return {
+      what: "findings decided",
+      codes: { badBody: "audit.body", busy: "research.busy", failed: "audit.failed" },
+      busyStatus: 503,
+      max: 64 * 1024,
+      ask(_tree, body) {
+        const allowed = one ? ["do", "expect"] : ["ids", "do", "expect"];
+        if (Object.keys(body).some((k) => !allowed.includes(k))) return bad(one ? `the body: {"do": "accept"|"dismiss"|"undo", "expect"?: "<health.rev>"}` : `the body: {"ids": ["A-1a2b3c4d", …], "do": "accept"|"dismiss"|"undo", "expect"?: "<health.rev>"}`);
+        if (typeof body.do !== "string" || !["accept", "dismiss", "undo"].includes(body.do)) return bad(`"do": "accept", "dismiss" or "undo"`);
+        if (body.expect !== undefined && (typeof body.expect !== "string" || !body.expect || body.expect.length > 40)) return bad(`"expect": the health.rev of /status`);
+        const ids = one ? [one] : body.ids;
+        if (!Array.isArray(ids) || !ids.length || ids.length > 500 || ids.some((id) => !isFindingId(id))) return bad(`"ids": the findings (A-1a2b3c4d …), 1 to 500`);
+        return { args: ["audit", body.do, ...(typeof body.expect === "string" ? [`--expect=${body.expect}`] : []), "--", ...new Set(ids as string[])] };
+      },
+      done(tree, data) {
+        const findings = (data.findings ?? []) as unknown[];
+        return one ? { finding: findings[0] ?? null, rev: healthRev(tree) } : { findings, rev: healthRev(tree) };
+      },
+      refused(tree, code, why, data) {
+        if (code === "audit.unknown") return { code: 404, body: refusal(why, code) };
+        if (code === "audit.started") return { code: 409, body: refusal(why, code) };
+        if (code === "health.rev") return { code: 409, body: { ...refusal(why, code), rev: ((data.params ?? {}) as Record<string, string>).rev ?? healthRev(tree) } };
         return undefined;
       },
     };
