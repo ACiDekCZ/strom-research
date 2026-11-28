@@ -7,27 +7,36 @@ import { lines, table } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
 import { StromError } from "../core/errors.ts";
 import { configDir } from "../core/paths.ts";
-import { devicePairShown, devicePairUrl, devicesOn } from "../core/devices.ts";
+import { devicePairShown, devicePairUrl, devicesList, devicesOn } from "../core/devices.ts";
 import { pairCode, pairedPhones, pairUrl, phoneConfig, phoneLogFile, phoneProbeNow, phoneState, phoneTest, phoneTestOnCommand, phoneTestPortRefused, phoneWindowText, removePhone, servePhone, stopPhone, turnPhoneOn, type PhoneState } from "../core/phone.ts";
 import { qrTerminal } from "../core/qr.ts";
 
-/** What the state says to a person, in their language. */
-function stateLines(lang: string, s: PhoneState): string {
+/** The state's lines that name what connects: the devices (a phone, a tablet or another computer) where their gateway is on, else the phone. */
+type Said = "on" | "starting" | "waiting" | "error" | "confirm" | "declined" | "off" | "phones" | "nophones" | "notturned" | "turnedoff" | "qr.off";
+
+/** A line of the state, in the person's language: of the devices where their gateway is on (devices.mode), else of the phone. */
+function sayState(ctx: Context, lang: string, key: Said, values: Record<string, string | number> = {}): string {
+  return ui(lang, devicesOn(ctx.env) ? (`ui.phone.${key}.devices` as const) : (`ui.phone.${key}` as const), values);
+}
+
+/** What the state says to a person, in their language (the gateway of the devices on: the devices paired, as the settings count them). */
+function stateLines(ctx: Context, lang: string, s: PhoneState): string {
   const said =
     s.state === "on"
       ? s.addresses.length
-        ? ui(lang, "ui.phone.on", { urls: s.addresses.map((a) => a.url).join(", ") })
-        : ui(lang, "ui.phone.starting")
+        ? sayState(ctx, lang, "on", { urls: s.addresses.map((a) => a.url).join(", ") })
+        : sayState(ctx, lang, "starting")
       : s.state === "error"
         ? s.error?.waiting
-          ? ui(lang, "ui.phone.waiting")
-          : ui(lang, "ui.phone.error", { why: ui(lang, `ui.phone.why.${s.error?.code ?? "bind-failed"}`) })
+          ? sayState(ctx, lang, "waiting")
+          : sayState(ctx, lang, "error", { why: ui(lang, `ui.phone.why.${s.error?.code ?? "bind-failed"}`) })
         : s.state === "confirm"
-          ? ui(lang, "ui.phone.confirm")
+          ? sayState(ctx, lang, "confirm")
           : s.state === "declined"
-            ? ui(lang, "ui.phone.declined")
-            : ui(lang, "ui.phone.off");
-  return lines(said, s.phones.length ? ui(lang, "ui.phone.phones", { n: String(s.phones.length) }) : ui(lang, "ui.phone.nophones"));
+            ? sayState(ctx, lang, "declined")
+            : sayState(ctx, lang, "off");
+  const paired = s.phones.length + (devicesOn(ctx.env) ? devicesList(ctx.env).filter((d) => !d.of).length : 0);
+  return lines(said, paired ? sayState(ctx, lang, "phones", { n: String(paired) }) : sayState(ctx, lang, "nophones"));
 }
 
 /** What the window of strom phone on says: the question, then what a phone will see. */
@@ -115,7 +124,7 @@ const showsQr = (ctx: Context) => ctx.io.tty && !ctx.json;
 async function status(ctx: Context) {
   const s = phoneState(ctx.env);
   const probe = await phoneProbeNow(ctx.env);
-  return { text: lines(...testLines(ctx), stateLines(ctx.uiLang(), s)), data: { ...s, ...probe } };
+  return { text: lines(...testLines(ctx), stateLines(ctx, ctx.uiLang(), s)), data: { ...s, ...probe } };
 }
 
 register(
@@ -161,13 +170,13 @@ register(
           windowSays(ctx, lang),
           { terminal: w.question, ask: w.title },
         );
-        if (!how) return { text: ui(lang, "ui.phone.notturned"), data: phoneState(ctx.env) };
+        if (!how) return { text: sayState(ctx, lang, "notturned"), data: phoneState(ctx.env) };
         turnPhoneOn(ctx.env, how === "terminal" ? "strom phone on, yes in the user's terminal" : "strom phone on, yes in a window");
       } else turnPhoneOn(ctx.env, "on already");
       // the QR code to pair a phone right away, in the person's terminal; to an agent only where it is
       const s = showsQr(ctx) ? await withAddresses(ctx) : phoneState(ctx.env);
       const qr = s.state !== "on" ? "" : showsQr(ctx) && s.addresses.length ? qrLines(ctx, s) : ui(lang, devicesOn(ctx.env) ? "ui.phone.qr.app.devices" : "ui.phone.qr.app");
-      return { text: lines(...testLines(ctx), stateLines(lang, s), ...(qr ? ["", qr] : [])), data: phoneState(ctx.env) };
+      return { text: lines(...testLines(ctx), stateLines(ctx, lang, s), ...(qr ? ["", qr] : [])), data: phoneState(ctx.env) };
     },
   },
   {
@@ -185,7 +194,7 @@ register(
       const lang = ctx.uiLang();
       if (!showsQr(ctx)) throw qrTerminalOnly(ctx);
       const s = await withAddresses(ctx);
-      if (s.state !== "on" || !s.addresses.length) return { text: s.state === "on" || s.state === "error" ? stateLines(lang, s) : ui(lang, "ui.phone.qr.off"), data: { state: s.state } };
+      if (s.state !== "on" || !s.addresses.length) return { text: s.state === "on" || s.state === "error" ? stateLines(ctx, lang, s) : sayState(ctx, lang, "qr.off"), data: { state: s.state } };
       return { text: qrLines(ctx, s, typeof opts.address === "string" ? opts.address : undefined), data: { state: s.state } };
     },
   },
@@ -196,7 +205,7 @@ register(
     run(ctx) {
       const how = stopPhone(ctx.env, "strom phone off");
       const s = phoneState(ctx.env);
-      return { text: lines(ui(ctx.uiLang(), "ui.phone.turnedoff"), stateLines(ctx.uiLang(), s)), data: { ...s, how } };
+      return { text: lines(sayState(ctx, ctx.uiLang(), "turnedoff"), stateLines(ctx, ctx.uiLang(), s)), data: { ...s, how } };
     },
   },
   {

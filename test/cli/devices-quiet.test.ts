@@ -37,6 +37,18 @@ const DEVICE_KEYS = new Set([
   "ui.phone.window.devices.title",
   "ui.phone.window.devices",
   "ui.phone.window.devices.noip",
+  "ui.phone.on.devices",
+  "ui.phone.starting.devices",
+  "ui.phone.waiting.devices",
+  "ui.phone.error.devices",
+  "ui.phone.confirm.devices",
+  "ui.phone.declined.devices",
+  "ui.phone.off.devices",
+  "ui.phone.phones.devices",
+  "ui.phone.nophones.devices",
+  "ui.phone.turnedoff.devices",
+  "ui.phone.qr.off.devices",
+  "ui.phone.notturned.devices",
 ]);
 
 const said = (text: string) => text.split("\n").filter((l) => QUIET.test(l));
@@ -148,6 +160,36 @@ test("the menu's settings: the devices (a phone, a tablet, another computer) whe
     const off = await menu();
     assert.match(off, /\[\d\] {2}Propojení s telefonem {2,}vypnuto/u, off);
     assert.deepEqual(offered(off), [], off);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("strom phone's lines of its state and of a no (094 U21): of the devices — a phone, a tablet or another computer — where the gateway is on, the default; of the phone alone where it is off", { skip: !hasGit }, async () => {
+  const w = new World();
+  try {
+    await w.ok(["setup", "--yes"]);
+    const cs = { env: { STROM_LANG: "cs" } };
+    const state = await w.ok(["phone"], cs);
+    assert.match(state.out, /^propojení se zařízeními: vypnuto\n {2}žádné spárované zařízení \(telefon, tablet ani další počítač\)$/mu, state.out);
+    assert.doesNotMatch(state.out, /telefonem|spárovaný telefon/u, state.out);
+    const no = await w.ok(["phone", "on"], { tty: true, answers: [""], env: { STROM_LANG: "cs" } });
+    assert.match(no.out, /Zapnout propojení se zařízeními\?/u, no.out);
+    assert.match(no.out, /^propojení se zařízeními: nezapnuto, nic se nezměnilo$/mu, no.out);
+    assert.doesNotMatch(no.out, /propojení s telefonem/u, no.out);
+    assert.match((await w.ok(["phone", "off"], cs)).out, /^propojení se zařízeními je vypnuté; spárovaná zařízení zůstávají spárovaná\npropojení se zařízeními: vypnuto$/mu);
+    for (const [lang, line] of [["en", "connection of devices: off"], ["de", "Verbindung mit Geräten: aus"], ["pl", "połączenie z urządzeniami: wyłączone"]] as const) {
+      assert.match((await w.ok(["phone"], { env: { STROM_LANG: lang } })).out, new RegExp(`^${line}$`, "mu"), lang);
+    }
+    // off: the phone's lines as before, nothing of a device
+    w.devicesOff();
+    const was = await w.ok(["phone"], cs);
+    assert.match(was.out, /^propojení s telefonem: vypnuto\n {2}žádný spárovaný telefon$/mu, was.out);
+    const wasNo = await w.ok(["phone", "on"], { tty: true, answers: [""], env: { STROM_LANG: "cs" } });
+    assert.match(wasNo.out, /^propojení s telefonem: nezapnuto, nic se nezměnilo$/mu, wasNo.out);
+    const wasOff = await w.ok(["phone", "off"], cs);
+    assert.match(wasOff.out, /^propojení s telefonem je vypnuté; spárované telefony zůstávají spárované\npropojení s telefonem: vypnuto$/mu, wasOff.out);
+    for (const r of [was, wasNo, wasOff]) assert.doesNotMatch(r.out, /se zařízeními|spárovan\p{L}* zařízení|tablet/u, r.out);
   } finally {
     w.cleanup();
   }
