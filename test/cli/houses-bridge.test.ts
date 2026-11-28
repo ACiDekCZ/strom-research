@@ -122,6 +122,9 @@ test("the bridge's houses: status, the list and one house, the kind house in the
     assert.deepEqual(b16.place, { key: "belokamen", id: "L0002", name: "Bělokamen" });
     assert.deepEqual([b16.state, b16.work, typeof b16.task], ["queued", "takeover", "string"]);
     assert.equal(b16.summary.materials, 1);
+    // located and look in the summary (spec 145 T9): none yet, both false; the features say they come
+    assert.deepEqual([b16.summary.located, b16.summary.look], [false, false]);
+    for (const f of ["house.located", "house.lookKnown"]) assert.ok(status.features.includes(f), f);
     // one house whole: by its key (| as %7C) and by its A…; no recent, manual there, items with ids
     const one = await request(`${url}/houses/belokamen%7C16`);
     assert.equal(one.status, 200, JSON.stringify(one.body));
@@ -176,6 +179,12 @@ test("the bridge's houses: status, the list and one house, the kind house in the
     assert.equal(point.status, 200, JSON.stringify(point.body));
     assert.equal(point.body.house.location.lat, 49.61);
     assert.ok(point.body.house.location.confirmed);
+    // the row says it located; the look once the research wrote it (a boolean, the text in the house whole)
+    await w.ok(["house", "add", "look", b16.id, "--text", "přízemní chalupa", "--certainty", "guess"], AGENT);
+    const row16 = ((await request(`${url}/houses`)).body.houses as Record<string, any>[]).find((h) => h.key === "belokamen|16")!;
+    assert.deepEqual([row16.summary.located, row16.summary.look], [true, true]);
+    const row9 = ((await request(`${url}/houses`)).body.houses as Record<string, any>[]).find((h) => h.key === "lhota|9")!;
+    assert.deepEqual([row9.summary.located, row9.summary.look], [false, false]);
     for (const [body, code, why] of [
       [{ house: "belokamen|16", what: "maybe" }, 400, "house.body"],
       [{ house: "belokamen|16", what: "location", lat: 49.6 }, 400, "house.body"],

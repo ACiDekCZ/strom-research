@@ -778,8 +778,12 @@ export function houseView(tree: Tree, row: HouseRow): Record<string, unknown> {
   return out;
 }
 
-/** A house's summary for a list: how many of each. */
-export function houseSummary(row: HouseRow): { events: number; holders: number; residents: number; unknown: number; materials: number; passed: number } {
+/**
+ * A house's summary for a list: how many of each; `located` — the research put the house on the map (its location, the
+ * person's confirmed one too), `look` — its look is known (only that: the text is the house's, GET /houses/<ref>), spec
+ * 145 T9, features house.located and house.lookKnown.
+ */
+export function houseSummary(row: HouseRow): { events: number; holders: number; residents: number; unknown: number; materials: number; passed: number; located: boolean; look: boolean } {
   const h = row.record;
   return {
     events: h?.timeline.length ?? 0,
@@ -788,6 +792,8 @@ export function houseSummary(row: HouseRow): { events: number; holders: number; 
     unknown: h?.unknown.length ?? 0,
     materials: row.materials.length,
     passed: h?.passed.length ?? 0,
+    located: !!h?.location,
+    look: !!h?.look?.text,
   };
 }
 
