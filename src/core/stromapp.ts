@@ -1231,7 +1231,7 @@ export const APP_SHOWS_HOUSE_STORY_BETA: string | undefined = "3.33.0-beta.5";
  * APP_KNOWS_FAMS_ORDER_BETA.
  */
 export const APP_KNOWS_FAMS_ORDER: string | undefined = undefined;
-export const APP_KNOWS_FAMS_ORDER_BETA: string | undefined = "3.33.0-beta.9";
+export const APP_KNOWS_FAMS_ORDER_BETA: string | undefined = "3.33.0-beta.8";
 /** The app's JSON data version with marriageOrderManual (spec 152: its STROM_DATA_VERSION 28). */
 export const APP_DATA_FAMS_ORDER = 28;
 

@@ -14,6 +14,7 @@ import { familiesInOrder, marriagesOf, marriedInOrder } from "../../src/core/mar
 import { readGedcom, readStromJson } from "../../src/core/sync.ts";
 import { importStromJson } from "../../src/core/import.ts";
 import { Tree } from "../../src/core/tree.ts";
+import { APP_KNOWS_FAMS_ORDER, APP_KNOWS_FAMS_ORDER_BETA } from "../../src/core/stromapp.ts";
 import type { Family, Name, Person } from "../../src/core/model.ts";
 
 const opts = { skip: !hasGit };
@@ -156,18 +157,20 @@ test("JSON: partnerships in the order by hand with marriageOrderManual is the pe
 });
 
 test("GEDCOM of an app of a known version: the mark written from APP_KNOWS_FAMS_ORDER(_BETA) (beta and development copies), its absence the user's \"by the dates\" only there (152)", opts, async () => {
+  assert.equal(APP_KNOWS_FAMS_ORDER, undefined, "production: until the app's 3.33.0 is out");
+  assert.equal(APP_KNOWS_FAMS_ORDER_BETA, "3.33.0-beta.8", "the shared beta of the app is 3.33.0-beta.8");
   const { w, given } = await thrice();
   const beta = { STROM_APP_URL: "https://beta.stromapp.info/run/" };
   await w.ok(["sync", send(w, reordered(await given(), "P0001", ["F0002", "F0003", "F0001"], true), "hand.ged"), "--apply"]);
-  assert.match(indi(await given({ ...beta, STROM_APP_VERSION: "3.33.0-beta.9" }), "P0001"), /_STROM_FAMS_ORDER MANUAL/u);
-  assert.doesNotMatch(indi(await given({ ...beta, STROM_APP_VERSION: "3.33.0-beta.8" }), "P0001"), /_STROM_FAMS_ORDER/u, "an older app: no mark");
-  assert.deepEqual(famsOf(await given({ ...beta, STROM_APP_VERSION: "3.33.0-beta.8" }), "P0001"), ["F0002", "F0003", "F0001"], "FAMS in the person's order to every app");
+  assert.match(indi(await given({ ...beta, STROM_APP_VERSION: "3.33.0-beta.8" }), "P0001"), /_STROM_FAMS_ORDER MANUAL/u);
+  assert.doesNotMatch(indi(await given({ ...beta, STROM_APP_VERSION: "3.33.0-beta.7" }), "P0001"), /_STROM_FAMS_ORDER/u, "an older app: no mark");
+  assert.deepEqual(famsOf(await given({ ...beta, STROM_APP_VERSION: "3.33.0-beta.7" }), "P0001"), ["F0002", "F0003", "F0001"], "FAMS in the person's order to every app");
   // the app's file of its version (HEAD 2 VERS) without the mark: the older one nothing, the one that keeps it "by the dates"
   const asApp = (text: string, vers: string) => text.replace(/^1 SOUR STROM_RESEARCH\r?\n2 VERS .*\r?\n2 NAME .*$/mu, ["1 SOUR STROM", `2 VERS ${vers}`, "2 NAME Strom Family Tree"].join("\n"));
   const text = await given(beta);
   const off = reordered(text, "P0001", ["F0002", "F0003", "F0001"], false);
-  assert.deepEqual((await plan(w, send(w, asApp(off, "3.33.0-beta.8"), "older.ged"), { env: beta })).filter((c) => c[0] === "marriage.order"), []);
-  assert.deepEqual((await plan(w, send(w, asApp(off, "3.33.0-beta.9"), "dates.ged"), { env: beta })).filter((c) => c[0] === "marriage.order").map((c) => c.slice(0, 3)), [["marriage.order", "remove", "P0001"]]);
+  assert.deepEqual((await plan(w, send(w, asApp(off, "3.33.0-beta.7"), "older.ged"), { env: beta })).filter((c) => c[0] === "marriage.order"), []);
+  assert.deepEqual((await plan(w, send(w, asApp(off, "3.33.0-beta.8"), "dates.ged"), { env: beta })).filter((c) => c[0] === "marriage.order").map((c) => c.slice(0, 3)), [["marriage.order", "remove", "P0001"]]);
   w.cleanup();
 });
 
