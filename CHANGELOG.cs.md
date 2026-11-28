@@ -52,6 +52,11 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   snímků, který udává katalog archivu, kniha stažená celá dostane počet na slovo člověka (`strom fixes`), na snímky
   ukládané znovu se čeká, dokud nepřijde každá nová kopie, a rada ke snímku po částech jmenuje poloviny, ve kterých
   je.
+- **Den, kdy žádost odešla:** dopis nebo e-mail odeslaný dřív jde zapsat jako odeslaný v den, kdy skutečně odešel
+  (`strom task sent T… --date YYYY-MM-DD`, v nabídce Co čeká se den zeptá, Enter = dnes), a špatně zapsaný den jde
+  u odeslané žádosti dodatečně opravit (vypíše se den předtím, stejný příkaz s ním opravu vrátí); jak dlouho žádost
+  čeká a 30 dní bez odpovědi se počítá od toho dne, podle kalendáře počítače, kolem půlnoci nikdy o den vedle. Den
+  může poslat i aplikace Strom, za jednu žádost i za celé místo.
 
 ## 1.37.0
 

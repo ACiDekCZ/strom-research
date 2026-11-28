@@ -53,6 +53,8 @@ async function lhotaci(): Promise<World> {
   await w.ok(task("Žádost o opis křtu Vojtěcha Lhotáka", "B1")); // T1
   await w.ok(["task", "wait", "T1", "--kind", "letter", "--to", "matriční úřad Lhota", "--on", "odpověď matričního úřadu Lhota na žádost o opis"]);
   await w.ok(["task", "sent", "T1"]);
+  // its day put right (spec 149): the day given goes back with it, never the moment it was written
+  await w.ok(["task", "sent", "T1", "--date", "2020-01-15"]);
   await w.ok(task("Kniha křtů Lhota na stránkách archivu", "B1")); // T2
   await w.ok(["search", "add", "Kniha křtů Lhota", "--method", "web", "--result", "inconclusive", "--task", "T2", "--note", "closed.example.org refused automated access"]);
   await w.ok(["task", "wait", "T2", "--check", "https://closed.example.org/book/1", "--on", "Je kniha vidět i se snímky?"]);
@@ -114,7 +116,7 @@ test("strom fixes run woken-waits: the person's — waiting again as they waited
     assert.ok(ops[0]!.files.some((f) => f.path === "strom.json"), "the decision in the same operation");
     assert.equal(decision(w), "fixed");
     const a = taskOf(w, "T0001");
-    assert.deepEqual([a.state, a.waitingOn, a.sent], ["waiting", "odpověď matričního úřadu Lhota na žádost o opis", { at: sentOp.at, by: sentOp.by }]);
+    assert.deepEqual([a.state, a.waitingOn, a.sent], ["waiting", "odpověď matričního úřadu Lhota na žádost o opis", { at: "2020-01-15T12:00:00.000Z", by: sentOp.by }]);
     assert.match(a.notes.at(-1)!.text, /^3 images of B0001 registered$/, "the wake's note stays");
     const b = taskOf(w, "T0002");
     assert.deepEqual([b.state, b.awaitsCheck, b.sent], ["waiting", { url: "https://closed.example.org/book/1", ask: "Je kniha vidět i se snímky?" }, undefined]);

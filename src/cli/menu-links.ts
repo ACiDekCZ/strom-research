@@ -64,7 +64,7 @@ import { decideArchive, decideFloor } from "./menu-archives.ts";
 import { floorQuestion } from "../core/floor.ts";
 import { bareArchive } from "../commands/archives.ts";
 import { inboxOf, requestFile, sameGroup } from "../core/waiting.ts";
-import { SENDABLE, waitGroupOf, waitKindOf } from "../core/waitkind.ts";
+import { givenSentDay, localDay, SENDABLE, sentDay, sentOn, waitGroupOf, waitKindOf } from "../core/waitkind.ts";
 import { openForUser } from "../core/open.ts";
 import { agentDecided, changeKeeps, leftToAgent, linkKey, pickableInApp, recordedOfDecision, reopenBlock, whyNotWritten } from "../core/hypolinks.ts";
 import { branchJoined } from "../core/kin.ts";
@@ -267,7 +267,7 @@ export async function waitingDo(ctx: Context, run: Run, lang: string, root: stri
   }
   // sent: a fact the person gives, never a consent — the task still waits for the reply
   if (!SENDABLE.includes(waitKindOf(task))) return stop(ctx, t("ui.link.sent.cannot", { task: task.id }));
-  if (task.sent) return stop(ctx, t("ui.link.sent.already", { task: task.id, day: humanDay(task.sent.at, lang) }));
+  if (task.sent) return stop(ctx, t("ui.link.sent.already", { task: task.id, day: humanDay(sentOn(sentDay(task.sent.at)), lang) }));
   const group = waitGroupOf(tree, task, lang);
   const to = task.wait?.to?.trim() || (group.kind === "office" || group.kind === "family" ? group.name : undefined);
   if (menu) {
@@ -276,9 +276,43 @@ export async function waitingDo(ctx: Context, run: Run, lang: string, root: stri
     if (task.waitingOn) out(ctx, ` ${t("ui.waiting.do", { what: task.waitingOn })}`);
     if (!(await asks(ctx, lang, root, t("ui.link.what.task.sent", { what: shown, to: to ? ` (${to})` : "" }), undefined, false))) return false;
   }
-  if ((await run(["task", "sent", task.id], true)) !== 0) return false;
-  out(ctx, t("ui.link.task.sent.done"));
+  // the day it went out (spec 149 K1.5): asked in the menu, Enter today; a link of the app marks it today as before
+  const day = menu ? await askSentDay(ctx, lang, "ui.wait.sent.day") : undefined;
+  if (day === null) return false;
+  if ((await run(["task", "sent", task.id, ...(day ? [`--date=${day}`] : [])], true)) !== 0) return false;
+  out(ctx, day ? t("ui.wait.sent.on.done", { day: humanDay(sentOn(day), lang) }) : t("ui.link.task.sent.done"));
   return true;
+}
+
+/**
+ * A day the person types (spec 149 K1.5): 2026-11-24, or day first with dots — "24. 11. 2026", "24.11." (this year);
+ * not in the future. Undefined: no day of the calendar.
+ */
+export function typedDay(text: string, ms: number = Date.now()): string | undefined {
+  const s = text.normalize("NFC").trim();
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})$/u.exec(s);
+  const dots = /^(\d{1,2})\s*\.\s*(\d{1,2})\s*\.?\s*(\d{4})?\s*$/u.exec(s);
+  const [y, m, d] = iso ? [iso[1]!, iso[2]!, iso[3]!] : dots ? [dots[3] ?? localDay(ms).slice(0, 4), dots[2]!, dots[1]!] : [];
+  if (!y) return undefined;
+  const r = givenSentDay(`${y}-${m!.padStart(2, "0")}-${d!.padStart(2, "0")}`, ms);
+  return "day" in r ? r.day : undefined;
+}
+
+/**
+ * The day a request went out, asked: Enter — today (undefined) where `today`, else back (null); 0 back (null); a day not
+ * understood or in the future said so and asked again.
+ */
+export async function askSentDay(ctx: Context, lang: string, prompt: UIKey, today = true): Promise<string | undefined | null> {
+  const t = translator(lang);
+  for (;;) {
+    if (outOfAnswers(ctx)) return null;
+    const a = (await ctx.ask(t(prompt))).trim();
+    if (a === "0") return null;
+    if (!a) return today ? undefined : null;
+    const day = typedDay(a);
+    if (day) return day === localDay() && today ? undefined : day;
+    out(ctx, t("ui.wait.day.bad", { text: truncate(a, 40) }));
+  }
 }
 
 /**

@@ -60,6 +60,12 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   angibt, ein ganz heruntergeladenes Buch seine Zahl auf das Wort des Menschen (`strom fixes`), auf erneut
   gespeicherte Bilder wird gewartet, bis jede neue Kopie da ist, und der Hinweis zu einem Bild in Teilen nennt die
   Hälften, in denen es liegt.
+- **Der Tag, an dem eine Anfrage hinausging:** ein früher verschickter Brief oder eine E-Mail wird an dem Tag als
+  versandt vermerkt, an dem sie wirklich hinausging (`strom task sent T… --date YYYY-MM-DD`, im Menü „Was wartet“
+  wird nach dem Tag gefragt, Enter = heute), und ein falsch vermerkter Tag lässt sich bei einer versandten Anfrage
+  nachträglich berichtigen (der Tag davor wird genannt, derselbe Befehl mit ihm nimmt es zurück); wie lange sie
+  wartet und die 30 Tage ohne Antwort zählen ab diesem Tag, nach dem Kalender des Rechners, um Mitternacht nie einen
+  Tag daneben. Auch die Strom-App kann den Tag senden, für eine Anfrage oder einen ganzen Ort.
 
 ## 1.37.0
 

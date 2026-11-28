@@ -48,7 +48,7 @@ import { webDomain } from "../core/metrics.ts";
 import { permissionWait } from "../core/archivewait.ts";
 import type { Repository } from "../core/model.ts";
 import { WAIT_KINDS } from "../core/model.ts";
-import { SENDABLE, waitKindOf, waitState } from "../core/waitkind.ts";
+import { givenSentDay, SENDABLE, sentDay, sentOn, waitKindOf, waitState } from "../core/waitkind.ts";
 import { requestNote, requestPath, savedByAgentNow, waitingFor, waitOnNow } from "../core/waiting.ts";
 import type { Gain } from "../core/waitgain.ts";
 import { addressesPerson } from "../core/impersonal.ts";
@@ -719,7 +719,7 @@ function checkWaitLine(tree: Tree, t: Task, shared: string | undefined): string 
 function waitSaid(tree: Tree, t: Task): string | undefined {
   const w = waitState(tree, t);
   if (!w) return undefined;
-  return `${w.waitKind} · ${w.group.name} (${w.group.key}) · ${w.phase === "sent" ? `sent ${w.sentAt!.slice(0, 10)}` : SENDABLE.includes(w.waitKind) ? "not sent yet" : "with the user"}`;
+  return `${w.waitKind} · ${w.group.name} (${w.group.key}) · ${w.phase === "sent" ? `sent ${w.sentDay}` : SENDABLE.includes(w.waitKind) ? "not sent yet" : "with the user"}`;
 }
 
 /**
@@ -1652,16 +1652,28 @@ register(
       "Only when the user said it was sent: the menu then shows the task as sent, waiting for the reply, apart from what\n" +
       "is still to be sent. Not an answer and not a wake — the task waits until the reply comes (strom task wake).\n" +
       "For a task that waits for a letter, the family or other (strom task wait --kind); --undo takes it back. Several\n" +
-      "tasks (one e-mail for a place): each checked first, all written at once.",
+      "tasks (one e-mail for a place): each checked first, all written at once. --date: the day it really went out (sent\n" +
+      "earlier by e-mail or post; not in the future, before the task began to wait is fine) — how long it waits and the\n" +
+      "30 days without a reply count from it; on a task marked sent already it puts the day right (the task still waits;\n" +
+      "the day before is said, and the same command with it takes it back).",
     args: [{ name: "tasks", description: "task IDs", variadic: true }],
-    options: [{ name: "undo", type: "boolean", description: "it was not sent after all" }],
-    examples: ["strom task sent T0003", "strom task sent T0003 --undo"],
+    options: [
+      { name: "date", type: "string", value: "<YYYY-MM-DD>", description: "the day it went out (default: today)" },
+      { name: "undo", type: "boolean", description: "it was not sent after all" },
+    ],
+    examples: ["strom task sent T0003", "strom task sent T0003 --date 2026-01-15", "strom task sent T0003 --undo"],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       if (!args.length) throw new UsageError("give the task (T…)", { hint: "strom task list --state waiting" });
       const ids = [...new Set(args.map((a) => normId(a, "task")))];
       const undo = !!opts.undo;
-      const r = tree.withTreeLock((): { task: Task; same: boolean }[] => {
+      const dated = opts.date !== undefined && opts.date !== true ? String(opts.date) : undefined;
+      if (opts.date === true) throw new UsageError("--date takes the day the request went out (YYYY-MM-DD)", { hint: `strom task sent ${ids[0]} --date YYYY-MM-DD`, code: "task.bad-date", params: { date: "" } });
+      if (undo && dated !== undefined) throw new UsageError("--undo takes back that it was sent — no day with it", { hint: `strom task sent ${ids[0]} --undo` });
+      const given = dated === undefined ? undefined : givenSentDay(dated);
+      if (given && "why" in given) throw new UsageError(`--date: ${given.why}`, { hint: `strom task sent ${ids[0]} --date YYYY-MM-DD (today or a day before)`, code: "task.bad-date", params: { date: dated!.trim().slice(0, 40) } });
+      const day = given && "day" in given ? given.day : undefined;
+      const r = tree.withTreeLock((): { task: Task; same: boolean; was?: string }[] => {
         const all = ids.map((id) => {
           const before = requireRecord<Task>(tree, id, "task");
           if (before.state !== "waiting")
@@ -1680,6 +1692,17 @@ register(
           return before;
         });
         return all.map((before) => {
+          // the day of a request sent already put right (spec 149 K1.2): the task still waits; the same day, nothing
+          if (!undo && before.sent && day !== undefined) {
+            const was = sentDay(before.sent.at);
+            if (was === day) return { task: before, same: true };
+            const after = update<Task>(tree, before.id, "task", (x) => ({ ...x, sent: { at: sentOn(day), by: tree.actor } }), {
+              op: "task.sent.date",
+              summary: `${before.id} request sent on ${day} (was ${was})`,
+              reason: opts.reason as string | undefined,
+            });
+            return { task: after, same: false, was };
+          }
           // said again: nothing to change, said so (no error: the same word twice)
           if (undo ? !before.sent : before.sent) return { task: before, same: true };
           const after = update<Task>(
@@ -1688,9 +1711,9 @@ register(
             "task",
             (x) => {
               const { sent: _s, ...rest } = x;
-              return undo ? rest : { ...rest, sent: { at: now(), by: tree.actor } };
+              return undo ? rest : { ...rest, sent: { at: day !== undefined ? sentOn(day) : now(), by: tree.actor } };
             },
-            { op: undo ? "task.unsent" : "task.sent", summary: `${before.id} ${undo ? "not sent after all" : "request sent"}`, reason: opts.reason as string | undefined },
+            { op: undo ? "task.unsent" : "task.sent", summary: `${before.id} ${undo ? "not sent after all" : day !== undefined ? `request sent on ${day}` : "request sent"}`, reason: opts.reason as string | undefined },
           );
           return { task: after, same: false };
         });
@@ -1698,13 +1721,20 @@ register(
       const marked = r.filter((x) => !x.same).map((x) => x.task.id);
       const same = r
         .filter((x) => x.same)
-        .map((x) => (undo ? `${x.task.id} was not marked sent — nothing changed` : `${x.task.id} was marked sent on ${x.task.sent!.at.slice(0, 10)} already — nothing changed`));
-      const text = lines(marked.length ? written(tree) : undefined, ...same, undo ? undefined : `${ids.join(", ")} still wait${ids.length === 1 ? "s" : ""} for the reply — when it comes: strom task wake ${ids.length === 1 ? ids[0] : "<task>"} (the user's answer: --answer)`);
+        .map((x) =>
+          undo
+            ? `${x.task.id} was not marked sent — nothing changed`
+            : `${x.task.id} was marked sent on ${sentDay(x.task.sent!.at)} already — nothing changed${day === undefined ? ` (another day: strom task sent ${x.task.id} --date YYYY-MM-DD)` : ""}`,
+        );
+      // a day put right: the one before, and the command that puts it back
+      const redated = r.filter((x) => x.was !== undefined).map((x) => `${x.task.id} sent on ${day} (was ${x.was}) — back: strom task sent ${x.task.id} --date ${x.was}`);
+      const text = lines(marked.length ? written(tree) : undefined, ...redated, ...same, undo ? undefined : `${ids.join(", ")} still wait${ids.length === 1 ? "s" : ""} for the reply — when it comes: strom task wake ${ids.length === 1 ? ids[0] : "<task>"} (the user's answer: --answer)`);
+      const was = (x: { was?: string }) => (x.was !== undefined ? { was: x.was } : {});
       if (r.length === 1) {
         const t = r[0]!.task;
-        return { text, data: { task: t, changed: !r[0]!.same, marked, ...waitState(tree, t) } };
+        return { text, data: { task: t, changed: !r[0]!.same, marked, ...was(r[0]!), ...waitState(tree, t) } };
       }
-      return { text, data: { tasks: r.map((x) => ({ id: x.task.id, changed: !x.same, ...waitState(tree, x.task) })), marked } };
+      return { text, data: { tasks: r.map((x) => ({ id: x.task.id, changed: !x.same, ...was(x), ...waitState(tree, x.task) })), marked } };
     },
   },
   {

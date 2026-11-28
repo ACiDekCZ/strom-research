@@ -22,7 +22,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { CHECK_ANSWERS, type Conflict, type Family, type House, type Hypothesis, type Person, type Place, type RecordSet, type Repository, type Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
-import { SENDABLE, firstUrlIn, institutionGroup, taskUrlOf, repoAtHost, waitGroupOf, waitKindOf, waitPhaseOf, type WaitGroup, type WaitKind, type WaitPhase } from "./waitkind.ts";
+import { SENDABLE, firstUrlIn, institutionGroup, sentDay, taskUrlOf, repoAtHost, waitGroupOf, waitKindOf, waitPhaseOf, type WaitGroup, type WaitKind, type WaitPhase } from "./waitkind.ts";
 import { archiveQuestions, archiveWaitingItems, levelWords } from "./archiveasks.ts";
 import type { PendingQuestion } from "./terms.ts";
 import { onHost } from "./archivewait.ts";
@@ -537,7 +537,7 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
         section: sectionOf(kind),
         group,
         phase,
-        ...(phase === "sent" && t.sent ? { sentAt: t.sent.at } : {}),
+        ...(phase === "sent" && t.sent ? { sentAt: t.sent.at, sentDay: sentDay(t.sent.at) } : {}),
         priority: t.priority,
         ...(url ? { url } : {}),
         // a check of a site only the person sees: the answers (given in the terminal its link opens: task&do=check)

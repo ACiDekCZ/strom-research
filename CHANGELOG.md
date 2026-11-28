@@ -56,6 +56,11 @@ The changes of each version in short. The full notes and the install lines are o
   images the archive's catalogue gives, a book downloaded whole gets its count on the person's word (`strom fixes`),
   images saved once more are waited for until every new copy has come, and the hint on an image in parts names the
   halves it is in.
+- **The day a request went out:** a letter or e-mail sent earlier is marked sent on the day it really went out
+  (`strom task sent T… --date YYYY-MM-DD`, in the menu's What waits the day is asked, Enter today), and a day marked
+  wrong is put right later on a request sent (the day before is said, the same command takes it back); how long it
+  waits and the 30 days without a reply count from that day, by the calendar of the computer, never a day off around
+  midnight. The Strom app can send the day too, for one request or a whole place.
 
 ## 1.37.0
 

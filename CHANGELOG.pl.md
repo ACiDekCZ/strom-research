@@ -55,6 +55,12 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   katalog archiwum, księga pobrana w całości swoją liczbę na słowo człowieka (`strom fixes`), na skany zapisywane
   ponownie czeka się, aż przyjdzie każda nowa kopia, a wskazówka do skanu w częściach wymienia połówki, w których
   jest.
+- **Dzień, w którym zapytanie wyszło:** list lub e-mail wysłany wcześniej można zapisać jako wysłany w dniu, w którym
+  naprawdę wyszedł (`strom task sent T… --date YYYY-MM-DD`, w menu „Co czeka“ pojawia się pytanie o dzień, Enter =
+  dziś), a źle zapisany dzień można przy wysłanym zapytaniu poprawić później (podawany jest dzień poprzedni, to samo
+  polecenie z nim cofa poprawkę); jak długo czeka i 30 dni bez odpowiedzi liczy się od tego dnia, według kalendarza
+  komputera, wokół północy nigdy o dzień obok. Dzień może wysłać także aplikacja Strom, dla jednego zapytania lub
+  całego miejsca.
 
 ## 1.37.0
 

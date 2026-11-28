@@ -332,6 +332,7 @@ export const PHRASES = {
   "log.task.edit": "Task changed: {name}",
   "log.task.sent": "Request sent: {name}",
   "log.task.unsent": "Not sent after all: {name}",
+  "log.task.sent.date": "Day the request was sent put right: {name}",
   "log.task.file": "File {inputs} came for the task, back to the agent: {name}",
   "wait.group.family": "Family",
   "wait.group.other": "Other",

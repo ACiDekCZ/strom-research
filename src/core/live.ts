@@ -180,7 +180,7 @@
 //                          {bytes, head}}, day? {persons, sources, saves, since}, now: [{since, paused?, line?, way, task?
 //                          {id, text}, person?, family?, run?}], runs: [{id, line, way, since, state, paused?, task?}],
 //                          lastWorked?, lines: [{id, n, name, direction, way, state, tasks, waiting, working, since, focus?,
-//                          reason?}], waiting {n, items: [{id, kind, section, phase, what, on?, at, sentAt?, group, person?,
+//                          reason?}], waiting {n, items: [{id, kind, section, phase, what, on?, at, sentAt?, sentDay?, group, person?,
 //                          line?, branch?, retry? {can, until?, says, n?}, hypothesis?, do: [answer|sent|unsent|retry|line|keep|never|decide]}]},
 //                          people {P…: {name, span?}}} — made of /status for the state now and the app's version (kept
 //                          for both, as /status is), the runs read
@@ -383,6 +383,10 @@
 //                          reasonCode house.town: its municipality no place record yet), 409 house.archive
 //   POST <token>/waiting/<T…>   a request of a waiting task sent ({"do": "sent" | "unsent"}): strom task sent [--undo],
 //                          the user's — a fact the person gives, never an answer or a decision; the task still waits.
+//                          {"do": "sent", "at": "YYYY-MM-DD"} (feature waiting.sentDay, spec 149): the day it really went
+//                          out (strom task sent --date), on a task marked sent already that day put right → {sent: [T… if
+//                          changed], task, phase, sentAt, sentDay, head}; 400 waiting.bad-date {at} (no day, in the future),
+//                          400 waiting.bad-body ("at" with unsent)
 //                          {"do": "answer", "text", "expect"?}: the person's answer (strom task wake --answer), kept
 //                          as theirs given in the app, the task back in the queue (feature waiting.answer) — an agent
 //                          here is kept off the bridge's address by its hooks (core/bridgeguard.ts)
@@ -406,8 +410,9 @@
 //   GET <token>/waiting/<T…>/fix   the task's wait checked now (as strom task audit T… --json): {task, at, findings:
 //                          [{kind, books?, unknown?, url?}], fix: {can, stamp, changes: [{op: wait-images | wait-book |
 //                          split | folder, …}], left}, kept, fixed}; 404 waiting.none {id}, 409 audit.none {id}
-//   POST <token>/group/<key>    the same for one place of What waits ({"do": "sent"}: each of its requests still to be
-//                          sent; {"do": "unsent", "tasks": [T…]}: only those, when they are of it and sent; {"do":
+//   POST <token>/group/<key>    the same for one place of What waits ({"do": "sent", "at"?: "YYYY-MM-DD"}: each of its
+//                          requests still to be sent, all on that one day (+ sentDay); {"do": "unsent", "tasks": [T…]}:
+//                          only those, when they are of it and sent; {"do":
 //                          "retry"}: each of its items whose `retry` says can, returned to the agent at once in What
 //                          waits' order → {retried: [T…], group, head, parent}, none: {retried: []} and nothing written)
 //   GET <token>/group/<key>/note   the request texts of that place's tasks joined for one e-mail ({text, notes, tasks})
@@ -1059,7 +1064,7 @@ import { RETRY_MAX, retryOf, type RetryView } from "./retry.ts";
 import { savingView, type SavingView } from "./ownsave.ts";
 import { bookOfTask, bookRows, type BookRow } from "./books.ts";
 import { fileRefused } from "./taskfiles.ts";
-import { SENDABLE, waitKindOf, waitPhaseOf, type WaitKind } from "./waitkind.ts";
+import { givenSentDay, SENDABLE, sentDay, waitKindOf, waitPhaseOf, type WaitKind } from "./waitkind.ts";
 import { auditOf } from "./taskaudit.ts";
 import { agentsHere } from "./apps.ts";
 import { runLimits, runsLive, runsNow, type EndedRun, type RunsNow, type RunView } from "./liveruns.ts";
@@ -2115,7 +2120,7 @@ const MEDIA_REF_UNKNOWN = "sync.media-ref-unknown";
 /** How many hashes POST /media/known takes at once. */
 export const MEDIA_KNOWN_MAX = 5000;
 
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "origin.import", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.accepted", "material.decided", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "house", "house.material", "house.confirm", "house.import", "house.auto", "house.request", "house.chat", "house.look", "house.story", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sync.mediaRef", "person.contact", "media.list", "media.list.source", "waiting.gain", "sort.confirm", "working.saving", "waiting.retry", "sort.confirm.app", "run.confirm", "finds", "finds.person", "glance", "people.search", "waiting.import"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back", "places.identify", "places.answer", "places.undo", "tasks.offLine", "status.busy", "history.kinds", "history.align", "places.nameKinds", "directions.edit", "directions.order", "directions.found", "directions.people", "directions.places", "offLine.branches", "queue.own", "story.sources", "queue.page", "status.parts", "waiting.answer", "browser.state", "working.place", "working.family", "working.helps", "hypotheses.decide", "sources.confirm", "read.sourceTask", "read.sourceTask.unsure", "read.choose", "read.choices.now", "read.source", "read.sourceEntry", "read.blindText", "read.kinds", "read.variantKind", "read.readerState", "live.idle", "live.stop", "live.start", "sources.proposal", "sources.proposal.undo", "origin", "origin.ids", "origin.import", "verify", "verify.bulk", "facts.confirm", "verify.stop", "ged.stale", "facts.confirm.value", "ged.etag", "ged.imagesByHash", "hypothesis.decide.link", "hypotheses.accept.link", "sources.fields", "sources.split", "queue.search", "queue.next", "work.link", "run.tasks", "queue.kind", "work.tasks", "verify.tryFirst", "event.share", "citations.order", "sync.notWritten.codes", "citations.main", "citations.remove", "books", "media.app", "material.links", "material.edit", "material.uses", "material.sort", "tasks.audit", "handoffs", "material.sourceOf", "material.left", "material.sameAs", "material.accepted", "material.decided", "material.sortRun", "material.delete", "inbox.aside", "source.retract", "material.trees", "census", "house", "house.material", "house.confirm", "house.import", "house.auto", "house.request", "house.chat", "house.look", "house.story", "name-status", "task.holds", "archive.holds", "media.queued", "media.known", "intake.auto", "run.lines", "run.agents", "run.stop", "run.limit", "directions.move", "sync.mediaRef", "person.contact", "media.list", "media.list.source", "waiting.gain", "sort.confirm", "working.saving", "waiting.retry", "sort.confirm.app", "run.confirm", "finds", "finds.person", "glance", "people.search", "waiting.import", "waiting.sentDay"] as const;
 
 /**
  * What only a research with its agent here does (accepts.read: none in an archive, nor where it waits for its agent);
@@ -8796,6 +8801,17 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
   /** A sent or not sent from the app: "sent" or "unsent", else none. */
   const sentWord = (body: Record<string, unknown>): "sent" | "unsent" | undefined => (body.do === "sent" || body.do === "unsent" ? body.do : undefined);
   /**
+   * The day a request went out, as the app gives it with {"do": "sent", "at": "YYYY-MM-DD"} (feature waiting.sentDay,
+   * spec 149 K1.6): none given, today as before; a day: --date; anything else, or a day with unsent, refused here.
+   */
+  const sentAt = (body: Record<string, unknown>, word: "sent" | "unsent"): { args: string[] } | { code: number; body: Record<string, unknown> } => {
+    if (body.at === undefined) return { args: [] };
+    if (word === "unsent") return { code: 400, body: refusal(`the body: {"do": "unsent"} takes no "at"`, "waiting.bad-body") };
+    const given = typeof body.at === "string" ? givenSentDay(body.at) : { why: `"at" is the day it went out, "YYYY-MM-DD"` };
+    if ("why" in given) return { code: 400, body: refusal(`the day: ${given.why}`, "waiting.bad-date", { at: typeof body.at === "string" ? body.at.slice(0, 40) : "" }) };
+    return { args: [`--date=${given.day}`] };
+  };
+  /**
    * POST /waiting/<T…> {"do": "answer", "text", "expect"?}: the person's answer to what the task waits for, as strom task
    * wake T… --answer in their terminal — kept on the task as theirs, given in the app (givenIn app), the task back in the
    * queue; expect: its item's `at` as the app saw it (it waits for something else since: 409 waiting.changed).
@@ -8907,7 +8923,9 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         if (!t || t.type !== "task" || t.retracted || t.state !== "waiting") return { code: 404, body: refusal(`${id} is no task that waits`, "waiting.none", { id }) };
         const kind = waitKindOf(t);
         if (!SENDABLE.includes(kind)) return { code: 409, body: refusal(`${id} waits for no request to send (kind ${kind})`, "waiting.not-sendable", { id, kind }) };
-        return { args: ["task", "sent", id, ...(word === "unsent" ? ["--undo"] : [])] };
+        const at = sentAt(body, word);
+        if ("code" in at) return at;
+        return { args: ["task", "sent", id, ...(word === "unsent" ? ["--undo"] : at.args)] };
       },
       done(tree, data, head) {
         const t = tree.get<Task>(id);
@@ -8917,12 +8935,13 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         if (said === "unfix") return { task: id, tasks: strings(data.tasks), head };
         if (said === "keep" || said === "unkeep") return { task: id, kept: data.kept ?? null, head };
         const marked = Array.isArray(data.marked) ? data.marked.map(String) : [];
-        return { [said]: marked, task: id, ...(t ? { phase: waitPhaseOf(t) } : {}), head };
+        return { [said]: marked, task: id, ...(t ? { phase: waitPhaseOf(t) } : {}), ...(t?.state === "waiting" && t.sent ? { sentAt: t.sent.at, sentDay: sentDay(t.sent.at) } : {}), head };
       },
       refused: (tree, code, why, data) => {
         const act = audit();
         if (act) return auditRefused(tree, act, code, why, id, data);
         if (said === "retry") return retryRefused(tree, code, why, id, data);
+        if (code === "task.bad-date") return { code: 400, body: refusal(why, "waiting.bad-date", { at: "" }) };
         return code === "task.changed" ? { code: 409, body: refusal(why, "waiting.changed", { id, at: tree.get<Task>(id)?.updated ?? "" }) } : code === "task.check-person" ? { code: 409, body: refusal(why, "waiting.no-answer", { id }) } : code === "task.answer-long" ? { code: 400, body: refusal(why, "waiting.bad-body") } : sentRefused(code, why, id);
       },
     };
@@ -8935,6 +8954,7 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
    */
   const groupWrite = (key: string): AppWrite => {
     let said: "sent" | "unsent" | "retry" = "sent";
+    let day: string | undefined;
     return {
       get what() {
         return `${key.slice(0, 60)} ${said === "retry" ? "returned to the agent" : "sent"}`;
@@ -8954,8 +8974,11 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
         }
         const word = sentWord(body);
         const listed = Array.isArray(body.tasks) ? body.tasks.filter((x): x is string => typeof x === "string" && /^[Tt]\d{1,9}$/.test(x)).map((x) => normId(x, "task")) : [];
-        if (!word || (word === "unsent" && !listed.length)) return { code: 400, body: refusal(`the body: JSON {"do": "sent"} or {"do": "unsent", "tasks": ["T…"]}`, "waiting.bad-body") };
+        if (!word || (word === "unsent" && !listed.length)) return { code: 400, body: refusal(`the body: JSON {"do": "sent", "at"?: "YYYY-MM-DD"} or {"do": "unsent", "tasks": ["T…"]}`, "waiting.bad-body") };
         said = word;
+        const at = sentAt(body, word);
+        if ("code" in at) return at;
+        day = at.args.length ? at.args[0]!.slice("--date=".length) : undefined;
         const items = groupItems(tree, key);
         if (!key || !items.length) return { code: 404, body: refusal(`nothing waits at ${key.slice(0, 80) || "that place"}`, "group.none", { group: key.slice(0, 80) }) };
         const ids = items
@@ -8965,14 +8988,15 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
           const h = head(root);
           return { code: 200, body: { [word]: [], group: key, head: h, parent: h } };
         }
-        return { args: ["task", "sent", ...ids, ...(word === "unsent" ? ["--undo"] : [])] };
+        return { args: ["task", "sent", ...ids, ...(word === "unsent" ? ["--undo"] : at.args)] };
       },
       done(_tree, data, head) {
         if (said === "retry") return { retried: Array.isArray(data.tasks) ? data.tasks.map((t) => String((t as { id?: unknown }).id)) : [], group: key, head };
         const marked = Array.isArray(data.marked) ? data.marked.map(String) : [];
-        return { [said]: marked, group: key, head };
+        return { [said]: marked, group: key, ...(said === "sent" && day ? { sentDay: day } : {}), head };
       },
-      refused: (tree, code, why, data) => (said === "retry" ? retryRefused(tree, code, why, key.slice(0, 80), data) : sentRefused(code, why, key.slice(0, 80))),
+      refused: (tree, code, why, data) =>
+        said === "retry" ? retryRefused(tree, code, why, key.slice(0, 80), data) : code === "task.bad-date" ? { code: 400, body: refusal(why, "waiting.bad-date", { at: day ?? "" }) } : sentRefused(code, why, key.slice(0, 80)),
     };
   };
 

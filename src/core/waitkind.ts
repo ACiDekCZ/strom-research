@@ -207,6 +207,56 @@ export function waitPhaseOf(task: Task): WaitPhase {
   return task.sent ? "sent" : "todo";
 }
 
+// The day a request went out (strom task sent --date, spec 149 K1.4): a day given is kept as its noon UTC, so it is the
+// same day on every clock from UTC−11 to UTC+11 and on each that reads the day of an ISO time (its first ten characters);
+// a moment strom took itself (no --date) is the day of this computer's clock. Never shown a day off.
+const GIVEN_DAY = "T12:00:00.000Z";
+const DAY = /^(\d{4})-(\d{2})-(\d{2})$/u;
+
+/** A day given (YYYY-MM-DD) as `sent.at` keeps it: its noon UTC. */
+export function sentOn(day: string): string {
+  return `${day}${GIVEN_DAY}`;
+}
+
+/** A day on this computer's clock: YYYY-MM-DD. */
+export function localDay(ms: number = Date.now()): string {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** The day a request went out (`sent.at`): a day given, as given; a moment, its day on this computer's clock. */
+export function sentDay(at: string): string {
+  if (at.endsWith(GIVEN_DAY) && DAY.test(at.slice(0, 10))) return at.slice(0, 10);
+  const ms = Date.parse(at);
+  return Number.isNaN(ms) ? at.slice(0, 10) : localDay(ms);
+}
+
+/** Whole days from one day (YYYY-MM-DD) to another, by the calendar — never by 24 hours of a clock. */
+export function daysFrom(from: string, to: string): number {
+  const n = (d: string) => {
+    const m = DAY.exec(d);
+    return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86_400_000 : NaN;
+  };
+  const days = n(to) - n(from);
+  return Number.isNaN(days) ? 0 : days;
+}
+
+/**
+ * The day given to strom task sent --date: YYYY-MM-DD, a day of the calendar, not after today on this computer's clock
+ * (a request sent before the task began to wait is allowed: sent by e-mail before the agent wrote it). Else why not.
+ */
+export function givenSentDay(text: string, ms: number = Date.now()): { day: string } | { why: string } {
+  const day = text.trim();
+  const m = DAY.exec(day);
+  if (!m) return { why: `"${day}" is no day — give it as YYYY-MM-DD` };
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const real = new Date(Date.UTC(y, mo - 1, d));
+  if (y < 1000 || real.getUTCFullYear() !== y || real.getUTCMonth() !== mo - 1 || real.getUTCDate() !== d) return { why: `${day} is no day of the calendar` };
+  const today = localDay(ms);
+  if (day > today) return { why: `${day} is in the future (today is ${today}) — the day the request went out` };
+  return { day };
+}
+
 /**
  * An office named in a text, as found: "MěÚ Tábor", "Standesamt Wien" — the office's word and 1–3 capitalized words on
  * its line; a state archive written out may have "v" before its place ("Státní oblastní archiv v Třeboni"), a city's
@@ -329,7 +379,7 @@ export function waitGroupOf(tree: Tree, task: Task, lang: string = tree.lang): W
 }
 
 /** What a waiting task says of its wait (task show, task list --json; the menu and the app read the same). */
-export function waitState(tree: Tree, task: Task): { waitKind: WaitKind; group: WaitGroup; phase: WaitPhase; sentAt?: string } | undefined {
+export function waitState(tree: Tree, task: Task): { waitKind: WaitKind; group: WaitGroup; phase: WaitPhase; sentAt?: string; sentDay?: string } | undefined {
   if (task.state !== "waiting") return undefined;
-  return { waitKind: waitKindOf(task), group: waitGroupOf(tree, task), phase: waitPhaseOf(task), ...(task.sent ? { sentAt: task.sent.at } : {}) };
+  return { waitKind: waitKindOf(task), group: waitGroupOf(tree, task), phase: waitPhaseOf(task), ...(task.sent ? { sentAt: task.sent.at, sentDay: sentDay(task.sent.at) } : {}) };
 }

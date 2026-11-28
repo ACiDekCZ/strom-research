@@ -81,6 +81,7 @@ const SAID: Record<string, PhraseKey> = {
   "task.edit": "log.task.edit",
   "task.sent": "log.task.sent",
   "task.unsent": "log.task.unsent",
+  "task.sent.date": "log.task.sent.date",
   "session.start": "log.session.start",
   "session.close": "log.session.close",
   "lesson.add": "log.lesson.add",
