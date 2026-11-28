@@ -15,6 +15,7 @@ import { readGedcom, readStromJson } from "../../src/core/sync.ts";
 import { importStromJson } from "../../src/core/import.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { APP_KNOWS_FAMS_ORDER, APP_KNOWS_FAMS_ORDER_BETA } from "../../src/core/stromapp.ts";
+import { validateGedcom } from "../../src/gedcom/validate.ts";
 import type { Family, Name, Person } from "../../src/core/model.ts";
 
 const opts = { skip: !hasGit };
@@ -92,6 +93,10 @@ test("GEDCOM: the order set by hand in the app (FAMS + _STROM_FAMS_ORDER MANUAL)
   assert.deepEqual(famsOf(back, "P0001"), ["F0003", "F0001", "F0002"], "FAMS in the person's order");
   assert.match(indi(back, "P0001"), /\n1 _STROM_FAMS_ORDER MANUAL\r?\n/u);
   assert.doesNotMatch(indi(back, "P0002"), /_STROM_FAMS_ORDER/u, "one marriage: no mark");
+  // the research's own tag: its check of the file says nothing of it (found in the verification of 152)
+  assert.deepEqual(validateGedcom(back).filter((f) => /_STROM_FAMS_ORDER/u.test(f.message)), []);
+  const told = await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", path.join(w.dir, "told.ged")]);
+  assert.doesNotMatch(told.out + told.err, /_STROM_FAMS_ORDER/u);
   assert.deepEqual(records(back).flatMap((r) => /^0 @(F\d+)@ FAM/u.exec(r)?.[1] ?? []), ["F0001", "F0002", "F0003"], "the families' records in their own order");
   assert.deepEqual(await plan(w, send(w, back, "again.ged")), [], "sent back: nothing");
   assert.deepEqual(await plan(w, app), [], "the same file again: nothing");

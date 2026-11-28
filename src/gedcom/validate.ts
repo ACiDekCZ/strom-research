@@ -41,7 +41,7 @@ const CHILDREN: Record<string, string[]> = {
   "HEAD._STROM_LINKS": ["_SCHEME"],
   "HEAD.GEDC": ["VERS", "FORM"],
   "HEAD.DATE": ["TIME"],
-  INDI: ["NAME", "SEX", "FAMC", "FAMS", "NOTE", "SOUR", "REFN", "ASSO", "ALIA", "OBJE", "RESN", "RIN", "CHAN", "_STORY", "_STROM_CONFLICT", "_STROM_HYPO", "_STROM_SEARCHED", "_STROM_EDGE", "_STROM_ISLAND", "_STROM_LINE", "_STROM_SEX_ORIGIN", "_STROM_IMPORT", "_STROM_XID", "_STROM_DIRECTION", "_STROM_WAIT", "_STROM_ADDED", ...INDI_EVENTS],
+  INDI: ["NAME", "SEX", "FAMC", "FAMS", "NOTE", "SOUR", "REFN", "ASSO", "ALIA", "OBJE", "RESN", "RIN", "CHAN", "_STORY", "_STROM_CONFLICT", "_STROM_HYPO", "_STROM_SEARCHED", "_STROM_EDGE", "_STROM_ISLAND", "_STROM_LINE", "_STROM_SEX_ORIGIN", "_STROM_IMPORT", "_STROM_XID", "_STROM_DIRECTION", "_STROM_WAIT", "_STROM_ADDED", "_STROM_FAMS_ORDER", ...INDI_EVENTS],
   // a person's places among the lines, the tasks about them waiting outside (the Strom profile, APP_SHOWS_RESEARCH_TABLE)
   "INDI._STROM_DIRECTION": ["TYPE", "_BRANCH"],
   "INDI._STROM_WAIT": ["TYPE", "TITL", "_ON", "_GROUP", "STAT", "_SENT", "_PRIO"],
@@ -149,6 +149,8 @@ const EXTENSIONS = new Set([
   "_STROM_IMG_OMITTED",
   // the name a person is shown by; a couple's state; parents who are no couple; an archive
   "_STROM_PRIMARY", "_STAT", "_STROM_NO_COUPLE", "_STROM_MODE", "_STROM_MARRIED_LAST",
+  // the order of a person's marriages set by hand (spec 152)
+  "_STROM_FAMS_ORDER",
   // who read a source, the user's verification, the reading it is an entry of; how sure a fact is
   "_STROM_READ", "_STROM_VERIFIED", "_STROM_READING", "_STROM_ENTRY", "_STROM_STATUS",
   // the wording of a source's transcript, and the day the user confirmed it (under _STROM_READ)
