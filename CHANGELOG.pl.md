@@ -23,7 +23,10 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   coś mówi (na przykład że adres dał rejestr); `strom media view` wyjaśnia, jak obejrzeć obraz zarejestrowany tylko w
   częściach i jego wycinek; przy eBadatelnie (SOA Praha) agent trzyma się limitów archiwum, jednakowych dla człowieka
   i systemu automatycznego (najwyżej 2 skany na sekundę, jeden ZIP naraz, 10 ZIP-ów w ciągu 24 godzin), i nigdy nie
-  proponuje sposobu ich obejścia.
+  proponuje sposobu ich obejścia. Sprawdzenie, które strom wykonuje przed każdym poleceniem agenta w powłoce, czeka do
+  60 sekund zamiast 10 (na wolnym komputerze z Windows, gdy obok rozmowy agent pracował sam, nie zdążyło się
+  zakończyć), nigdy nie wykonuje pierwszego uruchomienia nowej wersji, a takie, które trwało długo, jest zapisywane
+  dla `strom error`; badanie otrzymuje nowy limit przy pierwszym uruchomieniu tej wersji.
 - **Z drzewa genealogicznego, nie ręką człowieka:** osoby drzewa zaimportowanego lub scalonego w aplikacji Strom,
   które starsza aplikacja wysłała bez znacznika importu, traktowano jako zapis człowieka (✓ potwierdził człowiek);
   wysyłka, która je oznacza, poprawia je teraz sama, a starszą wysyłkę człowiek wskazuje raz – w aplikacji w Co czeka
@@ -66,10 +69,6 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   wypisywane, historia numerów w `strom media show`, to samo polecenie odwrotnie cofa poprawkę); skan przypisany do
   źródła omyłkowo można zdjąć z niego razem z wycinkami (`strom source edit S… --media-remove M… --reason`), a `strom
   media retract` cytowanego skanu wskazuje obie drogi.
-- **Polecenia agenta na wolnym komputerze:** sprawdzenie, które strom wykonuje przed każdym poleceniem agenta w
-  powłoce, czeka do 60 sekund zamiast 10 (na wolnym komputerze z Windows, gdy obok rozmowy agent pracował sam, nie
-  zdążyło się zakończyć), nigdy nie wykonuje pierwszego uruchomienia nowej wersji, a takie, które trwało długo, jest
-  zapisywane dla `strom error`; badanie otrzymuje nowy limit przy pierwszym uruchomieniu tej wersji.
 
 ## 1.37.0
 

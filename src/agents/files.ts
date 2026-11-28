@@ -780,15 +780,19 @@ export function settleAgentHooks(tree: Tree): string[] {
     [path.join(".claude", "settings.json"), JSON.stringify(claudeSettings(tree), null, 2) + "\n"],
     [GROK_HOOKS, JSON.stringify(grokHooks(tree.root), null, 2) + "\n"],
   ];
-  let written: string[] = [];
-  tree.atomically(() => {
-    const changed = files.filter(([rel, content]) => {
+  const stale = () =>
+    files.filter(([rel, content]) => {
       try {
         return fs.readFileSync(path.join(tree.root, rel), "utf8") !== content;
       } catch {
         return false; // none here: strom never wrote it, nothing to bring up to date
       }
     });
+  // as they should be (every first run after this one): the tree's lock never waited for — another strom may write long
+  if (!stale().length) return [];
+  let written: string[] = [];
+  tree.atomically(() => {
+    const changed = stale();
     if (!changed.length || !writableUnasked(tree)) return;
     for (const [rel, content] of changed) writeFileAtomic(path.join(tree.root, rel), content);
     written = changed.map(([rel]) => rel.split(path.sep).join("/"));

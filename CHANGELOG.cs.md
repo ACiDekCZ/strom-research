@@ -19,12 +19,14 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   se jako odebrané v aplikaci). Nastavení změněné z aplikace nebo z menu se
   v posledních změnách ukáže názvem a hodnotou v jazyce výzkumu („Vypnuto ve výzkumu: Dotaz před tříděním materiálu“), už ne jako klíč
   (`sort.confirm`).
-- **Agent se zorientuje s méně pokusy:** `strom place find <jméno>` a `strom place <jméno>` navedou na
-  `strom place list <jméno>`; `strom source list --note <text>` vypíše jedním voláním prameny, jejichž poznámka něco
-  říká (třeba že adresu dal rejstřík); `strom media view` vysvětluje, jak si prohlédnout obrázek registrovaný jen po
-  částech a jeho výřez; u eBadatelny (SOA Praha) se agent drží limitů archivu, platných pro člověka
-  i automatizovaný systém (nejvýš 2 snímky za sekundu, jeden ZIP naráz, 10 ZIPů za 24 hodin), a nikdy nenavrhne cestu,
-  jak je obejít.
+- **Agent se zorientuje s méně pokusy:** `strom place find <jméno>` a `strom place <jméno>` navedou na `strom place
+  list <jméno>`; `strom source list --note <text>` vypíše jedním voláním prameny, jejichž poznámka něco říká (třeba že
+  adresu dal rejstřík); `strom media view` vysvětluje, jak si prohlédnout obrázek registrovaný jen po částech a jeho
+  výřez; u eBadatelny (SOA Praha) se agent drží limitů archivu, platných pro člověka i automatizovaný systém (nejvýš 2
+  snímky za sekundu, jeden ZIP naráz, 10 ZIPů za 24 hodin), a nikdy nenavrhne cestu, jak je obejít. Kontrola, kterou
+  strom dělá před každým příkazem agenta v shellu, čeká až 60 sekund místo 10 (na pomalém Windows, když vedle
+  rozhovoru pracoval agent sám, se nestihla), nikdy nedělá první spuštění nové verze a kontrola, která trvala dlouho,
+  se zapíše pro `strom error`; výzkum dostane nový limit při prvním spuštění této verze.
 - **Z rodokmenu, ne rukou člověka:** lidé rodokmenu importovaného nebo sloučeného v aplikaci Strom, které starší
   aplikace poslala bez značky importu, se brali jako zápis člověka (✓ potvrdil člověk); poslání, které je značí, je
   teď opraví samo, a starší poslání člověk jednou určí – v aplikaci v Co čeká („Přišlo to z rodokmenu?“) nebo příkazem
@@ -62,10 +64,6 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   se odmítne, části a kopie, které zůstaly na starém, se vypíšou, historie čísel v `strom media show`, stejný příkaz
   obráceně opravu vrátí); snímek přiřazený k prameni omylem jde z pramene sundat i s jeho výřezy (`strom source edit
   S… --media-remove M… --reason`) a `strom media retract` u citovaného snímku odkáže na obojí.
-- **Příkazy agenta na pomalém počítači:** kontrola, kterou strom dělá před každým příkazem agenta v shellu, čeká až
-  60 sekund místo 10 (na pomalém Windows, když vedle rozhovoru pracoval agent sám, se nestihla), nikdy nedělá první
-  spuštění nové verze a kontrola, která trvala dlouho, se zapíše pro `strom error`; výzkum dostane nový limit při
-  prvním spuštění této verze.
 
 ## 1.37.0
 

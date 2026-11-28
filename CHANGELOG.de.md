@@ -23,9 +23,13 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Der Agent findet sich mit weniger Versuchen zurecht:** `strom place find <Name>` und `strom place <Name>` führen
   zu `strom place list <Name>`; `strom source list --note <Text>` listet mit einem Aufruf die Quellen, deren Notiz
   etwas sagt (etwa dass ein Register die Adresse gab); `strom media view` erklärt, wie ein nur in Teilen registriertes
-  Bild und ein Ausschnitt davon anzusehen sind; bei der eBadatelna (SOA Praha) hält sich der Agent an die Grenzen
-  des Archivs, die für Menschen und automatisierte Systeme gleich gelten (höchstens 2 Bilder pro Sekunde, ein ZIP auf
-  einmal, 10 ZIPs in 24 Stunden), und schlägt nie einen Weg an ihnen vorbei vor.
+  Bild und ein Ausschnitt davon anzusehen sind; bei der eBadatelna (SOA Praha) hält sich der Agent an die Grenzen des
+  Archivs, die für Menschen und automatisierte Systeme gleich gelten (höchstens 2 Bilder pro Sekunde, ein ZIP auf
+  einmal, 10 ZIPs in 24 Stunden), und schlägt nie einen Weg an ihnen vorbei vor. Die Prüfung, die strom vor jedem
+  Shell-Befehl eines Agenten macht, wartet bis zu 60 Sekunden statt 10 (auf einem langsamen Windows-Computer wurde sie
+  nicht rechtzeitig fertig, während neben einem Gespräch ein Agent allein arbeitete), übernimmt nie den ersten Start
+  einer neuen Version, und eine, die lange dauerte, wird für `strom error` vermerkt; eine Forschung erhält das neue
+  Limit beim ersten Start dieser Version.
 - **Aus einem Stammbaum, nicht von Hand eines Menschen:** Personen eines in der Strom-App importierten oder
   zusammengeführten Stammbaums, die eine ältere App ohne Importmarke schickte, galten als Eintrag eines Menschen (✓
   von einem Menschen bestätigt); eine Sendung, die sie markiert, berichtigt sie jetzt von selbst, und eine ältere
@@ -72,11 +76,6 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   der Nummern in `strom media show`, derselbe Befehl umgekehrt nimmt es zurück); ein irrtümlich einer Quelle
   zugeordnetes Bild kommt samt Ausschnitten von ihr ab (`strom source edit S… --media-remove M… --reason`), und `strom
   media retract` eines zitierten Bildes verweist auf beides.
-- **Befehle eines Agenten auf einem langsamen Computer:** Die Prüfung, die strom vor jedem Shell-Befehl eines Agenten
-  macht, wartet bis zu 60 Sekunden statt 10 (auf einem langsamen Windows-Computer wurde sie nicht rechtzeitig fertig,
-  während neben einem Gespräch ein Agent allein arbeitete), übernimmt nie den ersten Start einer neuen Version, und
-  eine, die lange dauerte, wird für `strom error` vermerkt; eine Forschung erhält das neue Limit beim ersten Start
-  dieser Version.
 
 ## 1.37.0
 

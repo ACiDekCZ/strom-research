@@ -19,12 +19,15 @@ The changes of each version in short. The full notes and the install lines are o
   tree twice (they were taken off as removed in the app). A setting changed from the app or
   the menu shows in the recent changes by its name and value in the research's language ("Turned off in the research: Question before the
   material is sorted"), no longer as its key (`sort.confirm`).
-- **The agent finds its way with fewer tries:** `strom place find <name>` and `strom place <name>` point to
-  `strom place list <name>`; `strom source list --note <text>` lists in one call the sources whose note says something
-  (that a register gave the address, for one); `strom media view` says how to look at an image registered only in
-  parts, and at a crop of it; at eBadatelna (SOA Praha) the agent keeps to the archive's limits for a person and an
-  automated system alike (at most 2 images a second, one ZIP at a time, 10 ZIPs in 24 hours) and never suggests a way
-  past them.
+- **The agent finds its way with fewer tries:** `strom place find <name>` and `strom place <name>` point to `strom
+  place list <name>`; `strom source list --note <text>` lists in one call the sources whose note says something (that
+  a register gave the address, for one); `strom media view` says how to look at an image registered only in parts, and
+  at a crop of it; at eBadatelna (SOA Praha) the agent keeps to the archive's limits for a person and an automated
+  system alike (at most 2 images a second, one ZIP at a time, 10 ZIPs in 24 hours) and never suggests a way past them.
+  The check strom makes before each shell command of an agent waits up to 60 seconds instead of 10 (on a slow Windows
+  computer, with an agent working alone beside a conversation, it did not finish in time), never does the first start
+  of a new version, and one that took long is noted for `strom error`; a research gets the new limit at the first
+  start of this version.
 - **From a family tree, not by a person's hand:** people of a family tree imported or merged in the Strom app that an
   older app sent without the import's mark were taken as the person's own (✓ confirmed by a person); a send that marks
   them now sets them right by itself, and an older send the person names once, in the app's What waits ("Did it come
@@ -65,10 +68,6 @@ The changes of each version in short. The full notes and the install lines are o
   the new number refused, parts and copies left at the old one said, its history in `strom media show`, the same
   command the other way round takes it back); an image put to a source wrongly comes off it with its clips (`strom
   source edit S… --media-remove M… --reason`), and `strom media retract` of a cited image points to both.
-- **An agent's commands on a slow computer:** the check strom makes before each shell command of an agent waits up to
-  60 seconds instead of 10 (on a slow Windows computer, with an agent working alone beside a conversation, it did not
-  finish in time), never does the first start of a new version, and one that took long is noted for `strom error`; a
-  research gets the new limit at the first start of this version.
 
 ## 1.37.0
 
