@@ -292,9 +292,11 @@ test("a tree from Safari into a research an older strom made for it (its handove
   w.env.STROM_FROM_FILE = "strom-prenos-UHJlbm9z.json";
   const file = transferFile(w, "strom-prenos-UHJlbm9z.json");
   const flow = w.run(["link", "open", `strom-research://new?app=${TOKEN}`], { tty: true, answers: ["", "", "n", ""] });
+  // the app asks the moment the bridge is up (polled every 5 ms): its ask counts even before the terminal has the
+  // bridge's address — the wait starts before the bridge does (an ask in between once made the word of the permission said)
   let url = "";
-  for (let i = 0; i < 100 && !url; i++) {
-    await new Promise((r) => setTimeout(r, 100));
+  for (const end = Date.now() + 10_000; Date.now() < end && !url; ) {
+    await new Promise((r) => setTimeout(r, 5));
     try {
       const live = JSON.parse(fs.readFileSync(path.join(root, ".strom", "live.json"), "utf8")) as { url: string; pid: number };
       if ((await fetch(`${live.url}/adopt`, { headers: ORIGIN }).catch(() => undefined))?.status === 200) url = live.url;

@@ -1487,12 +1487,14 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
     ctx.settings.reload();
   }
 
-  // the app hands its tree over to the bridge of this research (a tree moving: the app there takes its file first)
+  // the app hands its tree over to the bridge of this research (a tree moving: the app there takes its file first) —
+  // the wait starts before the mark and the bridge: the app may ask the bridge the moment it is up, before strom here
+  // knows it is (an ask then was taken for none, and the word of the browser's permission said all the same)
+  const since = Date.now();
   awaitAdoption(root, token, move?.file, !made);
   const info = startLive(root, ctx.env, { current: true });
   if (!info) throw new StromError("the bridge did not start", { hint: "strom live serve shows why" });
   const url = adoptAppUrl(info.url, ctx.settings);
-  const since = Date.now();
   const waitMs = Number(ctx.env.STROM_ADOPT_WAIT_MS ?? 30 * 60_000);
   const minutes = Math.max(1, Math.round(waitMs / 60_000));
   // a browser installed just now asks its own questions at its first start (signing in, the default browser): the
