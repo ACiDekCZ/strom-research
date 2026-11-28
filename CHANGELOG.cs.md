@@ -14,7 +14,9 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   jen jedna linie výzkumu je o krok dál.
 - **Materiál roztříděný jednou, nastavení výzkumu slovy:** soubor, kterému poslední třídění navrhlo název, druh,
   datum nebo osoby a který je už má podle návrhu, se počítá za hotový a znovu se netřídí; co člověk o návrhu rozhodl
-  v aplikaci Strom (přijato, odmítnuto a proč), zůstane u třídění. Nastavení změněné z aplikace nebo z menu se
+  v aplikaci Strom (přijato, odmítnuto a proč), zůstane u třídění. Název, druh, datum a poznámka souboru zadané
+  v materiálu zůstanou, i když z něj aplikace Strom udělá portrét nebo přílohu bez nich a rodokmen pošle dvakrát (brály
+  se jako odebrané v aplikaci). Nastavení změněné z aplikace nebo z menu se
   v posledních změnách ukáže názvem a hodnotou v jazyce výzkumu („Vypnuto ve výzkumu: Dotaz před tříděním materiálu“), už ne jako klíč
   (`sort.confirm`).
 - **Agent se zorientuje s méně pokusy:** `strom place find <jméno>` a `strom place <jméno>` navedou na

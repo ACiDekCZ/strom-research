@@ -14,7 +14,9 @@ The changes of each version in short. The full notes and the install lines are o
   first with what is next in it; one line of the research alone is a step further.
 - **Material sorted once, a research's settings in words:** a file whose last sorting proposed a title, kind, date or
   people and which already has them as proposed counts as done and is not sorted again; what the person decided on a
-  proposal in the Strom app (taken over, refused, and why) is kept with the sorting. A setting changed from the app or
+  proposal in the Strom app (taken over, refused, and why) is kept with the sorting. A file's title, kind, date and
+  note given in the material stay when the Strom app makes a portrait or an attachment of it without them and sends the
+  tree twice (they were taken off as removed in the app). A setting changed from the app or
   the menu shows in the recent changes by its name and value in the research's language ("Turned off in the research: Question before the
   material is sorted"), no longer as its key (`sort.confirm`).
 - **The agent finds its way with fewer tries:** `strom place find <name>` and `strom place <name>` point to

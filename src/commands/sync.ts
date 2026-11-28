@@ -659,7 +659,7 @@ register(
       // a send of the app waited in the inbox: written now (the app hears it through the bridge)
       // the app's files it wrote, with the records they are (the bridge's answer: `media`)
       const media = mediaWritten(written.changes, skipped);
-      clocked("settle", () => settleReceived(tree.root, file, { state: "written", input: input!.id, kept: written.changes.filter((c) => c.kept).length, notWritten: notWrittenList(written.changes), skipped, media, ...(retracted.length ? { retracted } : {}) }, input!.sync?.applied ?? []));
+      clocked("settle", () => settleReceived(tree.root, file, { state: "written", input: input!.id, kept: written.changes.filter((c) => c.kept).length, notWritten: notWrittenList(written.changes), skipped, media, ...(retracted.length ? { retracted } : {}), ...(written.mediaCarried ? { mediaSent: written.mediaCarried } : {}) }, input!.sync?.applied ?? []));
       // each send of the app a little more history: packed in the background once it has grown
       compactSoon(tree.root, ctx.env);
       // a question to the person is no change of the research: counted as what it is

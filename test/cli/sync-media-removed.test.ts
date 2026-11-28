@@ -59,7 +59,7 @@ async function world(state: "research" | "archive" | "waiting" = "research"): Pr
   return { w, given };
 }
 
-function obje(level: number, o: { data: Buffer; mime?: string; form?: string; titl: string; name?: string; kind?: string; prim?: "Y" | "N"; date?: string }): string[] {
+function obje(level: number, o: { data: Buffer; mime?: string; form?: string; type?: string; titl: string; name?: string; kind?: string; prim?: "Y" | "N"; date?: string }): string[] {
   const l = (n: number, s: string) => `${level + n} ${s}`;
   const url = `data:${o.mime ?? "image/jpeg"};base64,${o.data.toString("base64")}`;
   const parts = url.match(/.{1,180}/gs)!;
@@ -68,6 +68,7 @@ function obje(level: number, o: { data: Buffer; mime?: string; form?: string; ti
     l(1, `FILE ${parts[0]}`),
     ...parts.slice(1).map((p) => l(2, `CONC ${p}`)),
     l(1, `FORM ${o.form ?? "jpg"}`),
+    ...(o.type ? [l(2, `TYPE ${o.type}`)] : []),
     l(1, `TITL ${o.titl}`),
     ...(o.name ? [l(1, `_STROM_NAME ${o.name}`)] : []),
     ...(o.kind ? [l(1, `_STROM_KIND ${o.kind}`)] : []),
@@ -461,6 +462,93 @@ test("a note the user took off in the app, of a file the app was given with it: 
     assert.equal(clean(w), "", "committed");
     const ops = execFileSync("git", ["-C", w.cwd, "show", "HEAD", "--", "data/ops"], { encoding: "utf8" });
     assert.match(ops, /"op":"input\.media"[^\n]*"reason":"its note taken off in the Strom app"/u);
+  } finally {
+    await w.ok(["live", "stop"]);
+  }
+  w.cleanup();
+});
+
+/** A file of the research's material the app was never given (no place in the tree), its title and kind the user's (the material's edit). */
+function titledMaterial(w: World): string {
+  const tree = Tree.open(w.cwd, w.env);
+  let id = "";
+  tree.withTreeLock(() => {
+    id = create<Input>(
+      tree,
+      "input",
+      { name: "lhota.jpg", file: "inputs/lhota.jpg", sha: sha(LATER), kind: "photo", state: "new", from: "the Strom app", title: TITLE, titled: { by: "user", at: "2026-11-27T15:02:11.000Z" }, materialKind: "photo" } as never,
+      (x) => `+${x}`,
+    ).id;
+    tree.commit("a file of the material, titled by the user");
+  });
+  return id;
+}
+const TITLE = "Svatba v Lhotě 1924 — Свадьба".normalize("NFD");
+type Titled = Rec & { materialKind?: string };
+const since = (t: string, intake: unknown) => (typeof intake === "string" ? t.replace(/^0 HEAD\n/u, `0 HEAD\n1 _STROM_SINCE ${intake}\n`) : t);
+
+test("a portrait the app made of a file of the material it was never given with its title and kind (the file's name its TITL, no TYPE): its second send against the same head takes neither off", opts, async () => {
+  const { w, url } = await started();
+  try {
+    const id = titledMaterial(w);
+    const t = await given(w, url);
+    assert.ok(!t.includes("lhota.jpg"), "never given to the app");
+    const was = recordOf(w, sha(LATER)) as Titled;
+    // the app's portrait of Eva from the material as its remembered list had it: the file's name, no title, no kind
+    const portrait = under(t, "P0002", obje(1, { data: LATER, titl: "lhota.jpg", kind: "photo" }));
+    const first = (await send(url, portrait)) as Answer & { intake?: string };
+    assert.ok(first.input, JSON.stringify(first));
+    assert.deepEqual(live(recordOf(w, sha(LATER))), ["personPortrait:P0002"]);
+    // the same tree sent again (the same head, standing on the first send)
+    const second = await send(url, since(portrait, first.intake));
+    assert.ok(!(second.media ?? []).some((m) => m.kind === "media.edit"), JSON.stringify(second));
+    const rec = recordOf(w, sha(LATER)) as Titled;
+    assert.equal(rec.id, id);
+    assert.equal(rec.title, TITLE.normalize("NFC"), "the title stays");
+    assert.deepEqual(rec.titled, was.titled, "titled as it was");
+    assert.equal(rec.materialKind, "photo", "the kind stays");
+    assert.deepEqual(live(rec), ["personPortrait:P0002"]);
+    assert.equal(clean(w), "", "committed");
+  } finally {
+    await w.ok(["live", "stop"]);
+  }
+  w.cleanup();
+});
+
+test("a file of the material the app was never given, its title and kind carried by the app's first send and gone from its second: taken off (the user removed them in the app)", opts, async () => {
+  const { w, url } = await started();
+  try {
+    titledMaterial(w);
+    const t = await given(w, url);
+    const withTitle = under(t, "P0002", obje(1, { data: LATER, type: "photo", titl: TITLE, name: "lhota.jpg" }));
+    const first = (await send(url, withTitle)) as Answer & { intake?: string };
+    assert.ok(first.input, JSON.stringify(first));
+    const rec0 = recordOf(w, sha(LATER)) as Titled;
+    assert.deepEqual([rec0.title, rec0.materialKind], [TITLE.normalize("NFC"), "photo"], "the first send changes nothing of them");
+    const second = await send(url, since(under(t, "P0002", obje(1, { data: LATER, titl: "lhota.jpg" })), first.intake));
+    assert.deepEqual((second.media ?? []).filter((m) => m.kind === "media.edit").map((m) => [m.record, m.fields]), [[rec0.id, ["title", "kind"]]], JSON.stringify(second));
+    const rec = recordOf(w, sha(LATER)) as Titled;
+    assert.equal(rec.title, undefined, "the title taken off");
+    assert.equal(rec.materialKind, undefined, "the kind taken off");
+    assert.equal(clean(w), "", "committed");
+  } finally {
+    await w.ok(["live", "stop"]);
+  }
+  w.cleanup();
+});
+
+test("a file the app was given at its head with a place in the tree and a title: a send without the title takes it off (as before)", opts, async () => {
+  const { w, url } = await started();
+  try {
+    const couple = recordOf(w, sha(COUPLE));
+    await w.ok(["input", "sort", couple.id, "--as", "photo", "--title", TITLE]);
+    const t = await given(w, url);
+    assert.ok(t.includes(`TITL ${TITLE.normalize("NFC")}`), "given with its title");
+    const untitled = t.replace(new RegExp(`\\n2 TITL ${TITLE.normalize("NFC")}\\n2 _STROM_NAME ([^\\n]+)`, "u"), "\n2 TITL $1");
+    assert.notEqual(untitled, t);
+    const got = await send(url, untitled);
+    assert.deepEqual((got.media ?? []).filter((m) => m.kind === "media.edit").map((m) => [m.record, m.fields]), [[couple.id, ["title"]]], JSON.stringify(got));
+    assert.equal((recordOf(w, sha(COUPLE)) as Titled).title, undefined, "taken off");
   } finally {
     await w.ok(["live", "stop"]);
   }

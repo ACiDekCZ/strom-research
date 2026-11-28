@@ -16,7 +16,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Material einmal sortiert, Einstellungen der Forschung in Worten:** eine Datei, der die letzte Sortierung einen
   Titel, eine Art, ein Datum oder Personen vorschlug und die sie schon wie vorgeschlagen hat, gilt als erledigt und
   wird nicht neu sortiert; was der Mensch in der Strom-App über einen Vorschlag entschied (übernommen, abgelehnt und
-  warum), bleibt bei der Sortierung. Eine in der App oder im Menü geänderte Einstellung erscheint in den letzten Änderungen mit Namen und Wert in der Sprache der Forschung („In der Forschung ausgeschaltet:
+  warum), bleibt bei der Sortierung. Titel, Art, Datum und Notiz einer Datei, im Material angegeben, bleiben, auch
+  wenn die Strom-App daraus ein Porträt oder einen Anhang ohne sie macht und den Stammbaum zweimal sendet (sie galten
+  als in der App entfernt). Eine in der App oder im Menü geänderte Einstellung erscheint in den letzten Änderungen mit Namen und Wert in der Sprache der Forschung („In der Forschung ausgeschaltet:
   Rückfrage vor dem Sortieren des Materials“), nicht mehr als Schlüssel (`sort.confirm`).
 - **Der Agent findet sich mit weniger Versuchen zurecht:** `strom place find <Name>` und `strom place <Name>` führen
   zu `strom place list <Name>`; `strom source list --note <Text>` listet mit einem Aufruf die Quellen, deren Notiz
