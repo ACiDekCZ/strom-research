@@ -36,7 +36,8 @@ The changes of each version in short. The full notes and the install lines are o
   from a family tree?") or with `strom sync as-import I…` — a preview first, the research backed up, only values
   unchanged and unconfirmed since, `--undo` takes it back. A given name with brackets among its words ("(Vincent)
   François (Paul)") is a name as written; a person's writes in the terminal pass at once where an agent's session was
-  taken over by another run.
+  taken over by another run. The order of a person's marriages set by hand in the Strom app is kept by the research
+  and given back so; set back to the dates in the app, so in the research too.
 - **The history of the houses:** `strom house` keeps a record of each house the family lived in — its numbers in time,
   holders, residents, what happened to it, its place on the map and what was gone through for it; the research looks
   into the houses of direct ancestors only with the setting "House history" on, and one house can always be asked for,
@@ -50,8 +51,9 @@ The changes of each version in short. The full notes and the install lines are o
   it to read; its look follows as a task of its own only there (the setting "House look", on by default); a house can
   be talked over with the agent from the Strom app. A claim taken over from an older research whose source is on the
   web (a municipality's history as a PDF) is read in the house's research and confirmed or corrected with the place in
-  the source; an address that does not open stays one line of what was gone through. The research's material names
-  the houses each file belongs to, for the Strom app to show them where the file is used.
+  the source; an address that does not open stays one line of what was gone through. The research's material names the
+  houses each file belongs to, for the Strom app to show them where the file is used. The list of houses says which
+  stands on the map and whose look is known (for the Strom app's statistics).
 - **The tree check:** `strom health` says, free and with nothing written, what the research stands on and what to do
   next: strom's own check, what the tree grew by in 30 days, lines standing still, requests sent long ago with no
   reply, what waits for a decision, fixes, facts to verify by line, branch ends never searched, material not sorted,

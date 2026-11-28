@@ -40,7 +40,8 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   sync as-import I…`: zuerst eine Vorschau, die Forschung gesichert, nur seither unveränderte und unbestätigte
   Angaben, `--undo` nimmt es zurück. Ein Vorname mit Klammern zwischen seinen Wörtern („(Vincent) François (Paul)“)
   ist ein Name, wie geschrieben; Einträge eines Menschen im Terminal gehen sofort durch, auch wo ein anderer Lauf die
-  Sitzung eines Agenten übernahm.
+  Sitzung eines Agenten übernahm. Die von Hand gesetzte Reihenfolge der Ehen einer Person in der Strom-App behält die
+  Forschung und gibt sie so zurück; in der App wieder nach den Daten geordnet, so auch in der Forschung.
 - **Geschichte der Häuser:** `strom house` führt einen Eintrag zu jedem Haus, in dem die Familie lebte – seine Nummern
   im Lauf der Zeit, Besitzer, Bewohner, was mit ihm geschah, seinen Ort auf der Karte und was dafür durchgesehen
   wurde; die Häuser der direkten Vorfahren erforscht die Forschung nur mit eingeschalteter Einstellung „Geschichte der
@@ -57,7 +58,8 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Angabe, deren Quelle im Web steht (die Geschichte einer Gemeinde als PDF), liest die Forschung des Hauses und
   bestätigt oder berichtigt sie mit der Stelle in der Quelle; eine Adresse, die sich nicht öffnet, bleibt eine Zeile
   dessen, was durchgegangen wurde. Das Material der Forschung nennt bei jeder Datei die Häuser, zu denen sie gehört,
-  damit die Strom-App sie dort zeigt, wo die Datei verwendet wird.
+  damit die Strom-App sie dort zeigt, wo die Datei verwendet wird. Die Liste der Häuser sagt, welches auf der Karte
+  steht und von welchem das Aussehen bekannt ist (für die Statistik der Strom-App).
 - **Die Baumprüfung:** `strom health` sagt kostenlos und ohne etwas zu schreiben, worauf die Forschung steht und was
   als Nächstes zu tun ist: die eigene Prüfung von strom, um wie viel der Baum in 30 Tagen gewachsen ist, Linien, die
   stillstehen, längst verschickte Anfragen ohne Antwort, was auf eine Entscheidung wartet, Korrekturen, Fakten zum

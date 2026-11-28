@@ -36,7 +36,8 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   („Czy to pochodzi z drzewa?”) lub poleceniem `strom sync as-import I…`: najpierw podgląd, badanie zabezpieczone
   kopią, tylko dane od tamtej pory niezmienione i niepotwierdzone, `--undo` to cofa. Imię z nawiasami między słowami
   („(Vincent) François (Paul)”) jest imieniem tak, jak je zapisano; zapisy człowieka w terminalu przechodzą od razu
-  także tam, gdzie sesję agenta przejął inny przebieg.
+  także tam, gdzie sesję agenta przejął inny przebieg. Kolejność małżeństw osoby ustawioną w aplikacji Strom ręcznie
+  badanie zachowuje i oddaje tak samo; przywróconą w aplikacji do kolejności według dat – także w badaniu.
 - **Historia domów:** `strom house` prowadzi zapis każdego domu, w którym rodzina mieszkała – jego numery w czasie,
   właścicieli, mieszkańców, co się z nim działo, jego miejsce na mapie i co dla niego przejrzano; domy przodków w
   linii prostej badanie bada tylko przy włączonym ustawieniu „Historia domów”, a pojedynczy dom można zamówić zawsze,
@@ -51,7 +52,8 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   dom można omówić z agentem z aplikacji Strom. Informację przejętą ze starszego badania, której źródło jest w sieci
   (historia gminy w PDF), badanie domu odczyta i potwierdzi lub poprawi z miejscem w źródle; adres, który się nie
   otwiera, zostaje jednym wierszem w tym, co przejrzano. Materiał badania podaje przy każdym pliku domy, do których
-  należy, aby aplikacja Strom pokazała je tam, gdzie plik jest użyty.
+  należy, aby aplikacja Strom pokazała je tam, gdzie plik jest użyty. Lista domów mówi, który stoi na mapie i którego
+  wygląd jest znany (dla statystyk aplikacji Strom).
 - **Kontrola drzewa:** `strom health` bezpłatnie i bez zapisu mówi, na czym stoją badania i co robić dalej: własna
   kontrola stroma, o ile drzewo urosło w 30 dni, linie, które stoją, prośby wysłane dawno bez odpowiedzi, co czeka na
   decyzję, poprawki, fakty do weryfikacji według linii, nigdy nieprzeszukane końce gałęzi, nieposortowany materiał – z

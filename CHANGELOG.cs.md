@@ -34,7 +34,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   teď opraví samo, a starší poslání člověk jednou určí – v aplikaci v Co čeká („Přišlo to z rodokmenu?“) nebo příkazem
   `strom sync as-import I…`: nejdřív náhled, výzkum se zálohuje, jen údaje od té doby neupravené a nepotvrzené,
   `--undo` to vrátí. Křestní jméno se závorkami mezi slovy („(Vincent) François (Paul)“) je jméno, jak je zapsané;
-  zápisy člověka v terminálu projdou hned i tam, kde sezení agenta převzal jiný běh.
+  zápisy člověka v terminálu projdou hned i tam, kde sezení agenta převzal jiný běh. Pořadí sňatků osoby seřazené v
+  aplikaci Strom ručně výzkum drží a vrací stejně; vrácené v aplikaci na pořadí podle dat i ve výzkumu.
 - **Historie domů:** `strom house` vede záznam každého domu, kde rodina žila – jeho čísla v čase, držitele, obyvatele,
   co se s ním dělo, jeho místo na mapě a co se pro něj prošlo; domy přímých předků výzkum zkoumá jen se zapnutým
   nastavením „Historie domů“ a jednotlivý dům jde vyžádat vždy, i z aplikace Strom. Nad místem domu smí aplikace
@@ -47,7 +48,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   úkol jen tam (nastavení „Podoba domů“, výchozí zapnuto); dům jde z aplikace Strom probrat s agentem. Údaj převzatý
   ze staršího výzkumu, jehož pramen je na webu (historie obce v PDF), výzkum domu přečte a potvrdí nebo opraví s
   místem v prameni; adresa, která se neotevře, zůstane jednou řádkou v tom, co se prošlo. Materiál výzkumu u každého
-  souboru uvádí domy, ke kterým patří, aby je aplikace Strom ukázala tam, kde je soubor použit.
+  souboru uvádí domy, ke kterým patří, aby je aplikace Strom ukázala tam, kde je soubor použit. Seznam domů říká,
+  který stojí na mapě a u kterého je známá podoba (pro statistiky aplikace Strom).
 - **Kontrola stromu:** `strom health` zdarma a bez zápisu řekne, na čem výzkum stojí a co dělat dál: vlastní kontrola
   stromu, o kolik strom za 30 dní narostl, linie, které stojí, žádosti odeslané dávno bez odpovědi, co čeká na
   rozhodnutí, opravy, fakta k ověření po liniích, konce větví bez hledání, neroztříděný materiál – a kroky v pořadí, každý jako příkaz k napsání, v jazyce výzkumu;
