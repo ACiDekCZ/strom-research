@@ -42,7 +42,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   pomístní jména, každý dům krátkou podobu a kontrolu, zda je o ní co dál číst; podoba domu následuje jako vlastní
   úkol jen tam (nastavení „Podoba domů“, výchozí zapnuto); dům jde z aplikace Strom probrat s agentem. Údaj převzatý
   ze staršího výzkumu, jehož pramen je na webu (historie obce v PDF), výzkum domu přečte a potvrdí nebo opraví s
-  místem v prameni; adresa, která se neotevře, zůstane jednou řádkou v tom, co se prošlo.
+  místem v prameni; adresa, která se neotevře, zůstane jednou řádkou v tom, co se prošlo. Materiál výzkumu u každého
+  souboru uvádí domy, ke kterým patří, aby je aplikace Strom ukázala tam, kde je soubor použit.
 - **`strom demo`:** strom vyzkoušený na ukázkovém výzkumu smyšlené rodiny (cs, en, de, pl), mimo vlastní stromy a
   nastavení, otevřený v aplikaci Strom; všechno v něm jde prohlédnout, nic nenabízí agenta; `strom demo --remove` ho
   smaže.

@@ -44,7 +44,8 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   do przeczytania; jego wygląd idzie jako osobne zadanie tylko tam (ustawienie „Wygląd domów”, domyślnie włączone);
   dom można omówić z agentem z aplikacji Strom. Informację przejętą ze starszego badania, której źródło jest w sieci
   (historia gminy w PDF), badanie domu odczyta i potwierdzi lub poprawi z miejscem w źródle; adres, który się nie
-  otwiera, zostaje jednym wierszem w tym, co przejrzano.
+  otwiera, zostaje jednym wierszem w tym, co przejrzano. Materiał badania podaje przy każdym pliku domy, do których
+  należy, aby aplikacja Strom pokazała je tam, gdzie plik jest użyty.
 - **`strom demo`:** strom wypróbowany na przykładowym badaniu zmyślonej rodziny (cs, en, de, pl), z dala od własnych
   drzew i ustawień, otwarty w aplikacji Strom; wszystko w nim można przejrzeć, nic nie proponuje agenta;
   `strom demo --remove` je usuwa.

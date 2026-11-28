@@ -25,6 +25,7 @@ import { inputsByWorkingSha, recordsBySha } from "./shaindex.ts";
 import { storedBytes } from "./appmedia.ts";
 import { listSorts, type SortProposal, type SortState } from "./sort.ts";
 import type { Tree } from "./tree.ts";
+import { houseIndex, houseRefs, type HouseIndex } from "./houses.ts";
 
 export interface MaterialFile {
   id: string;
@@ -76,6 +77,11 @@ export interface MaterialFile {
   left?: { at: string; sort: string; why: (typeof LEFT_WHY)[number]; said?: string };
   /** The oldest other file of the material with the same content (the same SHA-256): sorted once (feature material.sameAs). */
   sameAs?: string;
+  /**
+   * The houses it is material of (Input.houses, spec 145): each house's record and key, as its row of GET /houses has
+   * them (bridge feature material.houses). None: no field.
+   */
+  houses?: { id: string; key: string }[];
   /** Whether the file is on this computer (a research unpacked without its images: not). */
   here: boolean;
 }
@@ -115,6 +121,8 @@ export interface MaterialUses {
   tasks: { id: string; title: string; state: Task["state"] }[];
   /** The sources it is the source of, each with how (feature material.sourceOf). */
   of: SourceOf[];
+  /** The houses it is material of, as MaterialFile.houses (feature material.houses). None: no field. */
+  houses?: { id: string; key: string }[];
 }
 
 export interface MaterialBatch {
@@ -324,7 +332,9 @@ function usesFrom(idx: UsesIndex, i: Input): MaterialUses {
 
 /** Where the research uses one file of the material (GET /material/<I…>/uses); refused as assign refuses a file. */
 export function materialUses(tree: Tree, id: string): MaterialUses {
-  return usesFrom(usesIndex(tree), filesAsked(tree, [id])[0]!);
+  const i = filesAsked(tree, [id])[0]!;
+  const houses = i.houses?.length ? houseRefs(tree, i.houses, () => houseIndex(tree)) : [];
+  return { ...usesFrom(usesIndex(tree), i), ...(houses.length ? { houses } : {}) };
 }
 
 /** Why a file is hidden as the app is told it: its own record, else what sorting or an older skip left. */
@@ -355,6 +365,8 @@ export function material(tree: Tree, shared: string | undefined, only: { person?
   const firstOf = new Map<string, Input>();
   for (const i of [...all].sort((a, b) => a.created.localeCompare(b.created) || a.id.localeCompare(b.id))) if (!firstOf.has(i.sha!)) firstOf.set(i.sha!, i);
   let left: Map<string, NonNullable<MaterialFile["left"]>> | undefined;
+  let index: HouseIndex | undefined;
+  const houseIdx = () => (index ??= houseIndex(tree));
   for (const i of all) {
     if (ids && !ids.has(i.id)) continue;
     if (only.batch && i.batch !== only.batch) continue;
@@ -367,6 +379,7 @@ export function material(tree: Tree, shared: string | undefined, only: { person?
     const hidden = hiddenOf(i);
     const links = (i.links ?? []).filter((l) => !l.retracted).map((l) => ({ type: l.type, ref: l.type === "person" || (l.type === "event" && l.ref.startsWith("P")) ? live(tree, l.ref) : l.ref, ...(l.event ? { event: l.event } : {}) }));
     const used = usesFrom((idx ??= usesIndex(tree)), i);
+    const houses = i.houses?.length ? houseRefs(tree, i.houses, houseIdx) : [];
     files.push({
       id: i.id,
       name: i.name,
@@ -390,6 +403,7 @@ export function material(tree: Tree, shared: string | undefined, only: { person?
       uses: { excerpts: used.excerpts.length, sources: used.sources.map((x) => x.id), tasks: used.tasks.length, of: used.of },
       ...((left ??= leftBySorts(tree)).has(i.id) ? { left: left.get(i.id)! } : {}),
       ...(firstOf.get(i.sha!)!.id !== i.id ? { sameAs: firstOf.get(i.sha!)!.id } : {}),
+      ...(houses.length ? { houses } : {}),
       here: !!file && fs.existsSync(file),
     });
   }

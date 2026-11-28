@@ -45,7 +45,8 @@ The changes of each version in short. The full notes and the install lines are o
   it to read; its look follows as a task of its own only there (the setting "House look", on by default); a house can
   be talked over with the agent from the Strom app. A claim taken over from an older research whose source is on the
   web (a municipality's history as a PDF) is read in the house's research and confirmed or corrected with the place in
-  the source; an address that does not open stays one line of what was gone through.
+  the source; an address that does not open stays one line of what was gone through. The research's material names
+  the houses each file belongs to, for the Strom app to show them where the file is used.
 - **`strom demo`:** strom tried on a sample research of a made-up family (cs, en, de, pl), apart from the person's own
   trees and settings and opened in the Strom app; everything in it can be looked through, nothing offers an agent;
   `strom demo --remove` deletes it.

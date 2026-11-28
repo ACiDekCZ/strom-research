@@ -17,6 +17,7 @@ import http from "node:http";
 import { fileURLToPath } from "node:url";
 import { World, hasGit } from "../helpers.ts";
 import { Tree, now } from "../../src/core/tree.ts";
+import { update } from "../../src/core/records.ts";
 import { forHouse, housesHeldCount } from "../../src/core/houses.ts";
 import { houseAuto, houseEstimate } from "../../src/core/houseauto.ts";
 import { mapLayers } from "../../src/core/maplayers.ts";
@@ -217,6 +218,51 @@ test("the bridge's houses: status, the list and one house, the kind house in the
     }
     status = (await request(`${url}/status?app=3.28.0`)).body;
     assert.equal(status.houses.rev, (await request(`${url}/houses`)).body.rev);
+  } finally {
+    await w.run(["live", "stop"]);
+  }
+  w.cleanup();
+});
+
+test("the material's houses (feature material.houses, spec 145): each file of a house with the id and key of its row of GET /houses, also in /material/<I…>/uses; a file of no house no field", opts, async () => {
+  const w = new World();
+  await village(w);
+  await taken(w);
+  // a photo of two houses (a batch for Bělokamen 16, then made Lhota 9's too); one of none
+  const photo = path.join(w.dir, "stavení.jpg");
+  fs.copyFileSync(path.join(IMAGES, "s0001.jpg"), photo);
+  const loose = path.join(w.dir, "Ŝtěpánův dopis.jpg".normalize("NFD"));
+  fs.copyFileSync(path.join(IMAGES, "grey.jpg"), loose);
+  const B = "5b2c3d4e-6f7a-4b8c";
+  const both = (await w.ok(["media", "original", photo, "--batch", B, "--path", "Dům/stavení.jpg", "--json"])).json.input as string;
+  const none = (await w.ok(["media", "original", loose, "--json"])).json.input as string;
+  const info = (await w.ok(["live", "start", "--json"])).json as { url: string };
+  const url = info.url;
+  try {
+    const status = (await request(`${url}/status?app=3.33.0`)).body;
+    assert.ok(status.features.includes("material.houses"));
+    assert.equal((await request(`${url}/batch/${B}/done`, "POST", { house: "belokamen|16" })).status, 200);
+    const list = (await request(`${url}/houses`)).body.houses as { id: string; key: string }[];
+    const row = (key: string) => list.find((h) => h.key === key)!;
+    assert.equal((await request(`${url}/houses/material`, "POST", { house: row("lhota|9").id, files: [both] })).status, 200);
+    const expected = [row("belokamen|16"), row("lhota|9")].map((h) => ({ id: h.id, key: h.key })).sort((a, b) => a.id.localeCompare(b.id));
+    const files = (await request(`${url}/material`)).body.files as { id: string; houses?: { id: string; key: string }[] }[];
+    const of = (id: string) => files.find((f) => f.id === id)!;
+    assert.deepEqual([...of(both).houses!].sort((a, b) => a.id.localeCompare(b.id)), expected, JSON.stringify(of(both)));
+    assert.ok(of(none), JSON.stringify(files.map((f) => f.id)));
+    assert.ok(!("houses" in of(none)), "no house, no field");
+    const uses = (await request(`${url}/material/${both}/uses`)).body;
+    assert.deepEqual([...uses.houses].sort((a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id)), expected);
+    assert.ok(!("houses" in (await request(`${url}/material/${none}/uses`)).body));
+    // a house taken back: left out (its row gone from GET /houses too)
+    const gone = row("lhota|9").id;
+    const tree = open(w);
+    tree.withTreeLock(() => {
+      update<House>(tree, gone, "house", (h) => ({ ...h, retracted: { at: now(), by: "user", reason: "not this house" } }), { op: "house.edit", summary: `${gone} taken back` });
+      tree.commit("a house taken back");
+    });
+    const later = ((await request(`${url}/material`)).body.files as { id: string; houses?: { id: string }[] }[]).find((f) => f.id === both)!;
+    assert.deepEqual(later.houses!.map((h) => h.id), [row("belokamen|16").id]);
   } finally {
     await w.run(["live", "stop"]);
   }
