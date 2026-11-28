@@ -358,10 +358,13 @@ async function phoneStep(ctx: Context, run: Run, lang: string): Promise<void> {
   }
   // a device connected by the QR code (strom phone qr): second, where the gateway of the devices is on and the server
   // reachable — turning off keeps its number
-  const connect = s.state === "on" && devicesOn(ctx.env);
+  // (the gateway of the devices on — the default: its title and its turning off say the devices, as strom phone does)
+  const devices = devicesOn(ctx.env);
+  const connect = s.state === "on" && devices;
+  const said = s.state === "on" ? "on" : s.error?.waiting ? "waiting" : "error";
   const i = await ctx.choose(
-    t(s.state === "on" ? "ui.phone.on" : s.error?.waiting ? "ui.phone.waiting" : "ui.phone.error", { urls: s.addresses.map((a) => a.url).join(", "), why: t(`ui.phone.why.${s.error?.code ?? "bind-failed"}` as UIKey) }),
-    [{ label: t("ui.phone.menu.off") }, ...(connect ? [{ label: t("ui.phone.menu.connect") }] : []), ...s.phones.map((p) => ({ label: t("ui.phone.menu.remove", { name: p.name || p.id, date: p.pairedAt.slice(0, 10) }) }))],
+    t(devices ? (`ui.phone.${said}.devices` as const) : (`ui.phone.${said}` as const), { urls: s.addresses.map((a) => a.url).join(", "), why: t(`ui.phone.why.${s.error?.code ?? "bind-failed"}` as UIKey) }),
+    [{ label: t(devices ? "ui.phone.menu.off.devices" : "ui.phone.menu.off") }, ...(connect ? [{ label: t("ui.phone.menu.connect") }] : []), ...s.phones.map((p) => ({ label: t("ui.phone.menu.remove", { name: p.name || p.id, date: p.pairedAt.slice(0, 10) }) }))],
     0,
     { back: t("ui.browse.back") },
   );

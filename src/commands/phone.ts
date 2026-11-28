@@ -215,9 +215,16 @@ register(
     run(ctx) {
       const s = phoneState(ctx.env);
       const lang = ctx.uiLang();
+      const seen = (at: string | null | undefined) => at?.slice(0, 16).replace("T", " ") ?? "";
+      // the devices paired by the Strom app (an icon of a home screen goes with its device: one row), where their gateway is on
+      const devices = devicesOn(ctx.env) ? devicesList(ctx.env).filter((d) => !d.of) : undefined;
+      const rows = [
+        ...s.phones.map((p) => [p.id, p.name, ...(devices ? [ui(lang, "ui.phone.kind.phone")] : []), p.pairedAt.slice(0, 10), seen(p.lastSeenAt), p.address, p.stale ? ui(lang, "ui.phone.stale") : ""]),
+        ...(devices ?? []).map((d) => [d.id, d.name, ui(lang, `ui.phone.kind.${d.kind}`), d.pairedAt.slice(0, 10), seen(d.lastSeenAt), d.address, ""]),
+      ];
       return {
-        text: s.phones.length ? table(s.phones.map((p) => [p.id, p.name, p.pairedAt.slice(0, 10), p.lastSeenAt?.slice(0, 16).replace("T", " ") ?? "", p.address, p.stale ? ui(lang, "ui.phone.stale") : ""])) : ui(lang, "ui.phone.nophones"),
-        data: { phones: s.phones },
+        text: rows.length ? table(rows) : sayState(ctx, lang, "nophones"),
+        data: { phones: s.phones, ...(devices ? { devices } : {}) },
       };
     },
   },

@@ -49,6 +49,7 @@ const DEVICE_KEYS = new Set([
   "ui.phone.turnedoff.devices",
   "ui.phone.qr.off.devices",
   "ui.phone.notturned.devices",
+  "ui.phone.menu.off.devices",
 ]);
 
 const said = (text: string) => text.split("\n").filter((l) => QUIET.test(l));
@@ -190,6 +191,47 @@ test("strom phone's lines of its state and of a no (094 U21): of the devices —
     const wasOff = await w.ok(["phone", "off"], cs);
     assert.match(wasOff.out, /^propojení s telefonem je vypnuté; spárované telefony zůstávají spárované\npropojení s telefonem: vypnuto$/mu, wasOff.out);
     for (const r of [was, wasNo, wasOff]) assert.doesNotMatch(r.out, /se zařízeními|spárovan\p{L}* zařízení|tablet/u, r.out);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("the menu's Devices while on (094 U21): its title and its turning off say the devices, strom phone list lists them with the phones; off: the phone's as before", { skip: !hasGit || process.platform === "win32", timeout: 120_000 }, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Lhotákovi");
+    const dir = w.env.STROM_CONFIG_DIR!;
+    // a tablet paired by the app, with the icon of its home screen (one row); the connection on, its server on the loopback
+    const key = Buffer.alloc(32, 7).toString("base64url");
+    const at = "2026-11-20T10:00:00.000Z";
+    const tablet = { id: "dv_abcdefghijklmnop", name: "Lhotův tablet", kind: "tablet", via: "app", pairedAt: at, lastSeenAt: null, address: "http://127.0.0.1:1", key };
+    fs.writeFileSync(path.join(dir, "devices.json"), JSON.stringify({ devices: [tablet, { ...tablet, id: "dv_bcdefghijklmnopq", of: tablet.id }] }));
+    fs.writeFileSync(path.join(dir, "phone.json"), JSON.stringify({ on: true, test: true, port: await freePort(), since: at }));
+    const cs = { STROM_LANG: "cs" };
+    // 8 settings · 1 the setup: its steps — Devices' number from them, then in, 0 back, 0, 0, 0
+    const settings = (await w.ok([], { tty: true, answers: ["8", "1", "0", "0", "0"], env: cs })).out;
+    const n = /\[(\d)\] {2}Zařízení {2,}/u.exec(settings)?.[1];
+    assert.ok(n, settings);
+    const devices = (await w.ok([], { tty: true, answers: ["8", "1", n, "0", "0", "0", "0"], env: cs })).out;
+    assert.match(devices, /^ *propojení se zařízeními: zapnuto/mu, devices);
+    assert.match(devices, /\[1\] {2}Vypnout propojení se zařízeními \(spárovaná zařízení zůstanou spárovaná\)/u, devices);
+    assert.doesNotMatch(devices, /propojení s telefonem|spárované telefony/u, devices);
+    // strom phone list: the tablet (its icon not a row of its own); the count said with the command
+    const list = await w.ok(["phone", "list"], { env: cs });
+    assert.match(list.out, /^dv_abcdefghijklmnop {2}Lhotův tablet {2}tablet {2}2026-11-20 /mu, list.out);
+    assert.doesNotMatch(list.out, /dv_bcdefghijklmnopq/u, list.out);
+    assert.deepEqual((await w.ok(["phone", "list", "--json"])).json.devices.map((d: { id: string; key?: string }) => [d.id, d.key]), [[tablet.id, undefined]]);
+    assert.match((await w.ok(["phone"], { env: cs })).out, /^ {2}spárovaná zařízení: 1 \(strom phone list\)$/mu);
+    // off: the phone's as before, no device listed
+    w.devicesOff();
+    const was = (await w.ok([], { tty: true, answers: ["8", "1", n, "0", "0", "0", "0"], env: cs })).out;
+    assert.match(was, /^ *propojení s telefonem: zapnuto/mu, was);
+    assert.match(was, /\[1\] {2}Vypnout propojení s telefonem \(spárované telefony zůstanou spárované\)/u, was);
+    assert.doesNotMatch(was, /se zařízeními|spárovan\p{L}* zařízení/u, was);
+    const wasList = await w.ok(["phone", "list", "--json"], { env: cs });
+    assert.equal(wasList.json.devices, undefined);
+    assert.match((await w.ok(["phone", "list"], { env: cs })).out, /^ {2}žádný spárovaný telefon$/mu);
+    await w.ok(["phone", "off"]);
   } finally {
     w.cleanup();
   }
