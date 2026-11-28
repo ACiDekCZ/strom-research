@@ -72,6 +72,47 @@ test("the shell's hook after an update does none of the first run; the next comm
   assert.equal(log(w).split("\n").length, commits, "no commit when the hooks are as this strom writes them");
 });
 
+test("a first run leaves the agent's settings a person changed: an edit not committed, or one committed beside the older time limit", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  const settings = path.join(w.cwd, ".claude", "settings.json");
+  const cfg = path.join(w.env.STROM_CONFIG_DIR!, "config.json");
+  const older = (extra?: string) => {
+    const s = readJsonFile(settings) as { permissions: { allow: string[] }; hooks: { PreToolUse: Group[] } };
+    for (const g of s.hooks.PreToolUse) if (g.matcher === "Bash|PowerShell" || g.matcher === DESKTOP_TERMINAL_MATCHER) for (const h of g.hooks) h.timeout = 10;
+    if (extra) s.permissions.allow.push(extra);
+    fs.writeFileSync(settings, JSON.stringify(s, null, 2) + "\n");
+  };
+  const firstRun = async () => {
+    fs.writeFileSync(cfg, JSON.stringify({ ...readJsonFile(cfg), lastVersion: "1.0.0" }, null, 2));
+    await w.ok(["stats"]);
+  };
+  const status = () => spawnSync("git", ["status", "--porcelain"], { cwd: w.cwd, encoding: "utf8" }).stdout;
+
+  // as an older strom wrote it, and an edit of the person's not committed (one shell hook's limit, the web's left)
+  older();
+  const t = Tree.open(w.cwd, w.env);
+  t.withTreeLock(() => t.commit("Agent instructions: .claude/settings.json", [".claude/settings.json"]));
+  const s = readJsonFile(settings) as { permissions: { allow: string[] } };
+  s.permissions.allow.push("Bash(ls Lhota:*)");
+  fs.writeFileSync(settings, JSON.stringify(s, null, 2) + "\n");
+  const edited = fs.readFileSync(settings, "utf8");
+  const head = log(w, "-1");
+  await firstRun();
+  assert.equal(fs.readFileSync(settings, "utf8"), edited, "the person's edit not committed: left as it is");
+  assert.match(status(), /settings\.json/, "still the person's change, not committed by strom");
+  assert.equal(log(w, "-1"), head, "nothing committed");
+
+  // committed, but not as any strom wrote it (a rule of the person's beside the older limit)
+  older("Bash(ls Lhota:*)");
+  t.withTreeLock(() => t.commit("Agent instructions: .claude/settings.json", [".claude/settings.json"]));
+  const mine = fs.readFileSync(settings, "utf8");
+  const head2 = log(w, "-1");
+  await firstRun();
+  assert.equal(fs.readFileSync(settings, "utf8"), mine, "a file changed outside strom: left as it is");
+  assert.equal(log(w, "-1"), head2, "nothing committed");
+});
+
 test("the shell's hook waits as long as the web's: Claude Code's both groups and Grok's, on Windows too (its failure never blocks)", () => {
   assert.ok(SHELL_HOOK_TIMEOUT_S >= 30, "at least 30 s");
   const root = path.join(path.sep, "tmp", "Lhotákovi");

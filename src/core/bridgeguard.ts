@@ -29,6 +29,25 @@ export const SHELL_TOOLS = ["Bash", "PowerShell", "run_terminal_command", "bash"
  */
 export const SHELL_HOOK_TIMEOUT_S = 60;
 
+/** The time limits an older strom wrote for the shell's hook (before 1.38.0: 10 s), so its own settings are known again. */
+export const OLDER_SHELL_HOOK_TIMEOUTS_S = [10] as const;
+
+/**
+ * The agent's settings (Claude Code's .claude/settings.json, Grok's hooks) as an older strom wrote them: the same, the
+ * shell's hook with an older time limit. Each JSON text exactly as strom writes it.
+ */
+export function olderShellHookTexts(settings: unknown): string[] {
+  return OLDER_SHELL_HOOK_TIMEOUTS_S.map((s) => JSON.stringify(withShellTimeout(settings, s), null, 2) + "\n");
+}
+
+function withShellTimeout(v: unknown, s: number): unknown {
+  if (Array.isArray(v)) return v.map((x) => withShellTimeout(x, s));
+  if (!v || typeof v !== "object") return v;
+  const o = v as Record<string, unknown>;
+  const shellHook = typeof o.command === "string" && o.command.includes("agents shell --hook") && typeof o.timeout === "number";
+  return Object.fromEntries(Object.entries(o).map(([k, x]) => [k, shellHook && k === "timeout" ? s : withShellTimeout(x, s)]));
+}
+
 /** One call of a shell tool as the agent's hook gives it. */
 export interface ShellEvent {
   tool: string;
