@@ -3,12 +3,13 @@
 // them at once (the request texts joined, sent, a conversation); a thing's own actions by its kind — the answer kept
 // with the task, a file, sent and back. The counts are the Strom app's (core/waiting.ts, /status waiting).
 
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
+import { fixedClock } from "../fixed-clock.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { update } from "../../src/core/records.ts";
 import { Settings } from "../../src/core/config.ts";
@@ -19,8 +20,17 @@ import type { Task } from "../../src/core/model.ts";
 const unix = { skip: !hasGit || process.platform === "win32" };
 const PERMISSION_HOST = "digi.example.net";
 
-/** Days ago, as an ISO time. */
-const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+// a fixed clock (noon of 27 Nov 2026 on this computer's clock, the bridge's too): what waits counts days by the calendar
+// (spec 149), so "40 days ago" never depends on the hour or a change of summer time in between, in any time zone
+const clock = fixedClock(new Date(2026, 10, 27, 12, 0, 0).getTime());
+after(() => clock.stop());
+
+/** Days ago by this computer's calendar, at this time of day, as an ISO time. */
+const daysAgo = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString();
+};
 
 /**
  * A research where 52 things wait: images of two archives, a search on one archive's site, letters to two offices (two
@@ -29,6 +39,7 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString
  */
 async function world(): Promise<{ w: World; shared: string }> {
   const w = new World();
+  Object.assign(w.env, clock.env);
   const bin = path.join(w.dir, "bin");
   fs.mkdirSync(bin);
   const git = spawnSync("which", ["git"], { encoding: "utf8" }).stdout.trim();
