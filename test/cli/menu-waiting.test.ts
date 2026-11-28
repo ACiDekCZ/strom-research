@@ -3,12 +3,13 @@
 // them at once (the request texts joined, sent, a conversation); a thing's own actions by its kind — the answer kept
 // with the task, a file, sent and back. The counts are the Strom app's (core/waiting.ts, /status waiting).
 
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
+import { fixedClock } from "../fixed-clock.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { update } from "../../src/core/records.ts";
 import { Settings } from "../../src/core/config.ts";
@@ -19,8 +20,17 @@ import type { Task } from "../../src/core/model.ts";
 const unix = { skip: !hasGit || process.platform === "win32" };
 const PERMISSION_HOST = "digi.example.net";
 
-/** Days ago, as an ISO time. */
-const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+// a fixed clock (noon of 27 Nov 2026 on this computer's clock, the bridge's too): what waits counts days by the calendar
+// (spec 149), so "40 days ago" never depends on the hour or a change of summer time in between, in any time zone
+const clock = fixedClock(new Date(2026, 10, 27, 12, 0, 0).getTime());
+after(() => clock.stop());
+
+/** Days ago by this computer's calendar, at this time of day, as an ISO time. */
+const daysAgo = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString();
+};
 
 /**
  * A research where 52 things wait: images of two archives, a search on one archive's site, letters to two offices (two
@@ -29,6 +39,7 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString
  */
 async function world(): Promise<{ w: World; shared: string }> {
   const w = new World();
+  Object.assign(w.env, clock.env);
   const bin = path.join(w.dir, "bin");
   fs.mkdirSync(bin);
   const git = spawnSync("which", ["git"], { encoding: "utf8" }).stdout.trim();
@@ -208,8 +219,8 @@ test("What waits with dozens of things: the places of what is to do, counted as 
 
 test("a place of What waits: its things, the request texts of them all for one e-mail (as the bridge gives them), sent for all of them (Enter: no), a conversation about them", unix, async () => {
   const { w } = await world();
-  // 3 · 14 MěÚ Havlíčkův Brod · 5 the texts · Enter · 6 sent for all · Enter (no) · 6 again · a · 0 · 0
-  const r = await w.ok([], { tty: true, answers: ["3", "14", "5", "", "6", "", "6", "a", "0", "0"] });
+  // 3 · 14 MěÚ Havlíčkův Brod · 5 the texts · Enter · 6 sent for all · Enter (no) · 6 again · a · Enter (today) · 0 · 0
+  const r = await w.ok([], { tty: true, answers: ["3", "14", "5", "", "6", "", "6", "a", "", "0", "0"] });
   assert.match(
     r.out,
     /\nStrom › Co čeká › MěÚ Havlíčkův Brod\n\n {2}k vyřízení 4\n {2}\[1\] {2}Opis zápisu Brod 1 · dopis · priorita 3\n {2}\[2\] {2}Opis zápisu Brod 2 · dopis · priorita 3\n {2}\[3\] {2}Opis zápisu Brod 3 · dopis · priorita 3\n {2}\[4\] {2}Opis zápisu Brod 4 · dopis · priorita 3\n {2}\[5\] {2}Text všech dotazů najednou\n {2}\[6\] {2}Odesláno za celou skupinu\n {2}\[7\] {2}Rozhovor s agentem k celé skupině\n\n {2}\[0\] {2}Zpět\n\nVolba \(Enter = 0[^)]*\):/u,
@@ -263,12 +274,13 @@ test("a thing of What waits: what it is and waits for, then only what makes sens
   // a letter: its request's text, sent (Enter: no, then yes), an answer in words, a file
   const letter = path.join(w.dir, "odpověď matriky.pdf");
   fs.writeFileSync(letter, "%PDF-1.4 a reply");
-  // 3 · 14 · 1 · 1 the text · Enter · 2 sent · Enter (no) · 2 · a — back at the place · 1 (the next one) · 3 answer ·
-  // the words · 1 · 4 a file · the file · a note · 0 · 0 · 0
-  const r = await w.ok([], { tty: true, answers: ["3", "14", "1", "1", "", "2", "", "2", "a", "1", "3", "Matrika odpověděla, opis přijde poštou.", "1", "4", `"${letter}"`, "Opis od matriky", "0", "0", "0"] });
+  // 3 · 14 · 1 · 1 the text · Enter · 2 sent · Enter (no) · 2 · a · Enter (today) — back at the place · 1 (the next
+  // one) · 3 answer · the words · 1 · 4 a file · the file · a note · 0 · 0 · 0
+  const r = await w.ok([], { tty: true, answers: ["3", "14", "1", "1", "", "2", "", "2", "a", "", "1", "3", "Matrika odpověděla, opis přijde poštou.", "1", "4", `"${letter}"`, "Opis od matriky", "0", "0", "0"] });
   assert.match(r.out, /\n T0013 · dopis · priorita 3\n Opis zápisu Brod 1\n {4}Čeká na: Odpověď matriky na žádost\.\n {4}Kde: MěÚ Havlíčkův Brod\n {4}Čeká od [^\n]+\n\n {2}\[1\] {2}Text dotazu\n {2}\[2\] {2}Odesláno\n {2}\[3\] {2}Odpovědět textem\n {2}\[4\] {2}Přidat soubor\n {2}\[5\] {2}Rozhovor s agentem\n\n {2}\[0\] {2}Zpět\n/u);
   assert.match(r.out, /Text dotazu ke zkopírování \(notes\/dotaz-brod\.md\):\n\nŽádost o opis křestních zápisů rodiny Žďárských\.\n/u);
   assert.match(r.out, /Zapsat dotaz jako odeslaný \(MěÚ Havlíčkův Brod\)\? Úkol dál čeká na odpověď\. \(a\/n, Enter = n\)/u);
+  assert.match(r.out, /Den odeslání \(Enter = dnes; např\. 24\. 11\. 2026 nebo 2026-11-24\)/u);
   assert.match(r.out, /✓ Zapsáno jako odeslané – úkol dál čeká na odpověď\./u);
   t = await task(w, T.brod[0]!);
   assert.deepEqual([t.task.state, t.phase], ["waiting", "sent"]);
@@ -285,7 +297,7 @@ test("a thing of What waits: what it is and waits for, then only what makes sens
   // waiting for a reply: an answer, a file, back among what is to do, a conversation
   // ? · 1 SOA Praha · 2 its second · 3 back among what is to do · 0 · Enter · 0 · 0
   const back = await w.ok([], { tty: true, answers: ["3", "?", "1", "2", "3", "0", "", "", "0"] });
-  assert.match(back.out, /\n T0045 · dopis · priorita 3\n[^]*?Čeká od [^\n]+ · odesláno [^\n]+ · dnes\n\n {2}\[1\] {2}Odpovědět textem\n {2}\[2\] {2}Přidat soubor\n {2}\[3\] {2}Vrátit mezi k vyřízení\n {2}\[4\] {2}Rozhovor s agentem\n\n {2}\[0\] {2}Zpět\n/u);
+  assert.match(back.out, /\n T0045 · dopis · priorita 3\n[^]*?Čeká od [^\n]+ · odesláno [^\n]+ · dnes\n\n {2}\[1\] {2}Odpovědět textem\n {2}\[2\] {2}Přidat soubor\n {2}\[3\] {2}Vrátit mezi k vyřízení\n {2}\[4\] {2}Rozhovor s agentem\n {2}\[5\] {2}Opravit datum odeslání\n\n {2}\[0\] {2}Zpět\n/u);
   assert.match(back.out, /✓ Vráceno mezi k vyřízení\./u);
   t = await task(w, T.soa[1]!);
   assert.deepEqual([t.task.state, t.phase], ["waiting", "todo"]);

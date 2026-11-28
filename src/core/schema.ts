@@ -364,6 +364,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     from: S(),
     fetched: { t: "object", of: { connector: S({ req: true, max: 100 }), book: S({ req: true, max: 300 }), via: S({ enum: ["browser"] }) } },
     accessed: S(),
+    renumbered: { t: "array", of: { at: S({ req: true }), from: { t: "number", req: true, int: true, min: 0 }, to: { t: "number", req: true, int: true, min: 0 }, reason: S({ req: true }) } },
   },
 };
 

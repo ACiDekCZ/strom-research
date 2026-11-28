@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.38.0
 
-*In preparation: the betas up to 1.38.0-beta.7. The section is complete with the release.*
+*In preparation: the betas up to 1.38.0-beta.8. The section is complete with the release.*
 
 - **A clearer menu in the terminal:** every screen says where it is (Strom › Settings › Maintenance), its options as
   `[1]  Label   state`, a switch with how it is now and what it switches to, back last as `[0]` (also the way a
@@ -21,12 +21,15 @@ The changes of each version in short. The full notes and the install lines are o
   tree twice (they were taken off as removed in the app). A setting changed from the app or
   the menu shows in the recent changes by its name and value in the research's language ("Turned off in the research: Question before the
   material is sorted"), no longer as its key (`sort.confirm`).
-- **The agent finds its way with fewer tries:** `strom place find <name>` and `strom place <name>` point to
-  `strom place list <name>`; `strom source list --note <text>` lists in one call the sources whose note says something
-  (that a register gave the address, for one); `strom media view` says how to look at an image registered only in
-  parts, and at a crop of it; at eBadatelna (SOA Praha) the agent keeps to the archive's limits for a person and an
-  automated system alike (at most 2 images a second, one ZIP at a time, 10 ZIPs in 24 hours) and never suggests a way
-  past them.
+- **The agent finds its way with fewer tries:** `strom place find <name>` and `strom place <name>` point to `strom
+  place list <name>`; `strom source list --note <text>` lists in one call the sources whose note says something (that
+  a register gave the address, for one); `strom media view` says how to look at an image registered only in parts, and
+  at a crop of it; at eBadatelna (SOA Praha) the agent keeps to the archive's limits for a person and an automated
+  system alike (at most 2 images a second, one ZIP at a time, 10 ZIPs in 24 hours) and never suggests a way past them.
+  The check strom makes before each shell command of an agent waits up to 60 seconds instead of 10 (on a slow Windows
+  computer, with an agent working alone beside a conversation, it did not finish in time), never does the first start
+  of a new version, and one that took long is noted for `strom error`; a research gets the new limit at the first
+  start of this version.
 - **From a family tree, not by a person's hand:** people of a family tree imported or merged in the Strom app that an
   older app sent without the import's mark were taken as the person's own (✓ confirmed by a person); a send that marks
   them now sets them right by itself, and an older send the person names once, in the app's What waits ("Did it come
@@ -40,15 +43,15 @@ The changes of each version in short. The full notes and the install lines are o
   also from the Strom app. Over a house's place the app may show the aerial photos of the 1950s (Czechia). A house
   researched that tells enough (two generations of the tree, or three holders and residents with sources) gets its
   story with the stories on, each claim with its source, the uncertain said so; a draft until approved, then never
-  rewritten; `strom house story` and the app ask for one at any time.
-- **A house's research:** it goes through a list of sources for its country (in Czechia the address register, the
-  field names, the water courses, the orthophotos, the topographies) and writes into the house only what said
-  something; a municipality keeps its pictures (only under a free licence, with what they show) and its field names,
-  each house a short look and a check whether there is more of it to read; its look follows as a task of its own only
-  there (the setting "House look", on by default); a house can be talked over with the agent from the Strom app. A
-  claim taken over from an older research whose source is on the web (a municipality's history as a PDF) is read in
-  the house's research and confirmed or corrected with the place in the source; an address that does not open stays
-  one line of what was gone through.
+  rewritten; `strom house story` and the app ask for one at any time. A house's research goes through a list of
+  sources for its country (in Czechia the address register, the field names, the water courses, the orthophotos, the
+  topographies) and writes into the house only what said something; a municipality keeps its pictures (only under a
+  free licence, with what they show) and its field names, each house a short look and a check whether there is more of
+  it to read; its look follows as a task of its own only there (the setting "House look", on by default); a house can
+  be talked over with the agent from the Strom app. A claim taken over from an older research whose source is on the
+  web (a municipality's history as a PDF) is read in the house's research and confirmed or corrected with the place in
+  the source; an address that does not open stays one line of what was gone through. The research's material names
+  the houses each file belongs to, for the Strom app to show them where the file is used.
 - **`strom demo`:** strom tried on a sample research of a made-up family (cs, en, de, pl), apart from the person's own
   trees and settings and opened in the Strom app; everything in it can be looked through, nothing offers an agent;
   `strom demo --remove` deletes it.
@@ -58,6 +61,15 @@ The changes of each version in short. The full notes and the install lines are o
   images the archive's catalogue gives, a book downloaded whole gets its count on the person's word (`strom fixes`),
   images saved once more are waited for until every new copy has come, and the hint on an image in parts names the
   halves it is in.
+- **Set right afterwards:** a letter or e-mail sent earlier is marked sent on the day it really went out (`strom task
+  sent T… --date YYYY-MM-DD`, in the menu's What waits the day is asked, Enter today), and a day marked wrong is put
+  right later on a request sent (the day before is said, the same command takes it back); how long it waits and the 30
+  days without a reply count from that day, by the calendar of the computer, never a day off around midnight. The
+  Strom app can send the day too, for one request or a whole place. `strom media renumber M…=n --reason` changes only
+  the number of a registered image (its file, citations and clips stay; two swapped in one command; another scan at
+  the new number refused, parts and copies left at the old one said, its history in `strom media show`, the same
+  command the other way round takes it back); an image put to a source wrongly comes off it with its clips (`strom
+  source edit S… --media-remove M… --reason`), and `strom media retract` of a cited image points to both.
 
 ## 1.37.0
 

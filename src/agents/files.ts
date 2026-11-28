@@ -24,10 +24,12 @@ import { claudeScanReader, opencodeScanReader, SCAN_READER, scanReaderModel, tre
 import { claudeImageSaver, IMAGE_SAVER } from "./imagesaver.ts";
 import { claudeWebHooks, grokWebHooks, webRuleLines } from "../core/web.ts";
 import { CODEX_HOOKS, codexHooks } from "../core/codexhook.ts";
-import { claudeShellHooks, grokShellHook } from "../core/bridgeguard.ts";
+import { claudeShellHooks, grokShellHook, olderShellHookTexts } from "../core/bridgeguard.ts";
 import { claudeDelegateHooks } from "../core/delegate.ts";
 import { powershellUtf8Rule, putShim } from "../core/self.ts";
 import { codexWindowsRule } from "../core/writable.ts";
+import { writableUnasked } from "../core/integrity.ts";
+import { showFile } from "../core/git.ts";
 
 export const MARKER = "<!-- strom: generated above this line (strom agents sync); your own notes below are kept -->";
 
@@ -765,6 +767,49 @@ export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "sett
  * instructions (.md) stay: a person's notes below the mark go along, and they name no folder of a computer.
  */
 export const MACHINE_AGENT_FILES = [path.join(".claude", "settings.json"), "opencode.json", path.join(".grok", "config.toml"), GROK_HOOKS, CODEX_RULES, CODEX_HOOKS, CODEX_CONFIG].map((p) => p.split(path.sep).join("/"));
+
+/**
+ * At the first run of a new strom: the agents' hooks of a research as this strom writes them — its Claude Code settings
+ * and Grok's hooks, only where strom wrote them before (a research no agent worked in keeps none), committed once (K059:
+ * the shell's hook got a longer time limit, a research gets it before its next conversation, not only when strom
+ * starts one). Never an archive's (no agent there), never a dry run, never where strom may not write unasked (another
+ * computer's seal, something changed outside strom), and only a file exactly as an older strom wrote it and committed
+ * (the same, the shell's hook with its older time limit; as git's last commit has it): one a person or another program
+ * changed, committed or not, is left as it is — strom chat, run and agents sync write it as they always did. The files
+ * committed.
+ */
+export function settleAgentHooks(tree: Tree): string[] {
+  if (tree.dryRun || !tree.key || isArchive(tree)) return [];
+  const settings = (v: unknown) => JSON.stringify(v, null, 2) + "\n";
+  const claude = claudeSettings(tree);
+  const grok = grokHooks(tree.root);
+  const files: [string, string, string[]][] = [
+    [path.join(".claude", "settings.json"), settings(claude), olderShellHookTexts(claude)],
+    [GROK_HOOKS, settings(grok), olderShellHookTexts(grok)],
+  ];
+  const stale = () =>
+    files.filter(([rel, content, older]) => {
+      let cur: string;
+      try {
+        cur = fs.readFileSync(path.join(tree.root, rel), "utf8");
+      } catch {
+        return false; // none here: strom never wrote it, nothing to bring up to date
+      }
+      // as an older strom wrote it, and as committed (an edit not committed yet is the person's)
+      return cur !== content && older.includes(cur) && showFile(tree.root, "HEAD", rel) === cur;
+    });
+  // as they should be (every first run after this one): the tree's lock never waited for — another strom may write long
+  if (!stale().length) return [];
+  let written: string[] = [];
+  tree.atomically(() => {
+    const changed = stale();
+    if (!changed.length || !writableUnasked(tree)) return;
+    for (const [rel, content] of changed) writeFileAtomic(path.join(tree.root, rel), content);
+    written = changed.map(([rel]) => rel.split(path.sep).join("/"));
+    tree.commit(`Agent hooks: ${written.join(", ")}`, written);
+  });
+  return written;
+}
 
 /**
  * strom's files of the agents written for the tree (only what changed: the files written, to commit). `said.shim`: the

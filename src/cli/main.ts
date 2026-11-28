@@ -20,7 +20,7 @@ import { takeOverOldSettings } from "../core/oldsettings.ts";
 import { assertIntact, settleNotesBack } from "../core/integrity.ts";
 import { head as gitHead, resetCache } from "../core/git.ts";
 import type { HeldError } from "../core/json.ts";
-import { newerTree, Tree, VERSION } from "../core/tree.ts";
+import { findTreeUpwards, newerTree, Tree, VERSION } from "../core/tree.ts";
 import { settleArchive } from "../core/mode.ts";
 import { settleWaiting } from "../core/state.ts";
 import { startTiming, stepEnd, stepStart, stopTiming, timed, timingOn } from "../core/timing.ts";
@@ -55,6 +55,7 @@ import { placeholders, UI, ui, type UIKey } from "./ui.ts";
 import { catalog, localized, placeholdersOf, sayCommandAs } from "../core/phrases.ts";
 import "../commands/index.ts";
 import { noteCommand } from "../core/cmdlog.ts";
+import { settleAgentHooks } from "../agents/files.ts";
 import { Masker, maskKey } from "../core/redact.ts";
 import { userHome } from "../core/paths.ts";
 import { stromVocabulary } from "./vocab.ts";
@@ -250,6 +251,8 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
   // what the journal of commands notes (core/cmdlog.ts): the arguments as typed, a hook's quick answer never
   let typed: string[] = argv;
   let quiet = false;
+  // an agent's hook: its answer is never noted, a slow one is (K059: how long the hook took, for strom error)
+  let hookCall = false;
   try {
     // "strom 'person list'" (one quoted word) means the same as strom person list.
     if (argv[0] && !argv[0].startsWith("-") && /\s/.test(argv[0].trim())) argv = [...argv[0].trim().split(/\s+/), ...argv.slice(1)];
@@ -283,6 +286,7 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     const writes = !!def.writes && (!def.writesWith || def.writesWith({ args: parsed.positionals, opts: v }));
     // a hook's quick answer, strom error itself and a --dry-run (it writes nothing anywhere) never noted
     quiet = v.hook === true || def.path[0] === "error" || v["dry-run"] === true;
+    hookCall = v.hook === true && HOOK_COMMANDS.has(def.path.join(" "));
     if (v.help) {
       // the agent's help, whoever asks (Milan, 2026-10-04: "výchozí je pro agenta"); a person at a terminal is told in a
       // line of their language how to get theirs (strom help <command> --human)
@@ -370,9 +374,10 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     // this version a moment ago); in any strom of this version, a bridge too (it may write what the app sends).
     const channelNow = updateChannel(env, undefined, undefined, ctx.settings.config);
     // an agent's hook (strom net web --hook, before each of its web requests; strom agents delegate --hook, before each
-    // subagent call) does none of a new version's first run: it answers within the hook's time and changes nothing
-    // outside the research's measurements
-    const hook = (command === "net web" || command === "agents delegate") && v.hook === true;
+    // subagent call; strom agents shell --hook, before each shell command) does none of a new version's first run: it
+    // answers within the hook's time and changes nothing outside the research's measurements (K059: the shell's hook
+    // did all of it, every research settled and its bridge started, under the agent's time limit)
+    const hook = HOOK_COMMANDS.has(command) && v.hook === true;
     // …nor in a strom its installation has updated meanwhile (a run's agent calls the version the run started with, spec
     // 037): a newer one in use is no way back — no backup "from the newer to this one", nothing of a first run that the
     // newer one would only do again (found on Windows: a backup "1.26.0-beta.92 to 1.26.0-beta.91" during a run)
@@ -509,6 +514,13 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
         } catch {
           // another computer's seal, a tree at work: its bridge's start sets them right
         }
+        // …and the agents' hooks this strom writes (their time limits, K059): in the research's settings before its next
+        // conversation, also one opened in the agent's app without strom (once, one commit)
+        try {
+          settleAgentHooks(Tree.open(k.root, env));
+        } catch {
+          // another computer's seal, a tree at work: strom chat, strom run and strom agents sync write them
+        }
         // …and the strom its agents' hooks and conversations start (.strom/bin) leads to this one — an older strom's, or one
         // whose mark went with the program folder an update replaced; only where a research has one, never an archive
         refreshTreeShim(k.root, env);
@@ -630,6 +642,7 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     if (timingOn() && command !== "menu") io.stderr(`${timingSaid(isAgent(env) ? "en" : ctx.uiLang())}\n`);
     if (!hook) remind(io, ctx, command, Date.now() - startedAt);
     if (!quiet) journal(env, ctx.openedRoot(), command, typed, result.exitCode ?? EXIT.ok, undefined, startedAt);
+    else if (hookCall) slowHook(io, env, cwd, ctx.openedRoot(), command, typed, result.exitCode ?? EXIT.ok, undefined, startedAt);
     return result.exitCode ?? EXIT.ok;
   } catch (err) {
     let lang: string | undefined;
@@ -652,16 +665,41 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     const code = printError(io, json, said, debug, lang, env, ran?.openedRoot());
     remind(io, ran, command, Date.now() - startedAt);
     if (!quiet && !(err instanceof Cancelled)) journal(env, ran?.openedRoot(), command ?? called?.path.join(" ") ?? "?", command || called ? typed : argv, code, err, startedAt);
+    else if (hookCall) slowHook(io, env, cwd, ran?.openedRoot(), command ?? called?.path.join(" ") ?? "?", command || called ? typed : argv, code, err, startedAt);
     return code;
   }
+}
+
+/** The commands an agent's hook runs (with --hook): a quick answer, none of a new version's first run, noted only when slow. */
+const HOOK_COMMANDS: ReadonlySet<string | undefined> = new Set(["net web", "agents delegate", "agents shell"]);
+
+/**
+ * A hook slower than this (its whole process, Node's start included) is noted in the journal of commands (K059): the
+ * agent ends a hook at its time limit, and strom error then shows how long the hooks took on this computer.
+ */
+export const SLOW_HOOK_MS = 3000;
+
+/** An agent's hook noted when it was slow: when, which, how long (its process and the command), how it ended — no event of the agent. */
+function slowHook(io: IO, env: Env, cwd: string, root: string | undefined, command: string | undefined, args: readonly string[], exit: number, err: unknown, startedAt: number): void {
+  const now = Date.now();
+  const processMs = Math.round(now - Math.min(io.processStartedAt ?? startedAt, startedAt));
+  if (processMs <= SLOW_HOOK_MS) return;
+  // the research it ran in (a hook finds it by itself, ctx never opens it): strom error takes the research's own
+  let tree = root;
+  try {
+    tree ??= findTreeUpwards(cwd);
+  } catch {
+    // none
+  }
+  journal(env, tree, command, args, exit, err, startedAt, { hook: true, processMs, always: true });
 }
 
 /**
  * A command noted in the journal of commands (strom error reads it, spec 070): one that ended with an error, and under
  * an agent every one — its arguments and its error's message masked, never a name.
  */
-function journal(env: Env, root: string | undefined, command: string | undefined, args: readonly string[], exit: number, err: unknown, startedAt: number): void {
-  if (exit === EXIT.ok && !isAgent(env)) return;
+function journal(env: Env, root: string | undefined, command: string | undefined, args: readonly string[], exit: number, err: unknown, startedAt: number, hook?: { hook: true; processMs: number; always: true }): void {
+  if (exit === EXIT.ok && !isAgent(env) && !hook?.always) return;
   try {
     const m = new Masker({ key: maskKey(env), home: userHome(env), vocabulary: stromVocabulary });
     const message = err instanceof Error ? err.message : undefined;
@@ -674,6 +712,7 @@ function journal(env: Env, root: string | undefined, command: string | undefined
       ...(code ? { code } : {}),
       ...(message ? { error: m.text(message.slice(0, 600)) } : {}),
       ms: Date.now() - startedAt,
+      ...(hook ? { hook: true as const, processMs: hook.processMs } : {}),
     });
   } catch {
     // not noted

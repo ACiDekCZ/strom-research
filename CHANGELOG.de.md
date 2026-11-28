@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.38.0
 
-*In Vorbereitung: die Betas bis 1.38.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.38.0-beta.8. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Ein übersichtlicheres Menü im Terminal:** jeder Bildschirm sagt, wo er ist (Strom › Einstellungen › Wartung), die
   Auswahlen als `[1]  Bezeichnung   Stand`, ein Schalter mit seinem jetzigen Stand und wohin er umschaltet, zurück
@@ -25,9 +25,13 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Der Agent findet sich mit weniger Versuchen zurecht:** `strom place find <Name>` und `strom place <Name>` führen
   zu `strom place list <Name>`; `strom source list --note <Text>` listet mit einem Aufruf die Quellen, deren Notiz
   etwas sagt (etwa dass ein Register die Adresse gab); `strom media view` erklärt, wie ein nur in Teilen registriertes
-  Bild und ein Ausschnitt davon anzusehen sind; bei der eBadatelna (SOA Praha) hält sich der Agent an die Grenzen
-  des Archivs, die für Menschen und automatisierte Systeme gleich gelten (höchstens 2 Bilder pro Sekunde, ein ZIP auf
-  einmal, 10 ZIPs in 24 Stunden), und schlägt nie einen Weg an ihnen vorbei vor.
+  Bild und ein Ausschnitt davon anzusehen sind; bei der eBadatelna (SOA Praha) hält sich der Agent an die Grenzen des
+  Archivs, die für Menschen und automatisierte Systeme gleich gelten (höchstens 2 Bilder pro Sekunde, ein ZIP auf
+  einmal, 10 ZIPs in 24 Stunden), und schlägt nie einen Weg an ihnen vorbei vor. Die Prüfung, die strom vor jedem
+  Shell-Befehl eines Agenten macht, wartet bis zu 60 Sekunden statt 10 (auf einem langsamen Windows-Computer wurde sie
+  nicht rechtzeitig fertig, während neben einem Gespräch ein Agent allein arbeitete), übernimmt nie den ersten Start
+  einer neuen Version, und eine, die lange dauerte, wird für `strom error` vermerkt; eine Forschung erhält das neue
+  Limit beim ersten Start dieser Version.
 - **Aus einem Stammbaum, nicht von Hand eines Menschen:** Personen eines in der Strom-App importierten oder
   zusammengeführten Stammbaums, die eine ältere App ohne Importmarke schickte, galten als Eintrag eines Menschen (✓
   von einem Menschen bestätigt); eine Sendung, die sie markiert, berichtigt sie jetzt von selbst, und eine ältere
@@ -43,15 +47,16 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   App die Luftbilder der 1950er-Jahre zeigen (Tschechien). Ein erforschtes Haus, das genug erzählt (zwei Generationen
   des Stammbaums oder drei Besitzer und Bewohner mit Quellen), bekommt bei eingeschalteten Erzählungen seine
   Erzählung, jede Angabe mit Quelle, Unsicheres als unsicher gesagt; ein Entwurf bis zur Freigabe, danach nie
-  umgeschrieben; `strom house story` und die App fordern sie jederzeit an.
-- **Die Forschung eines Hauses:** sie geht eine Liste der Quellen seines Landes durch (in Tschechien das
-  Adressregister, die Flurnamen, die Gewässer, die Orthofotos, die Topographien) und schreibt ins Haus nur, was etwas
-  sagte; eine Gemeinde behält ihre Bilder (nur unter freier Lizenz, mit dem, was sie zeigen) und ihre Flurnamen, jedes
-  Haus ein kurzes Aussehen und eine Prüfung, ob es mehr darüber zu lesen gibt; sein Aussehen folgt als eigene Aufgabe
-  nur dort (Einstellung „Aussehen der Häuser“, standardmäßig an); ein Haus lässt sich aus der Strom-App mit dem
-  Agenten besprechen. Eine aus einer älteren Forschung übernommene Angabe, deren Quelle im Web steht (die Geschichte
-  einer Gemeinde als PDF), liest die Forschung des Hauses und bestätigt oder berichtigt sie mit der Stelle in der
-  Quelle; eine Adresse, die sich nicht öffnet, bleibt eine Zeile dessen, was durchgegangen wurde.
+  umgeschrieben; `strom house story` und die App fordern sie jederzeit an. Die Forschung eines Hauses geht eine Liste
+  der Quellen seines Landes durch (in Tschechien das Adressregister, die Flurnamen, die Gewässer, die Orthofotos, die
+  Topographien) und schreibt ins Haus nur, was etwas sagte; eine Gemeinde behält ihre Bilder (nur unter freier Lizenz,
+  mit dem, was sie zeigen) und ihre Flurnamen, jedes Haus ein kurzes Aussehen und eine Prüfung, ob es mehr darüber zu
+  lesen gibt; sein Aussehen folgt als eigene Aufgabe nur dort (Einstellung „Aussehen der Häuser“, standardmäßig an);
+  ein Haus lässt sich aus der Strom-App mit dem Agenten besprechen. Eine aus einer älteren Forschung übernommene
+  Angabe, deren Quelle im Web steht (die Geschichte einer Gemeinde als PDF), liest die Forschung des Hauses und
+  bestätigt oder berichtigt sie mit der Stelle in der Quelle; eine Adresse, die sich nicht öffnet, bleibt eine Zeile
+  dessen, was durchgegangen wurde. Das Material der Forschung nennt bei jeder Datei die Häuser, zu denen sie gehört,
+  damit die Strom-App sie dort zeigt, wo die Datei verwendet wird.
 - **`strom demo`:** strom an einer Beispielforschung einer erfundenen Familie ausprobiert (cs, en, de, pl), getrennt
   von den eigenen Stammbäumen und Einstellungen und in der Strom-App geöffnet; alles darin lässt sich durchsehen,
   nichts bietet einen Agenten an; `strom demo --remove` löscht sie.
@@ -62,6 +67,17 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   angibt, ein ganz heruntergeladenes Buch seine Zahl auf das Wort des Menschen (`strom fixes`), auf erneut
   gespeicherte Bilder wird gewartet, bis jede neue Kopie da ist, und der Hinweis zu einem Bild in Teilen nennt die
   Hälften, in denen es liegt.
+- **Nachträglich berichtigt:** ein früher verschickter Brief oder eine E-Mail wird an dem Tag als versandt vermerkt,
+  an dem sie wirklich hinausging (`strom task sent T… --date YYYY-MM-DD`, im Menü „Was wartet“ wird nach dem Tag
+  gefragt, Enter = heute), und ein falsch vermerkter Tag lässt sich bei einer versandten Anfrage nachträglich
+  berichtigen (der Tag davor wird genannt, derselbe Befehl mit ihm nimmt es zurück); wie lange sie wartet und die 30
+  Tage ohne Antwort zählen ab diesem Tag, nach dem Kalender des Rechners, um Mitternacht nie einen Tag daneben. Auch
+  die Strom-App kann den Tag senden, für eine Anfrage oder einen ganzen Ort. `strom media renumber M…=n --reason`
+  ändert nur die Nummer eines registrierten Bildes (Datei, Zitate und Ausschnitte bleiben; zwei vertauschte mit einem
+  Befehl; ein anderer Scan auf der neuen Nummer wird abgelehnt, Teile und Kopien auf der alten genannt, die Geschichte
+  der Nummern in `strom media show`, derselbe Befehl umgekehrt nimmt es zurück); ein irrtümlich einer Quelle
+  zugeordnetes Bild kommt samt Ausschnitten von ihr ab (`strom source edit S… --media-remove M… --reason`), und `strom
+  media retract` eines zitierten Bildes verweist auf beides.
 
 ## 1.37.0
 

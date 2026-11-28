@@ -1,5 +1,5 @@
 // The journal of commands (spec 070 K1.2, K3.3): every command that ended with an error, and under an agent every
-// command, one line each — when, which command, its arguments masked (core/redact.ts: never a name, a place or a
+// command (an agent's hook only when it was slow, K059), one line each — when, which command, its arguments masked (core/redact.ts: never a name, a place or a
 // note), how it ended, the error's message masked, who ran it. strom error reads it; nothing else does.
 //
 // Always in strom's settings folder, never in a research (a command writes nothing there it was not asked to, and
@@ -34,6 +34,12 @@ export interface CommandRecord {
   worker?: string;
   session?: string;
   ms?: number;
+  /**
+   * An agent's hook (strom net web|agents shell|agents delegate --hook): noted only when slow (K059), with its whole
+   * process's time — Node's start included, the agent's shell before it not — beside the command's own (ms).
+   */
+  hook?: true;
+  processMs?: number;
   /** The research it ran in: its key (treeKey), never a name or a path. */
   tree?: string;
 }

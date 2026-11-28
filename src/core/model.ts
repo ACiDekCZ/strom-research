@@ -1633,6 +1633,8 @@ export interface Media extends BaseRecord {
   accessed?: string;
   /** The list of people the app sent the scan of a source to (X-Strom-Source with X-Strom-List-Ref, spec 137). */
   list?: InputList;
+  /** Its number set right after it was registered (strom media renumber, spec 148): from what, to what, when and why. */
+  renumbered?: { at: string; from: number; to: number; reason: string }[];
   notes: Note[];
 }
 

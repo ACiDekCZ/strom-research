@@ -81,6 +81,7 @@ const SAID: Record<string, PhraseKey> = {
   "task.edit": "log.task.edit",
   "task.sent": "log.task.sent",
   "task.unsent": "log.task.unsent",
+  "task.sent.date": "log.task.sent.date",
   "session.start": "log.session.start",
   "session.close": "log.session.close",
   "lesson.add": "log.lesson.add",
@@ -357,6 +358,11 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
         out.push({ text: `\u0000media:${key}`, kind: "source" }); // its place in the order, filled in below
       }
       if (m?.image !== undefined) images.get(key)!.push(m.image);
+      continue;
+    }
+    // the numbers of images set right (strom media renumber, spec 148): one line for each image, by its number now
+    if (o.op === "media.renumber") {
+      for (const id of o.targets.filter((t) => /^M\d+$/u.test(t))) say(phrase(lang, "log.media.renumber", { name: name(id) }));
       continue;
     }
     // a citation taken off (an undo of a send): said as that, never as "a record for" (found on Mac: "E0013 cites no

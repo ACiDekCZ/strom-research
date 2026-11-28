@@ -249,6 +249,20 @@ export function keyOfHouse(tree: Tree, h: House, index: HouseIndex = houseIndex(
   return houseRowKey(p ? index.townOf(p) : h.place, h.house);
 }
 
+/**
+ * The houses a file of the material is of (Input.houses), each with its key — the id and key of its row of GET /houses
+ * (bridge feature material.houses); a house record taken back or a municipality's record left out, each once.
+ */
+export function houseRefs(tree: Tree, ids: readonly string[] | undefined, index: () => HouseIndex): { id: string; key: string }[] {
+  const out: { id: string; key: string }[] = [];
+  for (const id of new Set(ids ?? [])) {
+    const h = tree.get<House>(id);
+    if (!h || h.type !== "house" || h.retracted || h.town) continue;
+    out.push({ id: h.id, key: keyOfHouse(tree, h, index()) });
+  }
+  return out;
+}
+
 // ── the rows: the research's houses and the tree's ──────────────────────────────────────────────────────────────
 
 export const HOUSE_STATES = ["none", "queued", "running", "done", "waiting", "held"] as const;

@@ -23,7 +23,7 @@ import type { Context } from "./context.ts";
 import { agentReady, claudeHere, guarded, outOfAnswers, pause, translator, type Run } from "./menu-parts.ts";
 import { decideSent, startDirection } from "./menu-research.ts";
 import { decideArchive, decideFloor, decideMilder, decideTakeover } from "./menu-archives.ts";
-import { askWhy, changeWarning, decisionOnTree, pickClaim, waitingDo } from "./menu-links.ts";
+import { askSentDay, askWhy, changeWarning, decisionOnTree, pickClaim, waitingDo } from "./menu-links.ts";
 import { runs, truncate } from "./format.ts";
 import { crumbLine, keyed, line, listLines, saidLines, shown, type ListRow, type Span } from "./screen.ts";
 import { ui, type UIKey } from "./ui.ts";
@@ -52,7 +52,7 @@ import { sendInput, sendPlan } from "../core/sendimport.ts";
 import { keepWaiting, keptWaiting, waitingStamp, type WaitCount } from "../core/waitkept.ts";
 import { viewModel } from "../core/viewsizes.ts";
 import { offeredBooks, type BookRow } from "../core/books.ts";
-import { SENDABLE, type WaitKind, type WaitPhase } from "../core/waitkind.ts";
+import { daysFrom, localDay, SENDABLE, sentDay, sentOn, type WaitKind, type WaitPhase } from "../core/waitkind.ts";
 
 /** A person for the person reading: "Jan Novák (*1905) [P0001]". */
 const label = (p: Person) => `${displayName(p)}${lifespan(p) ? ` (${lifespan(p)})` : ""} [${p.id}]`;
@@ -134,20 +134,19 @@ function kindWord(t: T, kind: string): string {
   return t(`ui.wait.kind.${(KINDS as readonly string[]).includes(kind) ? kind : "other"}` as UIKey);
 }
 
-/** How long ago, in days: "today", "1 day ago", "8 days ago". */
-function ago(t: T, iso: string, now = Date.now()): string {
-  const days = daysSince(iso, now);
+/** How long ago, in days of the calendar: "today", "1 day ago", "8 days ago". */
+function ago(t: T, days: number): string {
   return days === 0 ? t("ui.wait.ago.today") : days === 1 ? t("ui.wait.ago.one") : t("ui.wait.ago", { n: days });
 }
 
-function daysSince(iso: string, now = Date.now()): number {
-  const at = Date.parse(iso);
-  return Number.isNaN(at) ? 0 : Math.max(0, Math.floor((now - at) / 86_400_000));
-}
-
-/** Sent when, how long ago, and the mark of a request with no reply for long. */
-function sentWords(t: T, lang: string, iso: string): string {
-  return `${t("ui.wait.sentline", { day: humanDay(iso, lang), ago: ago(t, iso) })}${daysSince(iso) > NO_REPLY_DAYS ? ` · ${t("ui.wait.noreply", { days: NO_REPLY_DAYS })}` : ""}`;
+/**
+ * Sent when, how long ago, and the mark of a request with no reply for long — by the day it went out (a day given to
+ * strom task sent --date, or the day of the moment it was marked) and today on this computer's calendar (spec 149 K1.4).
+ */
+export function sentWords(t: T, lang: string, iso: string, now = Date.now()): string {
+  const day = sentDay(iso);
+  const days = Math.max(0, daysFrom(day, localDay(now)));
+  return `${t("ui.wait.sentline", { day: humanDay(sentOn(day), lang), ago: ago(t, days) })}${days > NO_REPLY_DAYS ? ` · ${t("ui.wait.noreply", { days: NO_REPLY_DAYS })}` : ""}`;
 }
 
 /** What a thing is, short: a task's words as written, its records named (a person's ID after their name only bracketed); a hypothesis's question its people named. */
@@ -435,9 +434,12 @@ async function place(ctx: Context, run: Run, lang: string, root: string, key: st
         out(t("ui.wait.group.sent.list", { place: name }));
         for (const x of sendable) out(`  • ${x.id} ${truncate(humanTask(tree, x.what, lang, { asWritten: true }), 70)}`);
         if (!(await ctx.confirm(t("ui.wait.group.sent.sure"), false))) return;
+        // one day for all of them (spec 149 K1.5–K1.6): Enter today
+        const day = await askSentDay(ctx, lang, "ui.wait.sent.day");
+        if (day === null) return;
         const ids = sendable.map((x) => x.id);
-        if ((await run(["task", "sent", ...ids], true)) !== 0) return;
-        out(t("ui.wait.group.sent.done", { ids: ids.join(", ") }));
+        if ((await run(["task", "sent", ...ids, ...(day ? [`--date=${day}`] : [])], true)) !== 0) return;
+        out(day ? t("ui.wait.group.sent.on.done", { day: humanDay(sentOn(day), lang), ids: ids.join(", ") }) : t("ui.wait.group.sent.done", { ids: ids.join(", ") }));
       });
     }
     if (tasks.length && canChat(ctx, tree)) {
@@ -582,6 +584,19 @@ async function thing(ctx: Context, run: Run, lang: string, root: string, w: Wait
       answer();
     }
     if (canChat(ctx, tree)) choices.push({ label: t("ui.wait.a.chat"), act: () => waitingDo(ctx, run, lang, root, x.id, "chat", "", true) });
+    // the day a request sent really went out, put right (spec 149 K1.5; after the items a person knows, so their
+    // numbers stay): the task still waits
+    if (sent)
+      choices.push({
+        label: t("ui.wait.a.redate"),
+        act: async () => {
+          const day = await askSentDay(ctx, lang, "ui.wait.redate.day", false);
+          if (!day) return false;
+          if ((await run(["task", "sent", x.id, `--date=${day}`], true)) !== 0) return false;
+          out(t("ui.wait.redate.done", { day: humanDay(sentOn(day), lang) }));
+          return false;
+        },
+      });
     // returned to the agent (spec 089): shown only sometimes, so last
     if (retry?.can)
       choices.push({

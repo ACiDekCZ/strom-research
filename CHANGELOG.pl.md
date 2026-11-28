@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.38.0
 
-*W przygotowaniu: bety do 1.38.0-beta.7. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.38.0-beta.8. Sekcja będzie kompletna z wydaniem.*
 
 - **Bardziej przejrzyste menu w terminalu:** każdy ekran mówi, gdzie jest (Strom › Ustawienia › Konserwacja), opcje
   jako `[1]  Etykieta   stan`, przełącznik z tym, jak jest teraz i na co przełącza, powrót zawsze na końcu jako `[0]`
@@ -25,7 +25,10 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   coś mówi (na przykład że adres dał rejestr); `strom media view` wyjaśnia, jak obejrzeć obraz zarejestrowany tylko w
   częściach i jego wycinek; przy eBadatelnie (SOA Praha) agent trzyma się limitów archiwum, jednakowych dla człowieka
   i systemu automatycznego (najwyżej 2 skany na sekundę, jeden ZIP naraz, 10 ZIP-ów w ciągu 24 godzin), i nigdy nie
-  proponuje sposobu ich obejścia.
+  proponuje sposobu ich obejścia. Sprawdzenie, które strom wykonuje przed każdym poleceniem agenta w powłoce, czeka do
+  60 sekund zamiast 10 (na wolnym komputerze z Windows, gdy obok rozmowy agent pracował sam, nie zdążyło się
+  zakończyć), nigdy nie wykonuje pierwszego uruchomienia nowej wersji, a takie, które trwało długo, jest zapisywane
+  dla `strom error`; badanie otrzymuje nowy limit przy pierwszym uruchomieniu tej wersji.
 - **Z drzewa genealogicznego, nie ręką człowieka:** osoby drzewa zaimportowanego lub scalonego w aplikacji Strom,
   które starsza aplikacja wysłała bez znacznika importu, traktowano jako zapis człowieka (✓ potwierdził człowiek);
   wysyłka, która je oznacza, poprawia je teraz sama, a starszą wysyłkę człowiek wskazuje raz – w aplikacji w Co czeka
@@ -39,14 +42,15 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   także z aplikacji Strom. Nad miejscem domu aplikacja może pokazać zdjęcia lotnicze z lat 50. (Czechy). Zbadany dom,
   który mówi dość (dwa pokolenia drzewa albo trzech właścicieli i mieszkańców ze źródłami), dostaje przy włączonych
   opowieściach swoją opowieść, każda informacja ze źródłem, niepewne powiedziane jako niepewne; szkic do
-  zatwierdzenia, potem nigdy nieprzepisywana; `strom house story` i aplikacja zamawiają ją w każdej chwili.
-- **Badanie domu:** przechodzi listę źródeł jego kraju (w Czechach rejestr adresów, nazwy miejscowe, cieki wodne,
-  ortofotomapy, topografie) i zapisuje do domu tylko to, co coś powiedziało; gmina zachowuje swoje zdjęcia (tylko na
-  wolnej licencji, z tym, co pokazują) i nazwy miejscowe, każdy dom krótki opis wyglądu i sprawdzenie, czy jest o nim
-  więcej do przeczytania; jego wygląd idzie jako osobne zadanie tylko tam (ustawienie „Wygląd domów”, domyślnie
-  włączone); dom można omówić z agentem z aplikacji Strom. Informację przejętą ze starszego badania, której źródło
-  jest w sieci (historia gminy w PDF), badanie domu odczyta i potwierdzi lub poprawi z miejscem w źródle; adres, który
-  się nie otwiera, zostaje jednym wierszem w tym, co przejrzano.
+  zatwierdzenia, potem nigdy nieprzepisywana; `strom house story` i aplikacja zamawiają ją w każdej chwili. Badanie
+  domu przechodzi listę źródeł jego kraju (w Czechach rejestr adresów, nazwy miejscowe, cieki wodne, ortofotomapy,
+  topografie) i zapisuje do domu tylko to, co coś powiedziało; gmina zachowuje swoje zdjęcia (tylko na wolnej
+  licencji, z tym, co pokazują) i nazwy miejscowe, każdy dom krótki opis wyglądu i sprawdzenie, czy jest o nim więcej
+  do przeczytania; jego wygląd idzie jako osobne zadanie tylko tam (ustawienie „Wygląd domów”, domyślnie włączone);
+  dom można omówić z agentem z aplikacji Strom. Informację przejętą ze starszego badania, której źródło jest w sieci
+  (historia gminy w PDF), badanie domu odczyta i potwierdzi lub poprawi z miejscem w źródle; adres, który się nie
+  otwiera, zostaje jednym wierszem w tym, co przejrzano. Materiał badania podaje przy każdym pliku domy, do których
+  należy, aby aplikacja Strom pokazała je tam, gdzie plik jest użyty.
 - **`strom demo`:** strom wypróbowany na przykładowym badaniu zmyślonej rodziny (cs, en, de, pl), z dala od własnych
   drzew i ustawień, otwarty w aplikacji Strom; wszystko w nim można przejrzeć, nic nie proponuje agenta;
   `strom demo --remove` je usuwa.
@@ -57,6 +61,16 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   katalog archiwum, księga pobrana w całości swoją liczbę na słowo człowieka (`strom fixes`), na skany zapisywane
   ponownie czeka się, aż przyjdzie każda nowa kopia, a wskazówka do skanu w częściach wymienia połówki, w których
   jest.
+- **Późniejsze poprawki:** list lub e-mail wysłany wcześniej można zapisać jako wysłany w dniu, w którym naprawdę
+  wyszedł (`strom task sent T… --date YYYY-MM-DD`, w menu „Co czeka“ pojawia się pytanie o dzień, Enter = dziś), a źle
+  zapisany dzień można przy wysłanym zapytaniu poprawić później (podawany jest dzień poprzedni, to samo polecenie z
+  nim cofa poprawkę); jak długo czeka i 30 dni bez odpowiedzi liczy się od tego dnia, według kalendarza komputera,
+  wokół północy nigdy o dzień obok. Dzień może wysłać także aplikacja Strom, dla jednego zapytania lub całego miejsca.
+  `strom media renumber M…=n --reason` zmienia tylko numer zarejestrowanego skanu (plik, cytowania i wycinki zostają;
+  dwa zamienione jednym poleceniem; inny skan pod nowym numerem jest odrzucany, części i kopie pozostałe pod starym są
+  wypisywane, historia numerów w `strom media show`, to samo polecenie odwrotnie cofa poprawkę); skan przypisany do
+  źródła omyłkowo można zdjąć z niego razem z wycinkami (`strom source edit S… --media-remove M… --reason`), a `strom
+  media retract` cytowanego skanu wskazuje obie drogi.
 
 ## 1.37.0
 

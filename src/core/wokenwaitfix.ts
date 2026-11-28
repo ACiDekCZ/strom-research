@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Task, TreeConfig } from "./model.ts";
 import { now, type Op, type Tree } from "./tree.ts";
-import { waitKindOf } from "./waitkind.ts";
+import { sentOn, waitKindOf } from "./waitkind.ts";
 
 /** Where the fix keeps what it changed, for its undo (sealed like the rest of quality/; travels with the research). */
 export const WOKEN_WAITS_FILE = "quality/woken-waits.json";
@@ -94,7 +94,9 @@ export function wokenWaitFixes(tree: Tree): WokenWaitFindings {
       continue;
     }
     // the request sent, as the history last said it before the wake (strom task sent, not taken back, not waiting anew)
-    const before = ops.slice(0, wakeAt).findLast((o) => o.op === "task.sent" || o.op === "task.unsent" || o.op === "task.wait");
+    const before = ops.slice(0, wakeAt).findLast((o) => o.op === "task.sent" || o.op === "task.sent.date" || o.op === "task.unsent" || o.op === "task.wait");
+    // a day given (strom task sent --date, its day put right) is the one its summary names, never the moment it was written
+    const given = before && before.op !== "task.unsent" && before.op !== "task.wait" ? /request sent on (\d{4}-\d{2}-\d{2})/u.exec(before.summary)?.[1] : undefined;
     out.fixes.push({
       task: t.id,
       what: t.what,
@@ -102,7 +104,7 @@ export function wokenWaitFixes(tree: Tree): WokenWaitFindings {
       recordset: book,
       woken: wake.at,
       why,
-      ...(before?.op === "task.sent" ? { sent: { at: before.at, by: before.by } } : {}),
+      ...(before?.op === "task.sent" || before?.op === "task.sent.date" ? { sent: { at: given ? sentOn(given) : before.at, by: before.by } } : {}),
       updated: t.updated,
     });
   }

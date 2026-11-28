@@ -45,6 +45,11 @@ export interface IO {
   choice?: (text: ChoiceText) => string | null | undefined;
   /** How a person's terminal shows the menu (cli/screen.ts): colours, width; none — plain text, never wrapped. */
   style?: Style;
+  /**
+   * When strom's process started (ms since the epoch; the entry, cli.ts, gives it): a slow hook's whole time, Node's start
+   * included (K059). None (strom run inside another process, a test): the command's own time alone.
+   */
+  processStartedAt?: number;
 }
 
 /** An option of ctx.choose: its label, and on the same line its state (value) and what it holds (extra). */
