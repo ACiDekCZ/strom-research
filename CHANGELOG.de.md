@@ -61,7 +61,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Die Baumprüfung:** `strom health` sagt kostenlos und ohne etwas zu schreiben, worauf die Forschung steht und was
   als Nächstes zu tun ist: die eigene Prüfung von strom, um wie viel der Baum in 30 Tagen gewachsen ist, Linien, die
   stillstehen, längst verschickte Anfragen ohne Antwort, was auf eine Entscheidung wartet, Korrekturen, Fakten zum
-  Überprüfen nach Linien, nie durchsuchte Astenden, nicht sortiertes Material – mit den Schritten der Reihe nach; die
+  Überprüfen nach Linien, nie durchsuchte Astenden, nicht sortiertes Material – mit den Schritten der Reihe nach, jeder als Befehl zum Eintippen, in der Sprache der Forschung; die
   Strom-App zeigt es bei der Datenqualität. Die Prüfungen des Agenten (Geschichten und Notizen gegen die Fakten, wo
   weiter suchen, Orte, Quellen, Namen in der Familie, unvollendete Importe und mehr) werden als Aufgabe am Anfang der
   Warteschlange erbeten, im Terminal (`strom health --ai`, `--dry` sagt, was es kostet) oder aus der Strom-App mit

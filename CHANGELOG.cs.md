@@ -50,7 +50,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   souboru uvádí domy, ke kterým patří, aby je aplikace Strom ukázala tam, kde je soubor použit.
 - **Kontrola stromu:** `strom health` zdarma a bez zápisu řekne, na čem výzkum stojí a co dělat dál: vlastní kontrola
   stromu, o kolik strom za 30 dní narostl, linie, které stojí, žádosti odeslané dávno bez odpovědi, co čeká na
-  rozhodnutí, opravy, fakta k ověření po liniích, konce větví bez hledání, neroztříděný materiál – a kroky v pořadí;
+  rozhodnutí, opravy, fakta k ověření po liniích, konce větví bez hledání, neroztříděný materiál – a kroky v pořadí, každý jako příkaz k napsání, v jazyce výzkumu;
   aplikace Strom to ukáže u kvality dat. Kontroly agentem (příběhy a poznámky proti faktům, kde hledat dál, místa,
   prameny, jména v rodině, nedokončené importy a další) se zadávají jako úkol na začátek fronty, v terminálu (`strom
   health --ai`, `--dry` řekne, co to stojí) nebo z aplikace Strom s odhadem; agent jen čte a navrhuje, nejvýš 30

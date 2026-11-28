@@ -55,7 +55,7 @@ The changes of each version in short. The full notes and the install lines are o
 - **The tree check:** `strom health` says, free and with nothing written, what the research stands on and what to do
   next: strom's own check, what the tree grew by in 30 days, lines standing still, requests sent long ago with no
   reply, what waits for a decision, fixes, facts to verify by line, branch ends never searched, material not sorted,
-  with the steps in order; the Strom app shows it with its data quality. The agent's checks (stories and notes against
+  with the steps in order, each a command to type, in the research's language; the Strom app shows it with its data quality. The agent's checks (stories and notes against
   the facts, where to search next, places, sources, names in the family, imports left unfinished and more) are asked
   as a task first in the queue, in the terminal (`strom health --ai`, `--dry` for what it takes) or from the Strom app
   with an estimate; the agent only reads and proposes, at most 30 findings a run, each with its proof, and `--changed`

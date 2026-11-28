@@ -55,7 +55,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 - **Kontrola drzewa:** `strom health` bezpłatnie i bez zapisu mówi, na czym stoją badania i co robić dalej: własna
   kontrola stroma, o ile drzewo urosło w 30 dni, linie, które stoją, prośby wysłane dawno bez odpowiedzi, co czeka na
   decyzję, poprawki, fakty do weryfikacji według linii, nigdy nieprzeszukane końce gałęzi, nieposortowany materiał – z
-  krokami po kolei; aplikacja Strom pokazuje to przy jakości danych. Kontrole agenta (opowieści i notatki wobec
+  krokami po kolei, każdy jako polecenie do wpisania, w języku badania; aplikacja Strom pokazuje to przy jakości danych. Kontrole agenta (opowieści i notatki wobec
   faktów, gdzie szukać dalej, miejsca, źródła, imiona w rodzinie, niedokończone importy i inne) zleca się jako zadanie
   na początku kolejki, w terminalu (`strom health --ai`, `--dry` mówi, ile to kosztuje) lub z aplikacji Strom z
   szacunkiem; agent tylko czyta i proponuje, najwyżej 30 ustaleń na przebieg, każde z dowodem, a `--changed` sprawdza

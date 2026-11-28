@@ -7,6 +7,8 @@
 import { register, type CommandDef } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines } from "../cli/format.ts";
+import { ui, type UIKey } from "../cli/ui.ts";
+import { isAgent } from "../core/which.ts";
 import { UsageError } from "../core/errors.ts";
 import { Settings } from "../core/config.ts";
 import { displayName } from "../core/people.ts";
@@ -45,15 +47,14 @@ import {
   type RunInfo,
   type StoredFinding,
 } from "../core/audit.ts";
-import { aiOf, AUDIT_CATALOG, builtin, changedOf, estimate, scopePeople, type FixSeen, type HealthBuiltin } from "../core/health.ts";
+import { aiOf, AUDIT_CATALOG, builtin, changedOf, estimate, scopePeople, type FixSeen, type HealthBuiltin, type HealthStep } from "../core/health.ts";
 import { askFinish } from "../core/clock.ts";
 
 const PERSON = "Accepting or dismissing a finding of the tree check is the person's own decision (in the Strom app, or in their terminal): never an agent's";
 const STOP = "Stopping a tree check is the person's own (in the Strom app, or in their terminal)";
 
 /** The scope as the research's language names it (the task's words). */
-function scopeWords(tree: Tree, s: HealthScope): string {
-  const lang = tree.lang;
+function scopeWords(tree: Tree, s: HealthScope, lang: string = tree.lang): string {
   if (s.kind === "tree") return phrase(lang, "health.scope.tree");
   if (s.kind === "line") return phrase(lang, "health.scope.line", { name: tree.get<Research>(s.id)?.name ?? s.id });
   const p = tree.get<Person>(s.id);
@@ -86,24 +87,105 @@ async function fixesSeen(tree: Tree, ctx: Context): Promise<FixSeen[]> {
 
 const said = (x: Record<string, string> | undefined, lang: string) => (x ? (x[lang] ?? Object.values(x)[0] ?? "") : "");
 
-/** The built-in part, as the terminal shows it (compact: one line a part, nothing said where nothing is). */
-export function builtinLines(b: HealthBuiltin): string[] {
+/** The language the check is said in: the research's for a person (--lang too), English for an agent unless --lang. */
+export function healthLang(ctx: Context, tree: Tree): string {
+  return isAgent(ctx.env) && ctx.settings.lang(tree.config).source !== "flag" ? "en" : ctx.settings.lang(tree.config).value;
+}
+
+/** A moment as the computer's clock reads it (YYYY-MM-DD HH:MM, local time — never UTC to a person). */
+export function localAt(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 16).replace("T", " ");
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** What a step recommended is, in words, and the command a person types for it (the bridge's action only in --json). */
+export function stepWords(s: HealthStep, lang: string): { what: string; command: string } {
+  const n = s.count ?? 0;
+  const subject = s.subject ?? "";
+  switch (s.kind) {
+    case "check":
+      return { what: ui(lang, "ui.health.step.check", { n }), command: "strom check" };
+    case "line-stuck":
+      return s.count
+        ? { what: ui(lang, "ui.health.step.line-waits", { line: subject, n }), command: `strom task list --research ${subject} --state waiting` }
+        : { what: ui(lang, "ui.health.step.line-stuck", { line: subject }), command: `strom run --research ${subject}` };
+    case "sent-old":
+      return { what: ui(lang, "ui.health.step.sent-old", { n }), command: "strom task list --state waiting" };
+    case "decide":
+      return { what: ui(lang, "ui.health.step.decide", { n }), command: "strom status" };
+    case "queue-empty":
+      return { what: ui(lang, "ui.health.step.queue-empty"), command: "strom run" };
+    case "fix":
+      return { what: ui(lang, "ui.health.step.fix", { fix: subject, n }), command: `strom fixes show ${subject}` };
+    case "verify-line":
+      return { what: ui(lang, "ui.health.step.verify-line", { line: subject, n }), command: `strom verify bulk --scope line --of ${subject} --dry-run` };
+    case "edge":
+      return { what: ui(lang, "ui.health.step.edge", { n }), command: "strom edge" };
+    case "material":
+      return { what: ui(lang, "ui.health.step.material", { n }), command: "strom input list" };
+  }
+}
+
+/** The built-in part, as the terminal shows it in the person's language (compact: one line a part, nothing said where nothing is). */
+export function builtinLines(b: HealthBuiltin, lang: string): string[] {
   const out: string[] = [];
-  out.push(`check: ${b.check.ok ? "ok" : "PROBLEM"}${b.check.errors ? ` · ${b.check.errors} error(s)` : ""}${b.check.warnings ? ` · ${b.check.warnings} warning(s)` : ""}${b.check.unproven ? ` · ${b.check.unproven} people without a record that proves them` : ""}${b.check.ok ? "" : " (strom check)"}`);
+  const c = b.check;
+  out.push(
+    [
+      ui(lang, c.ok ? "ui.health.check.ok" : "ui.health.check.problem"),
+      c.errors ? ui(lang, "ui.health.check.errors", { n: c.errors }) : "",
+      c.warnings ? ui(lang, "ui.health.check.warnings", { n: c.warnings }) : "",
+      c.unproven ? ui(lang, "ui.health.check.unproven", { n: c.unproven }) : "",
+    ]
+      .filter(Boolean)
+      .join(" · ") + (c.ok ? "" : " (strom check)"),
+  );
   const g = b.growth;
-  out.push(`grew in ${g.days} days: +${g.persons} people, +${g.facts} facts, +${g.sources} sources${g.agentLast ? ` · the agent last worked ${g.agentLast.slice(0, 10)}` : ""}`);
-  if (b.lines.length) out.push(`lines: ${b.lines.map((l) => `${l.id} ${l.name} (${l.state}${l.state === "active" ? `, ${l.tasks} queued${l.waiting ? `, ${l.waiting} waiting` : ""}${l.stuck ? ", STUCK" : ""}` : ""})`).join("; ")}`);
-  if (b.lines.length || b.queue.open || b.queue.parked) out.push(`queue: ${b.queue.open} open, ${b.queue.parked} put aside${b.queue.empty ? " — EMPTY" : ""}`);
-  if (b.sentOld.length) out.push(`sent with no reply for long: ${b.sentOld.slice(0, 5).map((s) => `${s.id} (${s.days} days)`).join(", ")}${b.sentOld.length > 5 ? ` and ${b.sentOld.length - 5} more` : ""}`);
-  const decide = Object.entries(b.decide);
-  if (decide.length) out.push(`waits for a decision: ${decide.map(([k, n]) => `${k} ${n}`).join(", ")}`);
-  if (b.fixes.length) out.push(`fixes waiting: ${b.fixes.map((f) => `${f.id} ${f.count}${f.cost ? ` (${f.cost})` : ""}`).join(", ")} (strom fixes)`);
-  if (b.verify.waiting) out.push(`verification waiting: ${b.verify.waiting} facts${Object.keys(b.verify.byLine).length ? ` (${Object.entries(b.verify.byLine).map(([g, v]) => `${g}: ${v.facts} of ${v.people} people`).join(", ")})` : ""}`);
-  if (b.edges.unsearched) out.push(`edges unsearched: ${b.edges.unsearched} (${b.edges.people.slice(0, 8).join(" ")}${b.edges.unsearched > 8 ? " …" : ""}; strom edge)`);
-  if (b.material.unlinked || b.batches.open) out.push(`material: ${b.material.unlinked} waiting to be sorted${b.batches.open ? ` · ${b.batches.open} batch(es) open, ${b.batches.unsorted} files unsorted` : ""}`);
-  if (b.tasksAudit) out.push(`task waits not as strom needs them: ${b.tasksAudit} (strom task audit)`);
-  if (b.citations.noPage || b.citations.noImage) out.push(`citations of originals: ${b.citations.noPage} without a page, ${b.citations.noImage} without an image`);
-  if (b.steps.length) out.push("next steps:", ...b.steps.map((s, i) => `  ${i + 1}. ${s.kind}${s.subject ? ` ${s.subject}` : ""}${s.count !== undefined ? ` (${s.count})` : ""} → ${s.action}`));
+  out.push(ui(lang, "ui.health.growth", { days: g.days, persons: g.persons, facts: g.facts, sources: g.sources }) + (g.agentLast ? ` · ${ui(lang, "ui.health.growth.agent", { day: g.agentLast.slice(0, 10) })}` : ""));
+  if (b.lines.length)
+    out.push(
+      ui(lang, "ui.health.lines", {
+        list: b.lines
+          .map((l) => {
+            const state = ui(lang, `ui.dirs.${l.state}` as UIKey);
+            const more =
+              l.state === "active"
+                ? [ui(lang, "ui.health.line.queued", { n: l.tasks }), l.waiting ? ui(lang, "ui.health.line.waiting", { n: l.waiting }) : "", l.stuck ? ui(lang, "ui.health.line.stuck") : ""].filter(Boolean)
+                : [];
+            return `${l.id} ${l.name} (${[state, ...more].join(", ")})`;
+          })
+          .join("; "),
+      }),
+    );
+  if (b.lines.length || b.queue.open || b.queue.parked) out.push(ui(lang, "ui.health.queue", { open: b.queue.open, parked: b.queue.parked }) + (b.queue.empty ? ` — ${ui(lang, "ui.health.queue.empty")}` : ""));
+  if (b.sentOld.length)
+    out.push(
+      ui(lang, "ui.health.sent", {
+        list: b.sentOld.slice(0, 5).map((s) => `${s.id} (${ui(lang, "ui.health.days", { n: s.days })})`).join(", ") + (b.sentOld.length > 5 ? ` ${ui(lang, "ui.health.more", { n: b.sentOld.length - 5 })}` : ""),
+      }) + " (strom task list --state waiting)",
+    );
+  const decide = Object.values(b.decide).reduce((n, x) => n + x, 0);
+  if (decide) out.push(`${ui(lang, "ui.health.decide", { n: decide })} (strom status)`);
+  if (b.fixes.length) out.push(`${ui(lang, "ui.health.fixes", { list: b.fixes.map((f) => `${f.id} ${f.count}${f.cost ? ` (${f.cost})` : ""}`).join(", ") })} (strom fixes)`);
+  if (b.verify.waiting) {
+    const by = Object.entries(b.verify.byLine).map(([g, v]) => `${g}: ${ui(lang, "ui.health.verify.line", { facts: v.facts, people: v.people })}`);
+    out.push(ui(lang, "ui.health.verify", { n: b.verify.waiting }) + (by.length ? ` (${by.join(", ")})` : ""));
+  }
+  if (b.edges.unsearched) out.push(`${ui(lang, "ui.health.edges", { n: b.edges.unsearched })} (${b.edges.people.slice(0, 8).join(" ")}${b.edges.unsearched > 8 ? " …" : ""}; strom edge)`);
+  if (b.material.unlinked || b.batches.open)
+    out.push(ui(lang, "ui.health.material", { n: b.material.unlinked }) + (b.batches.open ? ` · ${ui(lang, "ui.health.batches", { open: b.batches.open, unsorted: b.batches.unsorted })}` : "") + " (strom input list)");
+  if (b.tasksAudit) out.push(`${ui(lang, "ui.health.tasks", { n: b.tasksAudit })} (strom task audit)`);
+  if (b.citations.noPage || b.citations.noImage) out.push(ui(lang, "ui.health.citations", { page: b.citations.noPage, image: b.citations.noImage }));
+  if (b.steps.length)
+    out.push(
+      ui(lang, "ui.health.steps"),
+      ...b.steps.map((s, i) => {
+        const w = stepWords(s, lang);
+        return `  ${i + 1}. ${w.what} → ${w.command}`;
+      }),
+    );
   return out;
 }
 
@@ -111,7 +193,7 @@ function runLine(r: RunInfo, lang: string): string {
   const what = r.ai.length ? `AI ${r.ai.join(",")}` : "built-in";
   const progress = r.total ? ` · ${r.done}/${r.total} checked, ${r.findings} finding(s)` : "";
   const counts = r.ai.length ? ` · new ${r.counts.new}, accepted ${r.counts.accepted}, dismissed ${r.counts.dismissed}` : "";
-  return `${r.id}  ${r.at.slice(0, 16).replace("T", " ")}  ${what} · ${scopeText(r.scope)} · ${r.state}${r.task ? ` (${r.task})` : ""}${progress}${counts}${r.reason ? ` — ${r.reason}` : ""}${r.summary ? `\n    ${said(r.summary, lang)}` : ""}`;
+  return `${r.id}  ${localAt(r.at)}  ${what} · ${scopeText(r.scope)} · ${r.state}${r.task ? ` (${r.task})` : ""}${progress}${counts}${r.reason ? ` — ${r.reason}` : ""}${r.summary ? `\n    ${said(r.summary, lang)}` : ""}`;
 }
 
 function findingLine(f: ReturnType<typeof findingView>): string {
@@ -178,9 +260,14 @@ register(
       const fixes = await fixesSeen(tree, ctx);
       const b = builtin(tree, ctx.env, { scope, fixes });
       if (!ai.length) {
+        const lang = healthLang(ctx, tree);
         const saved = opts.save && !opts.dry ? saveBuiltin(tree, scope, b as unknown as Record<string, unknown>) : undefined;
         return {
-          text: lines(`tree check · ${scopeText(scope)} · ${b.head.slice(0, 7) || "no commit yet"}`, ...builtinLines(b), saved ? `saved: ${saved.id}` : actsAsArchive(tree) || isDemo(tree.config) ? undefined : "the AI checks: strom health --ai default --dry (what they take), strom health --ai default"),
+          text: lines(
+            ui(lang, "ui.health.head", { scope: scopeWords(tree, scope, lang), head: b.head.slice(0, 7) || ui(lang, "ui.health.nocommit") }),
+            ...builtinLines(b, lang),
+            saved ? ui(lang, "ui.health.saved", { id: saved.id }) : actsAsArchive(tree) || isDemo(tree.config) ? undefined : ui(lang, "ui.health.ai"),
+          ),
           data: { scope, builtin: b, ...(saved ? { id: saved.id } : {}) },
         };
       }
@@ -247,13 +334,14 @@ register(
       const info = runInfo(tree, r, { builtin: true, decisions });
       const findings = (r.findings ?? []).map((f) => findingView(tree, r, f, decisions));
       const b = r.builtin as HealthBuiltin | undefined;
+      const lang = healthLang(ctx, tree);
       return {
         text: lines(
           runLine(info, tree.lang),
           ...(info.order ?? []).map((o, i) => `  ${i + 1}. ${o.kind}${o.subject ? ` ${o.subject}` : ""}: ${said(o.why, info.lang)}`),
           ...findings.map(findingLine),
-          b && b.check ? "the built-in part then:" : undefined,
-          ...(b && b.check ? builtinLines(b).map((l) => `  ${l}`) : []),
+          b && b.check ? ui(lang, "ui.health.then") : undefined,
+          ...(b && b.check ? builtinLines(b, lang).map((l) => `  ${l}`) : []),
         ),
         data: { report: info, findings },
       };
