@@ -13,6 +13,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
 import { fixedClock } from "../fixed-clock.ts";
+import { UI } from "../../src/cli/ui.ts";
 
 const opts = { skip: !hasGit };
 // who is living goes by the year of "now": 18 Nov 2026 for every test here
@@ -214,4 +215,18 @@ test("strom pack says a full file carries the living", opts, async () => {
   const r = await w.ok(["pack", "--out", path.join(w.dir, "lhotakovi.zip")]);
   assert.match(r.out, /Obsahuje všechny údaje žijících osob – pro vlastní zálohu nebo přenos, ne ke sdílení\./u);
   w.cleanup();
+});
+
+test("the mode hidden named as the Strom app names it, in every language (151 K1.2): hide names, never names hidden", opts, async () => {
+  const app = { en: "hide names", cs: "skrýt jména", de: "Namen ausblenden", pl: "ukryj imiona i nazwiska" };
+  assert.equal(UI["ui.living.mode.hidden"], app.en);
+  for (const lang of ["cs", "de", "pl"] as const) {
+    const catalog = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "..", "..", "assets", "lang", `${lang}.json`), "utf8")) as Record<string, string>;
+    assert.equal(catalog["ui.living.mode.hidden"], app[lang], lang);
+    assert.ok(catalog["ui.error.export.living.mode.hint"]!.includes(`hidden (${app[lang]})`), lang);
+  }
+  const w = await family();
+  assert.match((await w.ok(["export", "gedcom", "--living", "hidden"])).out, /chráněno: 3 žijící osoby \(skrýt jména\)/u);
+  const wrong = await w.run(["export", "gedcom", "--living", "skryté"], { env: { STROM_LANG: "de" } });
+  assert.match(wrong.out + wrong.err, /hidden \(Namen ausblenden\)/u);
 });

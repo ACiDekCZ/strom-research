@@ -2533,7 +2533,7 @@ export const UI = {
   "ui.living.mode.full": "full data",
   "ui.living.mode.initials": "initials + birth year",
   "ui.living.mode.surname": "surname only",
-  "ui.living.mode.hidden": "names hidden",
+  "ui.living.mode.hidden": "hide names",
   "ui.health.head": "Tree check · {scope} · {head}",
   "ui.health.nocommit": "nothing committed yet",
   "ui.health.check.ok": "Data check: in order",

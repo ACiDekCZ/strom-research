@@ -1745,7 +1745,7 @@ function refuseProtected(file: string, shield: ReturnType<typeof privacyOf>, lan
 const MODE_SAID: Record<string, Record<string, string>> = {
   initials: { en: "initials + birth year", cs: "iniciály + rok narození", de: "Initialen + Geburtsjahr", pl: "inicjały + rok urodzenia" },
   surname: { en: "surname only", cs: "jen příjmení", de: "nur Nachname", pl: "tylko nazwisko" },
-  hidden: { en: "names hidden", cs: "skrytá jména", de: "Namen verborgen", pl: "ukryte imiona i nazwiska" },
+  hidden: { en: "hide names", cs: "skrýt jména", de: "Namen ausblenden", pl: "ukryj imiona i nazwiska" },
 };
 const modeSaid = (mode: string, lang?: string) => MODE_SAID[mode]?.[lang ?? "en"] ?? MODE_SAID[mode]?.en ?? mode;
 
