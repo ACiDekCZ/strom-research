@@ -21,6 +21,18 @@ export function dateOrderKey(date: string | undefined): number | undefined {
   return m[1] === "BEF" ? key - 0.5 : key;
 }
 
+/**
+ * The families of a person as a partner in their order (spec 152): those the person's marriage order names first, in
+ * its order, then the others in the order given (the research's) — the order of their FAMS and of their marriages.
+ */
+export function familiesInOrder<F extends { id: string }>(p: Pick<Person, "marriageOrder"> | undefined, families: readonly F[]): F[] {
+  const order = p?.marriageOrder?.families;
+  if (!order?.length) return [...families];
+  const at = new Map(order.map((id, i) => [id, i]));
+  const named = families.filter((f) => at.has(f.id)).sort((a, b) => at.get(a.id)! - at.get(b.id)!);
+  return [...named, ...families.filter((f) => !at.has(f.id))];
+}
+
 /** One marriage of a person: the spouse's surname, its wedding (none: undefined) and its place in time. */
 export interface MarriageOf {
   surname: string;
@@ -28,13 +40,16 @@ export interface MarriageOf {
   /** The wedding, else just before the earliest of its divorce and its children's births; Infinity with none. */
   key: number;
   index: number;
+  /** The user's order by hand (spec 152): `index` alone tells the order, the dates nothing. */
+  manual?: true;
 }
 
 /**
  * The marriages of a person (a family of two partners not only partners or separated — the Strom app's married or
  * divorced, its default), in the order of `families` (their FAMS): each spouse's surname, the name of their identity.
+ * `manual` (the person's order by hand, spec 152): that order holds, the dates tell nothing.
  */
-export function marriagesOf(id: string, families: Family[], person: (id: string) => Person | undefined): MarriageOf[] {
+export function marriagesOf(id: string, families: Family[], person: (id: string) => Person | undefined, manual = false): MarriageOf[] {
   const out: MarriageOf[] = [];
   families.forEach((f, index) => {
     if (f.union === "partners" || f.union === "separated") return;
@@ -50,16 +65,19 @@ export function marriagesOf(id: string, families: Family[], person: (id: string)
         if (k !== undefined) key = Math.min(key, k - 0.5);
       }
     }
-    out.push({ surname: primaryName(sp).surname, ...(wedding !== undefined ? { wedding } : {}), key, index });
+    out.push({ surname: primaryName(sp).surname, ...(wedding !== undefined ? { wedding } : {}), key, index, ...(manual ? { manual: true as const } : {}) });
   });
   return out;
 }
 
 /**
  * The spouses' surnames a name after a marriage comes from, the one now first: the marriages with a wedding date from
- * the latest back, then the others from the last in order (the order of the Strom app's marriagesInOrder).
+ * the latest back, then the others from the last in order (the order of the Strom app's marriagesInOrder); of a
+ * person ordered by hand (spec 152) that order from its last back.
  */
 function surnamesLatestFirst(marriages: MarriageOf[]): string[] {
+  // the user's order by hand (the app's marriagesLatestFirst of a person ordered so): the last in it is the latest
+  if (marriages.some((m) => m.manual)) return [...marriages].sort((a, b) => b.index - a.index).map((m) => m.surname);
   const all = [...marriages].sort((a, b) => (a.key !== b.key ? (a.key < b.key ? -1 : 1) : a.index - b.index));
   const dated = all.filter((m) => m.wedding !== undefined).reverse();
   const undated = all.filter((m) => m.wedding === undefined).reverse();

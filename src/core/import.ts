@@ -743,6 +743,11 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         familyOf.set(r.xref!, f.id);
       }
     }
+    // the order of a person's marriages the user set by hand in the Strom app (spec 152: FAMS + _STROM_FAMS_ORDER MANUAL;
+    // another program's file keeps its FAMS, the person by the dates): kept, never lost by an adoption
+    if (fromApp.app)
+      for (const r of records.filter((x) => x.tag === "INDI" && x.xref && val(x, "_STROM_FAMS_ORDER")?.trim().toUpperCase() === "MANUAL"))
+        manualOrder(tree, xrefToId.get(r.xref!), children(r, "FAMS").map((c) => familyOf.get(c.value.trim())));
     // a role at a family's event: whose, now that the families are made (a family the import made none of: the role alone)
     for (const later of atLater) {
       const at = familyOf.get(later.at);
@@ -928,6 +933,9 @@ function importLabel(lang: string): string {
 
 interface StromPerson {
   id: string;
+  /** The person's partnerships in their order; by hand where marriageOrderManual (spec 152, data version 28). */
+  partnerships?: unknown[];
+  marriageOrderManual?: unknown;
   firstName?: string;
   lastName?: string;
   gender?: string;
@@ -1369,6 +1377,9 @@ export function importStromJson(
       tree.put(f, { op: "family.import", targets: [f.id, ...partners, ...kids.map((k) => k.person)], summary: `+${f.id} family (lead)` });
       result.families++;
     }
+    // the order of a person's marriages the user set by hand in the app (spec 152: partnerships with marriageOrderManual)
+    for (const a of Object.values(data.persons))
+      if (a && a.marriageOrderManual === true && Array.isArray(a.partnerships)) manualOrder(tree, idMap.get(a.id), a.partnerships.map((u) => (typeof u === "string" ? familyOf.get(u) : undefined)));
     // a role at another's event: whose, now that all are made (one the import made nothing of: the role alone)
     for (const later of atLater) {
       const at = later.person ? idMap.get(later.person) : familyOf.get(later.partnership!);
@@ -1584,4 +1595,15 @@ export function appLooseFamilies(
     f.children.push(p.id);
   }
   return [...out.values()];
+}
+
+/**
+ * A person's order of marriages by hand from the Strom app's file (spec 152): their families (the research's IDs) in
+ * that order, each once; two at least — else nothing.
+ */
+function manualOrder(tree: Tree, id: string | undefined, families: (string | undefined)[]): void {
+  const order = [...new Set(families.filter((f): f is string => !!f))];
+  const p = id ? tree.get<Person>(id) : undefined;
+  if (!p || order.length < 2 || (p.marriageOrder?.manual && JSON.stringify(p.marriageOrder.families) === JSON.stringify(order))) return;
+  update<Person>(tree, p.id, "person", (x) => ({ ...x, marriageOrder: { families: order, manual: true } }), { op: "person.import", summary: `${p.id} marriages in the user's order ${order.join(", ")}` });
 }

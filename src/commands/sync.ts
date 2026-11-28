@@ -195,7 +195,9 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
                 ? `ui.sync.fact.main${c.code === "fact.noMatch" ? ".nomatch" : c.mainOff ? ".off" : ""}`
                 : c.code === "cite.notCarried"
                   ? "ui.sync.cite.notCarried"
-                  : `ui.sync.${c.kind}`;
+                  : c.kind === "marriage.order" && c.action === "remove"
+                    ? "ui.sync.marriage.order.dates"
+                    : `ui.sync.${c.kind}`;
   // the app's sources and what a fact takes from them: said what becomes of them (a reading of a record, or a lead)
   // not the person's sync: a value of the user's or an import's only proposed, or not written at all (spec 066 U3)
   const guard = c.kept || c.asked || c.takenBack ? undefined : guardedChange(tree, c, { decidePerson });
@@ -230,6 +232,9 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
       // the person's contact (spec 134 U11)
       : c.kind === "contact.email"
       ? `ui.sync.do.contact.${c.action !== "remove" ? "add" : tree.personWrites ? "remove" : "kept"}`
+      // the order of a person's marriages by hand (spec 152): the user's, back to the dates by the person alone
+      : c.kind === "marriage.order"
+      ? c.action === "pick" ? "ui.sync.do.pick" : `ui.sync.do.order${c.action !== "remove" ? "" : tree.personWrites ? ".dates" : ".kept"}`
       : c.kind === "ids.add"
       ? "ui.sync.do.ids"
       : c.kind === "child.parents"

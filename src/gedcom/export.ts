@@ -45,7 +45,7 @@ import { IMAGE_MIME, IMAGE_REF } from "../core/liveimages.ts";
 import type { TreeMediaItem, TreeMediaPlaces } from "../core/treemedia.ts";
 import { numbersOnly } from "../core/streets.ts";
 import { factRef, nameRef, sexRef } from "../core/origin.ts";
-import { marriagesOf, namesInOrder } from "../core/married.ts";
+import { familiesInOrder, marriagesOf, namesInOrder } from "../core/married.ts";
 import { proposalKind } from "../core/proposals.ts";
 import { otherNames, recordIndex } from "../core/placeid.ts";
 import { branchJoined, kinship, mainPerson } from "../core/kin.ts";
@@ -160,6 +160,8 @@ export interface ExportOptions {
   confirms?: boolean;
   /** For a Strom app that keeps parents who are no couple (APP_KNOWS_NO_COUPLE): _STROM_NO_COUPLE on such a family. */
   noCouple?: boolean;
+  /** The user's order of a person's marriages by hand (spec 152): `1 _STROM_FAMS_ORDER MANUAL` — the Strom file, an app that keeps it (APP_KNOWS_FAMS_ORDER). */
+  marriageOrder?: boolean;
   /** The Strom profile, an app that shows it (APP_SHOWS_FACT_STATUS): how sure each fact is as 2 _STROM_STATUS, not as a note. */
   factStatus?: boolean;
   /**
@@ -644,11 +646,9 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
 
   // ── people ──
   const famc = new Map<string, { fam: string; relation: string }[]>();
-  const fams = new Map<string, string[]>();
   const partnerIn = new Map<string, Family[]>();
   for (const f of families) {
     for (const p of f.partners) {
-      fams.set(p, [...(fams.get(p) ?? []), f.id]);
       partnerIn.set(p, [...(partnerIn.get(p) ?? []), f]);
     }
     for (const c of f.children) famc.set(c.person, [...(famc.get(c.person) ?? []), { fam: f.id, relation: c.relation }]);
@@ -668,7 +668,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     const rest = p.names.filter((n) => n !== primary && n !== current);
     const order =
       strict ? (current === primary ? [primary, ...rest] : [current, primary, ...rest])
-      : namesInOrder(p, marriagesOf(p.id, partnerIn.get(p.id) ?? [], (id) => personById.get(id)));
+      : namesInOrder(p, marriagesOf(p.id, familiesInOrder(p, partnerIn.get(p.id) ?? []), (id) => personById.get(id), !!p.marriageOrder?.manual));
     for (const n of order) {
       // a name with a title says it in the line (any program shows it) and spells its parts out below: NPFX, GIVN, SURN,
       // NSFX — for any program (GEDCOM 5.5.1's own tags), for the Strom app from its 3.10 (titles; an older one reads
@@ -756,7 +756,10 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       if (link.relation === "adopted" || link.relation === "foster") w.line(2, "PEDI", link.relation);
       else if (link.relation === "step") strict ? w.text(2, "NOTE", L("step")) : w.line(2, "PEDI", "step");
     }
-    for (const f of fams.get(p.id) ?? []) w.line(1, "FAMS", x(f));
+    // their families in the person's order (spec 152: the app's order by hand, the order another program gave), the
+    // user's order by hand said for the Strom app (its marriageOrderManual; an older one skips the line, nothing lost)
+    if (!strict && opts.marriageOrder && p.marriageOrder?.manual && (partnerIn.get(p.id)?.length ?? 0) > 1) w.line(1, "_STROM_FAMS_ORDER", "MANUAL");
+    for (const f of familiesInOrder(p, partnerIn.get(p.id) ?? [])) w.line(1, "FAMS", x(f.id));
   }
 
   // ── families ──

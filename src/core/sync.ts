@@ -55,7 +55,7 @@ import { actsAsArchive } from "./state.ts";
 import { appSides, claimOf } from "./conflicts.ts";
 import { userReading } from "./readers.ts";
 import { applyProposal, changedPerson, deletedImportSource, FACT_PARTS, factChanges, factRef, importSourceFor, importsOfHead, knownImportSource, markUnder, NAME_PARTS, nameRef, originOfMark, personChangedFact, primaryVerdict, proposedLine, proposeFact, proposeName, proposePrimary, proposeRetract, proposeSex, researchChangedFact, sexRef, verdictOf, type FactPart, type ImportMark, type ImportOf } from "./origin.ts";
-import { APP_DATA_SEX_UNKNOWN, APP_DATA_SOURCE_FIELDS, appDataDecidesShares, appDataMainCitation, appDataPartNotes, appReadsMainCitation, appReadsNameStatus, appSendsPartNotes, appSendsUncite, appDecidesShares, appKeepsPeriods, appKeepsSourceFields, appKnowsPrimaryName, appReadsLines, appReadsSurnameGroups, appShowsVerify, isAppVersion } from "./stromapp.ts";
+import { APP_DATA_FAMS_ORDER, APP_DATA_SEX_UNKNOWN, APP_DATA_SOURCE_FIELDS, appDataDecidesShares, appKnowsFamsOrder, appDataMainCitation, appDataPartNotes, appReadsMainCitation, appReadsNameStatus, appSendsPartNotes, appSendsUncite, appDecidesShares, appKeepsPeriods, appKeepsSourceFields, appKnowsPrimaryName, appReadsLines, appReadsSurnameGroups, appShowsVerify, isAppVersion } from "./stromapp.ts";
 import { lineMarkOf, lineMarks, lineagesAt, planLines, setLineMark, undoLineMark, type LineChange, type LineMark } from "./lineages.ts";
 import { Settings } from "./config.ts";
 import { applySurnameChange, formsSaid, planSurnames, readMarkLines, readSurnames, surnamesAt, undoSurnameChange, type SurnameChange, type SurnameEntry, type SurnameMarks } from "./surnames.ts";
@@ -260,6 +260,13 @@ export interface SPerson {
   ids?: IdBlock[];
   /** Their files in the app's tree: the portrait, attachments, their events'. */
   media?: SMediaPlace[];
+  /**
+   * The order of their families (spec 152): each by its partners' keys (famKey), as the file gives them (FAMS, the app's
+   * JSON person.partnerships); only of two or more.
+   */
+  fams?: string[];
+  /** The user set that order by hand (the Strom app's `1 _STROM_FAMS_ORDER MANUAL`, its JSON's marriageOrderManual). */
+  famsManual?: true;
   /**
    * How to reach them (spec 134 U11): their e-mails — "1 RESI" / "2 EMAIL", a residence of nothing but "E-mail: x"
    * notes (the Strom app up to 3.31), "1 EMAIL"; the app's JSON emails. The same rule (core/contact.ts) for the head,
@@ -1197,6 +1204,16 @@ export function readGedcom(text: string, lang = "en", opts: ReadOptions = {}): S
     },
   );
   citedDetails(sources, [...persons.values()].flatMap((p) => p.facts).concat(families.flatMap((f) => f.facts)));
+  // the order of each person's families (spec 152): their FAMS as the file gives them, by the partners; the user's
+  // order by hand only of a Strom file (its 1 _STROM_FAMS_ORDER MANUAL)
+  const famPartners = new Map(families.filter((f) => f.xref).map((f) => [f.xref!, f.partners]));
+  for (const r of records.filter((x) => x.tag === "INDI" && x.xref && keys.has(x.xref))) {
+    const p = persons.get(keys.get(r.xref!)!);
+    if (!p) continue;
+    const order = children(r, "FAMS").map((l) => famPartners.get(l.value.trim().replace(/@/g, ""))).filter((x): x is string[] => !!x?.length).map(famKey);
+    if (order.length > 1) p.fams = order;
+    if (trusted && order.length > 1 && val(r, "_STROM_FAMS_ORDER")?.trim().toUpperCase() === "MANUAL") p.famsManual = true;
+  }
   const treeId = val(head, "_STROM_TREE");
   const at = val(head, "_STROM_HEAD");
   const transcripts = trusted && val(head, "_STROM_TRANSCRIPTS")?.trim().toLowerCase() === "evidence" ? "evidence" : "lead";
@@ -1274,6 +1291,10 @@ const bare = (f: { kind: string; value?: string | undefined }) => VALUE_KINDS.ha
 
 interface AppPerson {
   id: string;
+  /** The person's partnerships in their order (the app's spec 152: by hand where marriageOrderManual). */
+  partnerships?: unknown;
+  /** The user set that order by hand (the app's data version 28, spec 152): true, else none. */
+  marriageOrderManual?: unknown;
   /** The person's parents (both of a couple's child; one where the other is not known — the app's beta.39 sends it). */
   parentIds?: string[];
   /** The child's tie to a parent who is not their own: the parent's id → adoptive, step, foster. */
@@ -1636,6 +1657,18 @@ export function readStromJson(data: unknown, lang = "en"): Snapshot {
       return partners.length ? `fam:${famKey(partners)}` : undefined;
     },
   );
+  // the order of each person's partnerships (spec 152), by the partners; the user's order by hand (marriageOrderManual)
+  for (const a of Object.values(d.persons)) {
+    const p = a && typeof a === "object" ? persons.get(keys.get(a.id) ?? "") : undefined;
+    if (!p || !Array.isArray(a.partnerships)) continue;
+    const order = a.partnerships
+      .map((id) => (typeof id === "string" ? d.partnerships?.[id] : undefined))
+      .map((u) => (u ? [u.person1Id, u.person2Id].map((x) => (x ? ofPerson(x) : undefined)).filter((k): k is string => !!k) : []))
+      .filter((x) => x.length)
+      .map(famKey);
+    if (order.length > 1) p.fams = order;
+    if (order.length > 1 && a.marriageOrderManual === true) p.famsManual = true;
+  }
   // the app's coordinates are kept for the place's name (its placeKey): the names are its facts'
   const places = new Map<string, SPlace>();
   const geo = d.places && typeof d.places === "object" ? d.places : {};
@@ -1739,7 +1772,7 @@ function withoutNow(n: Name): Name {
 
 /** Our records as the app is given them: the export for it, read like any file — with the facts' IDs. */
 export function snapshotOfTree(tree: Tree): Snapshot {
-  return readGedcom(exportGedcom(tree, { for: "strom", ids: true, titles: true, sourceFields: true, mainCitations: true }).text);
+  return readGedcom(exportGedcom(tree, { for: "strom", ids: true, titles: true, sourceFields: true, mainCitations: true, marriageOrder: true }).text);
 }
 
 /** The folders of data/ the export for the app reads (inputs: which sources are a sync's, never given to the app). */
@@ -3019,6 +3052,7 @@ export type ChangeKind =
   | "media.unlink"
   | "source.retract"
   | "contact.email"
+  | "marriage.order"
   | "house.name"
   | "house.number"
   | "house.same"
@@ -3127,6 +3161,8 @@ export interface Change {
   surname?: SurnameChange;
   /** lineage.mark: a person's bound of a lineage the user set in the app, and the research's (core/lineages.ts). */
   line?: LineChange;
+  /** marriage.order: the person's families in the user's order by hand (spec 152), each by its partners' keys as the file has them (famKey). */
+  order?: string[];
   /** ids.add: the IDs a person or a family of the research had in a family tree the app imported, as the file gives them (spec 066 K3.2). */
   ids?: IdBlock[];
   /** fact.confirm, name.confirm: the user's confirmation against the scan given in the app (its day, "" none said), or taken back. */
@@ -4259,7 +4295,7 @@ function planned(
   let given0: Snapshot | undefined | null = null;
   const givenAt = () => (given0 === null ? (given0 = timed("given", () => snapshotAt(tree, incoming.head!))) : given0);
   let now0: Snapshot | undefined;
-  const removedNow = () => (now0 ??= readGedcom(exportGedcom(tree, { for: "strom", ids: true, titles: true, sourceFields: true, removed: new Set([...removed].map((k) => removedOf(tree, k)!.id)) }).text));
+  const removedNow = () => (now0 ??= readGedcom(exportGedcom(tree, { for: "strom", ids: true, titles: true, sourceFields: true, marriageOrder: true, removed: new Set([...removed].map((k) => removedOf(tree, k)!.id)) }).text));
 
   // people
   for (const [key, p] of incoming.persons) {
@@ -4521,6 +4557,31 @@ function planned(
     for (const c of planLines(lineMarks(tree), theirs, (id) => !partial && present.has(id), given ? lineMarks(tree, given) : undefined)) {
       const p = incoming.persons.get(c.person);
       push({ kind: "lineage.mark", action: "set", person: c.person, ...(p?.names[0] ? { name: p.names[0] } : {}), text: c.mark ?? "", line: c });
+    }
+  }
+  // the order of a person's marriages the user set by hand in the app (spec 152), the user's data as their contact: an
+  // order by hand the file has otherwise than the research written (after the families this send makes, whose IDs it
+  // names); without the copy given, only where the research has none by hand (else picked). The file's order without
+  // the mark is the user's "by the dates" only where the copy given had it by hand and the app keeps the mark (an older
+  // one never writes it) — the families' order kept, only the mark taken off.
+  {
+    const knows = incoming.format === "strom-json" ? (incoming.dataVersion ?? 0) >= APP_DATA_FAMS_ORDER : appKnowsFamsOrder(new Settings(tree.env, {}), incoming.appVersion, false);
+    const ordered = (l: string[] | undefined) => (l ?? []).map((k) => famKey(k.split("+").map(idOf))).join("\n");
+    for (const [key, p] of incoming.persons) {
+      if (removed.has(key)) continue;
+      const id = key.startsWith("x:") ? undefined : resolve(tree, key)?.id;
+      const o = id ? ours.persons.get(id) : undefined;
+      if (!key.startsWith("x:") && !o) continue;
+      const b = base?.persons.get(key);
+      const name = p.names[0] ?? "?";
+      if (p.famsManual && p.fams) {
+        if (o?.famsManual && ordered(o.fams) === ordered(p.fams)) continue;
+        // as the app was given it: the research's since (a family merged, taken off) stands
+        if (b?.famsManual && ordered(b.fams) === ordered(p.fams)) continue;
+        // the spouses in that order, as the file names them ("?" a family of one partner)
+        const text = p.fams.map((k, i) => `${i + 1}. ${k.split("+").filter((x) => x !== key).map((x) => incoming.persons.get(x)?.names[0]?.replace(/\//g, "").replace(/\s+/g, " ").trim() || "?").join(", ") || "?"}`).join(" · ");
+        push({ kind: "marriage.order", action: !b && o?.famsManual ? "pick" : "user", person: id ?? key, name, text, order: p.fams });
+      } else if (knows && !partial && b?.famsManual && o?.famsManual) push({ kind: "marriage.order", action: "remove", person: id!, name });
     }
   }
   // the IDs a person or a family of the research had in a family tree the app imported (its blocks, spec 066 K3.2) that
@@ -6109,6 +6170,7 @@ export interface Applied {
     | "event.share"
     | "source.retract"
     | "contact.edit"
+    | "person.order"
     | "house.add"
     | "house.edit";
   id: string;
@@ -7331,6 +7393,42 @@ export function applySync(
           applied.push({ do: "contact.edit", id: p.id, before: JSON.stringify(before) });
           break;
         }
+        case "marriage.order": {
+          // the order of the person's marriages by hand (spec 152), the user's: set from the app's order (each family
+          // by its partners — one this send made too —, each once), or the mark alone taken off ("by the dates": by
+          // the person's sync alone, as an e-mail taken off)
+          const p = owner ? tree.get<Person>(owner) : undefined;
+          if (!p) break;
+          const before = p.marriageOrder;
+          let next: Person["marriageOrder"];
+          if (c.action === "remove") {
+            if (!before?.manual) break;
+            if (!person) {
+              kept(c, `the order of the marriages of ${p.id} is the user's: set back to the dates by nobody but the user — tell the user`, { person: p.id });
+              break;
+            }
+            next = { families: before.families };
+          } else {
+            const mine = tree.list<Family>("family").filter((f) => !f.retracted && !f.mergedInto && f.partners.includes(p.id));
+            const used = new Set<string>();
+            for (const k of c.order ?? []) {
+              const partners = k.split("+").map((x) => resolve(tree, who(x) ?? x)?.id ?? who(x) ?? x);
+              const made = families.get(famKey(partners));
+              const f = made && !used.has(made) ? made : mine.find((x) => !used.has(x.id) && famKey(x.partners) === famKey(partners))?.id;
+              if (f) used.add(f);
+            }
+            if (used.size < 2) break;
+            next = { families: [...used], manual: true };
+          }
+          if (JSON.stringify(next) === JSON.stringify(before)) break;
+          update<Person>(tree, p.id, "person", (x) => ({ ...x, marriageOrder: next }), {
+            op: "person.edit",
+            summary: `${p.id} marriages ${next.manual ? `in the user's order ${next.families.join(", ")}` : "by the dates"}`,
+            reason,
+          });
+          applied.push({ do: "person.order", id: p.id, before: JSON.stringify(before ?? null) });
+          break;
+        }
         case "name.gone": {
           // a name after a marriage taken off in the app that only the user's edits or other family trees gave: off,
           // where it stood kept for an undo (a record's stays: only said)
@@ -8489,6 +8587,17 @@ export function undoSync(tree: Tree, input: SyncInput, kept?: UndoKept[]): numbe
         const at = p ? p.names.map((m) => exact(`${m.given}|${m.surname}`)).lastIndexOf(String(a.before)) : -1;
         if (p && at >= 0 && p.names.length > 1)
           update<Person>(tree, a.id, "person", (x) => ({ ...x, names: x.names.filter((_, i) => i !== at) }), { op: "name.remove", summary: `${a.id} name ${gedcomName(p.names[at]!)} removed: ${reason}`, reason });
+        break;
+      }
+      case "person.order": {
+        // the order of the person's marriages as it was before the sync (spec 152)
+        const b = JSON.parse(String(a.before ?? "null")) as Person["marriageOrder"] | null;
+        const p = tree.get<Person>(a.id);
+        if (p && JSON.stringify(p.marriageOrder ?? null) !== JSON.stringify(b))
+          update<Person>(tree, a.id, "person", (x) => {
+            const { marriageOrder: _o, ...rest } = x;
+            return (b ? { ...rest, marriageOrder: b } : rest) as Person;
+          }, { op: "person.edit", summary: `${a.id} marriages in order as before`, reason });
         break;
       }
       case "contact.edit": {

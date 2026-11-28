@@ -280,6 +280,19 @@ function checkPerson(p: Partial<Person>, out: Problem[]): void {
   checkNotes(p.notes, "notes", out);
   checkOriginalIds(p.originalIds, out);
   checkContact(p.contact, out);
+  checkMarriageOrder(p.marriageOrder, out);
+}
+
+/** A person's marriages in order (spec 152): family IDs, each once, never empty; manual only true. */
+function checkMarriageOrder(o: Person["marriageOrder"], out: Problem[]): void {
+  if (o === undefined) return;
+  if (!isObj(o)) return void out.push({ path: "marriageOrder", message: "must be an object" });
+  if (!Array.isArray(o.families) || !o.families.length) return void out.push({ path: "marriageOrder.families", message: "must be a non-empty array of family IDs (left out instead)" });
+  o.families.forEach((f, i) => {
+    if (typeof f !== "string" || !/^F\d+$/u.test(f)) out.push({ path: `marriageOrder.families[${i}]`, message: "must be a family ID (F…)" });
+  });
+  if (new Set(o.families).size !== o.families.length) out.push({ path: "marriageOrder.families", message: "each family once" });
+  if (o.manual !== undefined && o.manual !== true) out.push({ path: "marriageOrder.manual", message: "must be true or left out" });
 }
 
 /** A person's contact (spec 134 U11): e-mail addresses (strings, something@something), never an empty list or object. */

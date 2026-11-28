@@ -1221,6 +1221,31 @@ export function noticeStromApp(settings: Settings, env: Env, opts: { look?: bool
 export const APP_SHOWS_HOUSE_STORY: string | undefined = undefined;
 export const APP_SHOWS_HOUSE_STORY_BETA: string | undefined = "3.33.0-beta.5";
 
+/**
+ * The first Strom app that keeps a person's order of marriages by hand (spec 152; the app's ZADANI_DEV_poradi-manzelstvi.md
+ * §0, §5): it reads and writes `1 _STROM_FAMS_ORDER MANUAL` under INDI (its JSON's marriageOrderManual, data version
+ * APP_DATA_FAMS_ORDER) and writes FAMS in the person's order. The FAMS in the person's order go to every app (an older
+ * one keeps its own order); the mark too, to an app of unknown version (an older one skips the line: it has no order
+ * by hand to lose). A file without the mark is the user's "by the dates" only of an app from it — an older one
+ * never says it. Undefined until that app is out (strom:je-venku-brany); beta and development copies from
+ * APP_KNOWS_FAMS_ORDER_BETA.
+ */
+export const APP_KNOWS_FAMS_ORDER: string | undefined = undefined;
+export const APP_KNOWS_FAMS_ORDER_BETA: string | undefined = "3.33.0-beta.9";
+/** The app's JSON data version with marriageOrderManual (spec 152: its STROM_DATA_VERSION 28). */
+export const APP_DATA_FAMS_ORDER = 28;
+
+/**
+ * Does the Strom app of this version keep a person's order of marriages by hand (spec 152)? `unknown`: what an app of no
+ * version, or one not of the app's, is taken for (writing the mark: yes, nothing lost; reading its absence: no).
+ */
+export function appKnowsFamsOrder(settings: Settings, version: string | undefined, unknown: boolean, gate: string | undefined = APP_KNOWS_FAMS_ORDER, beta: string | undefined = APP_KNOWS_FAMS_ORDER_BETA): boolean {
+  const v = version?.trim();
+  if (!v || !isAppVersion(v)) return unknown;
+  if (anotherCopy(settings)) return !beta || compareVersions(v, beta) >= 0;
+  return !!gate && compareVersions(v, gate) >= 0;
+}
+
 /** Does the Strom app of this version show a house's story waiting for the person (the bridge's waiting, kind story with house)? */
 export function appShowsHouseStory(settings: Settings, version?: string, gate: string | undefined = APP_SHOWS_HOUSE_STORY, beta: string | undefined = APP_SHOWS_HOUSE_STORY_BETA): boolean {
   const v = version?.trim();

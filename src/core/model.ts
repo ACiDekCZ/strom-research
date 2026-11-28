@@ -410,6 +410,18 @@ export interface Person extends BaseRecord {
    * them. No evidence, no citation, no origin; empty never written.
    */
   contact?: PersonContact;
+  /**
+   * The order of the person's marriages (spec 152) as the Strom app keeps it: the families they are a partner of (F…),
+   * the first marriage first; one not named after them in the research's order. `manual`: the user set the order by
+   * hand (the app's marriageOrderManual, its file's `1 _STROM_FAMS_ORDER MANUAL`) — it holds over the dates.
+   */
+  marriageOrder?: MarriageOrder;
+}
+
+/** A person's marriages in order (spec 152): families by ID, each once; `manual` the user's order by hand. */
+export interface MarriageOrder {
+  families: string[];
+  manual?: true;
 }
 
 /** A person's contact: e-mail addresses, each once. */
