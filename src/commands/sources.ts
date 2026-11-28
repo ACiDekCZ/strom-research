@@ -983,7 +983,7 @@ register(
       'strom source edit S0001 --information secondary --reason "the entry was written years later"',
       'strom source edit S0001 --url https://archive.example.org/view/58 --image 58 --reason "the archive moved its viewer; found again by call number and folio"',
       "strom source edit S0001 --clip M0001@0.05,0.42,0.45,0.16",
-      'strom source edit S0001 --media-remove M0002 --reason "the next page, not this entry\'s"',
+      'strom source edit S0006 --media-remove M0003 --reason "the next page, not this entry\'s"',
     ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();

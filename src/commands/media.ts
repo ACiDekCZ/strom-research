@@ -2964,7 +2964,7 @@ register(
     examples: [
       'strom media renumber M0001=10 --reason "the number as the archive\'s viewer shows it"',
       'strom media renumber M0001=10 M0002=9 --reason "the two scans were saved under each other\'s numbers" --dry-run',
-      'strom media renumber B0001:12=13 --page 7v --url https://archive.example.org/register/17/13 --reason "one image skipped when saved"',
+      'strom media renumber B0001:2=4 --page 7v --url https://archive.example.org/register/17/4 --reason "two images skipped when saved"',
     ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();

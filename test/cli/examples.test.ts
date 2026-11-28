@@ -212,6 +212,7 @@ async function seeded(): Promise<World> {
   assert.deepEqual(asked, ["T0008"], "the sync note example's ID");
   // Jan's birth cited from the original of his baptism on the image M0003 (strom verify facts|bulk|done)
   const baptism = (await w.ok(["source", "add", "Křest Jana", "--kind", "baptism", "--information", "primary", "--media", "M0003", "--json"])).json.source.id;
+  assert.equal(baptism, "S0006", "the source of the example of source edit --media-remove");
   await w.ok(["cite", "E0001", baptism]);
   // his name read from the same original (strom verify done P0001.N --proven --image M0003)
   await w.ok(["cite", "P0001", baptism]);
