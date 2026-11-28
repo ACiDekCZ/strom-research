@@ -20,7 +20,7 @@ function scratch(on: boolean): { env: Record<string, string>; dir: string; done:
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom-gateway-"));
   const config = path.join(dir, "config");
   fs.mkdirSync(config);
-  if (on) fs.writeFileSync(path.join(config, "config.json"), JSON.stringify({ devicesMode: "on" }));
+  fs.writeFileSync(path.join(config, "config.json"), JSON.stringify({ devicesMode: on ? "on" : "off" }));
   // the app's site a port of the loopback nobody listens on: the gateway downloads nothing (never the internet)
   return { env: { HOME: dir, STROM_CONFIG_DIR: config, STROM_SHARED: path.join(dir, "shared"), STROM_APP_URL: "http://127.0.0.1:9/run/" }, dir, done: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }

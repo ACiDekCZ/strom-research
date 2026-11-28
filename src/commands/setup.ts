@@ -1322,6 +1322,7 @@ function effective(ctx: Context, def: SettingDef, recordset?: string): { value: 
   // unset: as experiments.history at the same layer (an older strom's one switch kept both)
   if (def.key === "experiments.placeHistory") return { value: ctx.settings.historyPlace(tree) ? "on" : "off", source: "default" };
   if (def.key === "tune.transcripts") return { value: "on", source: "default" };
+  if (def.key === "devices.mode") return { value: "on", source: "default" };
   if (def.key === "tune.auto") return { value: "on", source: "default" };
   if (def.key === "browser.downloads") return { value: downloadsDir(ctx.env), source: "detected" };
   if (def.key === "agent.permissions") return { value: ctx.settings.agentPermissions(), source: ctx.settings.config.agentPermissions ? "config" : "default" };
@@ -1382,19 +1383,20 @@ function addonsDecision(ctx: Context, key: string, value: string | number | unde
 }
 
 /**
- * The gateway of other devices (devices.mode on: the phone's server gives the Strom app to the devices of the home
- * network): turned on by the person alone, in their own terminal. Anywhere else — an agent, a command with nobody at a
- * terminal — refused without a window: no dialog says it is there, and nothing is written; off is anyone's.
+ * The gateway of other devices (devices.mode: the phone's server gives the Strom app to the devices of the home network,
+ * on by default): turned off by anyone; on again — set on, or unset back to the default — only where it was off, by
+ * the person alone in their own terminal. Anywhere else — an agent, a command with nobody at a terminal — refused
+ * without a window (no dialog says it is there), nothing written. Where it is not off, on changes nothing: anyone's.
  */
 function devicesDecision(ctx: Context, key: string, value: string | number | undefined): void {
-  if (key !== "devices.mode" || value !== "on") return;
+  if (key !== "devices.mode" || value === "off") return;
+  if (readStored(ctx.settings.config, key, "") !== "off") return;
   if (ctx.interactive && !isAgent(ctx.env)) return;
-  if (readStored(ctx.settings.config, key, "") === "on") return;
   throw new NeedsConsentError([
     {
       key,
       kind: "consent",
-      question: `${key} on is the person's own choice, typed in their own terminal — never an agent's (an agent cannot answer this)`,
+      question: `${key} on again is the person's own choice, typed in their own terminal — never an agent's (an agent cannot answer this)`,
       set: `strom config set ${key} on`,
     },
   ]);
@@ -1900,9 +1902,8 @@ function isFolder(p: string): boolean {
 /** false: the person said no in their terminal to what needs their own yes there (requireHumanYes) — nothing changed. */
 async function setUserSetting(ctx: Context, key: string, value: string | number | undefined): Promise<boolean> {
   const s = ctx.settings;
+  // devices.mode off stored as off (the person's: kept, never taken for the default, which is on)
   devicesDecision(ctx, key, value);
-  // devices.mode off is the default: stored as nothing (nothing of it said in strom config where while it is off)
-  if (key === "devices.mode" && value === "off") value = undefined;
   syncDecisions(ctx, key, value, "user");
   addonsDecision(ctx, key, value, "user");
   experimentsDecision(ctx, key, value, "user");

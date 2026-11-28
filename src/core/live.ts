@@ -8799,11 +8799,12 @@ export function serveLive(root: string, env: Env): Promise<number | undefined> {
     if (req.method === "GET") {
       req.resume();
       if (!sub) {
-        // the gateway of the devices on: the copy of the app this computer runs is the one the devices get
+        // the gateway of the devices on: the copy of the app this computer runs is the one the devices get — fetched only
+        // while the phone's server is on too (the gateway is on by default: nobody's app downloads it for nothing)
         const devices = devicesOn(env);
         if (devices) {
           noteDeviceAppSource(env, req.headers.origin, appVersionOf(req, new Settings(env, {})));
-          void ensureDeviceApp(env);
+          if (phoneConfig(env).on) void ensureDeviceApp(env);
         }
         // the gateway on: the code that pairs is the device's (qr.svg shows it), never the phone page's code of before
         const paired = (s: Awaited<ReturnType<typeof phoneNow>>) => {

@@ -78,10 +78,24 @@ function qrLines(ctx: Context, s: PhoneState, address?: string): string {
   return lines(
     qrTerminal(shown),
     "",
-    ui(lang, "ui.phone.qr", { time }),
+    ui(lang, devicesOn(ctx.env) ? "ui.phone.qr.devices" : "ui.phone.qr", { time }),
     ui(lang, "ui.phone.qr.url", { url }),
     ...s.addresses.filter((a) => a.url !== url).map((a) => ui(lang, "ui.phone.qr.more", { url: a.url })),
   );
+}
+
+/**
+ * The QR code asked for where nobody reads it (an agent, --json, no terminal): refused, the way the app shows it named
+ * — Connect a device where the gateway of the devices is on (a phone, a tablet, another computer), else Connect phone.
+ */
+function qrTerminalOnly(ctx: Context): StromError {
+  const devices = devicesOn(ctx.env);
+  const where = devices ? "Research → Devices → Connect a device…" : "Research → Other actions → Connect phone…";
+  return new StromError(`the QR code to pair a ${devices ? "device" : "phone"} is shown in the user's own terminal or in the Strom app, never to an agent`, {
+    hint: `the user runs strom phone qr in their terminal, or ${where} in the Strom app`,
+    code: "phone.qr-terminal",
+    ...(devices ? { hintCode: "phone.qr-terminal.devices" } : {}),
+  });
 }
 
 /** A test of the network (STROM_PHONE_TEST=lan, isolated): said first, never mistaken for the phone connection of this computer. */
@@ -138,7 +152,9 @@ register(
         // opened round its markers turns nothing on by itself
         const w = phoneWindowText(ctx.env, lang);
         const how = await ctx.requireHumanYes(
-          "Turn on the connection with a phone on the local network (a phone paired by its QR code sees an overview of the research and sends photos into it)?",
+          devicesOn(ctx.env)
+            ? "Turn on the connection of devices on the local network (a phone, a tablet or another computer paired by its QR code opens the research in the Strom app, sees and edits it and sends photos into it; consents stay on this computer)?"
+            : "Turn on the connection with a phone on the local network (a phone paired by its QR code sees an overview of the research and sends photos into it)?",
           // a test of the network: no answer of a test — the person's own terminal, in the test's environment
           phoneTestOnCommand(ctx.env) ?? "strom phone on",
           "phone",
@@ -150,7 +166,7 @@ register(
       } else turnPhoneOn(ctx.env, "on already");
       // the QR code to pair a phone right away, in the person's terminal; to an agent only where it is
       const s = showsQr(ctx) ? await withAddresses(ctx) : phoneState(ctx.env);
-      const qr = s.state !== "on" ? "" : showsQr(ctx) && s.addresses.length ? qrLines(ctx, s) : ui(lang, "ui.phone.qr.app");
+      const qr = s.state !== "on" ? "" : showsQr(ctx) && s.addresses.length ? qrLines(ctx, s) : ui(lang, devicesOn(ctx.env) ? "ui.phone.qr.app.devices" : "ui.phone.qr.app");
       return { text: lines(...testLines(ctx), stateLines(lang, s), ...(qr ? ["", qr] : [])), data: phoneState(ctx.env) };
     },
   },
@@ -167,7 +183,7 @@ register(
     examples: ["strom phone qr", "strom phone qr --address http://192.168.0.5:47800"],
     async run(ctx, { opts }) {
       const lang = ctx.uiLang();
-      if (!showsQr(ctx)) throw new StromError("the QR code to pair a phone is shown in the user's own terminal or in the Strom app, never to an agent", { hint: "the user runs strom phone qr in their terminal, or Research → Other actions → Connect phone… in the Strom app", code: "phone.qr-terminal" });
+      if (!showsQr(ctx)) throw qrTerminalOnly(ctx);
       const s = await withAddresses(ctx);
       if (s.state !== "on" || !s.addresses.length) return { text: s.state === "on" || s.state === "error" ? stateLines(lang, s) : ui(lang, "ui.phone.qr.off"), data: { state: s.state } };
       return { text: qrLines(ctx, s, typeof opts.address === "string" ? opts.address : undefined), data: { state: s.state } };
@@ -215,7 +231,7 @@ register(
     group: "setup",
     async run(ctx) {
       refuseTestPort(ctx);
-      if (!phoneConfig(ctx.env).on) throw new StromError("the phone connection is off", { hint: `the user turns it on: ${phoneTestOnCommand(ctx.env) ?? "strom phone on"}`, code: "phone.off" });
+      if (!phoneConfig(ctx.env).on) throw new StromError("the phone connection is off", { hint: `the user turns it on: ${phoneTestOnCommand(ctx.env) ?? "strom phone on"}`, code: "phone.off", ...(devicesOn(ctx.env) ? { hintCode: "phone.off.devices" } : {}) });
       for (const l of testLines(ctx)) ctx.io.stderr(`${l}\n`);
       const why = await servePhone(ctx.env);
       // a server that ended is gone as a process, whatever still holds it

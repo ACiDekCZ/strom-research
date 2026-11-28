@@ -84,6 +84,28 @@ const ARCHIVE_DESCRIPTION: Record<string, string> = {
     "same for every family tree. Turned on by the user alone (their terminal, or a window of the system); turned off by\n" +
     "anyone, the paired phones stay paired. What it did: phone.log in strom's settings folder.",
 };
+/**
+ * The phone's commands where the gateway of the devices of the home network is on (devices.mode not off, the default:
+ * spec 094 K3.11): what they offer beyond a phone — a tablet, another computer, the research in the Strom app on it.
+ * Never said where it is off.
+ */
+const DEVICES_SUMMARY: Record<string, string> = {
+  phone: "The connection of devices on the local network: a phone, a tablet or another computer runs the Strom app from this computer (on, off, paired devices)",
+  "phone qr": "Show a QR code to connect a device (a phone, a tablet or another computer), in the user's terminal (one device, 10 minutes)",
+};
+const DEVICES_DESCRIPTION: Record<string, string> = {
+  phone:
+    "Connect a device: the phone's server is also the gateway of the Strom app for a phone, a tablet or another computer\n" +
+    "of the same home network — the device opens the research in the app from this computer, sees and edits it as here\n" +
+    "(the consents and starting the agent stay on this computer), and sends photos into it. Paired by the QR code\n" +
+    "(strom phone qr, or Research → Devices → Connect a device… in the Strom app), a key of its own, everything between\n" +
+    "them encrypted, nothing leaves the home network. On by default; strom config set devices.mode off turns the devices\n" +
+    "off (anyone may; the phone's page alone then, the devices stay paired), on again only by the user in their terminal.",
+  "phone qr":
+    "Where the devices are on (the default): the code connects a phone, a tablet or another computer to the Strom app\n" +
+    "from this computer (Research → Devices → Connect a device… in the app shows the same code).",
+};
+
 /** An archive's own words for an option whose usual ones tell of the research's work ("<command> --<option>"). */
 const ARCHIVE_OPTION: Record<string, string> = {
   "intake --person": "the person it is of, as the user says (repeatable): kept with them",
@@ -136,13 +158,15 @@ function notHere(name: string, waiting: boolean): string {
     : `strom ${name}: not in an archive (research is switched on by the user: strom mode research)`;
 }
 
-export function commandHelp(def: CommandDef, archive: boolean, appUrl: ShownAppUrl, waiting = false, beta = false): string {
-  const summary = archive ? inArchive(def) : def.summary;
-  if (summary === undefined) return notHere(def.path.join(" "), waiting);
-  const out: string[] = [usageLine(def), "", summary];
+export function commandHelp(def: CommandDef, archive: boolean, appUrl: ShownAppUrl, waiting = false, beta = false, devices = false): string {
   const name = def.path.join(" ");
+  const summary = archive ? inArchive(def) : devices && name in DEVICES_SUMMARY ? DEVICES_SUMMARY[name] : def.summary;
+  if (summary === undefined) return notHere(name, waiting);
+  const out: string[] = [usageLine(def), "", summary];
   const description = archive && name in ARCHIVE_DESCRIPTION ? ARCHIVE_DESCRIPTION[name] : descriptionOf(def, appUrl);
   if (description && !(archive && notInArchive(description))) out.push("", description);
+  const more = devices ? DEVICES_DESCRIPTION[name] : undefined;
+  if (more && !(archive && notInArchive(more))) out.push("", more);
   const examples = archive ? archiveExamples(def) : (def.examples ?? []);
   if (examples.length) out.push("", "Examples:", ...examples.map((e) => `  ${e}`));
   if (def.args?.length) out.push("", "Arguments:", table(def.args.map((a) => [`  ${a.name}`, a.description])));
@@ -216,18 +240,18 @@ function renamedHelp(words: string[]): { old: string; now: string } | undefined 
   return words.length === 1 && Object.hasOwn(RENAMED, words[0]!) ? { old: words[0]!, now: RENAMED[words[0]!]! } : undefined;
 }
 
-export function helpFor(input: string[], archive: boolean, appUrl: ShownAppUrl, waiting = false, beta = false): string {
+export function helpFor(input: string[], archive: boolean, appUrl: ShownAppUrl, waiting = false, beta = false, devices = false): string {
   // "strom help 'research new'" — one quoted argument with several words.
   const words = input.flatMap((w) => w.trim().split(/\s+/)).filter(Boolean);
   if (words.length === 0) return overview(archive);
   const found = match(words);
-  if (found && found.used === words.length) return commandHelp(found.def, archive, appUrl, waiting, beta);
+  if (found && found.used === words.length) return commandHelp(found.def, archive, appUrl, waiting, beta, devices);
   if (subcommandsOf(words).length > 0) return groupHelp(words, archive, waiting);
   const real = aliasGroup(words);
   if (real) return groupHelp(real, archive, waiting);
   // a command strom renamed (strom help facts): said as running it says it, then the help of its new name
   const renamed = renamedHelp(words);
-  if (renamed) return `${ui("en", "ui.error.command.renamed", renamed)}\n→ strom help ${renamed.now}\n\n${helpFor([renamed.now], archive, appUrl, waiting, beta)}`;
+  if (renamed) return `${ui("en", "ui.error.command.renamed", renamed)}\n→ strom help ${renamed.now}\n\n${helpFor([renamed.now], archive, appUrl, waiting, beta, devices)}`;
   const all = commands().filter((c) => c.path.length > 0).map((c) => c.path.join(" "));
   const near = suggest(words.join(" "), all.filter((c) => c.split(" ").length === words.length));
   return `unknown command "${words.join(" ")}"${near.length ? ` — similar command: ${near.map((c) => `strom help ${c}`).join(" · ")}` : ""}\nall commands: strom help`;
@@ -259,6 +283,8 @@ export interface HelpAs {
   waiting?: boolean;
   /** A strom on the beta channel: the options of the beta channel shown too (OptionDef.beta). */
   beta?: boolean;
+  /** The gateway of the devices of the home network on (devices.mode not off): the phone's help offers a phone, a tablet, another computer. */
+  devices?: boolean;
   /** A person's help in `lang` (strom help --human); else the catalog an agent reads — the default, whoever asks. */
   human: boolean;
   lang: string;
@@ -271,7 +297,7 @@ export interface HelpAs {
 function humanOf(name: string, as: HelpAs): string | undefined {
   if (!HUMAN_COMMANDS.includes(name) || (as.archive && !ARCHIVE_COMMANDS.has(name))) return undefined;
   const k = name.replace(/ /g, ".");
-  const own = as.archive && !as.waiting && `ui.help.archive.${k}` in UI ? `ui.help.archive.${k}` : `ui.help.cmd.${k}`;
+  const own = as.archive && !as.waiting && `ui.help.archive.${k}` in UI ? `ui.help.archive.${k}` : as.devices && !as.archive && `ui.help.devices.${k}` in UI ? `ui.help.devices.${k}` : `ui.help.cmd.${k}`;
   return ui(as.lang, own as UIKey);
 }
 
@@ -332,7 +358,7 @@ function pointer(words: string[], as: HelpAs): string {
  */
 export function helpAs(input: string[], as: HelpAs): string {
   const words = input.flatMap((w) => w.trim().split(/\s+/)).filter(Boolean);
-  if (!as.human) return helpFor(words, as.archive, as.appUrl, as.waiting, as.beta) + pointer(words, as);
+  if (!as.human) return helpFor(words, as.archive, as.appUrl, as.waiting, as.beta, as.devices) + pointer(words, as);
   if (words.length === 0) return humanOverview(as);
   const found = match(words);
   if (found && found.used === words.length) return humanCommand(found.def, as);

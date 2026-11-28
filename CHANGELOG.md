@@ -38,6 +38,12 @@ The changes of each version in short. The full notes and the install lines are o
   François (Paul)") is a name as written; a person's writes in the terminal pass at once where an agent's session was
   taken over by another run. The order of a person's marriages set by hand in the Strom app is kept by the research
   and given back so; set back to the dates in the app, so in the research too.
+- **A phone, a tablet or another computer at home:** with the phone connection on (`strom phone on`, or Research →
+  Devices → Connect a device… in the Strom app), a phone, a tablet or another computer on the same home network opens
+  the research in the Strom app from this computer by a QR code, sees and edits it as at the computer and sends photos
+  into it; consents stay on the computer. Each device is paired with a key of its own, everything between them is
+  encrypted and nothing leaves the home network; devices can be renamed and unpaired, and the setting
+  `devices.mode off` leaves the phone's page alone, on again by the person in their terminal.
 - **The history of the houses:** `strom house` keeps a record of each house the family lived in — its numbers in time,
   holders, residents, what happened to it, its place on the map and what was gone through for it; the research looks
   into the houses of direct ancestors only with the setting "House history" on, and one house can always be asked for,

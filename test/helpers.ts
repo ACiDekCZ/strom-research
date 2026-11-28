@@ -200,6 +200,17 @@ export class World {
     fs.writeFileSync(config, JSON.stringify({ ...JSON.parse(fs.readFileSync(config, "utf8")), historyAsked: "2026-10-28T00:00:00.000Z" }, null, 2));
   }
 
+  /**
+   * The gateway of the devices of the home network off (devices.mode off, as the person stores it): the phone's page
+   * alone — the tests of what holds while it is off (it is on by default, spec 094 K3.11).
+   */
+  devicesOff(): void {
+    const config = path.join(this.env.STROM_CONFIG_DIR!, "config.json");
+    const had = fs.existsSync(config) ? JSON.parse(fs.readFileSync(config, "utf8")) : {};
+    fs.mkdirSync(path.dirname(config), { recursive: true });
+    fs.writeFileSync(config, JSON.stringify({ ...had, devicesMode: "off" }, null, 2));
+  }
+
   cleanup(): void {
     worlds.delete(this);
     // every bridge and phone's server of this world a test left running (one that failed before strom live stop; one that

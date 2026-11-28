@@ -38,6 +38,12 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   („(Vincent) François (Paul)”) jest imieniem tak, jak je zapisano; zapisy człowieka w terminalu przechodzą od razu
   także tam, gdzie sesję agenta przejął inny przebieg. Kolejność małżeństw osoby ustawioną w aplikacji Strom ręcznie
   badanie zachowuje i oddaje tak samo; przywróconą w aplikacji do kolejności według dat – także w badaniu.
+- **Telefon, tablet albo inny komputer w domu:** przy włączonym połączeniu (`strom phone on` albo Badanie →
+  Urządzenia → Połącz urządzenie… w aplikacji Strom) telefon, tablet albo inny komputer w tej samej sieci domowej po
+  zeskanowaniu kodu QR otwiera badanie w aplikacji Strom z tego komputera, widzi je i edytuje jak przy komputerze oraz
+  wysyła do niego zdjęcia; zgody zostają na komputerze. Każde urządzenie paruje się własnym kluczem, wszystko między
+  nimi jest szyfrowane i nic nie opuszcza sieci domowej; urządzenia można przemianować i odparować, a ustawienie
+  `devices.mode off` zostawia tylko stronę telefonu, ponownie włącza je osoba w swoim terminalu.
 - **Historia domów:** `strom house` prowadzi zapis każdego domu, w którym rodzina mieszkała – jego numery w czasie,
   właścicieli, mieszkańców, co się z nim działo, jego miejsce na mapie i co dla niego przejrzano; domy przodków w
   linii prostej badanie bada tylko przy włączonym ustawieniu „Historia domów”, a pojedynczy dom można zamówić zawsze,

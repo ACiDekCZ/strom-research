@@ -82,7 +82,8 @@ test("a device's unfinished uploads go after a day, a pair by its newer half, wh
   const { w, shared, outside } = await world();
   try {
     const u = uploads(shared, outside);
-    const r = tidyDevices(w.env, AT); // devices.mode off (never set)
+    w.devicesOff();
+    const r = tidyDevices(w.env, AT); // devices.mode off
     for (const f of [...u.oldPair, u.orphanOld, u.orphanPartOld]) assert.equal(exists(f), false, f);
     for (const f of [...u.halfNew, u.fresh, u.notUpload, u.notDevice, u.emptyNew, u.outsideFile, u.outsideDir, u.linkFile, u.linkDir]) assert.equal(exists(f), true, f);
     assert.equal(exists(u.emptyOld), false, "an empty device folder untouched for a while");
@@ -143,7 +144,8 @@ test("the app's copies: with devices.mode on the one served and the newest other
     const a = apps(w, shared, outside);
     const have = () => fs.readdirSync(a.root).sort();
     const all = have();
-    // off: nothing of the app touched
+    // off (the person's): nothing of the app touched
+    w.devicesOff();
     tidyDevices(w.env, AT);
     assert.deepEqual(have(), all);
     // on, but being downloaded: untouched
@@ -169,6 +171,7 @@ test("strom tidy keeps the devices' caches in order and says nothing of them (de
     const now = Date.now();
     const u = uploads(shared, outside, now);
     const plain = (s: string) => assert.doesNotMatch(s, /device|zařízení|Gerät|urządz|upload|nahráv/iu, s);
+    w.devicesOff();
     const dry = await w.ok(["tidy", "--dry-run"]);
     plain(dry.out);
     assert.equal(exists(u.oldPair[0]!), true, "a dry run takes nothing");

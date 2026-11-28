@@ -37,6 +37,7 @@ import { calibrationOffer, viewSizesFor } from "../core/viewsizes.ts";
 import { archivePermissions, archiveState, browserOnlyHere } from "./menu-archives.ts";
 import { chooseTerminal, terminalState } from "./terminals.ts";
 import { phoneState } from "../core/phone.ts";
+import { devicesList, devicesOn } from "../core/devices.ts";
 import { fixEnv, pendingCount, pendingFixes, quietCheck } from "../commands/fixchecks.ts";
 import { isArchive as archiveHere } from "../core/mode.ts";
 import { isAgent } from "../core/which.ts";
@@ -87,7 +88,8 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
             if (process.platform === "darwin" || process.platform === "win32")
               parts.push({ label: t(archive ? "ui.settings.terminal.archive" : "ui.settings.terminal", { state: terminalState(ctx, lang) }), act: () => terminalStep(ctx, run, lang) });
             // the phone connection: this computer's, an archive's too (photos into it)
-            parts.push({ label: t("ui.settings.phone", { state: phoneLabel(ctx, lang) }), act: () => phoneStep(ctx, run, lang) });
+            // (the gateway of the devices on — the default: a phone, a tablet or another computer, named so)
+            parts.push({ label: t(devicesOn(ctx.env) ? "ui.settings.phone.devices" : "ui.settings.phone", { state: phoneLabel(ctx, lang) }), act: () => phoneStep(ctx, run, lang) });
             // who decides the hypotheses (the uncertain links between people): not in an archive, nor while the
             // research's agent is not on this computer (nobody researches there) — shown only sometimes: last
             if (!archive) {
@@ -327,18 +329,23 @@ async function runConfirmStep(ctx: Context, run: Run, lang: string): Promise<voi
   await run(["config", "set", "run.confirm", "no"], true);
 }
 
-/** The phone connection as the settings say it: off, or on with the phones paired (an error: said as one). */
+/**
+ * The phone connection as the settings say it: off, or on with the phones paired (an error: said as one) — with the
+ * gateway of the devices on, the devices paired too (an icon of a home screen with its device: one).
+ */
 function phoneLabel(ctx: Context, lang: string): string {
   const t = translator(lang);
   const s = phoneState(ctx.env);
+  if (s.state === "on" && devicesOn(ctx.env)) return t("ui.settings.phone.devices.on", { n: s.phones.length + devicesList(ctx.env).filter((d) => !d.of).length });
   if (s.state === "on") return t("ui.settings.phone.on", { n: s.phones.length });
   if (s.state === "error") return t("ui.settings.phone.error");
   return t("ui.settings.off");
 }
 
 /**
- * The phone connection: off — turned on on a yes (the person's, in their terminal: strom phone on); on — turned off, or a
- * phone taken off the paired ones; 0 back with nothing changed.
+ * The phone connection: off — turned on on a yes (the person's, in their terminal: strom phone on; its QR code then);
+ * on — a device connected by the QR code (the gateway of the devices on), turned off, or a phone taken off the paired
+ * ones; 0 back with nothing changed.
  */
 async function phoneStep(ctx: Context, run: Run, lang: string): Promise<void> {
   const t = translator(lang);
@@ -349,10 +356,19 @@ async function phoneStep(ctx: Context, run: Run, lang: string): Promise<void> {
     await pause(ctx, lang);
     return;
   }
-  const i = await ctx.choose(t(s.state === "on" ? "ui.phone.on" : s.error?.waiting ? "ui.phone.waiting" : "ui.phone.error", { urls: s.addresses.map((a) => a.url).join(", "), why: t(`ui.phone.why.${s.error?.code ?? "bind-failed"}` as UIKey) }), [{ label: t("ui.phone.menu.off") }, ...s.phones.map((p) => ({ label: t("ui.phone.menu.remove", { name: p.name || p.id, date: p.pairedAt.slice(0, 10) }) }))], 0, { back: t("ui.browse.back") });
+  // a device connected by the QR code (strom phone qr): second, where the gateway of the devices is on and the server
+  // reachable — turning off keeps its number
+  const connect = s.state === "on" && devicesOn(ctx.env);
+  const i = await ctx.choose(
+    t(s.state === "on" ? "ui.phone.on" : s.error?.waiting ? "ui.phone.waiting" : "ui.phone.error", { urls: s.addresses.map((a) => a.url).join(", "), why: t(`ui.phone.why.${s.error?.code ?? "bind-failed"}` as UIKey) }),
+    [{ label: t("ui.phone.menu.off") }, ...(connect ? [{ label: t("ui.phone.menu.connect") }] : []), ...s.phones.map((p) => ({ label: t("ui.phone.menu.remove", { name: p.name || p.id, date: p.pairedAt.slice(0, 10) }) }))],
+    0,
+    { back: t("ui.browse.back") },
+  );
   if (i === undefined) return;
   if (i === 0) await run(["phone", "off"]);
-  else await run(["phone", "remove", s.phones[i - 1]!.id]);
+  else if (connect && i === 1) await run(["phone", "qr"]);
+  else await run(["phone", "remove", s.phones[i - (connect ? 2 : 1)]!.id]);
   await pause(ctx, lang);
 }
 

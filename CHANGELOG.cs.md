@@ -36,6 +36,12 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   `--undo` to vrátí. Křestní jméno se závorkami mezi slovy („(Vincent) François (Paul)“) je jméno, jak je zapsané;
   zápisy člověka v terminálu projdou hned i tam, kde sezení agenta převzal jiný běh. Pořadí sňatků osoby seřazené v
   aplikaci Strom ručně výzkum drží a vrací stejně; vrácené v aplikaci na pořadí podle dat i ve výzkumu.
+- **Telefon, tablet nebo další počítač doma:** se zapnutým propojením (`strom phone on`, nebo Výzkum → Zařízení →
+  Připojit zařízení… v aplikaci Strom) otevře telefon, tablet nebo další počítač ve stejné domácí síti po naskenování
+  QR kódu výzkum v aplikaci Strom z tohoto počítače, vidí ho a upravuje jako u počítače a posílá do něj fotky; souhlasy
+  zůstávají na počítači. Každé zařízení se páruje vlastním klíčem, vše mezi nimi je šifrované a nic neopouští domácí
+  síť; zařízení jde přejmenovat a odpárovat a nastavení `devices.mode off` nechá jen stránku telefonu, zpět ho zapne
+  člověk ve svém terminálu.
 - **Historie domů:** `strom house` vede záznam každého domu, kde rodina žila – jeho čísla v čase, držitele, obyvatele,
   co se s ním dělo, jeho místo na mapě a co se pro něj prošlo; domy přímých předků výzkum zkoumá jen se zapnutým
   nastavením „Historie domů“ a jednotlivý dům jde vyžádat vždy, i z aplikace Strom. Nad místem domu smí aplikace

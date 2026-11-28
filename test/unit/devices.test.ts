@@ -53,15 +53,19 @@ const proofOf = (code: { pairId: string; secret: string }) => pairProof(deviceKe
 const mode = (f: string) => fs.statSync(f).mode & 0o777;
 const b64 = (b: Buffer) => b.toString("base64url");
 
-test("devices.mode: on only by the user's config of this computer — no variable turns it on, a config unread is off", () => {
+test("devices.mode: on by default (094 K3.11), off only by the user's config of this computer — no variable turns it off or on, a config unread is off", () => {
   const s = scratch();
   try {
-    assert.equal(devicesOn(s.env), false);
-    assert.equal(devicesOn({ ...s.env, STROM_DEVICES_MODE: "on", DEVICES_MODE: "on" }), false);
+    // not set: on (no config file at all, a config without it)
+    assert.equal(devicesOn(s.env), true);
+    fs.writeFileSync(path.join(s.dir, "config.json"), JSON.stringify({ lang: "cs" }));
+    assert.equal(devicesOn(s.env), true);
     fs.writeFileSync(path.join(s.dir, "config.json"), JSON.stringify({ devicesMode: "off" }));
     assert.equal(devicesOn(s.env), false);
+    assert.equal(devicesOn({ ...s.env, STROM_DEVICES_MODE: "on", DEVICES_MODE: "on" }), false);
     fs.writeFileSync(path.join(s.dir, "config.json"), JSON.stringify({ devicesMode: "on" }));
     assert.equal(devicesOn(s.env), true);
+    assert.equal(devicesOn({ ...s.env, STROM_DEVICES_MODE: "off", DEVICES_MODE: "off" }), true);
     fs.writeFileSync(path.join(s.dir, "config.json"), "{ broken");
     assert.equal(devicesOn(s.env), false);
   } finally {
@@ -386,7 +390,8 @@ test("the device a request of the gateway names (X-Strom-Device): its row — an
     const c = deviceCode(s.env, parent.device, "home", () => T0);
     const icon = pairDevice(s.env, { pairId: c.id, proof: proofOf({ pairId: c.id, secret: c.secret }), address: "http://192.168.1.23:47811" }, () => T0);
     assert.ok(icon.ok);
-    // off (devices.mode not on): nobody
+    // off (devices.mode off): nobody
+    fs.writeFileSync(path.join(s.dir, "config.json"), JSON.stringify({ devicesMode: "off" }));
     assert.equal(clientOfDevice(s.env, parent.device.id), undefined);
     fs.writeFileSync(path.join(s.dir, "config.json"), JSON.stringify({ devicesMode: "on" }));
     const row = { id: parent.device.id, name: "Telefon Lhotáků" };

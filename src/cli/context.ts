@@ -1,6 +1,7 @@
 // Per-invocation context: environment, settings, IO, and lazy access to the
 // tree. Asking the user happens only here, and only on a terminal.
 
+import { devicesOn } from "../core/devices.ts";
 import { beatSession } from "../core/holds.ts";
 import { writesAsPerson } from "../core/transcriptguard.ts";
 import fs from "node:fs";
@@ -336,7 +337,12 @@ export class Context {
    * agent too (nothing offered it would refuse) — never to an agent strom is run by, which always reads its whole
    * catalog where research is on (the agent there makes it research again).
    */
-  helpShown(): { archive: boolean; waiting: boolean; beta: boolean } {
+  helpShown(): { archive: boolean; waiting: boolean; beta: boolean; devices: boolean } {
+    // the gateway of the devices of the home network on (devices.mode not off): the phone's help offers it
+    return { ...this.helpPlace(), devices: devicesOn(this.env) };
+  }
+
+  private helpPlace(): { archive: boolean; waiting: boolean; beta: boolean } {
     // a strom on the beta channel shows that channel's options too (strom update --channel); the releases never
     const beta = updateChannel(this.env) === "beta";
     if (this.archiveHere()) return { archive: true, waiting: false, beta };

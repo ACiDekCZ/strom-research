@@ -42,6 +42,13 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   ist ein Name, wie geschrieben; Einträge eines Menschen im Terminal gehen sofort durch, auch wo ein anderer Lauf die
   Sitzung eines Agenten übernahm. Die von Hand gesetzte Reihenfolge der Ehen einer Person in der Strom-App behält die
   Forschung und gibt sie so zurück; in der App wieder nach den Daten geordnet, so auch in der Forschung.
+- **Ein Telefon, ein Tablet oder ein weiterer Computer zu Hause:** mit eingeschalteter Verbindung (`strom phone on`
+  oder Forschung → Geräte → Gerät verbinden… in der Strom-App) öffnet ein Telefon, Tablet oder weiterer Computer im
+  selben Heimnetz per QR-Code die Forschung in der Strom-App von diesem Computer, sieht und bearbeitet sie wie am
+  Computer und schickt Fotos hinein; Zustimmungen bleiben am Computer. Jedes Gerät wird mit einem eigenen Schlüssel
+  gekoppelt, alles dazwischen ist verschlüsselt und nichts verlässt das Heimnetz; Geräte lassen sich umbenennen und
+  entkoppeln, und die Einstellung `devices.mode off` lässt nur die Seite des Telefons, wieder eingeschaltet von der
+  Person in ihrem Terminal.
 - **Geschichte der Häuser:** `strom house` führt einen Eintrag zu jedem Haus, in dem die Familie lebte – seine Nummern
   im Lauf der Zeit, Besitzer, Bewohner, was mit ihm geschah, seinen Ort auf der Karte und was dafür durchgesehen
   wurde; die Häuser der direkten Vorfahren erforscht die Forschung nur mit eingeschalteter Einstellung „Geschichte der

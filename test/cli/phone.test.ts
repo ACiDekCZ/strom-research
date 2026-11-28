@@ -152,6 +152,7 @@ test("strom phone on in a terminal: the person's own yes, Enter says no (a termi
   const w = new World();
   try {
     await w.ok(["setup", "--yes"]);
+    w.devicesOff();
     const cfg = path.join(w.env.STROM_CONFIG_DIR!, "phone.json");
     const isOn = () => fs.existsSync(cfg) && (JSON.parse(fs.readFileSync(cfg, "utf8")) as { on: boolean }).on;
     for (const answer of ["", "n", "ne"]) {
@@ -315,6 +316,7 @@ test("pairing a phone: the QR code of the bridge (its headers, the address witho
   const w = new World();
   try {
     await w.withTree("Novákovi");
+    w.devicesOff();
     const env = { STROM_ISOLATED: "1", STROM_PHONE_TEST_ANSWER: "yes", STROM_PHONE_TEST_ANSWER_MS: "200" };
     const b = (await w.ok(["live", "start", "--json"], { env })).json as Info;
     await post(b.url, "on", { lang: "cs" });
@@ -444,6 +446,7 @@ test("the computer started again: the phone's server gone is said as waiting, ne
   const w = new World();
   try {
     await w.withTree("Novákovi");
+    w.devicesOff();
     const env = { STROM_ISOLATED: "1", STROM_PHONE_TEST_ANSWER: "yes", STROM_PHONE_TEST_ANSWER_MS: "200" };
     const b = (await w.ok(["live", "start", "--json"], { env })).json as Info;
     await post(b.url, "on", { lang: "cs" });

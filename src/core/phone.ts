@@ -541,9 +541,11 @@ export function endPhoneLater(env: Env, pid: number, ms = 4000): void {
 export function phoneWindowText(env: Env, lang: string): DialogText {
   // the first address, in one sentence (the designer's text, spec 012 §2): only the text and two buttons, No the default
   const ip = lanAddresses(env)[0]?.ip;
+  // the gateway of the devices on (the default): what a device paired sees and does — the research in the app, edited
+  const d = devicesModeOn(env) ? ".devices" : "";
   return {
-    title: ui(lang, "ui.phone.window.title"),
-    question: ip ? ui(lang, "ui.phone.window", { ip }) : ui(lang, "ui.phone.window.noip"),
+    title: ui(lang, `ui.phone.window${d}.title` as UIKey),
+    question: ip ? ui(lang, `ui.phone.window${d}` as UIKey, { ip }) : ui(lang, `ui.phone.window${d}.noip` as UIKey),
     yes: ui(lang, "ui.phone.window.yes"),
     no: ui(lang, "ui.phone.window.no"),
   };
@@ -938,10 +940,10 @@ export function pageLang(env: Env, opts: { phone?: PairedPhone; asked?: string |
   return ok(opts.phone?.lang) ?? ok(opts.asked) ?? ok(set.value) ?? ok(browser) ?? "en";
 }
 
-/** devices.mode on (core/devices.ts devicesOn, read here without it: devices.ts reads this module). A config that cannot be read: off. */
+/** devices.mode not off (core/devices.ts devicesOn, read here without it: devices.ts reads this module). A config that cannot be read: off. */
 function devicesModeOn(env: Env): boolean {
   try {
-    return loadUserConfig(env).devicesMode === "on";
+    return loadUserConfig(env).devicesMode !== "off";
   } catch {
     return false;
   }

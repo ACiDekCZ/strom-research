@@ -201,7 +201,7 @@ export interface UserConfig {
   liveIdleMinutes?: number;
   /** browser.tileWait: seconds a viewer's tiles are waited for while they still come (unset: 30 s, as before). */
   browserTileWait?: number;
-  /** devices.mode: on — the phone's server is also the gateway of other devices (core/devices.ts); unset: off. */
+  /** devices.mode: off — the phone's server is the phone's page alone; on or unset (the default): also the gateway of other devices (core/devices.ts). */
   devicesMode?: string;
 }
 
@@ -395,7 +395,7 @@ export const SETTINGS: SettingDef[] = [
   // Read from the user's config file only — no variable, no flag, no tree: turned on by the person alone in their own
   // terminal (an agent is refused without a window, commands/setup.ts devicesDecision); off is anyone's and is stored as
   // nothing. Hidden while it is tried: nothing says it but strom config where once it is on.
-  { key: "devices.mode", env: "", tree: false, kind: "choice", choices: ["off", "on"], hidden: true, description: "the phone's server is also the gateway of the Strom app on other devices of the home network: off (default) — the phone's page alone; on — the app for the devices, paired with a key of their own, everything between them encrypted. Turned on by the person alone in their own terminal; off keeps the devices paired" },
+  { key: "devices.mode", env: "", tree: false, kind: "choice", choices: ["on", "off"], description: "the phone's server is also the gateway of the Strom app on other devices of the home network (a phone, a tablet, another computer): on (default) — the app for the devices, paired with a key of their own, everything between them encrypted; off — the phone's page alone. Turned off by anyone, on again by the person alone in their own terminal; off keeps the devices paired" },
   { key: "browser.downloads", env: "STROM_BROWSER_DOWNLOADS", tree: false, kind: "path", description: "the folder your browser saves downloads into (default: the system's Downloads folder) — strom takes a connector's images over from there" },
   // Read from the config file only — no variable, no flag, no tree: nothing an agent can set.
   { key: "agent.permissions", env: "", tree: false, kind: "choice", choices: PERMISSION_LEVELS, description: "what the agent may do without asking you: ask (what the tree allows; anything else it asks), auto (default: what the tree allows; anything else the agent's own review decides, asking only when risky), full (everything but what the tree denies) — only you raise it" },

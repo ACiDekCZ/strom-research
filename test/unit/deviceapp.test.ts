@@ -91,7 +91,7 @@ function world(origin: string, on = true): { env: Record<string, string>; dir: s
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom-deviceapp-"));
   const config = path.join(dir, "config");
   fs.mkdirSync(config);
-  if (on) fs.writeFileSync(path.join(config, "config.json"), JSON.stringify({ devicesMode: "on" }));
+  fs.writeFileSync(path.join(config, "config.json"), JSON.stringify({ devicesMode: on ? "on" : "off" }));
   return { env: { HOME: dir, STROM_CONFIG_DIR: config, STROM_SHARED: path.join(dir, "shared"), STROM_APP_URL: `${origin}/run/` }, dir, done: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 

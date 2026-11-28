@@ -1,8 +1,9 @@
-// The gateway of other devices is tried behind a hidden setting (devices.mode, spec 094 K3.11): while it is off — the
-// default — nothing of it is said anywhere a person or an agent reads (help, the catalog of commands, the guide, the
-// settings, doctor, the orientation, the catalogs of texts, README, the changelog). It is turned on by the person alone
-// in their own terminal: an agent is refused without a window (not even a dialog says it is there); off is anyone's,
-// and nothing of it stays in the settings then.
+// The gateway of other devices (devices.mode, spec 094 K3.11, public from 28. 11.): on by default — help, the menu and
+// the window that turns the phone's connection on offer a phone, a tablet or another computer, the bridge says its
+// features. Off — the person's, stored as off and kept (never taken for the default) — nothing of it is offered anywhere
+// a person or an agent reads (help, the catalog of commands, the guide, doctor, the orientation); the settings name the
+// setting alone. Turned off by anyone; on again (set on, or unset back to the default) by the person alone in their own
+// terminal: an agent is refused without a window (not even a dialog says it is there).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -20,8 +21,26 @@ import { settingDef } from "../../src/core/config.ts";
 const ROOT = path.resolve(import.meta.dirname, "..", "..");
 /** The setting, the features of the gateway, its paths and the words of its dialog (en, cs, de, pl). */
 const QUIET = /devices\.mode|device\.(gateway|rename|events|phonePage)|\/device\/|device-(?:app|uploads)|(?<!\p{L})gateway(?!\p{L})|(?<!\p{L})(připojit zařízení|connect a device|gerät verbinden|połącz urządzenie)(?!\p{L})/iu;
+/** What offers a device (beside the phone): its words, a tablet, the features and paths of the gateway. */
+const OFFER = /device\.(gateway|rename|events|phonePage)|\/device\/|(?<!\p{L})(připojit zařízení|connect a device|gerät verbinden|połącz urządzenie|tablet\p{L}*)(?!\p{L})/iu;
+/** The texts of the catalogs said only where the gateway is on (each with its own key: never said while it is off). */
+const DEVICE_KEYS = new Set([
+  "ui.help.devices.phone",
+  "ui.help.devices.phone.qr",
+  "ui.phone.qr.devices",
+  "ui.phone.qr.app.devices",
+  "ui.error.phone.off.devices.hint",
+  "ui.error.phone.qr-terminal.devices.hint",
+  "ui.settings.phone.devices",
+  "ui.settings.phone.devices.on",
+  "ui.phone.menu.connect",
+  "ui.phone.window.devices.title",
+  "ui.phone.window.devices",
+  "ui.phone.window.devices.noip",
+]);
 
 const said = (text: string) => text.split("\n").filter((l) => QUIET.test(l));
+const offered = (text: string) => text.split("\n").filter((l) => OFFER.test(l));
 
 test("the look sees what it looks for", () => {
   assert.ok(QUIET.test(settingDef("devices.mode").key));
@@ -30,90 +49,158 @@ test("the look sees what it looks for", () => {
   assert.ok(QUIET.test("Connect a device"));
   assert.ok(QUIET.test("POST /device/pair"));
   assert.ok(!QUIET.test("the phone's page: Připojit telefon"));
+  for (const t of ["Telefon, tablet nebo další počítač", "a phone, a tablet or another computer", "Połącz urządzenie", "Tablets"]) assert.ok(OFFER.test(t), t);
+  assert.ok(!OFFER.test("Připojit telefon…"));
 });
 
-test("the catalogs of texts, README and the changelogs say nothing of the gateway", () => {
+test("the catalogs of texts offer the devices only by the texts of their own keys, each in every language; the changelog of 1.38.0 tells of them in each", () => {
   const catalogs: [string, Record<string, string>][] = [
     ["en ui", UI as Record<string, string>],
     ["en phrases", PHRASES as Record<string, string>],
     ...fs.readdirSync(path.join(ROOT, "assets", "lang")).map((f): [string, Record<string, string>] => [f, JSON.parse(fs.readFileSync(path.join(ROOT, "assets", "lang", f), "utf8"))]),
   ];
-  for (const [name, catalog] of catalogs) assert.deepEqual(Object.entries(catalog).filter(([, text]) => typeof text === "string" && QUIET.test(text)), [], name);
-  for (const f of fs.readdirSync(ROOT).filter((f) => /^(README|CHANGELOG)(\.[a-z]{2})?\.md$/.test(f))) assert.deepEqual(said(fs.readFileSync(path.join(ROOT, f), "utf8")), [], f);
+  for (const [name, catalog] of catalogs) {
+    assert.deepEqual(Object.entries(catalog).filter(([k, text]) => typeof text === "string" && QUIET.test(text) && !DEVICE_KEYS.has(k)), [], name);
+    if (name !== "en phrases") for (const k of DEVICE_KEYS) assert.ok(typeof catalog[k] === "string" && catalog[k]!.length > 10, `${name}: ${k}`);
+  }
+  for (const f of fs.readdirSync(ROOT).filter((f) => /^CHANGELOG(\.[a-z]{2})?\.md$/.test(f))) {
+    const text = fs.readFileSync(path.join(ROOT, f), "utf8");
+    const section = text.slice(text.indexOf("## 1.38.0"), text.indexOf("## 1.37.0"));
+    assert.match(section, /tablet/iu, f);
+    assert.match(section, /devices\.mode off/u, f);
+    assert.doesNotMatch(section, /beta/iu, f);
+  }
+  for (const f of fs.readdirSync(ROOT).filter((f) => /^README(\.[a-z]{2})?\.md$/.test(f))) assert.deepEqual(said(fs.readFileSync(path.join(ROOT, f), "utf8")), [], f);
 });
 
-test("devices.mode off (the default): help, the catalog of commands, the guide, the settings, doctor and the orientation say nothing of it", { skip: !hasGit }, async () => {
+test("devices.mode not set (the default, 094 K3.11): on — the help of the phone offers a phone, a tablet or another computer, the settings say on (default)", { skip: !hasGit }, async () => {
   const w = new World();
   try {
     await w.ok(["setup", "--yes"]);
-    await w.ok(["init", "Lhotákovi"]);
-    w.cwd = w.treeDir("Lhotákovi");
-    const out: [string, string][] = [];
-    for (const args of [[], ["help"], ["help", "--human"], ["help", "config"], ["help", "config", "set"], ["help", "config", "where"], ["config", "set", "--help"], ["commands", "--json"], ["guide"], ["doctor"], ["status"], ["config", "where"], ["config", "where", "--json"], ["config", "set", "nic.neexistuje", "x"], ["config", "set", "nic.neexistuje", "x", "--json"], ["config", "get", "nic.neexistuje"]]) {
-      const r = await w.run(args, args[0] === "help" || args.includes("--help") ? { tty: true } : {});
-      out.push([`strom ${args.join(" ")}`, r.out + r.err]);
-    }
-    // what the agents read: the tree's own files
-    await w.ok(["agents", "sync"]);
-    out.push(["AGENTS.md", fs.readFileSync(path.join(w.cwd, "AGENTS.md"), "utf8")]);
-    for (const [label, text] of out) assert.ok(text.trim().length > 20, `${label}: said something`);
-    for (const [label, text] of out) assert.deepEqual(said(text), [], `${label}:\n${text}`);
-    // the unknown key's hint lists the settings (the look above saw a list)
-    assert.match(out.find(([l]) => l === "strom config set nic.neexistuje x")![1], /browser\.downloads/);
-    // turned off by hand (anyone's): still nothing said, nothing stored
-    await w.ok(["config", "set", "devices.mode", "off"]);
+    assert.equal((JSON.parse(fs.readFileSync(path.join(w.env.STROM_CONFIG_DIR!, "config.json"), "utf8")) as Record<string, unknown>).devicesMode, undefined);
+    assert.equal((await w.ok(["config", "get", "devices.mode"])).out.trim(), "on");
     const where = await w.ok(["config", "where", "--json"]);
-    assert.deepEqual(said(where.out), [], where.out);
-    assert.equal(JSON.parse(fs.readFileSync(path.join(w.env.STROM_CONFIG_DIR!, "config.json"), "utf8")).devicesMode, undefined);
+    assert.deepEqual(
+      where.json.settings.filter((s: { key: string }) => s.key === "devices.mode").map((s: { value: unknown; source: string }) => [s.value, s.source]),
+      [["on", "default"]],
+    );
+    for (const args of [["help", "phone"], ["help", "phone", "qr"]]) {
+      const r = await w.ok(args);
+      assert.ok(offered(r.out).length > 0, `strom ${args.join(" ")}:\n${r.out}`);
+      assert.match(r.out, /a phone, a tablet or another computer/u, args.join(" "));
+    }
+    assert.match((await w.ok(["help", "phone"])).out, /Research → Devices → Connect a device…/u);
+    const human = await w.ok(["help", "phone", "--human"], { env: { STROM_LANG: "cs" } });
+    assert.match(human.out, /telefon, tablet nebo další počítač/u, human.out);
+    const qr = await w.ok(["help", "phone", "qr", "--human"], { env: { STROM_LANG: "cs" } });
+    assert.match(qr.out, /QR kód k připojení zařízení – telefonu, tabletu nebo dalšího počítače/u, qr.out);
+    // asked by an agent: refused, the way the app names it — Connect a device
+    const agent = await w.run(["phone", "qr", "--json"], { env: { CLAUDECODE: "1" } });
+    assert.match(agent.out + agent.err, /Research → Devices → Connect a device…/u);
   } finally {
     w.cleanup();
   }
 });
 
-test("devices.mode on: an agent is refused without a window, nothing written; a person in their terminal turns it on; off is anyone's", async () => {
+test("devices.mode off (the person's, stored as off): help, the catalog of commands, the guide, doctor and the orientation offer nothing of it; the settings name the setting alone", { skip: !hasGit }, async () => {
+  const w = new World();
+  try {
+    await w.ok(["setup", "--yes"]);
+    await w.ok(["init", "Lhotákovi"]);
+    w.cwd = w.treeDir("Lhotákovi");
+    // turned off by an agent (anyone's): stored as off — never as nothing, which is on
+    await w.ok(["config", "set", "devices.mode", "off"], { env: { CLAUDECODE: "1" } });
+    assert.equal(JSON.parse(fs.readFileSync(path.join(w.env.STROM_CONFIG_DIR!, "config.json"), "utf8")).devicesMode, "off");
+    const out: [string, string][] = [];
+    for (const args of [[], ["help"], ["help", "--human"], ["help", "phone"], ["help", "phone", "qr"], ["help", "phone", "--human"], ["help", "phone", "qr", "--human"], ["help", "config"], ["commands", "--json"], ["guide"], ["doctor"], ["status"]]) {
+      const r = await w.run(args, args[0] === "help" || args.includes("--help") ? { tty: true } : {});
+      out.push([`strom ${args.join(" ")}`, r.out + r.err]);
+    }
+    const agent = await w.run(["phone", "qr", "--json"], { env: { CLAUDECODE: "1" } });
+    out.push(["strom phone qr --json (an agent)", agent.out + agent.err]);
+    // what the agents read: the tree's own files
+    await w.ok(["agents", "sync"]);
+    out.push(["AGENTS.md", fs.readFileSync(path.join(w.cwd, "AGENTS.md"), "utf8")]);
+    for (const [label, text] of out) assert.ok(text.trim().length > 20, `${label}: said something`);
+    for (const [label, text] of out) assert.deepEqual(offered(text), [], `${label}:\n${text}`);
+    // the settings: the setting itself, off, from the config
+    const where = await w.ok(["config", "where", "--json"]);
+    assert.deepEqual(
+      where.json.settings.filter((s: { key: string }) => s.key === "devices.mode").map((s: { value: unknown; source: string }) => [s.value, s.source]),
+      [["off", "config"]],
+    );
+    assert.equal((await w.ok(["config", "get", "devices.mode"])).out.trim(), "off");
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("the menu's settings: the devices (a phone, a tablet, another computer) where the gateway is on, the default; the phone connection alone where it is off", { skip: !hasGit }, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Lhotákovi");
+    // 8 settings · 1 the setup: its steps · 0 · 0 · 0
+    const menu = async () => (await w.ok([], { tty: true, answers: ["8", "1", "0", "0", "0"], env: { STROM_LANG: "cs" } })).out;
+    const on = await menu();
+    assert.match(on, /\[\d\] {2}Zařízení {2,}vypnuto {2,}telefon, tablet nebo další počítač v domácí síti otevře výzkum v aplikaci Strom\n/u, on);
+    assert.doesNotMatch(on, /Propojení s telefonem/u);
+    w.devicesOff();
+    const off = await menu();
+    assert.match(off, /\[\d\] {2}Propojení s telefonem {2,}vypnuto/u, off);
+    assert.deepEqual(offered(off), [], off);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("devices.mode on again: only where it was off, by the person in their terminal — an agent is refused without a window (set on, unset), nothing written; off is anyone's", async () => {
   const w = new World();
   try {
     await w.ok(["setup", "--yes"]);
     const config = () => JSON.parse(fs.readFileSync(path.join(w.env.STROM_CONFIG_DIR!, "config.json"), "utf8")) as Record<string, unknown>;
-    // an agent — its own terminal too, a window that would say yes at once: never shown (the yes would have written it)
-    const agents: { env: Record<string, string>; dialog: boolean; tty?: boolean }[] = [{ env: { CLAUDECODE: "1" }, dialog: true }, { env: { CLAUDECODE: "1" }, dialog: true, tty: true }, { env: { CODEX_SANDBOX: "seatbelt" }, dialog: true }];
-    for (const opts of agents) {
-      const r = await w.run(["config", "set", "devices.mode", "on", "--json"], opts);
+    // not set (on): an agent setting on changes nothing and is not refused
+    assert.equal((await w.run(["config", "set", "devices.mode", "on"], { env: { CLAUDECODE: "1" } })).code, 0);
+    await w.ok(["config", "unset", "devices.mode"], { env: { CLAUDECODE: "1" } });
+    assert.equal(config().devicesMode, undefined);
+    // off: an agent may
+    await w.ok(["config", "set", "devices.mode", "off"], { env: { CLAUDECODE: "1" } });
+    assert.equal(config().devicesMode, "off");
+    // an agent — its own terminal too, a window that would say yes at once: never shown (the yes would have written it);
+    // set on or unset back to the default alike
+    const agents: { args: string[]; env: Record<string, string>; dialog: boolean; tty?: boolean }[] = [
+      { args: ["config", "set", "devices.mode", "on", "--json"], env: { CLAUDECODE: "1" }, dialog: true },
+      { args: ["config", "set", "devices.mode", "on", "--json"], env: { CLAUDECODE: "1" }, dialog: true, tty: true },
+      { args: ["config", "set", "devices.mode", "on", "--json"], env: { CODEX_SANDBOX: "seatbelt" }, dialog: true },
+      { args: ["config", "unset", "devices.mode", "--json"], env: { CLAUDECODE: "1" }, dialog: true },
+    ];
+    for (const { args, ...opts } of agents) {
+      const r = await w.run(args, opts);
       assert.equal(r.code, 4, r.out + r.err);
       assert.equal(r.json?.status, "needs-consent", r.out);
       assert.match(r.json.needs[0].question, /person's own choice.*own terminal/);
       assert.equal(r.json.needs[0].set, "strom config set devices.mode on");
       assert.doesNotMatch(r.err, /okn|window/i, "no window waited for");
-      assert.equal(config().devicesMode, undefined, "nothing written");
+      assert.equal(config().devicesMode, "off", "nothing written");
     }
     // nor without a terminal at all (a script: no window either)
-    const script = await w.run(["config", "set", "devices.mode", "on"], { dialog: true });
-    assert.equal(script.code, 4, script.out + script.err);
-    assert.equal(config().devicesMode, undefined);
-    // the person in their own terminal: on, no question (strom config where says it now — the one place)
+    for (const args of [["config", "set", "devices.mode", "on"], ["config", "unset", "devices.mode"]]) {
+      const script = await w.run(args, { dialog: true });
+      assert.equal(script.code, 4, script.out + script.err);
+      assert.equal(config().devicesMode, "off");
+    }
+    // the person in their own terminal: on, no question
     const on = await w.run(["config", "set", "devices.mode", "on"], { tty: true, dialog: false });
     assert.equal(on.code, 0, on.out + on.err);
     assert.equal(config().devicesMode, "on");
-    const where = await w.ok(["config", "where", "--json"]);
-    assert.deepEqual(
-      where.json.settings.filter((s: { key: string }) => s.key === "devices.mode").map((s: { value: unknown; source: string }) => [s.value, s.source]),
-      [["on", "config"]],
-    );
+    // off again, unset back to the default by the person
+    await w.ok(["config", "set", "devices.mode", "off"]);
+    assert.equal(config().devicesMode, "off");
+    await w.ok(["config", "unset", "devices.mode"], { tty: true });
+    assert.equal(config().devicesMode, undefined);
     assert.equal((await w.ok(["config", "get", "devices.mode"])).out.trim(), "on");
-    // an agent setting on what is on already changes nothing and is not refused
-    assert.equal((await w.run(["config", "set", "devices.mode", "on"], { env: { CLAUDECODE: "1" } })).code, 0);
-    // off: an agent may — stored as nothing, strom config where silent again
-    await w.ok(["config", "set", "devices.mode", "off"], { env: { CLAUDECODE: "1" } });
-    assert.equal(config().devicesMode, undefined);
-    assert.deepEqual(said((await w.ok(["config", "where", "--json"])).out), []);
-    // on again by the person, unset by an agent
-    await w.ok(["config", "set", "devices.mode", "on"], { tty: true });
-    await w.ok(["config", "unset", "devices.mode"], { env: { CLAUDECODE: "1" } });
-    assert.equal(config().devicesMode, undefined);
     // turned off keeps what the devices left (nothing is removed by the setting)
     const kept = path.join(w.env.STROM_CONFIG_DIR!, "devices.json");
     fs.writeFileSync(kept, JSON.stringify({ devices: [] }));
-    await w.ok(["config", "set", "devices.mode", "on"], { tty: true });
     await w.ok(["config", "set", "devices.mode", "off"]);
     assert.ok(fs.existsSync(kept));
   } finally {
@@ -160,7 +247,7 @@ const isPhonePage = (text: string, lang: string) => {
   return !!nonce && text.replaceAll(nonce, "N") === phonePage(lang, "N");
 };
 
-test("devices.mode off: the bridge and the phone's server as before — no device.* feature, GET phone as it was, /device/* 404 device.disabled, / the phone's page, phone/pair and phone/devices/* unknown", { skip: !hasGit || process.platform === "win32", timeout: 180_000 }, async () => {
+test("devices.mode not set: the bridge says the features of the gateway; off: the bridge and the phone's server as before — no device.* feature, GET phone as it was, /device/* 404 device.disabled, / the phone's page, phone/pair and phone/devices/* unknown", { skip: !hasGit || process.platform === "win32", timeout: 180_000 }, async () => {
   const w = new World();
   try {
     await w.withTree("Lhotákovi");
@@ -170,6 +257,11 @@ test("devices.mode off: the bridge and the phone's server as before — no devic
     const env = { STROM_ISOLATED: "1", STROM_PHONE_TEST_ANSWER: "yes", STROM_PHONE_TEST_ANSWER_MS: "200", STROM_DEVICE_LOCAL_NAME: "lhota-pc" };
     const bridge = (await w.ok(["live", "start", "--json"], { env })).json as { url: string };
     const APP = { Origin: "https://stromapp.info", "Content-Type": "text/plain;charset=UTF-8" };
+    // not set (the default): on — the bridge says the gateway's features, the app goes by them alone
+    const before = (await request("GET", `${bridge.url}/status`)).json;
+    assert.deepEqual(before.features.filter((f: string) => f.startsWith("device")), ["device.gateway", "device.rename", "device.events", "device.agent"]);
+    // the person's off from here on
+    w.devicesOff();
     assert.equal((await request("POST", `${bridge.url}/phone/on`, "{}", APP)).status, 200);
     let address = "";
     await until("the phone's server", async () => {

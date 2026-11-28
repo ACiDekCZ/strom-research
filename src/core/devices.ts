@@ -1,6 +1,6 @@
 // The devices of the home network (spec 094 P3): a phone, a tablet or another computer runs the Strom app from the
-// gateway of this computer (the phone's server, core/phone.ts) and reaches the research through it. Tried behind the
-// hidden setting devices.mode (the person's alone, in their terminal): off — the default — nothing of it is anywhere.
+// gateway of this computer (the phone's server, core/phone.ts) and reaches the research through it. On by default (spec
+// 094 K3.11, made public 28. 11.): devices.mode off — the person's, kept as they stored it — nothing of it is anywhere.
 //
 // Pairing: the computer shows a QR code of http://<address>:<port>/pair?m=app#<pairId>.<secret> — the part after # never
 // leaves the device's browser. The device derives its key K from the secret (HKDF-SHA256, salt the pairId, info
@@ -74,12 +74,13 @@ export type Clock = () => number;
 // ——— the switch ———
 
 /**
- * Is the gateway of other devices on (devices.mode on)? Read from the user's config file of this computer alone — no
- * variable, no flag, no tree: nothing an agent can set. A config that cannot be read: off.
+ * Is the gateway of other devices on (devices.mode not off: on by default)? Read from the user's config file of this
+ * computer alone — no variable, no flag, no tree: nothing an agent can set. Off only where the person stored off; a
+ * config that cannot be read: off.
  */
 export function devicesOn(env: Env): boolean {
   try {
-    return loadUserConfig(env).devicesMode === "on";
+    return loadUserConfig(env).devicesMode !== "off";
   } catch {
     return false;
   }
