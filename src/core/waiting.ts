@@ -394,6 +394,23 @@ function personOf(t: Task): { person?: string } {
   return people.length === 1 ? { person: people[0]! } : {};
 }
 
+/**
+ * Every person a task is about (spec 150 U1, feature waiting.persons): its subject's people as the tree has them now
+ * (one merged as a duplicate by the one it went into, one taken back left out), for the app's badge and count on each —
+ * besides `person` (the one when it is one); none, no field.
+ */
+function personsOf(tree: Tree, t: Task): { persons?: string[] } {
+  const out: string[] = [];
+  for (const id of t.subject) {
+    if (!/^P\d{1,7}$/u.test(id)) continue;
+    let p = tree.get<Person>(id);
+    for (let hops = 0; p?.mergedInto && hops < 10; hops++) p = tree.get<Person>(p.mergedInto);
+    if (!p || p.type !== "person" || p.retracted) continue;
+    if (!out.includes(p.id)) out.push(p.id);
+  }
+  return out.length ? { persons: out } : {};
+}
+
 /** The archive of a host: the research's own (its address, or a book's there), else the host itself. */
 function archiveGroup(tree: Tree, host: string, title: string | undefined): WaitGroup {
   const hostOf = (u: string | undefined) => (u && URL.canParse(u) ? new URL(u).hostname.toLowerCase() : undefined);
@@ -547,6 +564,7 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
         ...(inbox ? { inbox: inboxJson(tree, t, inbox) } : {}),
         actions: actionsOf(kind, phase, !!note, !!inbox).filter((a) => !demo || a !== "chat"),
         ...personOf(t),
+        ...personsOf(tree, t),
         ...(research ? { research } : {}),
         ...(book ? { book } : {}),
         // its wait not as strom needs it (and not kept as it is by the person): the codes, the fix strom can make
