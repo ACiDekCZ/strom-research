@@ -127,6 +127,8 @@ function editFields<T extends Source | Repository | RecordSet | Place>(
   evidence: Record<string, unknown>,
   opts: Input["opts"],
   merge: (cur: T) => Partial<T> = () => ({}),
+  /** What the history says besides the fields given (an image taken off), and the records it names. */
+  extra: { said?: string[]; targets?: string[] } = {},
 ): T {
   const id = requireRecord<T>(tree, ref, type).id;
   const given = Object.entries(fields).filter(([, v]) => v !== undefined && !(Array.isArray(v) && v.length === 0));
@@ -147,7 +149,7 @@ function editFields<T extends Source | Repository | RecordSet | Place>(
         throw new UsageError(`changing ${overwritten.join(", ")} of ${id} needs --reason`, { hint: 'what a record says is evidence: e.g. --reason "re-read at full resolution"', code: "record.needs-reason", params: { id, fields: overwritten.map((k) => `--${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`).join(", ") } });
       return { ...cur, ...changes, ...(note ? { notes: [...cur.notes, ...makeNotes(tree, note)] } : {}) };
     },
-    { op: `${type}.edit`, summary: `${id} ${[...given.map(([k]) => k), ...(note ? ["note"] : [])].join(", ") || "edited"}`, reason },
+    { op: `${type}.edit`, summary: `${id} ${[...given.map(([k]) => k), ...(extra.said ?? []), ...(note ? ["note"] : [])].join(", ") || "edited"}`, reason, ...(extra.targets?.length ? { targets: extra.targets } : {}) },
   );
 }
 
@@ -968,17 +970,20 @@ register(
     description:
       "Only the options given change; --media adds images, --note adds a note. Changing what a record says or\n" +
       "how good it is (kind, form, information, date, locator, folio, image, call number, transcript, record set) needs\n" +
-      "--reason; filling in doesn't.",
+      "--reason; filling in doesn't. --media-remove takes an image put to the source wrongly off it, its clips on it\n" +
+      "too (--reason always); a wrong number of the image itself: strom media renumber.",
     args: [{ name: "source", description: "source ID (S0001)", required: true }],
     options: [
       ...editOptions(addOptions("source add"), [{ name: "title", type: "string", value: "<text>", description: "a better title" }]).filter((o) => o.name !== "input"),
       { name: "clip-remove", type: "string", value: "<n|all>", description: "take away a clip that is wrong (its number in strom source show), or all of them" },
+      { name: "media-remove", type: "string", multiple: true, value: "<M…|B…:n>", description: "take an image put to the source wrongly off it, with its clips on it (repeatable; needs --reason)" },
     ],
     examples: [
       'strom source edit S0001 --translation "Jan, son of Josef" --media B0001:2',
       'strom source edit S0001 --information secondary --reason "the entry was written years later"',
       'strom source edit S0001 --url https://archive.example.org/view/58 --image 58 --reason "the archive moved its viewer; found again by call number and folio"',
       "strom source edit S0001 --clip M0001@0.05,0.42,0.45,0.16",
+      'strom source edit S0001 --media-remove M0002 --reason "the next page, not this entry\'s"',
     ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
@@ -987,6 +992,11 @@ register(
       const clips = clipRefs(tree, listOpt(opts.clip), ctx.settings.shared()?.value);
       const drop = str(opts["clip-remove"]);
       const media = [...new Set([...mediaRefs(tree, csvOpt(opts.media)), ...clips.map((c) => c.media)])];
+      // an image taken off the source (put there wrongly, spec 148 K2.1): why, always; never one added in the same edit
+      const removed = [...new Set(mediaRefs(tree, csvOpt(opts["media-remove"])))];
+      if (removed.length && !str(opts.reason)) throw new UsageError("--reason is required", { hint: 'say why the image is not the source\'s: --reason "the next page, not this entry\'s"', code: "reason.missing" });
+      const both = removed.find((id) => media.includes(id));
+      if (both) throw new UsageError(`${both} is both added and taken off`, { hint: `one of --media/--clip ${both} or --media-remove ${both}` });
       let transcript = textOpt(opts.transcript, readText(ctx));
       const hand = transcript?.trim() && typedByHand(ctx.env, { tty: ctx.io.tty, batch: ctx.inBatch });
       let joined: JoinedClip[] = [];
@@ -1000,7 +1010,7 @@ register(
           throw new UsageError(`changing transcript of ${before.id} needs --reason`, { hint: 'what a record says is evidence: e.g. --reason "re-read at full resolution"', code: "record.needs-reason", params: { id: before.id, fields: "--transcript" } });
         proposed = proposeTranscript(tree, before.id, transcript, { why: str(opts.reason)! });
         transcript = undefined;
-        const rest = [opts.title, opts.kind, opts.recordset, opts.repo, opts.locator, opts.folio, opts.image, opts["call-number"], opts.date, opts.translation, opts.language, opts.information, opts.form, opts.url, opts.note, drop].some((v) => v !== undefined) || media.length > 0 || clips.length > 0;
+        const rest = [opts.title, opts.kind, opts.recordset, opts.repo, opts.locator, opts.folio, opts.image, opts["call-number"], opts.date, opts.translation, opts.language, opts.information, opts.form, opts.url, opts.note, drop].some((v) => v !== undefined) || media.length > 0 || clips.length > 0 || removed.length > 0;
         if (!rest) return { text: lines(written(tree), proposed.line), data: { source: tree.get<Source>(before.id), proposal: proposed } };
       }
       const s = editFields<Source>(
@@ -1036,6 +1046,9 @@ register(
               throw new UsageError(kept.length ? `--clip-remove takes 1–${kept.length} or all` : `${cur.id} has no clips`, { hint: `strom source show ${cur.id}` });
             kept = kept.filter((_, i) => i !== n - 1);
           }
+          const off = removed.filter((id) => !(cur.media ?? []).includes(id) && !(cur.clips ?? []).some((c) => c.media === id));
+          if (off.length) throw new UsageError(`${off.join(", ")} ${off.length === 1 ? "is" : "are"} not among the images of ${cur.id}`, { hint: `strom source show ${cur.id}` });
+          kept = kept.filter((c) => !removed.includes(c.media));
           const all = [...kept, ...clips.filter((c) => !kept.some((k) => clipText(k) === clipText(c)))];
           // the research's clips of one image that overlap are one entry cut twice: one clip — those there already only
           // when the history shows the research wrote them (core/clipmerge.ts agentClipped), else they stay as they are
@@ -1048,16 +1061,27 @@ register(
             // --locator "": the locator emptied, its folio and image in their fields (N1-a) — a change as any other
             ...(typeof opts.locator === "string" && !opts.locator.trim() && cur.locator !== undefined ? { locator: undefined } : {}),
             ...(media.some((m) => !(cur.media ?? []).includes(m)) ? { media: [...new Set([...(cur.media ?? []), ...media])] } : {}),
-            ...(drop !== undefined || clips.length ? { clips: next.length ? next : undefined } : {}),
+            ...(removed.length ? { media: (cur.media ?? []).filter((m) => !removed.includes(m)) } : {}),
+            ...(removed.length && !(cur.media ?? []).some((m) => !removed.includes(m)) ? { media: undefined } : {}),
+            ...(drop !== undefined || clips.length || removed.length ? { clips: next.length ? next : undefined } : {}),
             // a new wording typed by hand at the person's terminal: their reading of it (anyone else's: a reading of the
             // wording before counts no more — its mark is another's)
             ...(hand && transcript !== cur.transcript ? { read: { ...cur.read, user: handReading(transcript!, new Date().toISOString()) } } : {}),
           };
         },
+        removed.length ? { said: [`media-remove ${removed.join(" ")} (and its clips)`], targets: removed } : {},
       );
       // a locator that names what the folio or image given now say too: said, the rest proposed (N1)
       const where = opts.locator !== undefined || opts.folio !== undefined || opts.image !== undefined ? locatorOverlap(s) : undefined;
-      return { text: lines(written(tree), where ? overlapLine(s) : undefined, joinedNote(joined), media.length ? clipNote(tree, s) : undefined, media.length || clips.length ? transcriptNote(tree, s) : undefined, proposed?.line), data: { source: s, ...(proposed ? { proposal: proposed } : {}), ...(where ? { locatorOverlap: where } : {}) } };
+      // an image taken off: it can be withdrawn once nothing else cites it
+      const freed = removed.filter((id) => !tree.list<Source>("source").some((x) => !x.retracted && (x.media?.includes(id) || x.clips?.some((c) => c.media === id))));
+      const offLines = removed.length
+        ? [
+            ...(!(s.media ?? []).length && !(s.clips ?? []).length ? [`${s.id} cites no image now: strom source edit ${s.id} --media <M…|B…:n> (or --clip) for the right one`] : []),
+            ...(freed.length ? [`cited by no source now: ${freed.join(", ")} — withdrawn if wrongly registered: strom media retract ${freed[0]} --reason "…"`] : []),
+          ]
+        : [];
+      return { text: lines(written(tree), where ? overlapLine(s) : undefined, joinedNote(joined), media.length ? clipNote(tree, s) : undefined, media.length || clips.length ? transcriptNote(tree, s) : undefined, ...offLines, proposed?.line), data: { source: s, ...(removed.length ? { removed } : {}), ...(proposed ? { proposal: proposed } : {}), ...(where ? { locatorOverlap: where } : {}) } };
     },
   },
   {

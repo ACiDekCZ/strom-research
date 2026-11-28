@@ -48,6 +48,7 @@ import { browserKept, withoutBrowserReason } from "../core/browserhelp.ts";
 import { goesAhead } from "../core/queue.ts";
 import { localDayOf } from "../core/readers.ts";
 import { scanLikeness } from "../core/samescan.ts";
+import { sourceImage } from "../core/sourcefields.ts";
 import { backAfterQuiet, quietMinutes, settled, settlesAt } from "../core/inboxsettle.ts";
 import { entriesOf, entriesText, fileName, sheetNamed } from "../core/scannames.ts";
 import { partOf } from "../core/findpart.ts";
@@ -2198,6 +2199,112 @@ function citesOffer(tree: Tree, copies: Media[], image: Media): string[] {
   });
 }
 
+/** One image's number as strom media renumber sets it right (spec 148): the record, its number before, its number now. */
+interface Renumber {
+  media: Media;
+  from: number;
+  to: number;
+}
+
+/**
+ * The images and their numbers strom media renumber is given ("M0012=10", "B0001:9=10" — the image of that number
+ * now), each once, each of a record set, none withdrawn.
+ */
+function renumbersOf(tree: Tree, args: string[]): Renumber[] {
+  if (!args.length) throw new UsageError("name the images and their numbers: M…=n", { hint: 'strom media renumber M0001=10 --reason "…"' });
+  const all = tree.list<Media>("media");
+  const out: Renumber[] = [];
+  for (const arg of args) {
+    const m = /^\s*([^=\s]+)\s*=\s*(\d+)\s*$/u.exec(arg);
+    if (!m) throw new UsageError(`"${arg}" is no image and its number: M…=n`, { hint: 'strom media renumber M0001=10 M0002=9 --reason "…"', code: "media.renumber.arg" });
+    const at = /^([Bb]\d+):(\d+)$/u.exec(m[1]!);
+    let media: Media | undefined;
+    if (at) {
+      const b = requireRecord<RecordSet>(tree, at[1]!, "recordset").id;
+      media = imageOfRef(all, b, Number(at[2]));
+      if (!media) throw notRegistered(tree, b, Number(at[2]));
+    } else media = requireRecord<Media>(tree, m[1]!, "media");
+    if (out.some((r) => r.media.id === media.id)) throw new UsageError(`${media.id} is named twice`, { hint: "each image once, with its one number" });
+    if (media.retracted) throw new UsageError(`${media.id} is retracted: no view, part or excerpt uses it, its number counts nowhere`, { hint: `strom media show ${media.id}` });
+    if (!media.recordset || media.image === undefined) throw new UsageError(`${media.id} is of no record set: it has no number to set right`, { hint: `strom media show ${media.id}` });
+    out.push({ media, from: media.image, to: Number(m[2]) });
+  }
+  return out;
+}
+
+/** What a renumbering leaves at an image's old number: the parts and other copies of it not named (spec 148 K1.5). */
+interface RenumberLeft {
+  id: string;
+  image: number;
+  recordset: string;
+  /** A part of the image (where it is on the whole image), else another copy of the whole image. */
+  part?: Region;
+  /** The image it was with, renumbered; the whole image at its number after it (none: only parts there). */
+  was: string;
+  with?: string;
+}
+
+/**
+ * The image of each record set at each number after a renumbering: two different scans at one number are refused
+ * (spec 148 K1.4) — another image there or named to it too, unless strom tells the files the same scan (a copy).
+ */
+function renumberClash(shared: string, all: Media[], set: Renumber[]): UsageError | undefined {
+  const after = (x: Media) => set.find((r) => r.media.id === x.id)?.to ?? x.image;
+  const checked = new Set<string>();
+  for (const r of set) {
+    if (r.media.part || r.to === r.from) continue;
+    const there = all.filter((x) => x.id !== r.media.id && !x.retracted && !x.part && x.recordset === r.media.recordset && after(x) === r.to);
+    for (const o of there) {
+      const pair = [r.media.id, o.id].sort().join("-");
+      if (checked.has(pair)) continue;
+      checked.add(pair);
+      const a = path.join(shared, r.media.file);
+      const b = path.join(shared, o.file);
+      const here = fs.existsSync(a) && fs.existsSync(b);
+      if (here && scanLikeness(a, b) === "same") continue;
+      const named = set.some((x) => x.media.id === o.id);
+      return new UsageError(
+        `image ${r.to} of ${r.media.recordset} would be two scans: ${r.media.id} and ${o.id} (${named ? `named to ${r.to} too` : `image ${r.to} now`}) — ${here ? "strom tells them apart: not the same scan" : "not compared: a file is not here"}`,
+        {
+          hint: `${named ? "" : `${o.id} is wrongly numbered too: name it in the same command (strom media renumber ${r.media.id}=${r.to} ${o.id}=<its number> --reason "…"); `}it is another book's image: strom media retract ${o.id} --reason "…"; compare them: strom media view ${r.media.id} ${o.id}`,
+          code: "media.renumber.other-scan",
+          params: { image: String(r.to), recordset: r.media.recordset!, media: r.media.id, other: o.id },
+        },
+      );
+    }
+  }
+  return undefined;
+}
+
+/** The parts and copies of each renumbered image's old number not named: they stay there (said, never moved unasked). */
+function renumberLeft(all: Media[], set: Renumber[]): RenumberLeft[] {
+  const after = (x: Media) => set.find((r) => r.media.id === x.id)?.to ?? x.image;
+  const out: RenumberLeft[] = [];
+  for (const r of set) {
+    if (r.media.part || r.to === r.from) continue;
+    const b = r.media.recordset!;
+    const whole = findImage(
+      all.filter((x) => !x.part).map((x) => ({ ...x, image: after(x) })),
+      b,
+      r.from,
+    );
+    for (const x of all) {
+      if (x.id === r.media.id || x.retracted || x.recordset !== b || x.image !== r.from || set.some((s) => s.media.id === x.id)) continue;
+      if (out.some((l) => l.id === x.id)) continue;
+      out.push({ id: x.id, image: r.from, recordset: b, ...(x.part ? { part: x.part } : {}), was: r.media.id, ...(whole && whole.id !== x.id ? { with: whole.id } : {}) });
+    }
+  }
+  return out;
+}
+
+/** A part or copy a renumbering leaves at its number, said with what to do if it goes with the image. */
+function renumberLeftLine(l: RenumberLeft, set: Renumber[]): string {
+  const to = set.find((r) => r.media.id === l.was)!.to;
+  if (l.part)
+    return `part ${l.id} (${regionText(l.part)}) of image ${l.image} stays image ${l.image}${l.with ? ` — a part of ${l.with} now, not of ${l.was}` : " — with no whole image there now"}: cut from ${l.was}'s scan? name it too: ${l.id}=${to}`;
+  return `${l.id}, another copy of image ${l.image}, stays image ${l.image}: the same scan as ${l.was}? name it too: ${l.id}=${to}`;
+}
+
 register(
   {
     path: ["media", "add"],
@@ -2700,6 +2807,7 @@ register(
           `${m.id} ${m.part ? `part ${regionText(partShown(sharedDir(ctx), all, m)!)} of ` : ""}${b ? `image ${m.image ?? "?"} of ${b.id} ${b.title}` : "image"}${pageLabel(tree, m) ? ` · page ${pageLabel(tree, m)}` : ""}`,
           `${m.width ? `${m.width}×${m.height} px · ` : ""}${Math.round(m.size / 1024)} kB · ${mediaMime(m, ctx.settings.shared()?.value)}${m.from ? ` · from ${m.from}` : ""}${m.url ? ` · ${m.url}` : ""}`,
           m.retracted ? `RETRACTED ${localDayOf(m.retracted.at)}: ${m.retracted.reason} — no view, part or excerpt uses it` : undefined,
+          m.renumbered?.length ? `renumbered: ${m.renumbered.map((r) => `${r.from} → ${r.to} (${localDayOf(r.at)}: ${truncate(r.reason, 80)})`).join(" · ")}` : undefined,
           parts.length ? `parts of it, sharper (a view of the image uses them by itself): ${parts.map((p) => `${p.id} ${regionText(partShown(sharedDir(ctx), all, p)!)}${p.width ? ` ${p.width}×${p.height}` : ""}`).join(" · ")}` : undefined,
           copies.length
             ? `other copies of the image: ${copies.map((c) => `${c.id}${c.width ? ` ${c.width}×${c.height}` : ""}`).join(" · ")} — the image is ${screened.length ? `${image!.id} (${screened.join(", ")}: a screenshot of another frame, not a sharper scan)` : `the sharpest (${image!.id})`}; a view of any copy uses it`
@@ -2715,14 +2823,16 @@ register(
   },
   {
     path: ["media", "retract"],
-    summary: "Withdraw an image registered wrongly — another book's, a wrong number, a part put in the wrong place (kept, marked retracted)",
+    summary: "Withdraw an image registered wrongly — another book's, a part put in the wrong place (kept, marked retracted; a wrong number: strom media renumber)",
     group: "sources",
     tree: true,
     writes: true,
     description:
       "The image stays in the research with the reason, but no view, sharper part or excerpt uses it any more, and its\n" +
-      "file can be registered again where it belongs. An image a source still cites is not withdrawn: move the\n" +
-      "source to the right image first (strom source edit S… --clip …, --clip-remove).",
+      "file can be registered again where it belongs. An image a source still cites is not withdrawn: a wrong number\n" +
+      "is set right with strom media renumber M…=n (its ID and citations stay); an image put to a wrong source is\n" +
+      "taken off it with strom source edit S… --media-remove M… --reason \"…\" (its clips on it too); another copy of\n" +
+      "the same image is cited instead with strom media cites M… --move-to M….",
     args: [{ name: "image", description: "M0012", required: true }],
     examples: ['strom media retract M0001 --reason "a part of another book\'s image 340, not of this one"'],
     run(ctx, { args, opts }) {
@@ -2736,7 +2846,10 @@ register(
         const all = tree.list<Media>("media");
         const image = otherCopies(all, m).length && m.recordset !== undefined && m.image !== undefined ? findImage(all, m.recordset, m.image) : undefined;
         throw new UsageError(`${m.id} is cited by ${citing.map((s) => s.id).join(", ")}`, {
-          hint: image && image.id !== m.id ? `move them to ${image.id}, the image, first: strom media cites ${m.id} --move-to ${image.id}` : `move them to the right image first: strom source show ${citing[0]!.id}`,
+          hint:
+            image && image.id !== m.id
+              ? `move them to ${image.id}, the image, first: strom media cites ${m.id} --move-to ${image.id}`
+              : `a wrong number: strom media renumber ${m.id}=<n> --reason "…" (its ID and citations stay) · put to a wrong source: strom source edit ${citing[0]!.id} --media-remove ${m.id} --reason "…", then retract it`,
         });
       }
       const out = update<Media>(tree, m.id, "media", (x) => ({ ...x, retracted: { at: now(), reason: String(opts.reason) } }), { op: "media.retract", summary: `${m.id} retracted: ${truncate(String(opts.reason), 80)}` });
@@ -2823,6 +2936,114 @@ register(
           left ? `${from.id} stays cited by the clips to mark again; once they are, strom media retract ${from.id} can withdraw it` : `${from.id} stays as it is, cited by nothing now (strom media retract ${from.id} --reason "…" withdraws it, kept)`,
         ),
         data: { media: from.id, to: to.id, moved: moves.map((mv) => ({ source: mv.source.id, carried: mv.carried, left: mv.left })) },
+      };
+    },
+  },
+  {
+    path: ["media", "renumber"],
+    summary: "Set right the number of registered images — the ID, the file, the sources' citations and clips stay",
+    group: "sources",
+    tree: true,
+    writes: true,
+    description:
+      "Each image named with its right number (M…=n): only its number changes (with --url and --page of one image,\n" +
+      "those too); its ID, its file and every source's citation and clip of it stay as they are. The whole set is\n" +
+      "written at once and checked as it ends up: two numbers swapped (M0001=10 M0002=9) is one command. Refused\n" +
+      "when another scan would be at the new number (an image there, or named to it too, that strom does not tell the\n" +
+      "same scan). A part of the image (fetched sharper) goes along only when named; the parts and copies left at the\n" +
+      "old number are said. Kept in the image's history (strom media show); undone by the same command the other way\n" +
+      "round. The image numbers of the sources that take them from their images follow (the Strom app gets them with\n" +
+      "the next sync); a source with its own image numbers keeps them. --reason is required; --dry-run says it all\n" +
+      "first.",
+    args: [{ name: "images", description: "M0012=10 (or B0001:9=10: the image of that number now), one or more", variadic: true }],
+    options: [
+      { name: "url", type: "string", value: "<url>", description: "with one image: where it is now (the archive's page of it)" },
+      // multiple: a folio is no listing's page number (--page of the listings takes a number)
+      { name: "page", type: "string", multiple: true, value: "<folio>", description: "with one image: the page or folio on it" },
+    ],
+    examples: [
+      'strom media renumber M0001=10 --reason "the number as the archive\'s viewer shows it"',
+      'strom media renumber M0001=10 M0002=9 --reason "the two scans were saved under each other\'s numbers" --dry-run',
+      'strom media renumber B0001:12=13 --page 7v --url https://archive.example.org/register/17/13 --reason "one image skipped when saved"',
+    ],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const reason = typeof opts.reason === "string" ? opts.reason.trim() : "";
+      if (!reason) throw new UsageError("--reason is required", { hint: 'say why: --reason "the number as the archive\'s viewer shows it"', code: "reason.missing" });
+      const pages = listOpt(opts.page);
+      if (pages.length > 1) throw new UsageError("--page takes one page or folio", { hint: "with one image: --page 7v" });
+      const page = pages[0];
+      const url = typeof opts.url === "string" ? opts.url.trim() || undefined : undefined;
+      const set = renumbersOf(tree, args);
+      if ((url !== undefined || page !== undefined) && set.length > 1) throw new UsageError("--url and --page go with one image", { hint: "renumber the others in a command of their own, or without them" });
+      const moving = set.filter((r) => r.to !== r.from);
+      if (!moving.length && url === undefined && page === undefined)
+        throw new UsageError(set.length === 1 ? `${set[0]!.media.id} is image ${set[0]!.to} already` : "each image has that number already", { hint: `strom media show ${set[0]!.media.id}` });
+      const shared = sharedDir(ctx);
+      const all = tree.list<Media>("media");
+      const clash = renumberClash(shared, all, set);
+      if (clash) throw clash;
+      const left = renumberLeft(all, set);
+      // the sources that cite them, and their image numbers before and after (sourcefields.ts: their own, else their images')
+      const byId = new Map(all.map((m) => [m.id, m]));
+      const renamed = new Map(set.map((r) => [r.media.id, r.to]));
+      const citing = [...new Map(set.flatMap((r) => citingSources(tree, r.media.id)).map((s) => [s.id, s])).values()];
+      const imageBefore = (id: string) => byId.get(id);
+      const imageAfter = (id: string) => {
+        const m = byId.get(id);
+        return m && renamed.has(id) ? { ...m, image: renamed.get(id)! } : m;
+      };
+      const sources = citing.map((s) => ({ source: s, before: sourceImage(s, imageBefore), after: sourceImage(s, imageAfter) }));
+      const at = now();
+      const records = set.map((r) => ({
+        ...r.media,
+        image: r.to,
+        ...(url !== undefined ? { url } : {}),
+        ...(page !== undefined ? { page } : {}),
+        ...(r.to !== r.from ? { renumbered: [...(r.media.renumbered ?? []), { at, from: r.from, to: r.to, reason }] } : {}),
+        updated: at,
+      }));
+      const said = set.map((r) => `${r.media.id} ${r.media.part ? "part of " : ""}image ${r.from}${r.to !== r.from ? ` → ${r.to}` : ""} in ${r.media.recordset}`);
+      const extra = [...(url !== undefined ? [`url ${url}`] : []), ...(page !== undefined ? [`page ${page}`] : [])];
+      tree.withTreeLock(() =>
+        tree.putMany(records, [], {
+          op: "media.renumber",
+          targets: [...set.map((r) => r.media.id), ...citing.map((s) => s.id), ...new Set(set.map((r) => r.media.recordset!))],
+          summary: `${said.join(", ")}${extra.length ? ` · ${extra.join(" · ")}` : ""}`,
+          reason,
+        }),
+      );
+      // what else stands by the numbers: the connector's number of a fetched image, a calibration point of an old number
+      const fetched = set.filter((r) => r.media.fetched && r.to !== r.from);
+      const calibration = [...new Set(moving.filter((r) => !r.media.part).map((r) => r.media.recordset!))].flatMap((b) => {
+        const book = tree.get<RecordSet>(b);
+        return (book?.calibration ?? []).flatMap((c) => {
+          const r = moving.find((x) => !x.media.part && x.media.recordset === b && x.from === c.image);
+          return r ? [{ recordset: b, image: c.image, page: c.page, media: r.media.id, to: r.to }] : [];
+        });
+      });
+      const derived = sources.filter((x) => x.after?.derived && x.before?.value !== x.after.value);
+      const own = sources.filter((x) => x.before && !x.before.derived);
+      return {
+        text: lines(
+          ...said,
+          ...fetched.map((r) => `${r.media.id} was fetched by the connector ${r.media.fetched!.connector} (book ${r.media.fetched!.book}) as image ${r.from}: its number was the connector's — a fetch of image ${r.to} again takes the archive's image ${r.to}; check it: strom media view ${r.media.id}`),
+          ...left.map((l) => renumberLeftLine(l, set)),
+          ...derived.map((x) => `${x.source.id} ${truncate(x.source.title, 60)}: image ${x.before?.value ?? "none"} → ${x.after!.value} (from its images; the Strom app gets it with the next sync)`),
+          ...own.map((x) => `${x.source.id} ${truncate(x.source.title, 60)} keeps its own image number ${x.before!.value}: wrong too? strom source edit ${x.source.id} --image <n> --reason "…"`),
+          ...calibration.map((c) => `${c.recordset}'s calibration has image ${c.image} = page ${c.page} (kept: the portal's image ${c.image}) — read off ${c.media}? then it is ${c.to}=${c.page}: strom recordset calibrate ${c.recordset} --point ${c.to}=${c.page}`),
+          citing.length ? `cited by ${citing.map((s) => s.id).join(", ")}: their citations and clips stay on the same images` : undefined,
+          moving.length ? `undo: strom media renumber ${moving.map((r) => `${r.media.id}=${r.from}`).join(" ")} --reason "…"` : undefined,
+        ),
+        data: {
+          renumbered: set.map((r) => ({ media: r.media.id, recordset: r.media.recordset, from: r.from, to: r.to })),
+          ...(url !== undefined ? { url } : {}),
+          ...(page !== undefined ? { page } : {}),
+          sources: sources.map((x) => ({ id: x.source.id, image: x.after?.value, ...(x.before?.value !== x.after?.value ? { before: x.before?.value } : {}), own: x.before ? !x.before.derived : false })),
+          left: left.map((l) => ({ id: l.id, recordset: l.recordset, image: l.image, ...(l.part ? { part: l.part } : {}), was: l.was, ...(l.with ? { with: l.with } : {}) })),
+          fetched: fetched.map((r) => r.media.id),
+          calibration,
+        },
       };
     },
   },

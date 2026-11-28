@@ -1364,6 +1364,7 @@ export const UI = {
   "ui.help.cmd.demo": "Try strom on a sample research — a made-up family, apart from the own family trees",
   "ui.help.cmd.tidy": "Free the disk of what strom keeps beside the research (shown first, then asked)",
   "ui.help.cmd.media.calibrate": "Tune the size of scan views for the research's agent and model on the research's own proven records (paid model work; the cost is said first)",
+  "ui.help.cmd.media.renumber": "Set right the number of a registered image (the sources' citations and clips of it stay; the reason is kept in its history)",
   "ui.help.cmd.check": "Check the research: everything in order, nothing changed behind strom's back",
   "ui.help.cmd.task.order": "A task's turn: next, at the end, or back to the queue's order",
   "ui.help.cmd.offline.list": "The branches off the lines (an ancestor's sister and her family): how each is taken",

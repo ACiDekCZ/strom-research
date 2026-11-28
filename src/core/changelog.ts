@@ -360,6 +360,11 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       if (m?.image !== undefined) images.get(key)!.push(m.image);
       continue;
     }
+    // the numbers of images set right (strom media renumber, spec 148): one line for each image, by its number now
+    if (o.op === "media.renumber") {
+      for (const id of o.targets.filter((t) => /^M\d+$/u.test(t))) say(phrase(lang, "log.media.renumber", { name: name(id) }));
+      continue;
+    }
     // a citation taken off (an undo of a send): said as that, never as "a record for" (found on Mac: "E0013 cites no
     // more S0007: sync I0014 undone" in English to a person)
     if (/^\S+ cites no more /.test(o.summary)) {

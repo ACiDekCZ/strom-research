@@ -507,6 +507,7 @@ export const PHRASES = {
   "log.image": "{name}, image {image}",
   "log.media.edit": "Image changed: {name}",
   "log.media.retract": "Image withdrawn: {name}",
+  "log.media.renumber": "Image number set right: {name}",
   "log.input.edit": "Material added to: {name}",
   "log.input.skip": "Material put aside as of no use: {name}",
   "log.input.sort": "Material sorted: {name}",
